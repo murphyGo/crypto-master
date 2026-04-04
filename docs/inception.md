@@ -1,62 +1,59 @@
 # Crypto Master Project
 
-## Project 개요
+## Project Overview
 
-이 프로젝트는 자동화된 크립토 트레이딩 어플리케이션이다.
-셀프 피드백 루프로 스스로 개선하고 성과를 높이는 방향으로 진화한다.
+This project is an automated crypto trading application.
+It evolves through a self-feedback loop to continuously improve itself and enhance performance.
 
-이 문서를 기반으로 requirement.md를 생성한다.
+This document serves as the basis for generating requirements.md.
 
-## 기술 스택
+## Tech Stack
 
-- Python 3.10+ 사용
+- Python 3.10+
 - Claude
 
-## 주요 기능
+## Key Features
 
-- 비트코인 차트 분석: 비트코인 트레이딩을 주로 한다. 차트 분석 기법으로 비트코인 트레이팅 포인트를 도출한다.
-- 알트코인 차트 분석: 알트코인의 차트를 차트 분석 기법으로 분석하여 트레이팅 포인트를 도출한다.
-- 차트 분석 기법: 차트 분석 기법을 사전 정의해 두고 해당 기법으로 분석을 진행한다. 분석 기법은 md 파일을 통한 자연어 프롬프트로 정의할 수도 있고, 코드 스니펫일 수도 있다. 모든 차트 분석 기법은 저장되어
-  있고, 각 분석 기법의 성과 또한 트래킹되어 저장된다.
-- 트레이딩 전략: 도출된 트레이딩 포인트로 손익비를 계산하고 배율, 진입가 및 익절가, 손절가를 설정한다.
-- 트레이딩 모드: 실전 트레이딩, 모의 트레이딩 둘 다 가능하다.
-- 비트코인 트레이딩 사용자 제안: 비트코인 베스트 차트 분석 기법으로 분석, 트레이딩 전략 도출하여 좋은 성과가 가능하면 트레이딩을 제안한다. 사용자가 수락하면 트레이딩을 진행한다.
-- 알트코인 트레이딩 사용자 제안: 여러 알트코인을 베스트 차트 분석 기법으로 분석, 트레이딩 전략 도출하여 가장 성과과 좋을 토큰의 트레이딩을 제안한다. 사용자가 수락하면 트레이딩을 진행한다.
-- 거래소: 다양한 거래소를 지원할 수 있는 구조여야 한다.
-- 차트 분석 기법 생성 및 백테스팅 피드백 루프: 기존 차트 분석 기법 성과 기반으로 개선 또는 전혀 새로운 아이디어를 Claude가 자동으로 제시한다. 또는 사용자가 제시한 방법으로도 아이디어를 생성한다. 그리고
-  백테스팅을 진행하여 성과를 확인한다. Claude가 자동화된 피드백 루프로 기법을 개선한다. 백테스팅 성과를 바탕으로 아이디어를 개선, 보완하여 발전시켜 성과를 높인다. 성과가 좋을 경우 사용자에게 제시하여
-  수락하면 정식 차트 분석 기법으로 도입한다.
-- 차트 분석 및 익절가, 손절가 등의 생성은 일부 코드 스니펫으로 대체할 수 있지만, 모든 분석, 트레이딩, 차트 분석 기법 생성은 Claude AI agent가 담당한다.
-- UI Dashboard: 차트 분석 기법과 진행중인 트레이딩, 차트 분석 기법 생성 현황, 자산 및 성과 요약을 한눈에 확인할 수 있는 웹 대시보드
+- **Bitcoin Chart Analysis**: Primarily trades Bitcoin. Uses chart analysis techniques to derive Bitcoin trading points.
+- **Altcoin Chart Analysis**: Analyzes altcoin charts using chart analysis techniques to derive trading points.
+- **Chart Analysis Techniques**: Pre-defined chart analysis techniques are used for analysis. Techniques can be defined as natural language prompts in md files or as code snippets. All chart analysis techniques are stored, and the performance of each technique is tracked and saved.
+- **Trading Strategy**: Calculates risk/reward ratio from derived trading points and sets leverage, entry price, take-profit, and stop-loss levels.
+- **Trading Modes**: Supports both live trading and paper trading.
+- **Bitcoin Trading Proposals**: Analyzes Bitcoin using the best chart analysis technique, derives trading strategy, and proposes trades when good performance is expected. Trading proceeds if the user accepts.
+- **Altcoin Trading Proposals**: Analyzes multiple altcoins using the best chart analysis techniques, derives trading strategies, and proposes trades for the token with the best expected performance. Trading proceeds if the user accepts.
+- **Exchanges**: Must support multiple exchanges with an extensible architecture.
+- **Chart Analysis Technique Generation & Backtesting Feedback Loop**: Claude automatically suggests improvements based on existing technique performance or generates entirely new ideas. Users can also provide ideas for technique generation. Backtesting is performed to verify performance. Claude improves techniques through an automated feedback loop. Ideas are refined and enhanced based on backtesting results to improve performance. If performance is good, it's presented to the user for approval to adopt as an official chart analysis technique.
+- **AI-Driven Analysis**: While chart analysis, take-profit/stop-loss generation can be partially replaced by code snippets, all analysis, trading, and chart analysis technique generation is handled by the Claude AI agent.
+- **UI Dashboard**: A web dashboard to view chart analysis techniques, ongoing trades, technique generation status, and asset/performance summary at a glance.
 
-핵심은 모든 과정이 Claude Agent로 동작하며, 분석, 트레이딩 기법이 자동화된 피드백 루프로 진화해야 한다는 것이다.
+The core principle is that all processes run through Claude Agent, and analysis/trading techniques must evolve through an automated feedback loop.
 
 ## Claude
 
-Anthropic API는 일단 사용하지 않는다.
-Claude가 필요한 부분은 Claude를 실행해서 결과를 받아오는 방식 (e.g. claude -p "Do something..." > result.md)
+Anthropic API is not used for now.
+Parts requiring Claude use the CLI execution method (e.g., `claude -p "Do something..." > result.md`)
 
-## 거래소
+## Exchanges
 
-아래 거래소들을 지원한다. 추후 변경될 수 있다.
+The following exchanges are supported. Subject to change in the future.
 
 - Binance
 - Bybit
 - Tapbit
 
-## 관리 데이터
+## Managed Data
 
-아래 정보들을 md 파일 또는 코드로 저장, 관리할 필요가 있다.
+The following information needs to be stored and managed in md files or code:
 
-- 차트 분석 기법
-- 차트 분석 기법 실험 및 백테스팅 결과
-- 트레이딩 이력
-- 현재 자산, PnL, 자산 변경 이력 (모의, 실전 둘다)
+- Chart analysis techniques
+- Chart analysis technique experiments and backtesting results
+- Trading history
+- Current assets, PnL, asset change history (both paper and live)
 
 ## Credentials
 
-- secret 등 중요한 정보는 .env 파일에 저장한다. (.gitignore에 추가)
+- Sensitive information such as secrets are stored in .env file (added to .gitignore)
 
-## 빌드 명령어
+## Build Commands
 
 

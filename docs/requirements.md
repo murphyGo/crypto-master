@@ -1,176 +1,176 @@
-# Crypto Master - 요구사항 명세서
+# Crypto Master - Requirements Specification
 
-## 1. 개요
+## 1. Overview
 
-### 1.1 프로젝트 목적
+### 1.1 Project Purpose
 
-Crypto Master는 자동화된 크립토 트레이딩 어플리케이션이다. Claude AI Agent를 활용하여 차트 분석, 트레이딩 전략 수립, 실행을 자동화하며, 셀프 피드백 루프를 통해 분석 기법을 지속적으로 개선하고 성과를 높인다.
+Crypto Master is an automated crypto trading application. It leverages Claude AI Agent to automate chart analysis, trading strategy development, and execution, while continuously improving analysis techniques and enhancing performance through a self-feedback loop.
 
-### 1.2 범위
+### 1.2 Scope
 
-- 비트코인 및 알트코인 차트 분석
-- 자동화된 트레이딩 전략 수립 및 실행
-- 실전/모의 트레이딩 지원
-- AI 기반 분석 기법 자동 생성 및 개선
-- 백테스팅을 통한 전략 검증
-- 웹 대시보드를 통한 현황 모니터링
+- Bitcoin and altcoin chart analysis
+- Automated trading strategy development and execution
+- Live and paper trading support
+- AI-based automatic generation and improvement of analysis techniques
+- Strategy validation through backtesting
+- Status monitoring via web dashboard
 
-### 1.3 참조 문서
+### 1.3 Reference Documents
 
-- `docs/inception.md` - 프로젝트 컨셉 문서
+- `docs/inception.md` - Project concept document
 
 ---
 
-## 2. 기능 요구사항 (Functional Requirements)
+## 2. Functional Requirements
 
-### 2.1 차트 분석 시스템
+### 2.1 Chart Analysis System
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-001 | 비트코인 차트 분석 | 비트코인 차트를 분석하여 트레이딩 포인트를 도출한다 | High |
-| FR-002 | 알트코인 차트 분석 | 알트코인 차트를 분석하여 트레이딩 포인트를 도출한다 | High |
-| FR-003 | 차트 분석 기법 정의 | md 프롬프트 또는 Python 코드 스니펫으로 분석 기법을 정의한다 | High |
-| FR-004 | 분석 기법 저장/관리 | 모든 분석 기법을 파일 시스템에 저장하고 관리한다 | High |
-| FR-005 | 분석 기법 성과 트래킹 | 각 분석 기법의 성과(승률, 수익률 등)를 기록하고 추적한다 | High |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-001 | Bitcoin Chart Analysis | Analyze Bitcoin charts to derive trading points | High |
+| FR-002 | Altcoin Chart Analysis | Analyze altcoin charts to derive trading points | High |
+| FR-003 | Chart Analysis Technique Definition | Define analysis techniques as md prompts or Python code snippets | High |
+| FR-004 | Analysis Technique Storage/Management | Store and manage all analysis techniques in the file system | High |
+| FR-005 | Analysis Technique Performance Tracking | Record and track the performance (win rate, profit rate, etc.) of each analysis technique | High |
 
-### 2.2 트레이딩 전략
+### 2.2 Trading Strategy
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-006 | 손익비 계산 | 트레이딩 포인트에서 손익비(Risk/Reward Ratio)를 자동 계산한다 | High |
-| FR-007 | 배율 설정 | 레버리지 배율을 설정한다 | Medium |
-| FR-008 | 진입가/익절가/손절가 설정 | 각 가격 포인트를 자동으로 설정한다 | High |
-| FR-009 | 실전 트레이딩 모드 | 실제 자금으로 거래를 실행한다 | High |
-| FR-010 | 모의 트레이딩 모드 | 가상 자금으로 트레이딩을 시뮬레이션한다 | High |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-006 | Risk/Reward Calculation | Automatically calculate Risk/Reward Ratio from trading points | High |
+| FR-007 | Leverage Setting | Configure leverage multiplier | Medium |
+| FR-008 | Entry/Take-Profit/Stop-Loss Setting | Automatically set each price point | High |
+| FR-009 | Live Trading Mode | Execute trades with real funds | High |
+| FR-010 | Paper Trading Mode | Simulate trading with virtual funds | High |
 
-### 2.3 트레이딩 제안 시스템
+### 2.3 Trading Proposal System
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-011 | 비트코인 트레이딩 제안 | 베스트 분석 기법으로 비트코인을 분석하고 좋은 기회 발견 시 트레이딩을 제안한다 | High |
-| FR-012 | 알트코인 트레이딩 제안 | 여러 알트코인을 분석하고 가장 높은 성과가 예상되는 토큰의 트레이딩을 제안한다 | High |
-| FR-013 | 사용자 수락/거절 | 트레이딩 제안에 대해 사용자가 수락 또는 거절할 수 있다 | High |
-| FR-014 | 제안 이력 관리 | 모든 제안과 그 결과(수락/거절, 실제 성과)를 이력으로 저장한다 | Medium |
-| FR-015 | 제안 알림 | 좋은 트레이딩 기회 발견 시 사용자에게 알림을 보낸다 | Medium |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-011 | Bitcoin Trading Proposal | Analyze Bitcoin using the best analysis technique and propose trades when good opportunities are found | High |
+| FR-012 | Altcoin Trading Proposal | Analyze multiple altcoins and propose trades for the token with the highest expected performance | High |
+| FR-013 | User Accept/Reject | Users can accept or reject trading proposals | High |
+| FR-014 | Proposal History Management | Store all proposals and their results (accept/reject, actual performance) as history | Medium |
+| FR-015 | Proposal Notification | Notify users when good trading opportunities are found | Medium |
 
-### 2.4 거래소 연동
+### 2.4 Exchange Integration
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-016 | Binance 연동 | Binance API를 통해 거래 및 데이터 조회를 수행한다 | High |
-| FR-017 | Bybit 연동 | Bybit API를 통해 거래 및 데이터 조회를 수행한다 | High |
-| FR-018 | Tapbit 연동 | Tapbit API를 통해 거래 및 데이터 조회를 수행한다 | Medium |
-| FR-019 | 거래소 추상화 | 공통 인터페이스를 통해 거래소를 추상화하여 새 거래소 추가를 용이하게 한다 | High |
-| FR-020 | 과거 차트 데이터 조회 | 거래소 API를 통해 백테스팅용 과거 OHLCV 데이터를 수집한다 | High |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-016 | Binance Integration | Execute trades and query data through Binance API | High |
+| FR-017 | Bybit Integration | Execute trades and query data through Bybit API | High |
+| FR-018 | Tapbit Integration | Execute trades and query data through Tapbit API | Medium |
+| FR-019 | Exchange Abstraction | Abstract exchanges through a common interface to facilitate adding new exchanges | High |
+| FR-020 | Historical Chart Data Query | Collect historical OHLCV data for backtesting through exchange APIs | High |
 
-### 2.5 피드백 루프 시스템
+### 2.5 Feedback Loop System
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-021 | 기법 성과 분석 | 기존 분석 기법의 성과를 자동으로 분석하고 리포트를 생성한다 | High |
-| FR-022 | 기법 개선 제안 (Claude) | Claude가 성과 데이터를 기반으로 기법 개선안을 자동 생성한다 | High |
-| FR-023 | 새 기법 아이디어 생성 | Claude가 전혀 새로운 분석 기법 아이디어를 생성한다 | High |
-| FR-024 | 사용자 아이디어 입력 | 사용자가 제시한 아이디어를 기반으로 새 분석 기법을 생성한다 | Medium |
-| FR-025 | 백테스팅 실행 | 과거 데이터를 사용하여 분석 기법의 성과를 검증한다 | High |
-| FR-026 | 자동화 피드백 루프 | 백테스팅 → 분석 → 개선 → 재검증의 사이클을 자동화한다 | High |
-| FR-027 | 기법 정식 도입 | 백테스팅 성과가 좋은 기법을 사용자 승인 후 정식 기법으로 도입한다 | High |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-021 | Technique Performance Analysis | Automatically analyze the performance of existing analysis techniques and generate reports | High |
+| FR-022 | Technique Improvement Suggestion (Claude) | Claude automatically generates technique improvement suggestions based on performance data | High |
+| FR-023 | New Technique Idea Generation | Claude generates entirely new analysis technique ideas | High |
+| FR-024 | User Idea Input | Generate new analysis techniques based on ideas provided by users | Medium |
+| FR-025 | Backtesting Execution | Validate analysis technique performance using historical data | High |
+| FR-026 | Automated Feedback Loop | Automate the cycle of backtesting → analysis → improvement → revalidation | High |
+| FR-027 | Technique Adoption | Adopt techniques with good backtesting performance as official techniques after user approval | High |
 
 ### 2.6 UI Dashboard
 
-| ID | 요구사항 | 설명 | 우선순위 |
-|----|---------|------|----------|
-| FR-028 | 차트 분석 기법 현황 | 등록된 분석 기법 목록과 각 기법의 성과를 표시한다 | Medium |
-| FR-029 | 진행 중 트레이딩 | 현재 오픈된 포지션과 상태를 실시간으로 표시한다 | Medium |
-| FR-030 | 기법 생성 현황 | 피드백 루프의 진행 상황(실험 중인 기법, 백테스팅 결과 등)을 표시한다 | Medium |
-| FR-031 | 자산 및 성과 요약 | 총 자산, PnL, 승률 등 성과 지표를 그래프와 함께 표시한다 | Medium |
-| FR-032 | Streamlit 웹앱 | Streamlit을 사용하여 웹 대시보드를 구현한다 | Medium |
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-028 | Chart Analysis Technique Status | Display list of registered analysis techniques and performance of each technique | Medium |
+| FR-029 | Active Trading | Display currently open positions and their status in real-time | Medium |
+| FR-030 | Technique Generation Status | Display feedback loop progress (techniques under experimentation, backtesting results, etc.) | Medium |
+| FR-031 | Asset and Performance Summary | Display performance metrics such as total assets, PnL, win rate with charts | Medium |
+| FR-032 | Streamlit Web App | Implement web dashboard using Streamlit | Medium |
 
 ---
 
-## 3. 비기능 요구사항 (Non-Functional Requirements)
+## 3. Non-Functional Requirements
 
-### 3.1 기술 스택
+### 3.1 Tech Stack
 
-| ID | 요구사항 | 설명 |
-|----|---------|------|
-| NFR-001 | Python 3.10+ | Python 3.10 이상 버전을 사용한다 |
-| NFR-002 | Claude CLI 연동 | Anthropic API 대신 `claude -p "..."` 방식으로 Claude CLI를 호출하여 AI 기능을 구현한다 |
-| NFR-003 | Streamlit UI | 웹 대시보드는 Streamlit을 사용하여 구현한다 |
-| NFR-004 | 환경변수 관리 | API 키 등 민감한 정보는 `.env` 파일을 통해 관리하고 `.gitignore`에 포함한다 |
+| ID | Requirement | Description |
+|----|-------------|-------------|
+| NFR-001 | Python 3.10+ | Use Python version 3.10 or higher |
+| NFR-002 | Claude CLI Integration | Implement AI features by calling Claude CLI using `claude -p "..."` instead of Anthropic API |
+| NFR-003 | Streamlit UI | Implement web dashboard using Streamlit |
+| NFR-004 | Environment Variable Management | Manage sensitive information such as API keys through `.env` file and include in `.gitignore` |
 
-### 3.2 데이터 관리
+### 3.2 Data Management
 
-| ID | 요구사항 | 설명 |
-|----|---------|------|
-| NFR-005 | 분석 기법 저장 | 분석 기법은 md 파일(프롬프트 기반) 또는 Python 코드로 저장한다 |
-| NFR-006 | 백테스팅 결과 저장 | 백테스팅 결과는 JSON 또는 CSV 형식으로 구조화하여 저장한다 |
-| NFR-007 | 트레이딩 이력 저장 | 모든 거래 이력(진입, 청산, 손익)을 기록한다 |
-| NFR-008 | 자산/PnL 이력 | 자산 변동 및 손익 이력을 실전/모의 모드별로 분리하여 기록한다 |
+| ID | Requirement | Description |
+|----|-------------|-------------|
+| NFR-005 | Analysis Technique Storage | Store analysis techniques as md files (prompt-based) or Python code |
+| NFR-006 | Backtesting Result Storage | Store backtesting results in structured format (JSON or CSV) |
+| NFR-007 | Trading History Storage | Record all trading history (entry, exit, profit/loss) |
+| NFR-008 | Asset/PnL History | Record asset changes and profit/loss history separately for live/paper modes |
 
-### 3.3 확장성
+### 3.3 Extensibility
 
-| ID | 요구사항 | 설명 |
-|----|---------|------|
-| NFR-009 | 거래소 확장성 | 새로운 거래소를 추가할 때 기존 코드 변경을 최소화할 수 있는 플러그인 구조를 갖춘다 |
-| NFR-010 | 분석 기법 확장성 | 새로운 분석 기법을 추가할 때 기존 코드 변경 없이 파일 추가만으로 가능하게 한다 |
+| ID | Requirement | Description |
+|----|-------------|-------------|
+| NFR-009 | Exchange Extensibility | Have a plugin architecture that minimizes existing code changes when adding new exchanges |
+| NFR-010 | Analysis Technique Extensibility | Enable adding new analysis techniques by simply adding files without modifying existing code |
 
-### 3.4 보안
+### 3.4 Security
 
-| ID | 요구사항 | 설명 |
-|----|---------|------|
-| NFR-011 | API 키 보호 | 거래소 API 키는 환경변수로 관리하고 코드에 하드코딩하지 않는다 |
-| NFR-012 | 실전 거래 확인 | 실전 트레이딩 실행 전 사용자의 명시적 확인을 받는다 |
-
----
-
-## 4. 제약 사항
-
-| ID | 제약 사항 | 설명 |
-|----|----------|------|
-| CON-001 | Anthropic API 미사용 | Anthropic API를 직접 호출하지 않고 Claude CLI만 사용한다 |
-| CON-002 | Rate Limit 준수 | 각 거래소의 API Rate Limit을 준수한다 |
-| CON-003 | 사용자 승인 필수 | 실전 트레이딩 및 새 기법 도입 시 사용자의 명시적 승인이 필요하다 |
+| ID | Requirement | Description |
+|----|-------------|-------------|
+| NFR-011 | API Key Protection | Manage exchange API keys as environment variables, do not hardcode in source code |
+| NFR-012 | Live Trading Confirmation | Require explicit user confirmation before executing live trades |
 
 ---
 
-## 5. 용어 정의
+## 4. Constraints
 
-| 용어 | 정의 |
-|------|------|
-| **차트 분석 기법** | 차트 패턴, 기술적 지표 등을 활용하여 매매 신호를 도출하는 방법론. md 프롬프트 또는 Python 코드로 정의된다 |
-| **트레이딩 포인트** | 매매 진입 또는 청산을 위한 가격, 조건, 시점 정보의 집합 |
-| **백테스팅** | 과거 시장 데이터를 사용하여 트레이딩 전략의 성과를 사후 검증하는 과정 |
-| **피드백 루프** | 트레이딩 결과를 분석하여 전략을 자동으로 개선하는 순환 과정 |
-| **손익비 (R/R)** | Risk/Reward Ratio. 예상 손실 대비 예상 이익의 비율 |
-| **OHLCV** | Open, High, Low, Close, Volume. 캔들스틱 차트의 기본 데이터 |
-| **PnL** | Profit and Loss. 손익 |
+| ID | Constraint | Description |
+|----|------------|-------------|
+| CON-001 | No Anthropic API | Do not call Anthropic API directly, only use Claude CLI |
+| CON-002 | Rate Limit Compliance | Comply with each exchange's API rate limits |
+| CON-003 | User Approval Required | Explicit user approval is required for live trading and new technique adoption |
 
 ---
 
-## 6. 요구사항 추적 매트릭스
+## 5. Glossary
 
-### inception.md 기능 → 요구사항 매핑
+| Term | Definition |
+|------|------------|
+| **Chart Analysis Technique** | A methodology that derives trading signals using chart patterns, technical indicators, etc. Defined as md prompts or Python code |
+| **Trading Point** | A set of price, conditions, and timing information for trade entry or exit |
+| **Backtesting** | The process of retrospectively validating trading strategy performance using historical market data |
+| **Feedback Loop** | A cyclical process that automatically improves strategies by analyzing trading results |
+| **Risk/Reward (R/R)** | Risk/Reward Ratio. The ratio of expected profit to expected loss |
+| **OHLCV** | Open, High, Low, Close, Volume. Basic candlestick chart data |
+| **PnL** | Profit and Loss |
 
-| inception.md 기능 | 관련 요구사항 |
-|------------------|--------------|
-| 비트코인 차트 분석 | FR-001 |
-| 알트코인 차트 분석 | FR-002 |
-| 차트 분석 기법 정의/저장 | FR-003, FR-004, NFR-005 |
-| 분석 기법 성과 트래킹 | FR-005 |
-| 트레이딩 전략 (손익비, 배율, 가격 설정) | FR-006, FR-007, FR-008 |
-| 트레이딩 모드 (실전/모의) | FR-009, FR-010 |
-| 비트코인 트레이딩 사용자 제안 | FR-011, FR-013 |
-| 알트코인 트레이딩 사용자 제안 | FR-012, FR-013 |
-| 거래소 지원 (Binance, Bybit, Tapbit) | FR-016, FR-017, FR-018, FR-019 |
-| 피드백 루프 (기법 개선, 백테스팅) | FR-021 ~ FR-027 |
+---
+
+## 6. Requirements Traceability Matrix
+
+### inception.md Features → Requirements Mapping
+
+| inception.md Feature | Related Requirements |
+|---------------------|---------------------|
+| Bitcoin Chart Analysis | FR-001 |
+| Altcoin Chart Analysis | FR-002 |
+| Chart Analysis Technique Definition/Storage | FR-003, FR-004, NFR-005 |
+| Analysis Technique Performance Tracking | FR-005 |
+| Trading Strategy (R/R, Leverage, Price Setting) | FR-006, FR-007, FR-008 |
+| Trading Modes (Live/Paper) | FR-009, FR-010 |
+| Bitcoin Trading User Proposal | FR-011, FR-013 |
+| Altcoin Trading User Proposal | FR-012, FR-013 |
+| Exchange Support (Binance, Bybit, Tapbit) | FR-016, FR-017, FR-018, FR-019 |
+| Feedback Loop (Technique Improvement, Backtesting) | FR-021 ~ FR-027 |
 | Claude AI Agent | NFR-002 |
 | UI Dashboard | FR-028 ~ FR-032, NFR-003 |
 | Credentials (.env) | NFR-004, NFR-011 |
 
 ---
 
-## 변경 이력
+## Change History
 
-| 버전 | 날짜 | 변경 내용 | 작성자 |
-|------|------|----------|--------|
-| 1.0 | 2026-04-05 | 초기 작성 | Claude |
+| Version | Date | Changes | Author |
+|---------|------|---------|--------|
+| 1.0 | 2026-04-05 | Initial creation | Claude |
