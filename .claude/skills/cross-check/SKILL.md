@@ -32,11 +32,12 @@
 
 | Component | 관련 파일 | 요구사항 |
 |-----------|----------|---------|
-| collectors | `src/collectors/*.py` | FR-001, FR-002, FR-003 |
-| summarizer | `src/summarizer.py` | FR-004, FR-005 |
-| notifier | `src/slack_notifier.py` | FR-006, FR-007 |
-| cli | `src/main.py` | FR-008, FR-009, FR-010 |
-| config | `src/config.py` | NFR-004, NFR-005 |
+| analyzer | `src/analyzer/*.py` | FR-001, FR-002 |
+| strategy | `src/strategy/*.py` | FR-003, FR-004 |
+| trader | `src/trader/*.py` | FR-005, FR-006 |
+| exchange | `src/exchange/*.py` | FR-007, FR-008 |
+| dashboard | `src/dashboard/*.py` | FR-009, FR-010 |
+| config | `src/config.py` | NFR-001, NFR-002 |
 
 ### Step 2: 요구사항 로드
 
@@ -184,7 +185,7 @@ development-plan.md에 추가? (yes/no)
 ## 다른 Skill과의 연동
 
 ### Cross-Check 트리거
-- `/dev-ai-report` Phase 완료 후 자동
+- `/dev-crypto` Phase 완료 후 자동
 - 재검증을 위한 수동 호출
 
 ### Cross-Check 출력 대상

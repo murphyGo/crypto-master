@@ -1,6 +1,6 @@
-# AI Report Development Skill
+# Crypto Master Development Skill
 
-개발 계획을 따라 AI Report 서비스를 점진적으로 개발합니다.
+개발 계획을 따라 Crypto Master 서비스를 점진적으로 개발합니다.
 
 ## Arguments
 
@@ -8,7 +8,7 @@
 
 ## Objective
 
-개발 계획에서 한 번에 하나의 sub-task를 실행하여 AI Report 서비스를 점진적으로 개발합니다. 요구사항 준수, 모범 사례, 단위 테스트를 통해 품질을 보장합니다.
+개발 계획에서 한 번에 하나의 sub-task를 실행하여 Crypto Master 서비스를 점진적으로 개발합니다. 요구사항 준수, 모범 사례, 단위 테스트를 통해 품질을 보장합니다.
 
 ---
 
@@ -324,15 +324,15 @@
 
 다음 대기 중인 태스크 개발:
 ```
-/dev-ai-report
+/dev-crypto
 ```
 
 특정 Phase 작업:
 ```
-/dev-ai-report phase2
+/dev-crypto phase2
 ```
 
 특정 sub-task 작업:
 ```
-/dev-ai-report 2.1
+/dev-crypto 2.1
 ```

@@ -67,7 +67,7 @@
 ```
 ## TECH-DEBT Dashboard
 
-**Service**: ai-report
+**Service**: crypto-master
 **Generated**: YYYY-MM-DD HH:MM
 
 ---
@@ -233,7 +233,7 @@ development-plan.md에 추가? (yes/no)
 - TECH-DEBT.md: 승격 노트 추가됨
 
 ### Next Steps
-1. /dev-ai-report 실행하여 승격된 태스크 작업
+1. /dev-crypto 실행하여 승격된 태스크 작업
 2. 완료 시 DEBT-NNN resolved 표시
 ```
 
