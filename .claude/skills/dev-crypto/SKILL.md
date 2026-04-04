@@ -174,6 +174,19 @@ After successful implementation:
 - Add unfixed issues from code review
 - Mark resolved debt items
 
+**5.4 Create ADR** (if significant architectural decision was made):
+
+ADR-worthy decisions:
+- Affects system architecture or component boundaries
+- Chooses between multiple valid approaches
+- Has long-term implications worth documenting
+
+If ADR needed:
+1. Find highest existing number in `docs/adr/`
+2. Create `docs/adr/NNNN-<short-title>.md` using `docs/adr/TEMPLATE.md`
+3. Reference ADR in session log
+
+
 ### Step 6: Update Development Plan
 
 After documentation:

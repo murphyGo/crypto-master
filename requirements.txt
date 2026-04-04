@@ -1,0 +1,25 @@
+# Crypto Master - Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Exchange integration
+ccxt>=4.0.0
+
+# Dashboard
+streamlit>=1.30.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Development dependencies (optional)
+# Install with: pip install -r requirements.txt && pip install -e ".[dev]"
+# pytest>=8.0.0
+# pytest-asyncio>=0.23.0
+# pytest-cov>=4.1.0
+# black>=24.0.0
+# ruff>=0.3.0
+# mypy>=1.8.0
