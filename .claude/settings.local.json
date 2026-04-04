@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "mcp__slack__get_team_id",
+      "mcp__slack__list_my_channels",
+      "WebFetch(domain:google.github.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:grafana.com)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+  ]
+}
