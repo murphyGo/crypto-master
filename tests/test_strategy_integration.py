@@ -13,6 +13,7 @@ import pytest
 from src.models import OHLCV, AnalysisResult
 from src.strategy import (
     PromptStrategy,
+    StrategyExecutionError,
     StrategyValidationError,
     clear_strategy_cache,
     get_available_strategies,
@@ -397,14 +398,54 @@ class TestPromptStrategyFormatting:
         assert "{ohlcv_data}" in template
 
     @pytest.mark.asyncio
-    async def test_analyze_still_raises_not_implemented(
+    async def test_analyze_calls_claude_cli(
         self, prompt_strategy: PromptStrategy, sample_ohlcv: list[OHLCV]
     ) -> None:
-        """Test that analyze still raises NotImplementedError."""
+        """Test that analyze calls Claude CLI and returns AnalysisResult."""
+        from unittest.mock import AsyncMock, patch
+
         # Need at least 20 candles
         ohlcv = sample_ohlcv * 3  # 30 candles
 
-        with pytest.raises(NotImplementedError) as exc_info:
-            await prompt_strategy.analyze(ohlcv, "BTC/USDT", "4h")
+        mock_response = {
+            "signal": "long",
+            "confidence": 0.85,
+            "entry_price": 100.5,
+            "stop_loss": 98.0,
+            "take_profit": 105.0,
+            "reasoning": "Strong uptrend detected",
+        }
 
-        assert "Phase 3.3" in str(exc_info.value)
+        mock_client = AsyncMock()
+        mock_client.analyze.return_value = mock_response
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client):
+            result = await prompt_strategy.analyze(ohlcv, "BTC/USDT", "4h")
+
+        assert isinstance(result, AnalysisResult)
+        assert result.signal == "long"
+        assert result.confidence == 0.85
+        assert result.reasoning == "Strong uptrend detected"
+
+    @pytest.mark.asyncio
+    async def test_analyze_raises_strategy_error_on_claude_failure(
+        self, prompt_strategy: PromptStrategy, sample_ohlcv: list[OHLCV]
+    ) -> None:
+        """Test that analyze raises StrategyExecutionError when Claude fails."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.ai.exceptions import ClaudeTimeoutError
+
+        # Need at least 20 candles
+        ohlcv = sample_ohlcv * 3  # 30 candles
+
+        mock_client = AsyncMock()
+        mock_client.analyze.side_effect = ClaudeTimeoutError(
+            "Timeout", timeout_seconds=120.0
+        )
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client):
+            with pytest.raises(StrategyExecutionError) as exc_info:
+                await prompt_strategy.analyze(ohlcv, "BTC/USDT", "4h")
+
+            assert "Claude analysis failed" in str(exc_info.value)

@@ -15,9 +15,12 @@ from pathlib import Path
 
 import yaml
 
+from decimal import Decimal
+
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import (
     BaseStrategy,
+    StrategyExecutionError,
     StrategyLoadError,
     StrategyValidationError,
     TechniqueInfo,
@@ -117,9 +120,6 @@ class PromptStrategy(BaseStrategy):
     ) -> AnalysisResult:
         """Analyze using Claude CLI with the prompt template.
 
-        Note: Claude integration will be implemented in Phase 3.3.
-        This method currently raises NotImplementedError.
-
         Args:
             ohlcv: OHLCV candlestick data.
             symbol: Trading pair symbol.
@@ -129,12 +129,42 @@ class PromptStrategy(BaseStrategy):
             AnalysisResult from Claude analysis.
 
         Raises:
-            NotImplementedError: Claude integration not yet implemented.
+            StrategyValidationError: If input data is invalid.
+            StrategyExecutionError: If Claude analysis fails.
         """
+        from src.ai import ClaudeCLI, ClaudeError
+
+        # Validate input
         self.validate_input(ohlcv)
-        raise NotImplementedError(
-            "Claude integration not yet implemented. See Phase 3.3."
-        )
+
+        # Format the prompt with actual data
+        prompt = self.format_prompt(ohlcv, symbol, timeframe)
+
+        # Execute Claude CLI
+        try:
+            client = ClaudeCLI()
+            response = await client.analyze(prompt)
+        except ClaudeError as e:
+            raise StrategyExecutionError(
+                f"Claude analysis failed: {e}",
+                strategy_name=self.name,
+            ) from e
+
+        # Validate and convert response to AnalysisResult
+        try:
+            return AnalysisResult(
+                signal=response["signal"],
+                confidence=float(response["confidence"]),
+                entry_price=Decimal(str(response["entry_price"])),
+                stop_loss=Decimal(str(response["stop_loss"])),
+                take_profit=Decimal(str(response["take_profit"])),
+                reasoning=response.get("reasoning", ""),
+            )
+        except (KeyError, ValueError, TypeError) as e:
+            raise StrategyExecutionError(
+                f"Invalid Claude response format: {e}. Response: {response}",
+                strategy_name=self.name,
+            ) from e
 
 
 def load_technique_info_from_md(file_path: Path) -> tuple[TechniqueInfo, str]:

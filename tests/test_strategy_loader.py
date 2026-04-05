@@ -50,16 +50,20 @@ class TestPromptStrategy:
         assert strategy.name == "test_prompt"
 
     @pytest.mark.asyncio
-    async def test_prompt_strategy_analyze_raises_not_implemented(
+    async def test_prompt_strategy_analyze_calls_claude(
         self, technique_info: TechniqueInfo
     ) -> None:
-        """Test analyze raises NotImplementedError until Claude integration."""
+        """Test analyze calls Claude CLI and returns AnalysisResult."""
         from datetime import datetime
         from decimal import Decimal
+        from unittest.mock import AsyncMock, patch
 
-        from src.models import OHLCV
+        from src.models import OHLCV, AnalysisResult
 
-        strategy = PromptStrategy(info=technique_info, prompt_content="Test")
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content="Analyze {symbol} on {timeframe}: {ohlcv_data}",
+        )
         ohlcv = [
             OHLCV(
                 timestamp=datetime.now(),
@@ -71,9 +75,24 @@ class TestPromptStrategy:
             )
             for _ in range(25)
         ]
-        with pytest.raises(NotImplementedError) as exc_info:
-            await strategy.analyze(ohlcv, "BTC/USDT")
-        assert "Phase 3.3" in str(exc_info.value)
+
+        mock_response = {
+            "signal": "long",
+            "confidence": 0.8,
+            "entry_price": 102,
+            "stop_loss": 95,
+            "take_profit": 110,
+            "reasoning": "Test reasoning",
+        }
+        mock_client = AsyncMock()
+        mock_client.analyze.return_value = mock_response
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client):
+            result = await strategy.analyze(ohlcv, "BTC/USDT")
+
+        assert isinstance(result, AnalysisResult)
+        assert result.signal == "long"
+        assert result.confidence == 0.8
 
 
 class TestLoadTechniqueInfoFromMd:
