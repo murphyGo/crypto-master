@@ -59,6 +59,56 @@ class PromptStrategy(BaseStrategy):
         """
         return self._prompt_content
 
+    def format_prompt(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str,
+    ) -> str:
+        """Format the prompt template with actual data.
+
+        Substitutes placeholders in the prompt template with real values:
+        - {symbol} -> Trading pair symbol
+        - {timeframe} -> Candle timeframe
+        - {ohlcv_data} -> Formatted OHLCV data
+
+        Uses simple string replacement to avoid conflicts with JSON
+        braces in the template.
+
+        Args:
+            ohlcv: OHLCV candlestick data.
+            symbol: Trading pair symbol.
+            timeframe: Candle timeframe.
+
+        Returns:
+            Formatted prompt string ready for Claude.
+        """
+        ohlcv_text = self._format_ohlcv_data(ohlcv)
+        result = self._prompt_content
+        result = result.replace("{symbol}", symbol)
+        result = result.replace("{timeframe}", timeframe)
+        result = result.replace("{ohlcv_data}", ohlcv_text)
+        return result
+
+    def _format_ohlcv_data(self, ohlcv: list[OHLCV], max_candles: int = 50) -> str:
+        """Format OHLCV data as CSV text for Claude.
+
+        Args:
+            ohlcv: OHLCV candlestick data.
+            max_candles: Maximum number of candles to include.
+
+        Returns:
+            CSV-formatted OHLCV data string.
+        """
+        lines = ["timestamp,open,high,low,close,volume"]
+        for candle in ohlcv[-max_candles:]:
+            lines.append(
+                f"{candle.timestamp.isoformat()},"
+                f"{candle.open},{candle.high},{candle.low},"
+                f"{candle.close},{candle.volume}"
+            )
+        return "\n".join(lines)
+
     async def analyze(
         self,
         ohlcv: list[OHLCV],

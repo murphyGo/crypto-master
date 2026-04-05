@@ -27,6 +27,7 @@ from src.strategy.factory import (
     get_strategies_by_status,
     get_strategies_by_symbol,
     get_strategy,
+    load_strategies_from_directory,
     register_strategy,
 )
 from src.strategy.loader import (
@@ -55,6 +56,7 @@ __all__ = [
     "get_available_strategies",
     "get_strategies_by_symbol",
     "get_strategies_by_status",
+    "load_strategies_from_directory",
     "clear_strategy_cache",
     "clear_strategy_registry",
     # Loader functions
