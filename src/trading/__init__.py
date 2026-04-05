@@ -11,6 +11,13 @@ Related Requirements:
 - FR-010: Paper Trading Mode
 """
 
+from src.trading.paper import (
+    InsufficientPaperBalanceError,
+    OpenPosition,
+    PaperBalance,
+    PaperTrader,
+    PaperTradingError,
+)
 from src.trading.strategy import (
     InsufficientBalanceError,
     TradingError,
@@ -24,7 +31,13 @@ __all__ = [
     "TradingError",
     "TradingValidationError",
     "InsufficientBalanceError",
-    # Classes
+    "PaperTradingError",
+    "InsufficientPaperBalanceError",
+    # Strategy Classes
     "TradingStrategy",
     "TradingStrategyConfig",
+    # Paper Trading Classes
+    "PaperTrader",
+    "PaperBalance",
+    "OpenPosition",
 ]
