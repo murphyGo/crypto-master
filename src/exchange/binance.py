@@ -47,10 +47,16 @@ class BinanceExchange(BaseExchange):
     Related Requirements:
     - FR-016: Binance Integration
     - FR-019: Exchange Abstraction
+    - FR-010: Paper Trading Mode (via testnet)
     - CON-002: Rate Limit Compliance
     """
 
     name = "binance"
+
+    # API URLs (for reference - ccxt handles routing via sandbox parameter)
+    MAINNET_URL = "https://api.binance.com"
+    TESTNET_SPOT_URL = "https://testnet.binance.vision"
+    TESTNET_FUTURES_URL = "https://testnet.binancefutures.com"
 
     # Timeframe mapping: project timeframes to ccxt/Binance timeframes
     TIMEFRAME_MAP: dict[str, str] = {
@@ -70,14 +76,15 @@ class BinanceExchange(BaseExchange):
             config: Binance configuration with API credentials and market type
             testnet: Whether to use testnet (sandbox) mode
         """
+        super().__init__(testnet=testnet)
         self.config = config
-        self.testnet = testnet
         self._client: ccxt.binance | ccxt.binanceusdm | None = None
 
     async def connect(self) -> None:
         """Initialize connection to Binance.
 
         Creates the appropriate ccxt client based on market_type.
+        Uses testnet credentials if testnet=True and testnet keys are configured.
         Validates credentials by loading markets.
 
         Raises:
@@ -90,11 +97,14 @@ class BinanceExchange(BaseExchange):
             else:
                 exchange_class = ccxt.binance
 
+            # Get appropriate credentials (testnet or live)
+            api_key, api_secret = self.config.get_credentials()
+
             # Initialize ccxt client
             self._client = exchange_class(
                 {
-                    "apiKey": self.config.api_key,
-                    "secret": self.config.api_secret,
+                    "apiKey": api_key,
+                    "secret": api_secret,
                     "sandbox": self.testnet,
                     "enableRateLimit": True,
                     "options": {

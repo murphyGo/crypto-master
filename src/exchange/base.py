@@ -44,10 +44,15 @@ class BaseExchange(ABC):
     Related Requirements:
     - FR-019: Exchange Abstraction
     - NFR-009: Exchange Extensibility
+    - FR-010: Paper Trading Mode (via testnet support)
 
     All exchange implementations must inherit from this class and implement
     the abstract methods. This ensures a consistent interface across all
     supported exchanges.
+
+    Attributes:
+        name: Exchange identifier (e.g., "binance", "bybit").
+        testnet: Whether to use testnet/sandbox mode.
 
     Usage:
         async with exchange as ex:
@@ -56,6 +61,14 @@ class BaseExchange(ABC):
     """
 
     name: str  # Exchange name (e.g., "binance", "bybit")
+
+    def __init__(self, testnet: bool = False) -> None:
+        """Initialize base exchange.
+
+        Args:
+            testnet: Whether to use testnet/sandbox mode for paper trading.
+        """
+        self.testnet = testnet
 
     @abstractmethod
     async def connect(self) -> None:

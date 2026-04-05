@@ -19,7 +19,10 @@
 | Analysis Technique Framework | ✅ Complete | 3 |
 | Claude Integration | ✅ Complete | 3 |
 | Trading Strategy | ✅ Complete | 4 |
-| Paper Trading | ✅ Complete | 4 |
+| Exchange Testnet Support | ✅ Complete | 4 |
+| Paper Trading (Local) | ✅ Complete | 4 |
+| Paper Trading (Testnet) | ❌ Missing | 4 |
+| Paper Trading (Fees) | ❌ Missing | 4 |
 | Live Trading | ❌ Missing | 4 |
 | Backtesting | ❌ Missing | 5 |
 | Feedback Loop | ❌ Missing | 5 |
@@ -148,15 +151,36 @@
 - [x] Position size calculation
 - [x] Write unit tests
 
-### 4.2 Paper Trading Engine
+### 4.2 Exchange Testnet Support
 
+- [x] Add `testnet: bool` parameter to `BaseExchange` abstract class
+- [x] Add testnet URL configuration to `BinanceExchange` (testnet.binance.vision)
+- [x] Add testnet URL configuration to `BybitExchange` (testnet.bybit.com)
+- [x] Add testnet API key configuration to Settings (separate from live keys)
+- [x] Write unit tests for testnet mode
+
+### 4.3 Paper Trading Engine
+
+**Local Simulation (Complete):**
 - [x] `src/trading/paper.py` - PaperTrader class
 - [x] Virtual asset (balance) management
 - [x] Order simulation (entry, take-profit, stop-loss)
 - [x] Trade history recording (`data/trades/paper/`)
 - [x] Write unit tests
 
-### 4.3 Live Trading Engine
+**Exchange Testnet Integration (Primary):**
+- [ ] Update PaperTrader to accept exchange instance in testnet mode
+- [ ] Use exchange testnet for order execution when available
+- [ ] Fetch real testnet balances from exchange
+- [ ] Write integration tests with testnet
+
+**Fee Simulation (Fallback):**
+- [ ] Add fee configuration to PaperTrader (maker/taker fees per exchange)
+- [ ] Calculate and deduct fees on order execution
+- [ ] Include fees in P&L calculation
+- [ ] Write unit tests for fee calculation
+
+### 4.4 Live Trading Engine
 
 - [ ] `src/trading/live.py` - LiveTrader class
 - [ ] Exchange-connected order execution
@@ -165,7 +189,7 @@
 - [ ] Trade history recording (`data/trades/live/`)
 - [ ] Write unit tests
 
-### 4.4 Asset/PnL Management
+### 4.5 Asset/PnL Management
 
 - [ ] `src/trading/portfolio.py` - Portfolio management
 - [ ] Asset history storage (`data/portfolio/`)
@@ -173,7 +197,7 @@
 - [ ] Separate storage by paper/live mode
 - [ ] Write unit tests
 
-### 4.5 Trading Strategy Profiles
+### 4.6 Trading Strategy Profiles
 
 - [ ] `src/trading/profiles.py` - TradingProfile model (risk params, entry/exit rules)
 - [ ] `src/trading/profile_loader.py` - Load profiles from YAML/JSON files
@@ -328,3 +352,5 @@
 | 4.1 | 2026-04-05 | Phase 4.1 complete - Trading Strategy Module (FR-006, FR-007, FR-008) | Claude |
 | 4.5 | 2026-04-06 | Added Phase 4.5 - Trading Strategy Profiles (technique+profile combinations) | Claude |
 | 4.2 | 2026-04-06 | Phase 4.2 complete - Paper Trading Engine (FR-010, NFR-007, NFR-008) | Claude |
+| 4.x | 2026-04-06 | Restructured Phase 4: Added 4.2 Exchange Testnet Support, split 4.3 Paper Trading into Local/Testnet/Fees, renumbered Live→4.4, Asset→4.5, Profiles→4.6 | Claude |
+| 4.2 | 2026-04-06 | Phase 4.2 complete - Exchange Testnet Support (FR-010, NFR-009, NFR-011) | Claude |

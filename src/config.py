@@ -19,42 +19,86 @@ class BinanceConfig(BaseSettings):
     """Binance exchange configuration.
 
     Environment variables:
-    - BINANCE_API_KEY: API key for Binance
-    - BINANCE_API_SECRET: API secret for Binance
+    - BINANCE_API_KEY: API key for Binance (live/mainnet)
+    - BINANCE_API_SECRET: API secret for Binance (live/mainnet)
+    - BINANCE_TESTNET_API_KEY: API key for Binance testnet
+    - BINANCE_TESTNET_API_SECRET: API secret for Binance testnet
     - BINANCE_MARKET_TYPE: Market type (spot/futures)
     - BINANCE_TESTNET: Whether to use testnet
     """
 
     api_key: str = ""
     api_secret: str = ""
+    testnet_api_key: str = ""
+    testnet_api_secret: str = ""
     market_type: Literal["spot", "futures"] = "futures"
     testnet: bool = True
 
     model_config = SettingsConfigDict(env_prefix="BINANCE_")
 
     def is_configured(self) -> bool:
-        """Check if API credentials are configured."""
-        return bool(self.api_key and self.api_secret)
+        """Check if API credentials are configured.
+
+        Returns True if either live or testnet credentials are set.
+        """
+        has_live = bool(self.api_key and self.api_secret)
+        has_testnet = bool(self.testnet_api_key and self.testnet_api_secret)
+        return has_live or has_testnet
+
+    def get_credentials(self) -> tuple[str, str]:
+        """Get appropriate API credentials based on testnet setting.
+
+        Returns testnet credentials if testnet=True and testnet keys are set,
+        otherwise returns live credentials.
+
+        Returns:
+            Tuple of (api_key, api_secret).
+        """
+        if self.testnet and self.testnet_api_key:
+            return self.testnet_api_key, self.testnet_api_secret
+        return self.api_key, self.api_secret
 
 
 class BybitConfig(BaseSettings):
     """Bybit exchange configuration.
 
     Environment variables:
-    - BYBIT_API_KEY: API key for Bybit
-    - BYBIT_API_SECRET: API secret for Bybit
+    - BYBIT_API_KEY: API key for Bybit (live/mainnet)
+    - BYBIT_API_SECRET: API secret for Bybit (live/mainnet)
+    - BYBIT_TESTNET_API_KEY: API key for Bybit testnet
+    - BYBIT_TESTNET_API_SECRET: API secret for Bybit testnet
     - BYBIT_TESTNET: Whether to use testnet
     """
 
     api_key: str = ""
     api_secret: str = ""
+    testnet_api_key: str = ""
+    testnet_api_secret: str = ""
     testnet: bool = True
 
     model_config = SettingsConfigDict(env_prefix="BYBIT_")
 
     def is_configured(self) -> bool:
-        """Check if API credentials are configured."""
-        return bool(self.api_key and self.api_secret)
+        """Check if API credentials are configured.
+
+        Returns True if either live or testnet credentials are set.
+        """
+        has_live = bool(self.api_key and self.api_secret)
+        has_testnet = bool(self.testnet_api_key and self.testnet_api_secret)
+        return has_live or has_testnet
+
+    def get_credentials(self) -> tuple[str, str]:
+        """Get appropriate API credentials based on testnet setting.
+
+        Returns testnet credentials if testnet=True and testnet keys are set,
+        otherwise returns live credentials.
+
+        Returns:
+            Tuple of (api_key, api_secret).
+        """
+        if self.testnet and self.testnet_api_key:
+            return self.testnet_api_key, self.testnet_api_secret
+        return self.api_key, self.api_secret
 
 
 class Settings(BaseSettings):

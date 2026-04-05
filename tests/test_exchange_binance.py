@@ -70,6 +70,12 @@ class TestBinanceExchangeInit:
         expected = {"1m", "5m", "15m", "1h", "4h", "1d", "1w"}
         assert set(BinanceExchange.TIMEFRAME_MAP.keys()) == expected
 
+    def test_url_constants_exist(self) -> None:
+        """Test URL constants are defined for reference."""
+        assert BinanceExchange.MAINNET_URL == "https://api.binance.com"
+        assert BinanceExchange.TESTNET_SPOT_URL == "https://testnet.binance.vision"
+        assert BinanceExchange.TESTNET_FUTURES_URL == "https://testnet.binancefutures.com"
+
 
 class TestBinanceExchangeConnect:
     """Tests for connect/disconnect methods."""
@@ -132,6 +138,53 @@ class TestBinanceExchangeConnect:
             call_args = mock_class.call_args[0][0]
             assert call_args["sandbox"] is True
             assert call_args["enableRateLimit"] is True
+
+    @pytest.mark.asyncio
+    async def test_connect_uses_testnet_credentials(self) -> None:
+        """Test connect uses testnet credentials when testnet=True."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=True,
+        )
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_client = AsyncMock()
+            mock_class.return_value = mock_client
+
+            exchange = BinanceExchange(config=config, testnet=True)
+            await exchange.connect()
+
+            # Check the credentials passed to ccxt
+            call_args = mock_class.call_args[0][0]
+            assert call_args["apiKey"] == "testnet_key"
+            assert call_args["secret"] == "testnet_secret"
+
+    @pytest.mark.asyncio
+    async def test_connect_uses_live_credentials_when_testnet_false(self) -> None:
+        """Test connect uses live credentials when testnet=False."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_client = AsyncMock()
+            mock_class.return_value = mock_client
+
+            exchange = BinanceExchange(config=config, testnet=False)
+            await exchange.connect()
+
+            # Check the credentials passed to ccxt
+            call_args = mock_class.call_args[0][0]
+            assert call_args["apiKey"] == "live_key"
+            assert call_args["secret"] == "live_secret"
+            assert call_args["sandbox"] is False
 
     @pytest.mark.asyncio
     async def test_connect_authentication_error(

@@ -89,8 +89,8 @@ class MockExchange(BaseExchange):
         self, config: object = None, testnet: bool = False, should_fail: bool = False
     ) -> None:
         """Initialize mock exchange."""
+        super().__init__(testnet=testnet)
         self.config = config
-        self.testnet = testnet
         self.should_fail = should_fail
         self.connected = False
 
@@ -163,6 +163,26 @@ class MockExchange(BaseExchange):
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get mock open orders."""
         return []
+
+
+class TestBaseExchangeTestnet:
+    """Tests for BaseExchange testnet parameter."""
+
+    def test_testnet_defaults_to_false(self) -> None:
+        """Test testnet defaults to False."""
+        exchange = MockExchange()
+        assert exchange.testnet is False
+
+    def test_testnet_can_be_set_true(self) -> None:
+        """Test testnet can be set to True."""
+        exchange = MockExchange(testnet=True)
+        assert exchange.testnet is True
+
+    def test_testnet_is_stored_as_attribute(self) -> None:
+        """Test testnet is stored as instance attribute."""
+        exchange = MockExchange(testnet=True)
+        assert hasattr(exchange, "testnet")
+        assert exchange.testnet is True
 
 
 class TestBaseExchangeImplementation:

@@ -77,6 +77,63 @@ class TestBinanceConfig:
             assert config.api_secret == "env_secret"
             assert config.market_type == "spot"
 
+    def test_get_credentials_returns_live_keys_when_testnet_false(self) -> None:
+        """Test get_credentials returns live keys when testnet=False."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+        key, secret = config.get_credentials()
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_get_credentials_returns_testnet_keys_when_testnet_true(self) -> None:
+        """Test get_credentials returns testnet keys when testnet=True."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=True,
+        )
+        key, secret = config.get_credentials()
+        assert key == "testnet_key"
+        assert secret == "testnet_secret"
+
+    def test_get_credentials_fallback_to_live_when_no_testnet_keys(self) -> None:
+        """Test get_credentials falls back to live keys when testnet keys not set."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet=True,
+        )
+        key, secret = config.get_credentials()
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_is_configured_true_with_testnet_keys(self) -> None:
+        """Test is_configured returns True when only testnet credentials are set."""
+        config = BinanceConfig(
+            testnet_api_key="testnet_key", testnet_api_secret="testnet_secret"
+        )
+        assert config.is_configured() is True
+
+    def test_testnet_keys_load_from_env(self) -> None:
+        """Test testnet keys load from environment variables."""
+        with patch.dict(
+            os.environ,
+            {
+                "BINANCE_TESTNET_API_KEY": "env_testnet_key",
+                "BINANCE_TESTNET_API_SECRET": "env_testnet_secret",
+            },
+        ):
+            config = BinanceConfig()
+            assert config.testnet_api_key == "env_testnet_key"
+            assert config.testnet_api_secret == "env_testnet_secret"
+
 
 class TestBybitConfig:
     """Tests for BybitConfig."""
@@ -117,6 +174,63 @@ class TestBybitConfig:
             assert config.api_key == "env_key"
             assert config.api_secret == "env_secret"
             assert config.testnet is False
+
+    def test_get_credentials_returns_live_keys_when_testnet_false(self) -> None:
+        """Test get_credentials returns live keys when testnet=False."""
+        config = BybitConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+        key, secret = config.get_credentials()
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_get_credentials_returns_testnet_keys_when_testnet_true(self) -> None:
+        """Test get_credentials returns testnet keys when testnet=True."""
+        config = BybitConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=True,
+        )
+        key, secret = config.get_credentials()
+        assert key == "testnet_key"
+        assert secret == "testnet_secret"
+
+    def test_get_credentials_fallback_to_live_when_no_testnet_keys(self) -> None:
+        """Test get_credentials falls back to live keys when testnet keys not set."""
+        config = BybitConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet=True,
+        )
+        key, secret = config.get_credentials()
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_is_configured_true_with_testnet_keys(self) -> None:
+        """Test is_configured returns True when only testnet credentials are set."""
+        config = BybitConfig(
+            testnet_api_key="testnet_key", testnet_api_secret="testnet_secret"
+        )
+        assert config.is_configured() is True
+
+    def test_testnet_keys_load_from_env(self) -> None:
+        """Test testnet keys load from environment variables."""
+        with patch.dict(
+            os.environ,
+            {
+                "BYBIT_TESTNET_API_KEY": "env_testnet_key",
+                "BYBIT_TESTNET_API_SECRET": "env_testnet_secret",
+            },
+        ):
+            config = BybitConfig()
+            assert config.testnet_api_key == "env_testnet_key"
+            assert config.testnet_api_secret == "env_testnet_secret"
 
 
 class TestSettings:
