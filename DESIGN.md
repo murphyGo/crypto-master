@@ -144,7 +144,9 @@ class TradingEngine:
 - Feedback loop progress
 - Portfolio and PnL summary
 
-## 3. Data Models (`src/models.py`)
+## 3. Data Models (`src/models.py`, `src/strategy/performance.py`)
+
+### 3.1 Core Models (`src/models.py`)
 
 ```python
 @dataclass
@@ -186,19 +188,67 @@ class AnalysisResult:
     reasoning: str
 ```
 
+### 3.2 Performance Models (`src/strategy/performance.py`)
+
+```python
+class PerformanceRecord(BaseModel):
+    """Analysis/trade performance record with execution details."""
+    id: str
+    technique_name: str
+    technique_version: str
+    symbol: str
+    signal: Literal["long", "short", "neutral"]
+    entry_price: Decimal
+    stop_loss: Decimal
+    take_profit: Decimal
+    confidence: float
+    outcome: TradeOutcome
+    # Trade execution details
+    quantity: Decimal | None
+    leverage: int
+    fees: Decimal
+    mode: Literal["backtest", "paper", "live"]
+    trade_id: str | None  # Link to TradeHistory
+
+class TradeHistory(BaseModel):
+    """Complete trade lifecycle record (NFR-007)."""
+    id: str
+    performance_record_id: str | None  # Link to PerformanceRecord
+    symbol: str
+    side: Literal["long", "short"]
+    mode: Literal["backtest", "paper", "live"]
+    entry_price: Decimal
+    entry_quantity: Decimal
+    entry_time: datetime
+    exit_price: Decimal | None
+    exit_time: datetime | None
+    leverage: int
+    fees: Decimal
+    pnl: Decimal | None
+    pnl_percent: float | None
+    status: Literal["open", "closed", "cancelled"]
+    close_reason: str | None
+```
+
 ## 4. Data Storage
 
 ```
 data/
 ├── logs/                  # Application logs
 │   └── crypto-master.log
-├── trades/                # Trade history
+├── trades/                # Trade history (NFR-007, NFR-008)
+│   ├── backtest/         # Backtesting trade records
+│   │   └── trades.json
 │   ├── paper/            # Paper trading records
+│   │   └── trades.json
 │   └── live/             # Live trading records
+│       └── trades.json
 ├── backtest/             # Backtesting results
 │   └── {strategy}_{date}.json
-├── performance/          # Strategy performance
-│   └── {strategy}.json
+├── performance/          # Strategy performance (FR-005)
+│   └── {technique_name}/
+│       ├── records.json  # PerformanceRecord list
+│       └── summary.json  # TechniquePerformance aggregate
 ├── portfolio/            # Portfolio history
 │   ├── paper/
 │   └── live/

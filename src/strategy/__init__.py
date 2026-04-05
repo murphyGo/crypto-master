@@ -43,6 +43,8 @@ from src.strategy.performance import (
     PerformanceRecord,
     PerformanceTracker,
     TechniquePerformance,
+    TradeHistory,
+    TradeHistoryTracker,
     TradeOutcome,
 )
 
@@ -77,4 +79,7 @@ __all__ = [
     "PerformanceRecord",
     "TechniquePerformance",
     "PerformanceTracker",
+    # Trade history tracking (NFR-007)
+    "TradeHistory",
+    "TradeHistoryTracker",
 ]

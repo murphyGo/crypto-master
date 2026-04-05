@@ -1,6 +1,7 @@
 """Tests for strategy performance tracking.
 
-Tests PerformanceRecord, TechniquePerformance, and PerformanceTracker.
+Tests PerformanceRecord, TechniquePerformance, PerformanceTracker,
+TradeHistory, and TradeHistoryTracker.
 """
 
 import json
@@ -16,6 +17,8 @@ from src.strategy.performance import (
     PerformanceRecord,
     PerformanceTracker,
     TechniquePerformance,
+    TradeHistory,
+    TradeHistoryTracker,
     TradeOutcome,
 )
 
@@ -765,3 +768,659 @@ class TestPerformanceStorage:
         assert isinstance(data[0]["analysis_timestamp"], str)
         # Should be parseable
         datetime.fromisoformat(data[0]["analysis_timestamp"])
+
+
+class TestPerformanceRecordEnhanced:
+    """Tests for PerformanceRecord enhanced fields (NFR-007)."""
+
+    def test_create_record_with_trade_fields(self) -> None:
+        """Test creating record with trade execution details."""
+        record = PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            quantity=Decimal("0.1"),
+            leverage=10,
+            fees=Decimal("5.50"),
+            actual_entry_price=Decimal("50010"),
+            mode="paper",
+        )
+
+        assert record.quantity == Decimal("0.1")
+        assert record.leverage == 10
+        assert record.fees == Decimal("5.50")
+        assert record.actual_entry_price == Decimal("50010")
+        assert record.mode == "paper"
+
+    def test_default_trade_fields(self) -> None:
+        """Test default values for trade execution fields."""
+        record = PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+        )
+
+        assert record.quantity is None
+        assert record.leverage == 1
+        assert record.fees == Decimal("0")
+        assert record.actual_entry_price is None
+        assert record.actual_exit_price is None
+        assert record.mode == "backtest"
+        assert record.trade_id is None
+
+    def test_trade_id_link(self) -> None:
+        """Test record can be linked to trade ID."""
+        record = PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            trade_id="abc-123-def",
+        )
+
+        assert record.trade_id == "abc-123-def"
+
+    def test_record_serialization_with_trade_fields(
+        self, tracker: PerformanceTracker, tmp_path: Path
+    ) -> None:
+        """Test enhanced fields are serialized correctly."""
+        record = PerformanceRecord(
+            technique_name="test_enhanced",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            quantity=Decimal("0.5"),
+            leverage=5,
+            fees=Decimal("10.25"),
+            mode="live",
+        )
+
+        tracker.save_record(record)
+
+        records_path = tmp_path / "test_enhanced" / "records.json"
+        with open(records_path) as f:
+            data = json.load(f)
+
+        assert data[0]["quantity"] == "0.5"
+        assert data[0]["leverage"] == 5
+        assert data[0]["fees"] == "10.25"
+        assert data[0]["mode"] == "live"
+
+
+class TestTradeHistory:
+    """Tests for TradeHistory model."""
+
+    def test_create_trade_history(self) -> None:
+        """Test creating a TradeHistory record."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+        )
+
+        assert trade.id is not None
+        assert trade.symbol == "BTC/USDT"
+        assert trade.side == "long"
+        assert trade.mode == "paper"
+        assert trade.status == "open"
+        assert trade.leverage == 1
+        assert trade.fees == Decimal("0")
+
+    def test_trade_id_is_unique(self) -> None:
+        """Test each trade gets a unique ID."""
+        trade1 = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+        )
+        trade2 = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+        )
+
+        assert trade1.id != trade2.id
+
+    def test_decimal_conversion(self) -> None:
+        """Test numeric values are converted to Decimal."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=50000,  # int
+            entry_quantity="0.1",  # string
+            fees=5.5,  # float
+        )
+
+        assert isinstance(trade.entry_price, Decimal)
+        assert isinstance(trade.entry_quantity, Decimal)
+        assert isinstance(trade.fees, Decimal)
+
+    def test_calculate_pnl_long_win(self) -> None:
+        """Test P&L calculation for winning long trade."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            exit_price=Decimal("52000"),
+            exit_quantity=Decimal("0.1"),
+            leverage=10,
+            fees=Decimal("10"),
+        )
+
+        pnl, pnl_pct = trade.calculate_pnl()
+
+        assert pnl is not None
+        # (52000 - 50000) * 0.1 * 10 - 10 = 2000 * 0.1 * 10 - 10 = 2000 - 10 = 1990
+        assert pnl == Decimal("1990")
+        # (2000/50000) * 100 * 10 = 0.04 * 100 * 10 = 40%
+        assert abs(pnl_pct - 40.0) < 0.01
+
+    def test_calculate_pnl_short_win(self) -> None:
+        """Test P&L calculation for winning short trade."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="short",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            exit_price=Decimal("48000"),
+            exit_quantity=Decimal("0.1"),
+            leverage=5,
+            fees=Decimal("5"),
+        )
+
+        pnl, pnl_pct = trade.calculate_pnl()
+
+        assert pnl is not None
+        # (50000 - 48000) * 0.1 * 5 - 5 = 2000 * 0.1 * 5 - 5 = 1000 - 5 = 995
+        assert pnl == Decimal("995")
+        # (2000/50000) * 100 * 5 = 0.04 * 100 * 5 = 20%
+        assert abs(pnl_pct - 20.0) < 0.01
+
+    def test_calculate_pnl_long_loss(self) -> None:
+        """Test P&L calculation for losing long trade."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            exit_price=Decimal("49000"),
+            exit_quantity=Decimal("0.1"),
+            leverage=10,
+            fees=Decimal("10"),
+        )
+
+        pnl, pnl_pct = trade.calculate_pnl()
+
+        assert pnl is not None
+        # (49000 - 50000) * 0.1 * 10 - 10 = -1000 * 0.1 * 10 - 10 = -1000 - 10 = -1010
+        assert pnl == Decimal("-1010")
+        assert pnl_pct < 0
+
+    def test_calculate_pnl_open_trade(self) -> None:
+        """Test P&L returns None for open trade."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+        )
+
+        pnl, pnl_pct = trade.calculate_pnl()
+        assert pnl is None
+        assert pnl_pct is None
+
+    def test_link_to_performance_record(self) -> None:
+        """Test trade can be linked to performance record."""
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            performance_record_id="perf-123",
+        )
+
+        assert trade.performance_record_id == "perf-123"
+
+
+@pytest.fixture
+def trade_tracker(tmp_path: Path) -> TradeHistoryTracker:
+    """Create a TradeHistoryTracker with temporary directory."""
+    return TradeHistoryTracker(data_dir=tmp_path)
+
+
+class TestTradeHistoryTracker:
+    """Tests for TradeHistoryTracker class."""
+
+    def test_init_default_dir(self) -> None:
+        """Test tracker initializes with default directory."""
+        tracker = TradeHistoryTracker()
+        assert "trades" in str(tracker.data_dir)
+
+    def test_init_custom_dir(self, tmp_path: Path) -> None:
+        """Test tracker initializes with custom directory."""
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        assert tracker.data_dir == tmp_path
+
+    def test_open_trade(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test opening a new trade."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+            leverage=10,
+        )
+
+        assert trade.id is not None
+        assert trade.symbol == "BTC/USDT"
+        assert trade.side == "long"
+        assert trade.mode == "paper"
+        assert trade.leverage == 10
+        assert trade.status == "open"
+
+    def test_close_trade(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test closing an open trade."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        closed = trade_tracker.close_trade(
+            trade.id,
+            exit_price=Decimal("52000"),
+            close_reason="take_profit",
+            fees=Decimal("5"),
+        )
+
+        assert closed is not None
+        assert closed.status == "closed"
+        assert closed.exit_price == Decimal("52000")
+        assert closed.close_reason == "take_profit"
+        assert closed.pnl is not None
+        assert closed.pnl_percent is not None
+
+    def test_close_trade_not_found(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test closing non-existent trade."""
+        result = trade_tracker.close_trade(
+            "nonexistent-id",
+            exit_price=Decimal("50000"),
+        )
+        assert result is None
+
+    def test_close_already_closed_trade(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Test closing already closed trade fails."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        trade_tracker.close_trade(trade.id, exit_price=Decimal("51000"))
+        result = trade_tracker.close_trade(trade.id, exit_price=Decimal("52000"))
+
+        assert result is None
+
+    def test_cancel_trade(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test cancelling an open trade."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        cancelled = trade_tracker.cancel_trade(trade.id)
+
+        assert cancelled is not None
+        assert cancelled.status == "cancelled"
+
+    def test_load_trades_by_mode(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test loading trades filtered by mode."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        trade_tracker.open_trade(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            entry_quantity=Decimal("1.0"),
+            mode="live",
+        )
+
+        paper_trades = trade_tracker.load_trades(mode="paper")
+        live_trades = trade_tracker.load_trades(mode="live")
+
+        assert len(paper_trades) == 1
+        assert paper_trades[0].symbol == "BTC/USDT"
+        assert len(live_trades) == 1
+        assert live_trades[0].symbol == "ETH/USDT"
+
+    def test_load_trades_by_symbol(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test loading trades filtered by symbol."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        trade_tracker.open_trade(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            entry_quantity=Decimal("1.0"),
+            mode="paper",
+        )
+
+        btc_trades = trade_tracker.load_trades(symbol="BTC/USDT")
+
+        assert len(btc_trades) == 1
+        assert btc_trades[0].symbol == "BTC/USDT"
+
+    def test_get_open_trades(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test getting open trades."""
+        trade1 = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        trade2 = trade_tracker.open_trade(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            entry_quantity=Decimal("1.0"),
+            mode="paper",
+        )
+
+        # Close one trade
+        trade_tracker.close_trade(trade1.id, exit_price=Decimal("51000"))
+
+        open_trades = trade_tracker.get_open_trades(mode="paper")
+
+        assert len(open_trades) == 1
+        assert open_trades[0].id == trade2.id
+
+    def test_get_trade_by_id(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test getting trade by ID."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        found = trade_tracker.get_trade(trade.id)
+
+        assert found is not None
+        assert found.id == trade.id
+        assert found.symbol == "BTC/USDT"
+
+    def test_get_trade_not_found(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test getting non-existent trade."""
+        found = trade_tracker.get_trade("nonexistent-id")
+        assert found is None
+
+    def test_get_trades_by_date_range(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Test filtering trades by date range."""
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        trades = trade_tracker.get_trades_by_date_range(
+            yesterday, now + timedelta(hours=1), mode="paper"
+        )
+
+        assert len(trades) == 1
+
+    def test_link_to_performance(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test linking trade to performance record."""
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        linked = trade_tracker.link_to_performance(trade.id, "perf-record-123")
+
+        assert linked is not None
+        assert linked.performance_record_id == "perf-record-123"
+
+        # Verify persisted
+        found = trade_tracker.get_trade(trade.id)
+        assert found.performance_record_id == "perf-record-123"
+
+    def test_get_trades_by_performance_record(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Test getting trades linked to performance record."""
+        trade1 = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+            performance_record_id="perf-123",
+        )
+        trade_tracker.open_trade(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            entry_quantity=Decimal("1.0"),
+            mode="paper",
+            performance_record_id="perf-456",
+        )
+
+        trades = trade_tracker.get_trades_by_performance_record("perf-123")
+
+        assert len(trades) == 1
+        assert trades[0].id == trade1.id
+
+    def test_delete_trades(self, trade_tracker: TradeHistoryTracker) -> None:
+        """Test deleting trades for a mode."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        assert trade_tracker.delete_trades("paper") is True
+        assert trade_tracker.load_trades(mode="paper") == []
+
+    def test_delete_trades_not_found(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Test deleting non-existent mode."""
+        assert trade_tracker.delete_trades("nonexistent") is False
+
+
+class TestTradeHistoryStorage:
+    """Tests for trade history data storage (JSON files)."""
+
+    def test_trades_file_created(
+        self, trade_tracker: TradeHistoryTracker, tmp_path: Path
+    ) -> None:
+        """Test trades file is created on save."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        trades_path = tmp_path / "paper" / "trades.json"
+        assert trades_path.exists()
+
+    def test_trades_json_format(
+        self, trade_tracker: TradeHistoryTracker, tmp_path: Path
+    ) -> None:
+        """Test trades file is valid JSON."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        trades_path = tmp_path / "paper" / "trades.json"
+        with open(trades_path) as f:
+            data = json.load(f)
+
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["symbol"] == "BTC/USDT"
+        assert data[0]["side"] == "long"
+        assert data[0]["status"] == "open"
+
+    def test_decimal_serialization(
+        self, trade_tracker: TradeHistoryTracker, tmp_path: Path
+    ) -> None:
+        """Test Decimal values are serialized as strings."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000.50"),
+            entry_quantity=Decimal("0.12345"),
+            mode="paper",
+        )
+
+        trades_path = tmp_path / "paper" / "trades.json"
+        with open(trades_path) as f:
+            data = json.load(f)
+
+        assert isinstance(data[0]["entry_price"], str)
+        assert data[0]["entry_price"] == "50000.50"
+        assert data[0]["entry_quantity"] == "0.12345"
+
+    def test_datetime_serialization(
+        self, trade_tracker: TradeHistoryTracker, tmp_path: Path
+    ) -> None:
+        """Test datetime values are serialized as ISO format."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        trades_path = tmp_path / "paper" / "trades.json"
+        with open(trades_path) as f:
+            data = json.load(f)
+
+        assert isinstance(data[0]["entry_time"], str)
+        # Should be parseable
+        datetime.fromisoformat(data[0]["entry_time"])
+
+    def test_mode_separation(
+        self, trade_tracker: TradeHistoryTracker, tmp_path: Path
+    ) -> None:
+        """Test trades are separated by mode (NFR-008)."""
+        trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        trade_tracker.open_trade(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            entry_quantity=Decimal("1.0"),
+            mode="live",
+        )
+        trade_tracker.open_trade(
+            symbol="SOL/USDT",
+            side="long",
+            entry_price=Decimal("100"),
+            entry_quantity=Decimal("5.0"),
+            mode="backtest",
+        )
+
+        paper_path = tmp_path / "paper" / "trades.json"
+        live_path = tmp_path / "live" / "trades.json"
+        backtest_path = tmp_path / "backtest" / "trades.json"
+
+        assert paper_path.exists()
+        assert live_path.exists()
+        assert backtest_path.exists()
+
+        with open(paper_path) as f:
+            paper_data = json.load(f)
+        with open(live_path) as f:
+            live_data = json.load(f)
+        with open(backtest_path) as f:
+            backtest_data = json.load(f)
+
+        assert len(paper_data) == 1
+        assert paper_data[0]["symbol"] == "BTC/USDT"
+        assert len(live_data) == 1
+        assert live_data[0]["symbol"] == "ETH/USDT"
+        assert len(backtest_data) == 1
+        assert backtest_data[0]["symbol"] == "SOL/USDT"

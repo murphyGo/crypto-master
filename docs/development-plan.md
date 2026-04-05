@@ -92,7 +92,7 @@
 
 ## Phase 3: Chart Analysis System
 
-**Related Requirements**: FR-001, FR-002, FR-003, FR-004, FR-005, NFR-005, NFR-010
+**Related Requirements**: FR-001, FR-002, FR-003, FR-004, FR-005, NFR-005, NFR-007, NFR-008, NFR-010
 
 ### 3.1 Analysis Technique Framework
 
@@ -122,6 +122,15 @@
 - [x] `src/strategy/performance.py` - Performance data model
 - [x] Performance record storage (`data/performance/`)
 - [x] Performance query and aggregation functions
+- [x] Write unit tests
+
+### 3.5 Trade History Enhancement
+
+- [x] Enhance `PerformanceRecord` with trade execution fields (quantity, leverage, fees, mode)
+- [x] Create `TradeHistory` model for complete trade lifecycle
+- [x] Create `TradeHistoryTracker` class with CRUD operations
+- [x] Separate storage by mode (`data/trades/{backtest,paper,live}/`)
+- [x] Link between `PerformanceRecord` and `TradeHistory`
 - [x] Write unit tests
 
 ---
@@ -282,8 +291,8 @@
 |-------|---------------------|
 | Phase 1 | NFR-001, NFR-004, NFR-005 |
 | Phase 2 | FR-016, FR-017, FR-018, FR-019, FR-020, NFR-009 |
-| Phase 3 | FR-001, FR-002, FR-003, FR-004, FR-005, NFR-002, NFR-005, NFR-010 |
-| Phase 4 | FR-006, FR-007, FR-008, FR-009, FR-010, NFR-007, NFR-008, NFR-012 |
+| Phase 3 | FR-001, FR-002, FR-003, FR-004, FR-005, NFR-002, NFR-005, NFR-007, NFR-008, NFR-010 |
+| Phase 4 | FR-006, FR-007, FR-008, FR-009, FR-010, NFR-012 |
 | Phase 5 | FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, NFR-006 |
 | Phase 6 | FR-011, FR-012, FR-013, FR-014, FR-015 |
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
@@ -305,3 +314,4 @@
 | 3.2 | 2026-04-05 | Phase 3.2 complete - Basic Analysis Technique Implementation | Claude |
 | 3.3 | 2026-04-05 | Phase 3.3 complete - Claude Integration | Claude |
 | 3.4 | 2026-04-05 | Phase 3.4 complete - Performance Tracking, Phase 3 complete | Claude |
+| 3.5 | 2026-04-05 | Phase 3.5 complete - Trade History Enhancement (NFR-007, NFR-008) | Claude |

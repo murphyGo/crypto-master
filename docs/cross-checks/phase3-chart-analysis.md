@@ -24,6 +24,8 @@
 | NFR-002 | Claude CLI Integration | ✅ Complete | `ClaudeCLI` class in `src/ai/claude.py` uses `claude -p "..."` |
 | NFR-005 | Analysis Technique Storage | ✅ Complete | `.md` and `.py` files loaded from `strategies/` directory |
 | NFR-006 | Backtesting Result Storage | ✅ Partial | Performance records stored as JSON (backtesting engine in Phase 5) |
+| NFR-007 | Trading History Storage | ✅ Complete | `TradeHistory` model, `TradeHistoryTracker`, JSON in `data/trades/` |
+| NFR-008 | Asset/PnL History | ✅ Complete | Mode separation via `data/trades/{backtest,paper,live}/trades.json` |
 | NFR-010 | Analysis Technique Extensibility | ✅ Complete | Add new technique by dropping file in `strategies/`, auto-discovered |
 
 ### Constraints
@@ -55,6 +57,13 @@
 - JSON storage in `data/performance/{technique_name}/`
 - Win rate, P&L tracking
 
+### Sub-task 3.5: Trade History Enhancement
+- Enhanced `PerformanceRecord` with trade execution fields (quantity, leverage, fees, mode, trade_id)
+- `TradeHistory` model for complete trade lifecycle
+- `TradeHistoryTracker` class with CRUD operations
+- JSON storage in `data/trades/{backtest,paper,live}/trades.json`
+- Bidirectional links between PerformanceRecord and TradeHistory
+
 ## Test Coverage
 
 | Component | Tests | Status |
@@ -65,8 +74,8 @@
 | Strategy Integration | 21 | ✅ Pass |
 | AI Claude | 24 | ✅ Pass |
 | AI Exceptions | 15 | ✅ Pass |
-| Strategy Performance | 36 | ✅ Pass |
-| **Total** | **167** | ✅ Pass |
+| Strategy Performance | 70 | ✅ Pass |
+| **Total** | **201** | ✅ Pass |
 
 ## Gaps Identified
 

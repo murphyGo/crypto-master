@@ -104,8 +104,8 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 |----|-------------|-------------|
 | NFR-005 | Analysis Technique Storage | Store analysis techniques as md files (prompt-based) or Python code |
 | NFR-006 | Backtesting Result Storage | Store backtesting results in structured format (JSON or CSV) |
-| NFR-007 | Trading History Storage | Record all trading history (entry, exit, profit/loss) |
-| NFR-008 | Asset/PnL History | Record asset changes and profit/loss history separately for live/paper modes |
+| NFR-007 | Trading History Storage | Record all trading history including: entry/exit prices, quantities, leverage, fees, P&L, and timestamps. Implemented via `TradeHistory` model and `TradeHistoryTracker` in `src/strategy/performance.py` |
+| NFR-008 | Asset/PnL History | Record asset changes and profit/loss history separately for backtest/paper/live modes. Storage structure: `data/trades/{mode}/trades.json` |
 
 ### 3.3 Extensibility
 
