@@ -18,7 +18,7 @@
 | Bybit Integration | ✅ Complete | 2 |
 | Analysis Technique Framework | ✅ Complete | 3 |
 | Claude Integration | ✅ Complete | 3 |
-| Trading Strategy | ❌ Missing | 4 |
+| Trading Strategy | 🔄 In Progress | 4 |
 | Paper Trading | ❌ Missing | 4 |
 | Live Trading | ❌ Missing | 4 |
 | Backtesting | ❌ Missing | 5 |
@@ -141,12 +141,12 @@
 
 ### 4.1 Trading Strategy Module
 
-- [ ] `src/trading/strategy.py` - Trading strategy calculator
-- [ ] Risk/Reward (R/R) calculation function
-- [ ] Entry/take-profit/stop-loss calculation function
-- [ ] Leverage setting logic
-- [ ] Position size calculation
-- [ ] Write unit tests
+- [x] `src/trading/strategy.py` - Trading strategy calculator
+- [x] Risk/Reward (R/R) calculation function
+- [x] Entry/take-profit/stop-loss calculation function
+- [x] Leverage setting logic
+- [x] Position size calculation
+- [x] Write unit tests
 
 ### 4.2 Paper Trading Engine
 
@@ -315,3 +315,4 @@
 | 3.3 | 2026-04-05 | Phase 3.3 complete - Claude Integration | Claude |
 | 3.4 | 2026-04-05 | Phase 3.4 complete - Performance Tracking, Phase 3 complete | Claude |
 | 3.5 | 2026-04-05 | Phase 3.5 complete - Trade History Enhancement (NFR-007, NFR-008) | Claude |
+| 4.1 | 2026-04-05 | Phase 4.1 complete - Trading Strategy Module (FR-006, FR-007, FR-008) | Claude |
