@@ -173,6 +173,16 @@
 - [ ] Separate storage by paper/live mode
 - [ ] Write unit tests
 
+### 4.5 Trading Strategy Profiles
+
+- [ ] `src/trading/profiles.py` - TradingProfile model (risk params, entry/exit rules)
+- [ ] `src/trading/profile_loader.py` - Load profiles from YAML/JSON files
+- [ ] Create `trading_profiles/` directory for profile storage
+- [ ] Sample profiles (conservative, moderate, aggressive, scalping)
+- [ ] Combine Analysis Technique + Trading Profile for execution
+- [ ] Update PerformanceTracker to track by technique+profile combination
+- [ ] Write unit tests
+
 ---
 
 ## Phase 5: Feedback Loop System
@@ -316,3 +326,4 @@
 | 3.4 | 2026-04-05 | Phase 3.4 complete - Performance Tracking, Phase 3 complete | Claude |
 | 3.5 | 2026-04-05 | Phase 3.5 complete - Trade History Enhancement (NFR-007, NFR-008) | Claude |
 | 4.1 | 2026-04-05 | Phase 4.1 complete - Trading Strategy Module (FR-006, FR-007, FR-008) | Claude |
+| 4.5 | 2026-04-06 | Added Phase 4.5 - Trading Strategy Profiles (technique+profile combinations) | Claude |
