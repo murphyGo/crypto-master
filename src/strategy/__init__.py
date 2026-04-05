@@ -39,6 +39,12 @@ from src.strategy.loader import (
     load_technique_info_from_md,
     load_technique_info_from_py,
 )
+from src.strategy.performance import (
+    PerformanceRecord,
+    PerformanceTracker,
+    TechniquePerformance,
+    TradeOutcome,
+)
 
 __all__ = [
     # Base classes
@@ -66,4 +72,9 @@ __all__ = [
     "load_technique_info_from_md",
     "load_technique_info_from_py",
     "DEFAULT_STRATEGIES_DIR",
+    # Performance tracking
+    "TradeOutcome",
+    "PerformanceRecord",
+    "TechniquePerformance",
+    "PerformanceTracker",
 ]
