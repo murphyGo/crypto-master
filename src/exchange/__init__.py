@@ -11,6 +11,7 @@ from src.exchange.base import (
     ExchangeConnectionError,
     ExchangeError,
 )
+from src.exchange.binance import BinanceExchange
 from src.exchange.factory import (
     create_exchange,
     get_available_exchanges,
@@ -22,6 +23,7 @@ __all__ = [
     "ExchangeError",
     "ExchangeConnectionError",
     "ExchangeAPIError",
+    "BinanceExchange",
     "create_exchange",
     "get_available_exchanges",
     "register_exchange",

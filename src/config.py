@@ -22,11 +22,13 @@ class BinanceConfig(BaseSettings):
     - BINANCE_API_KEY: API key for Binance
     - BINANCE_API_SECRET: API secret for Binance
     - BINANCE_MARKET_TYPE: Market type (spot/futures)
+    - BINANCE_TESTNET: Whether to use testnet
     """
 
     api_key: str = ""
     api_secret: str = ""
     market_type: Literal["spot", "futures"] = "futures"
+    testnet: bool = True
 
     model_config = SettingsConfigDict(env_prefix="BINANCE_")
 
