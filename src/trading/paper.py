@@ -1,7 +1,8 @@
 """Paper trading engine for simulated trading.
 
 Provides a virtual trading environment that simulates real trading
-without using actual funds.
+without using actual funds. Supports both local simulation and
+exchange testnet integration.
 
 Related Requirements:
 - FR-010: Paper Trading Mode
@@ -12,14 +13,17 @@ Related Requirements:
 import uuid
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
 from src.logger import get_logger
-from src.models import Position
+from src.models import OrderRequest, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.strategy import TradingError
+
+if TYPE_CHECKING:
+    from src.exchange.base import BaseExchange
 
 logger = get_logger("crypto_master.trading.paper")
 
@@ -187,13 +191,14 @@ class PaperTrader:
     - Market order instant fill simulation
     - Stop-loss and take-profit monitoring
     - Trade history recording via TradeHistoryTracker
+    - Optional exchange testnet integration for more realistic simulation
 
     Related Requirements:
     - FR-010: Paper Trading Mode
     - NFR-007: Trading History Storage
     - NFR-008: Asset/PnL History
 
-    Usage:
+    Usage (local simulation):
         trader = PaperTrader(initial_balance={"USDT": Decimal("10000")})
 
         # Open position from a Position object
@@ -204,14 +209,23 @@ class PaperTrader:
         if should_exit:
             trader.close_position(trade.id, current_price, reason)
 
-        # Or close manually
-        trader.close_position(trade.id, exit_price, "manual")
+    Usage (testnet mode):
+        exchange = BinanceExchange(config, testnet=True)
+        await exchange.connect()
+        trader = PaperTrader(exchange=exchange)
+
+        # Sync balance from exchange testnet
+        await trader.sync_balance_from_exchange()
+
+        # Open position via exchange testnet
+        trade = await trader.open_position_on_testnet(position)
     """
 
     def __init__(
         self,
         initial_balance: dict[str, Decimal] | None = None,
         data_dir: Path | None = None,
+        exchange: "BaseExchange | None" = None,
     ) -> None:
         """Initialize PaperTrader.
 
@@ -220,10 +234,14 @@ class PaperTrader:
                             Example: {"USDT": Decimal("10000")}
             data_dir: Directory for trade history storage.
                      Defaults to data/trades/.
+            exchange: Optional exchange instance for testnet execution.
+                     If provided and in testnet mode, orders can execute on testnet.
         """
         self._balances: dict[str, PaperBalance] = {}
         self._open_positions: dict[str, OpenPosition] = {}
         self._trade_tracker = TradeHistoryTracker(data_dir=data_dir)
+        self._exchange = exchange
+        self._use_testnet = exchange is not None and exchange.testnet
 
         # Initialize balances
         if initial_balance:
@@ -233,10 +251,29 @@ class PaperTrader:
                     free=amount,
                 )
 
+        mode_str = "testnet" if self._use_testnet else "local simulation"
         logger.info(
-            f"PaperTrader initialized with balances: "
+            f"PaperTrader initialized in {mode_str} mode with balances: "
             f"{self.get_balance_summary()}"
         )
+
+    @property
+    def is_testnet_mode(self) -> bool:
+        """Check if using exchange testnet for execution.
+
+        Returns:
+            True if an exchange in testnet mode is configured.
+        """
+        return self._use_testnet
+
+    @property
+    def exchange(self) -> "BaseExchange | None":
+        """Get the configured exchange instance.
+
+        Returns:
+            The exchange instance, or None if not configured.
+        """
+        return self._exchange
 
     def get_balance_summary(self) -> dict[str, dict[str, str]]:
         """Get a summary of all balances.
@@ -592,3 +629,218 @@ class PaperTrader:
             equity += unrealized_pnl
 
         return equity
+
+    # =========================================================================
+    # Testnet Integration Methods
+    # =========================================================================
+
+    async def sync_balance_from_exchange(
+        self,
+        currency: str | None = None,
+    ) -> None:
+        """Sync balance from exchange testnet.
+
+        Fetches real testnet balances and updates internal state.
+        Requires exchange instance in testnet mode.
+
+        Args:
+            currency: Optional currency filter. If None, syncs all non-zero balances.
+
+        Raises:
+            PaperTradingError: If not in testnet mode or sync fails.
+        """
+        if not self._use_testnet or self._exchange is None:
+            raise PaperTradingError(
+                "sync_balance_from_exchange requires testnet mode with exchange"
+            )
+
+        try:
+            balances = await self._exchange.get_balance(currency)
+
+            for balance in balances:
+                self._balances[balance.currency] = PaperBalance(
+                    currency=balance.currency,
+                    free=balance.free,
+                    locked=balance.locked,
+                )
+
+            logger.info(
+                f"Synced {len(balances)} balance(s) from {self._exchange.name} testnet"
+            )
+
+        except Exception as e:
+            raise PaperTradingError(
+                f"Failed to sync balance from exchange: {e}"
+            ) from e
+
+    async def open_position_on_testnet(
+        self,
+        position: Position,
+        performance_record_id: str | None = None,
+    ) -> TradeHistory:
+        """Open position via exchange testnet order.
+
+        Creates a real order on the exchange testnet instead of simulating.
+        Uses market orders for immediate execution.
+
+        Args:
+            position: The Position to open.
+            performance_record_id: Optional link to PerformanceRecord.
+
+        Returns:
+            TradeHistory record with real order ID from exchange.
+
+        Raises:
+            PaperTradingError: If not in testnet mode or order fails.
+        """
+        if not self._use_testnet or self._exchange is None:
+            raise PaperTradingError(
+                "open_position_on_testnet requires testnet mode with exchange"
+            )
+
+        # Extract quote currency for balance tracking
+        quote_currency = self._get_quote_currency(position.symbol)
+
+        # Build order request
+        order_request = OrderRequest(
+            symbol=position.symbol,
+            side="buy" if position.side == "long" else "sell",
+            type="market",
+            quantity=position.quantity,
+        )
+
+        try:
+            # Execute order on exchange testnet
+            order = await self._exchange.create_order(order_request)
+
+            logger.info(
+                f"Testnet order executed: {order.id} {order.side} {order.symbol} "
+                f"qty={order.filled_quantity}"
+            )
+
+            # Calculate margin for tracking
+            margin = self._calculate_required_margin(position)
+
+            # Record trade via TradeHistoryTracker
+            trade = self._trade_tracker.open_trade(
+                symbol=position.symbol,
+                side=position.side,
+                entry_price=position.entry_price,
+                entry_quantity=position.quantity,
+                mode="paper",
+                leverage=position.leverage,
+                entry_order_id=order.id,  # Real order ID from exchange
+                performance_record_id=performance_record_id,
+            )
+
+            # Track open position
+            self._open_positions[trade.id] = OpenPosition(
+                trade_id=trade.id,
+                position=position,
+                margin=margin,
+                quote_currency=quote_currency,
+            )
+
+            logger.info(
+                f"Opened testnet position: {position.side} {position.symbol} "
+                f"@ {position.entry_price}, order_id={order.id}"
+            )
+
+            return trade
+
+        except Exception as e:
+            # Check for insufficient funds
+            error_str = str(e).lower()
+            if "insufficient" in error_str:
+                raise InsufficientPaperBalanceError(
+                    f"Insufficient testnet funds: {e}",
+                    required=position.notional_value,
+                    available=Decimal("0"),  # Unknown from error
+                    currency=quote_currency,
+                ) from e
+            raise PaperTradingError(
+                f"Failed to create testnet order: {e}"
+            ) from e
+
+    async def close_position_on_testnet(
+        self,
+        trade_id: str,
+        exit_price: Decimal | None = None,
+        reason: str = "manual",
+    ) -> TradeHistory | None:
+        """Close position via exchange testnet order.
+
+        Creates a closing order on exchange testnet.
+        Uses market orders for immediate execution.
+
+        Args:
+            trade_id: ID of the trade to close.
+            exit_price: Expected exit price (for P&L calculation).
+                       If None, will use the filled price from exchange.
+            reason: Reason for closing (manual, stop_loss, take_profit).
+
+        Returns:
+            Updated TradeHistory, or None if trade not found.
+
+        Raises:
+            PaperTradingError: If not in testnet mode or order fails.
+        """
+        if not self._use_testnet or self._exchange is None:
+            raise PaperTradingError(
+                "close_position_on_testnet requires testnet mode with exchange"
+            )
+
+        # Get open position
+        open_pos = self._open_positions.get(trade_id)
+        if open_pos is None:
+            logger.warning(f"No open testnet position found: {trade_id}")
+            return None
+
+        position = open_pos.position
+
+        # Build closing order (opposite side)
+        closing_side = "sell" if position.side == "long" else "buy"
+        order_request = OrderRequest(
+            symbol=position.symbol,
+            side=closing_side,
+            type="market",
+            quantity=position.quantity,
+        )
+
+        try:
+            # Execute closing order on exchange testnet
+            order = await self._exchange.create_order(order_request)
+
+            logger.info(
+                f"Testnet closing order executed: {order.id} {order.side} "
+                f"{order.symbol} qty={order.filled_quantity}"
+            )
+
+            # Use provided exit_price or fallback to position entry price
+            # (market orders may not have a price in the response)
+            actual_exit_price = exit_price or position.entry_price
+
+            # Calculate P&L
+            pnl = position.calculate_pnl(actual_exit_price)
+
+            # Close trade via tracker
+            closed_trade = self._trade_tracker.close_trade(
+                trade_id=trade_id,
+                exit_price=actual_exit_price,
+                close_reason=reason,
+            )
+
+            # Remove from open positions
+            del self._open_positions[trade_id]
+
+            logger.info(
+                f"Closed testnet position {trade_id}: {reason}, "
+                f"exit_price={actual_exit_price}, P&L={pnl}, order_id={order.id}"
+            )
+
+            return closed_trade
+
+        except Exception as e:
+            raise PaperTradingError(
+                f"Failed to create testnet closing order: {e}"
+            ) from e
