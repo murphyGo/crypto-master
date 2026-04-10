@@ -11,6 +11,13 @@ Related Requirements:
 - FR-010: Paper Trading Mode
 """
 
+from src.trading.live import (
+    LiveConfirmationRejectedError,
+    LiveModeError,
+    LiveOrderRejectedError,
+    LiveTrader,
+    LiveTradingError,
+)
 from src.trading.paper import (
     DEFAULT_FEE_CONFIGS,
     FeeConfig,
@@ -35,6 +42,10 @@ __all__ = [
     "InsufficientBalanceError",
     "PaperTradingError",
     "InsufficientPaperBalanceError",
+    "LiveTradingError",
+    "LiveModeError",
+    "LiveConfirmationRejectedError",
+    "LiveOrderRejectedError",
     # Strategy Classes
     "TradingStrategy",
     "TradingStrategyConfig",
@@ -44,4 +55,6 @@ __all__ = [
     "OpenPosition",
     "FeeConfig",
     "DEFAULT_FEE_CONFIGS",
+    # Live Trading Classes
+    "LiveTrader",
 ]
