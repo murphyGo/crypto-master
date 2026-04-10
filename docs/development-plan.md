@@ -22,7 +22,7 @@
 | Exchange Testnet Support | ✅ Complete | 4 |
 | Paper Trading (Local) | ✅ Complete | 4 |
 | Paper Trading (Testnet) | ✅ Complete | 4 |
-| Paper Trading (Fees) | ❌ Missing | 4 |
+| Paper Trading (Fees) | ✅ Complete | 4 |
 | Live Trading | ❌ Missing | 4 |
 | Backtesting | ❌ Missing | 5 |
 | Feedback Loop | ❌ Missing | 5 |
@@ -175,10 +175,10 @@
 - [x] Write integration tests with testnet
 
 **Fee Simulation (Fallback):**
-- [ ] Add fee configuration to PaperTrader (maker/taker fees per exchange)
-- [ ] Calculate and deduct fees on order execution
-- [ ] Include fees in P&L calculation
-- [ ] Write unit tests for fee calculation
+- [x] Add fee configuration to PaperTrader (maker/taker fees per exchange)
+- [x] Calculate and deduct fees on order execution
+- [x] Include fees in P&L calculation
+- [x] Write unit tests for fee calculation
 
 ### 4.4 Live Trading Engine
 
@@ -355,3 +355,4 @@
 | 4.x | 2026-04-06 | Restructured Phase 4: Added 4.2 Exchange Testnet Support, split 4.3 Paper Trading into Local/Testnet/Fees, renumbered Live→4.4, Asset→4.5, Profiles→4.6 | Claude |
 | 4.2 | 2026-04-06 | Phase 4.2 complete - Exchange Testnet Support (FR-010, NFR-009, NFR-011) | Claude |
 | 4.3 | 2026-04-06 | Phase 4.3 complete - Paper Trading Testnet Integration (FR-010, NFR-007, NFR-008) | Claude |
+| 4.3 | 2026-04-10 | Phase 4.3 complete - Paper Trading Fee Simulation (FR-010, NFR-008) | Claude |

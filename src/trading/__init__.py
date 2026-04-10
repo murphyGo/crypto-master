@@ -12,6 +12,8 @@ Related Requirements:
 """
 
 from src.trading.paper import (
+    DEFAULT_FEE_CONFIGS,
+    FeeConfig,
     InsufficientPaperBalanceError,
     OpenPosition,
     PaperBalance,
@@ -40,4 +42,6 @@ __all__ = [
     "PaperTrader",
     "PaperBalance",
     "OpenPosition",
+    "FeeConfig",
+    "DEFAULT_FEE_CONFIGS",
 ]

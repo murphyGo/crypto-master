@@ -10,13 +10,15 @@ import pytest
 
 from src.models import Position
 from src.trading.paper import (
+    DEFAULT_FEE_CONFIGS,
+    ZERO_FEE_CONFIG,
+    FeeConfig,
     InsufficientPaperBalanceError,
     OpenPosition,
     PaperBalance,
     PaperTrader,
     PaperTradingError,
 )
-
 
 # =============================================================================
 # PaperBalance Tests
@@ -950,6 +952,329 @@ class TestPaperTraderIntegration:
 # =============================================================================
 # PaperTrader Quote Currency Extraction Tests
 # =============================================================================
+
+
+# =============================================================================
+# Fee Simulation Tests (Phase 4.3 Fee Simulation Fallback)
+# =============================================================================
+
+
+class TestFeeConfig:
+    """Tests for the FeeConfig model and defaults."""
+
+    def test_default_zero_rates(self) -> None:
+        """FeeConfig defaults to zero maker/taker rates."""
+        config = FeeConfig()
+        assert config.maker_fee_rate == Decimal("0")
+        assert config.taker_fee_rate == Decimal("0")
+
+    def test_custom_rates(self) -> None:
+        """FeeConfig accepts custom rates."""
+        config = FeeConfig(
+            maker_fee_rate=Decimal("0.0001"),
+            taker_fee_rate=Decimal("0.0005"),
+        )
+        assert config.maker_fee_rate == Decimal("0.0001")
+        assert config.taker_fee_rate == Decimal("0.0005")
+
+    def test_negative_rate_rejected(self) -> None:
+        """FeeConfig rejects negative rates."""
+        with pytest.raises(ValueError):
+            FeeConfig(maker_fee_rate=Decimal("-0.0001"))
+
+    def test_default_configs_present(self) -> None:
+        """DEFAULT_FEE_CONFIGS contains known exchanges."""
+        assert "binance" in DEFAULT_FEE_CONFIGS
+        assert "bybit" in DEFAULT_FEE_CONFIGS
+        assert DEFAULT_FEE_CONFIGS["binance"].taker_fee_rate > Decimal("0")
+        assert DEFAULT_FEE_CONFIGS["bybit"].taker_fee_rate > Decimal("0")
+
+
+class TestPaperTraderFeeResolution:
+    """Tests for how PaperTrader resolves its fee_config."""
+
+    def test_default_zero_without_exchange(self, tmp_path: Path) -> None:
+        """Without exchange or fee_config, trader uses zero fees."""
+        trader = PaperTrader(data_dir=tmp_path)
+        assert trader.fee_config == ZERO_FEE_CONFIG
+
+    def test_explicit_fee_config_overrides_default(
+        self, tmp_path: Path
+    ) -> None:
+        """Explicit fee_config wins over exchange default."""
+        custom = FeeConfig(
+            maker_fee_rate=Decimal("0.001"),
+            taker_fee_rate=Decimal("0.002"),
+        )
+        trader = PaperTrader(fee_config=custom, data_dir=tmp_path)
+        assert trader.fee_config is custom
+
+    def test_exchange_default_lookup(self, tmp_path: Path) -> None:
+        """Without explicit config, trader uses exchange's default."""
+        from unittest.mock import MagicMock
+
+        from src.exchange.base import BaseExchange
+
+        exchange = MagicMock(spec=BaseExchange)
+        exchange.testnet = False
+        exchange.name = "Binance"  # Case-insensitive lookup
+        trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
+        assert trader.fee_config == DEFAULT_FEE_CONFIGS["binance"]
+
+    def test_unknown_exchange_falls_back_to_zero(
+        self, tmp_path: Path
+    ) -> None:
+        """Unknown exchange names fall back to zero fees."""
+        from unittest.mock import MagicMock
+
+        from src.exchange.base import BaseExchange
+
+        exchange = MagicMock(spec=BaseExchange)
+        exchange.testnet = False
+        exchange.name = "unknown_exchange"
+        trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
+        assert trader.fee_config == ZERO_FEE_CONFIG
+
+
+class TestPaperTraderFeeCalculation:
+    """Tests for fee calculation and deduction."""
+
+    @pytest.fixture
+    def fee_config(self) -> FeeConfig:
+        """Flat 0.1% taker fee config for easy arithmetic."""
+        return FeeConfig(
+            maker_fee_rate=Decimal("0.0005"),
+            taker_fee_rate=Decimal("0.001"),
+        )
+
+    @pytest.fixture
+    def trader(
+        self, tmp_path: Path, fee_config: FeeConfig
+    ) -> PaperTrader:
+        """PaperTrader with fee config and 10,000 USDT."""
+        return PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+            fee_config=fee_config,
+        )
+
+    @pytest.fixture
+    def long_position(self) -> Position:
+        """Standard long position: notional=5000, margin=500."""
+        return Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+        )
+
+    def test_calculate_fee_taker(
+        self, trader: PaperTrader
+    ) -> None:
+        """_calculate_fee applies taker rate by default."""
+        fee = trader._calculate_fee(Decimal("5000"))
+        assert fee == Decimal("5")  # 5000 * 0.001
+
+    def test_calculate_fee_maker(
+        self, trader: PaperTrader
+    ) -> None:
+        """_calculate_fee applies maker rate when flagged."""
+        fee = trader._calculate_fee(Decimal("5000"), is_maker=True)
+        assert fee == Decimal("2.5")  # 5000 * 0.0005
+
+    def test_open_position_deducts_entry_fee(
+        self, trader: PaperTrader, long_position: Position
+    ) -> None:
+        """Opening position deducts entry fee from free balance."""
+        trade = trader.open_position(long_position)
+
+        # Notional = 5000, entry_fee = 5000 * 0.001 = 5
+        # Free = 10000 - 500 (margin) - 5 (fee) = 9495
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("9495")
+        assert balance.locked == Decimal("500")
+
+        open_pos = trader.get_open_position(trade.id)
+        assert open_pos is not None
+        assert open_pos.entry_fee == Decimal("5")
+
+    def test_close_position_deducts_exit_fee(
+        self, trader: PaperTrader, long_position: Position
+    ) -> None:
+        """Closing position deducts exit fee and records total fees."""
+        trade = trader.open_position(long_position)
+
+        # Close at 51000 → exit_notional = 5100, exit_fee = 5.1
+        closed = trader.close_position(
+            trade.id, Decimal("51000"), "take_profit"
+        )
+        assert closed is not None
+
+        # Balance walk-through:
+        #  start:                       10000
+        #  - margin (locked):           9500
+        #  - entry_fee:                 9495
+        #  close → unlock margin:       9995
+        #  + raw pnl (100):             10095
+        #  - exit_fee (5.1):            10089.9
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("10089.9")
+        assert balance.locked == Decimal("0")
+
+        # Total fees = 5 + 5.1 = 10.1
+        assert closed.fees == Decimal("10.1")
+
+    def test_close_position_pnl_includes_fees(
+        self, trader: PaperTrader, long_position: Position
+    ) -> None:
+        """TradeHistory P&L subtracts total fees after leverage."""
+        trade = trader.open_position(long_position)
+        closed = trader.close_position(
+            trade.id, Decimal("51000"), "take_profit"
+        )
+        assert closed is not None
+
+        # Leveraged gross P&L: 0.1 * 1000 * 10 = 1000
+        # Total fees = 10.1
+        # Net P&L = 1000 - 10.1 = 989.9
+        assert closed.pnl == Decimal("989.9")
+
+    def test_close_position_loss_with_fees(
+        self, trader: PaperTrader, long_position: Position
+    ) -> None:
+        """Losing trade also pays fees on entry and exit."""
+        trade = trader.open_position(long_position)
+
+        # Close at 49500 → raw pnl = -50, leveraged = -500
+        closed = trader.close_position(
+            trade.id, Decimal("49500"), "stop_loss"
+        )
+        assert closed is not None
+
+        # Exit notional = 4950, exit_fee = 4.95
+        # Total fees = 5 + 4.95 = 9.95
+        # Leveraged P&L - fees = -500 - 9.95 = -509.95
+        assert closed.fees == Decimal("9.95")
+        assert closed.pnl == Decimal("-509.95")
+
+        # Balance walk-through:
+        #  start:                       10000
+        #  - margin:                    9500
+        #  - entry_fee:                 9495
+        #  close → unlock margin:       9995
+        #  - raw loss (50):             9945
+        #  - exit_fee (4.95):           9940.05
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("9940.05")
+
+    def test_short_position_with_fees(
+        self, trader: PaperTrader
+    ) -> None:
+        """Short positions also pay entry and exit fees."""
+        short_position = Position(
+            symbol="BTC/USDT",
+            side="short",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+        )
+        trade = trader.open_position(short_position)
+
+        # entry_fee = 5
+        # Close at 49000 → profit, exit_fee = 4900 * 0.001 = 4.9
+        closed = trader.close_position(trade.id, Decimal("49000"))
+        assert closed is not None
+
+        # Leveraged gross P&L: 0.1 * 1000 * 10 = 1000
+        # Total fees = 5 + 4.9 = 9.9
+        assert closed.fees == Decimal("9.9")
+        assert closed.pnl == Decimal("990.1")
+
+    def test_zero_fee_config_skips_deduction(
+        self, tmp_path: Path
+    ) -> None:
+        """Zero fee config preserves legacy balance behavior."""
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+        )
+        trade = trader.open_position(position)
+        # No fee deducted — same as pre-fee behavior.
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("9500")
+
+        open_pos = trader.get_open_position(trade.id)
+        assert open_pos is not None
+        assert open_pos.entry_fee == Decimal("0")
+
+        closed = trader.close_position(trade.id, Decimal("51000"))
+        assert closed is not None
+        assert closed.fees == Decimal("0")
+
+    def test_insufficient_balance_for_entry_fee_rolls_back(
+        self, tmp_path: Path
+    ) -> None:
+        """If fee deduction fails, margin lock is rolled back."""
+        fee_config = FeeConfig(
+            maker_fee_rate=Decimal("0"),
+            taker_fee_rate=Decimal("0.01"),  # 1% fee
+        )
+        # 500 balance is exactly enough for margin but not fee.
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("500")},
+            data_dir=tmp_path,
+            fee_config=fee_config,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),  # notional 5000, margin 500, fee 50
+            leverage=10,
+        )
+
+        with pytest.raises(InsufficientPaperBalanceError):
+            trader.open_position(position)
+
+        # Balance state should be untouched (no locked margin).
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("500")
+        assert balance.locked == Decimal("0")
+
+    def test_round_trip_equity_matches_fees(
+        self, trader: PaperTrader, long_position: Position
+    ) -> None:
+        """Opening and immediately closing at the same price costs fees only."""
+        trade = trader.open_position(long_position)
+        closed = trader.close_position(
+            trade.id, long_position.entry_price, "manual"
+        )
+        assert closed is not None
+
+        # Raw P&L = 0 (same price), leveraged = 0
+        # Fees = 5 + 5 = 10
+        # Net P&L = -10
+        assert closed.pnl == Decimal("-10")
+
+        # Balance: 10000 - 5 (entry) - 5 (exit) = 9990
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("9990")
 
 
 class TestQuoteCurrencyExtraction:

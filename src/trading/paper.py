@@ -28,6 +28,41 @@ if TYPE_CHECKING:
 logger = get_logger("crypto_master.trading.paper")
 
 
+class FeeConfig(BaseModel):
+    """Maker/taker fee configuration for paper trading simulation.
+
+    Fee rates are expressed as decimal fractions of notional value
+    (e.g., ``Decimal("0.0004")`` represents 0.04%).
+
+    Attributes:
+        maker_fee_rate: Fee rate applied to maker (passive) orders.
+        taker_fee_rate: Fee rate applied to taker (aggressive) orders.
+    """
+
+    maker_fee_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    taker_fee_rate: Decimal = Field(default=Decimal("0"), ge=0)
+
+    model_config = {"frozen": True}
+
+
+# Default fee configurations per exchange (futures maker/taker defaults).
+# Rates are based on the standard/base tier published by each exchange.
+# NFR-008: Realistic fee simulation for accurate P&L tracking.
+DEFAULT_FEE_CONFIGS: dict[str, FeeConfig] = {
+    "binance": FeeConfig(
+        maker_fee_rate=Decimal("0.0002"),
+        taker_fee_rate=Decimal("0.0004"),
+    ),
+    "bybit": FeeConfig(
+        maker_fee_rate=Decimal("0.0002"),
+        taker_fee_rate=Decimal("0.00055"),
+    ),
+}
+
+# Fallback for trading without an exchange reference — no simulated fees.
+ZERO_FEE_CONFIG = FeeConfig()
+
+
 class PaperTradingError(TradingError):
     """Base exception for paper trading errors."""
 
@@ -168,19 +203,21 @@ class PaperBalance(BaseModel):
 class OpenPosition(BaseModel):
     """Tracks an open position in paper trading.
 
-    Links a Position to its TradeHistory and tracks margin.
+    Links a Position to its TradeHistory and tracks margin and fees.
 
     Attributes:
         trade_id: ID of the associated TradeHistory.
         position: The original Position.
         margin: Margin locked for this position.
         quote_currency: The quote currency (for balance management).
+        entry_fee: Fee already paid on entry (deducted from free balance).
     """
 
     trade_id: str
     position: Position
     margin: Decimal
     quote_currency: str
+    entry_fee: Decimal = Decimal("0")
 
 
 class PaperTrader:
@@ -226,6 +263,7 @@ class PaperTrader:
         initial_balance: dict[str, Decimal] | None = None,
         data_dir: Path | None = None,
         exchange: "BaseExchange | None" = None,
+        fee_config: FeeConfig | None = None,
     ) -> None:
         """Initialize PaperTrader.
 
@@ -236,12 +274,17 @@ class PaperTrader:
                      Defaults to data/trades/.
             exchange: Optional exchange instance for testnet execution.
                      If provided and in testnet mode, orders can execute on testnet.
+            fee_config: Maker/taker fee rates for simulation. If None, uses
+                       the default config for the supplied ``exchange`` (keyed
+                       by ``exchange.name``), or zero fees when no exchange
+                       is configured.
         """
         self._balances: dict[str, PaperBalance] = {}
         self._open_positions: dict[str, OpenPosition] = {}
         self._trade_tracker = TradeHistoryTracker(data_dir=data_dir)
         self._exchange = exchange
         self._use_testnet = exchange is not None and exchange.testnet
+        self._fee_config = self._resolve_fee_config(fee_config, exchange)
 
         # Initialize balances
         if initial_balance:
@@ -254,8 +297,42 @@ class PaperTrader:
         mode_str = "testnet" if self._use_testnet else "local simulation"
         logger.info(
             f"PaperTrader initialized in {mode_str} mode with balances: "
-            f"{self.get_balance_summary()}"
+            f"{self.get_balance_summary()}, "
+            f"fees: maker={self._fee_config.maker_fee_rate}, "
+            f"taker={self._fee_config.taker_fee_rate}"
         )
+
+    @staticmethod
+    def _resolve_fee_config(
+        fee_config: FeeConfig | None,
+        exchange: "BaseExchange | None",
+    ) -> FeeConfig:
+        """Determine the effective fee config for the trader.
+
+        Precedence: explicit ``fee_config`` > exchange-specific default >
+        zero-fee fallback.
+
+        Args:
+            fee_config: Explicitly supplied configuration, if any.
+            exchange: Exchange instance used to look up a default.
+
+        Returns:
+            The effective FeeConfig.
+        """
+        if fee_config is not None:
+            return fee_config
+        if exchange is not None:
+            return DEFAULT_FEE_CONFIGS.get(exchange.name.lower(), ZERO_FEE_CONFIG)
+        return ZERO_FEE_CONFIG
+
+    @property
+    def fee_config(self) -> FeeConfig:
+        """Get the active fee configuration.
+
+        Returns:
+            The FeeConfig in use for fee simulation.
+        """
+        return self._fee_config
 
     @property
     def is_testnet_mode(self) -> bool:
@@ -361,6 +438,30 @@ class PaperTrader:
         notional = position.notional_value
         return notional / Decimal(position.leverage)
 
+    def _calculate_fee(
+        self,
+        notional: Decimal,
+        is_maker: bool = False,
+    ) -> Decimal:
+        """Calculate trading fee for a notional value.
+
+        Market orders are treated as taker fills; limit orders resting on
+        the book are maker fills.
+
+        Args:
+            notional: The notional value (price * quantity) of the trade.
+            is_maker: Whether to apply the maker rate instead of taker.
+
+        Returns:
+            Fee amount in the quote currency.
+        """
+        rate = (
+            self._fee_config.maker_fee_rate
+            if is_maker
+            else self._fee_config.taker_fee_rate
+        )
+        return notional * rate
+
     def _generate_order_id(self) -> str:
         """Generate a simulated order ID.
 
@@ -403,6 +504,16 @@ class PaperTrader:
         margin = self._calculate_required_margin(position)
         balance.lock(margin)
 
+        # Calculate and deduct entry fee (market orders = taker).
+        # On failure, unlock the margin to keep balance state consistent.
+        entry_fee = self._calculate_fee(position.notional_value, is_maker=False)
+        if entry_fee > 0:
+            try:
+                balance.deduct(entry_fee)
+            except InsufficientPaperBalanceError:
+                balance.unlock(margin)
+                raise
+
         # Generate order ID for simulation
         order_id = self._generate_order_id()
 
@@ -424,12 +535,13 @@ class PaperTrader:
             position=position,
             margin=margin,
             quote_currency=quote_currency,
+            entry_fee=entry_fee,
         )
 
         logger.info(
             f"Opened paper position: {position.side} {position.symbol} "
             f"@ {position.entry_price}, qty={position.quantity}, "
-            f"margin={margin} {quote_currency}"
+            f"margin={margin} {quote_currency}, entry_fee={entry_fee}"
         )
 
         return trade
@@ -464,11 +576,18 @@ class PaperTrader:
         position = open_pos.position
         margin = open_pos.margin
         quote_currency = open_pos.quote_currency
+        entry_fee = open_pos.entry_fee
 
-        # Calculate P&L
+        # Calculate P&L (unleveraged, used for balance accounting)
         pnl = position.calculate_pnl(exit_price)
 
-        # Update balance: unlock margin and apply P&L
+        # Calculate exit fee (market orders = taker)
+        exit_notional = exit_price * position.quantity
+        exit_fee = self._calculate_fee(exit_notional, is_maker=False)
+        total_fees = entry_fee + exit_fee
+
+        # Update balance: unlock margin, apply P&L, deduct exit fee.
+        # Entry fee was already deducted at open time.
         balance = self.get_balance(quote_currency)
         if balance:
             balance.unlock(margin)
@@ -483,11 +602,19 @@ class PaperTrader:
                     # Margin was the max loss; adjust to available
                     balance.free = Decimal("0")
 
-        # Close trade via tracker
+            if exit_fee > 0:
+                if exit_fee <= balance.free:
+                    balance.deduct(exit_fee)
+                else:
+                    # Insufficient balance to cover fees — zero out.
+                    balance.free = Decimal("0")
+
+        # Close trade via tracker (records total fees for P&L accuracy)
         closed_trade = self._trade_tracker.close_trade(
             trade_id=trade_id,
             exit_price=exit_price,
             close_reason=reason,
+            fees=total_fees,
         )
 
         # Remove from open positions
@@ -495,7 +622,7 @@ class PaperTrader:
 
         logger.info(
             f"Closed paper position {trade_id}: {reason}, "
-            f"exit_price={exit_price}, P&L={pnl}"
+            f"exit_price={exit_price}, P&L={pnl}, fees={total_fees}"
         )
 
         return closed_trade
