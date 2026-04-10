@@ -27,6 +27,11 @@ from src.trading.paper import (
     PaperTrader,
     PaperTradingError,
 )
+from src.trading.portfolio import (
+    AssetSnapshot,
+    Portfolio,
+    PortfolioTracker,
+)
 from src.trading.strategy import (
     InsufficientBalanceError,
     TradingError,
@@ -57,4 +62,8 @@ __all__ = [
     "DEFAULT_FEE_CONFIGS",
     # Live Trading Classes
     "LiveTrader",
+    # Portfolio Classes
+    "Portfolio",
+    "PortfolioTracker",
+    "AssetSnapshot",
 ]

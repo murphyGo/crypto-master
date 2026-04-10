@@ -24,6 +24,7 @@
 | Paper Trading (Testnet) | ✅ Complete | 4 |
 | Paper Trading (Fees) | ✅ Complete | 4 |
 | Live Trading | ✅ Complete | 4 |
+| Portfolio / Asset Management | ✅ Complete | 4 |
 | Backtesting | ❌ Missing | 5 |
 | Feedback Loop | ❌ Missing | 5 |
 | Trading Proposal | ❌ Missing | 6 |
@@ -191,11 +192,11 @@
 
 ### 4.5 Asset/PnL Management
 
-- [ ] `src/trading/portfolio.py` - Portfolio management
-- [ ] Asset history storage (`data/portfolio/`)
-- [ ] PnL calculation (realized/unrealized)
-- [ ] Separate storage by paper/live mode
-- [ ] Write unit tests
+- [x] `src/trading/portfolio.py` - Portfolio management
+- [x] Asset history storage (`data/portfolio/`)
+- [x] PnL calculation (realized/unrealized)
+- [x] Separate storage by paper/live mode
+- [x] Write unit tests
 
 ### 4.6 Trading Strategy Profiles
 
@@ -357,3 +358,4 @@
 | 4.3 | 2026-04-06 | Phase 4.3 complete - Paper Trading Testnet Integration (FR-010, NFR-007, NFR-008) | Claude |
 | 4.3 | 2026-04-10 | Phase 4.3 complete - Paper Trading Fee Simulation (FR-010, NFR-008) | Claude |
 | 4.4 | 2026-04-10 | Phase 4.4 complete - Live Trading Engine (FR-009, NFR-007, NFR-008, NFR-012) | Claude |
+| 4.5 | 2026-04-10 | Phase 4.5 complete - Asset/PnL Management (NFR-007, NFR-008) | Claude |
