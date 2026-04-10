@@ -1,0 +1,14 @@
+name: conservative
+version: "1.0.0"
+description: >
+  Low-risk, low-leverage profile suitable for capital preservation.
+  Skips low-confidence signals and demands a strong risk/reward ratio.
+
+risk_percent: 0.5
+max_leverage: 3
+default_leverage: 1
+max_position_size_percent: 5.0
+min_risk_reward_ratio: 2.5
+min_confidence: 0.75
+order_type: limit
+require_confirmation: true

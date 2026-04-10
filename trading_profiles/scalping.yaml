@@ -1,0 +1,15 @@
+name: scalping
+version: "1.0.0"
+description: >
+  Short-hold, high-frequency profile. Uses moderate leverage with
+  tight risk per trade and only takes high-confidence setups to
+  compensate for the lower R/R ratio typical of scalps.
+
+risk_percent: 0.5
+max_leverage: 20
+default_leverage: 15
+max_position_size_percent: 15.0
+min_risk_reward_ratio: 1.1
+min_confidence: 0.7
+order_type: market
+require_confirmation: false

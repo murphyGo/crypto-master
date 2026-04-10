@@ -1,0 +1,15 @@
+name: aggressive
+version: "1.0.0"
+description: >
+  High-leverage, high-risk profile for experienced traders. Takes
+  lower-confidence signals and accepts smaller R/R margins in
+  exchange for more opportunities.
+
+risk_percent: 2.0
+max_leverage: 25
+default_leverage: 10
+max_position_size_percent: 20.0
+min_risk_reward_ratio: 1.2
+min_confidence: 0.5
+order_type: market
+require_confirmation: true

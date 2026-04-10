@@ -96,6 +96,8 @@ class PerformanceRecord(BaseModel):
     actual_exit_price: Decimal | None = None
     mode: Literal["backtest", "paper", "live"] = "backtest"
     trade_id: str | None = None
+    # Profile dimension for FR-005 technique+profile combinations
+    profile_name: str | None = None
 
     model_config = {"use_enum_values": True}
 
@@ -304,6 +306,7 @@ class PerformanceTracker:
         result: AnalysisResult,
         symbol: str,
         timeframe: str,
+        profile_name: str | None = None,
     ) -> PerformanceRecord:
         """Record a new analysis result.
 
@@ -314,6 +317,8 @@ class PerformanceTracker:
             result: The analysis result.
             symbol: Trading pair symbol.
             timeframe: Candle timeframe.
+            profile_name: Optional trading profile the analysis was
+                combined with (FR-005 technique+profile tracking).
 
         Returns:
             The created PerformanceRecord.
@@ -329,12 +334,14 @@ class PerformanceTracker:
             take_profit=result.take_profit,
             confidence=result.confidence,
             analysis_timestamp=result.timestamp,
+            profile_name=profile_name,
         )
 
         self.save_record(record)
         logger.info(
             f"Recorded analysis: {technique.name} v{technique.version} "
             f"on {symbol} ({timeframe}) - signal: {result.signal}"
+            + (f", profile={profile_name}" if profile_name else "")
         )
         return record
 
@@ -561,6 +568,66 @@ class PerformanceTracker:
         """
         records = self.load_records(technique_name)
         return [r for r in records if r.timeframe == timeframe]
+
+    def get_records_by_profile(
+        self,
+        technique_name: str,
+        profile_name: str | None,
+    ) -> list[PerformanceRecord]:
+        """Get records filtered by trading profile.
+
+        Args:
+            technique_name: Name of the technique.
+            profile_name: Profile name to filter by, or None to match
+                records that have no profile attached.
+
+        Returns:
+            List of matching PerformanceRecords.
+        """
+        records = self.load_records(technique_name)
+        return [r for r in records if r.profile_name == profile_name]
+
+    def get_performance_by_combination(
+        self,
+        technique_name: str,
+        profile_name: str | None,
+        version: str | None = None,
+    ) -> TechniquePerformance:
+        """Get aggregated performance for a technique+profile combination.
+
+        Args:
+            technique_name: Name of the technique.
+            profile_name: Profile name to aggregate over.
+            version: Optional version filter.
+
+        Returns:
+            TechniquePerformance computed only from records matching
+            both the technique and the profile.
+        """
+        records = self.load_records(technique_name, version=version)
+        filtered = [r for r in records if r.profile_name == profile_name]
+        technique_version = version or (
+            filtered[-1].technique_version if filtered else ""
+        )
+        return TechniquePerformance.from_records(
+            technique_name, technique_version, filtered
+        )
+
+    def list_profiles_for_technique(
+        self,
+        technique_name: str,
+    ) -> list[str]:
+        """List distinct profile names seen for a technique.
+
+        Args:
+            technique_name: Name of the technique.
+
+        Returns:
+            Sorted list of profile names (excluding None entries).
+        """
+        records = self.load_records(technique_name)
+        profiles = {r.profile_name for r in records if r.profile_name}
+        return sorted(profiles)
 
     def get_records_by_date_range(
         self,

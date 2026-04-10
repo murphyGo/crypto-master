@@ -32,6 +32,18 @@ from src.trading.portfolio import (
     Portfolio,
     PortfolioTracker,
 )
+from src.trading.profile_loader import (
+    DEFAULT_PROFILES_DIR,
+    ProfileLoader,
+    ProfileLoaderError,
+    ProfileNotFoundError,
+    ProfileValidationError,
+)
+from src.trading.profiles import (
+    TradingProfile,
+    create_position_from_profile,
+    create_strategy_from_profile,
+)
 from src.trading.strategy import (
     InsufficientBalanceError,
     TradingError,
@@ -66,4 +78,13 @@ __all__ = [
     "Portfolio",
     "PortfolioTracker",
     "AssetSnapshot",
+    # Trading Profiles
+    "TradingProfile",
+    "create_position_from_profile",
+    "create_strategy_from_profile",
+    "ProfileLoader",
+    "ProfileLoaderError",
+    "ProfileNotFoundError",
+    "ProfileValidationError",
+    "DEFAULT_PROFILES_DIR",
 ]

@@ -869,6 +869,232 @@ class TestPerformanceRecordEnhanced:
         assert data[0]["mode"] == "live"
 
 
+class TestPerformanceProfileDimension:
+    """Tests for the profile_name dimension on PerformanceRecord (FR-005)."""
+
+    def test_profile_name_defaults_none(self) -> None:
+        """profile_name is optional and defaults to None."""
+        record = PerformanceRecord(
+            technique_name="tech",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+        )
+        assert record.profile_name is None
+
+    def test_profile_name_roundtrip(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """profile_name survives save/load."""
+        record = PerformanceRecord(
+            technique_name="tech",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            profile_name="moderate",
+        )
+        tracker.save_record(record)
+
+        loaded = tracker.load_records("tech")
+        assert len(loaded) == 1
+        assert loaded[0].profile_name == "moderate"
+
+    def test_record_analysis_accepts_profile_name(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """PerformanceTracker.record_analysis now accepts profile_name."""
+        from src.models import AnalysisResult
+        from src.strategy.base import TechniqueInfo
+
+        technique = TechniqueInfo(
+            name="tech",
+            version="1.0.0",
+            description="test",
+            technique_type="code",
+        )
+        analysis = AnalysisResult(
+            signal="long",
+            confidence=0.8,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("51000"),
+            reasoning="test",
+        )
+        record = tracker.record_analysis(
+            technique=technique,
+            result=analysis,
+            symbol="BTC/USDT",
+            timeframe="1h",
+            profile_name="aggressive",
+        )
+        assert record.profile_name == "aggressive"
+
+    def test_get_records_by_profile(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """Records can be filtered by profile_name."""
+        for profile in ("conservative", "moderate", "conservative"):
+            tracker.save_record(
+                PerformanceRecord(
+                    technique_name="tech",
+                    technique_version="1.0.0",
+                    symbol="BTC/USDT",
+                    timeframe="1h",
+                    signal="long",
+                    entry_price=Decimal("50000"),
+                    stop_loss=Decimal("49000"),
+                    take_profit=Decimal("51000"),
+                    confidence=0.8,
+                    profile_name=profile,
+                )
+            )
+
+        conservative = tracker.get_records_by_profile("tech", "conservative")
+        moderate = tracker.get_records_by_profile("tech", "moderate")
+        assert len(conservative) == 2
+        assert len(moderate) == 1
+        assert all(r.profile_name == "conservative" for r in conservative)
+
+    def test_get_records_by_profile_none(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """Passing None matches records with no profile attached."""
+        tracker.save_record(
+            PerformanceRecord(
+                technique_name="tech",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("51000"),
+                confidence=0.8,
+            )
+        )
+        tracker.save_record(
+            PerformanceRecord(
+                technique_name="tech",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("51000"),
+                confidence=0.8,
+                profile_name="moderate",
+            )
+        )
+
+        nameless = tracker.get_records_by_profile("tech", None)
+        assert len(nameless) == 1
+        assert nameless[0].profile_name is None
+
+    def test_get_performance_by_combination(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """Performance aggregates scope to technique+profile."""
+        # Profile A: 2 wins, 0 losses
+        for _ in range(2):
+            tracker.save_record(
+                PerformanceRecord(
+                    technique_name="tech",
+                    technique_version="1.0.0",
+                    symbol="BTC/USDT",
+                    timeframe="1h",
+                    signal="long",
+                    entry_price=Decimal("50000"),
+                    stop_loss=Decimal("49000"),
+                    take_profit=Decimal("51000"),
+                    confidence=0.8,
+                    outcome=TradeOutcome.WIN,
+                    exit_price=Decimal("51000"),
+                    pnl_percent=2.0,
+                    profile_name="aggressive",
+                )
+            )
+        # Profile B: 1 win, 1 loss
+        tracker.save_record(
+            PerformanceRecord(
+                technique_name="tech",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("51000"),
+                confidence=0.8,
+                outcome=TradeOutcome.WIN,
+                exit_price=Decimal("51000"),
+                pnl_percent=2.0,
+                profile_name="conservative",
+            )
+        )
+        tracker.save_record(
+            PerformanceRecord(
+                technique_name="tech",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("51000"),
+                confidence=0.8,
+                outcome=TradeOutcome.LOSS,
+                exit_price=Decimal("49000"),
+                pnl_percent=-2.0,
+                profile_name="conservative",
+            )
+        )
+
+        agg_perf = tracker.get_performance_by_combination("tech", "aggressive")
+        con_perf = tracker.get_performance_by_combination("tech", "conservative")
+
+        assert agg_perf.total_trades == 2
+        assert agg_perf.wins == 2
+        assert agg_perf.win_rate == 1.0
+
+        assert con_perf.total_trades == 2
+        assert con_perf.wins == 1
+        assert con_perf.losses == 1
+        assert con_perf.win_rate == 0.5
+
+    def test_list_profiles_for_technique(
+        self, tracker: PerformanceTracker
+    ) -> None:
+        """Distinct profile names are returned, sorted, excluding None."""
+        for profile in ("moderate", "aggressive", "moderate", None):
+            tracker.save_record(
+                PerformanceRecord(
+                    technique_name="tech",
+                    technique_version="1.0.0",
+                    symbol="BTC/USDT",
+                    timeframe="1h",
+                    signal="long",
+                    entry_price=Decimal("50000"),
+                    stop_loss=Decimal("49000"),
+                    take_profit=Decimal("51000"),
+                    confidence=0.8,
+                    profile_name=profile,
+                )
+            )
+        profiles = tracker.list_profiles_for_technique("tech")
+        assert profiles == ["aggressive", "moderate"]
+
+
 class TestTradeHistory:
     """Tests for TradeHistory model."""
 
