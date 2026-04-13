@@ -26,7 +26,7 @@
 | Live Trading | ✅ Complete | 4 |
 | Portfolio / Asset Management | ✅ Complete | 4 |
 | Trading Strategy Profiles | ✅ Complete | 4 |
-| Backtesting | ❌ Missing | 5 |
+| Backtesting | 🔄 In Progress | 5 |
 | Feedback Loop | ❌ Missing | 5 |
 | Trading Proposal | ❌ Missing | 6 |
 | UI Dashboard | ❌ Missing | 7 |
@@ -217,11 +217,11 @@
 
 ### 5.1 Backtesting Engine
 
-- [ ] `src/backtest/engine.py` - Backtester class
-- [ ] Strategy simulation with historical data
-- [ ] Trade simulation (considering slippage, fees)
-- [ ] Result storage (JSON/CSV - `data/backtest/`)
-- [ ] Write unit tests
+- [x] `src/backtest/engine.py` - Backtester class
+- [x] Strategy simulation with historical data
+- [x] Trade simulation (considering slippage, fees)
+- [x] Result storage (JSON/CSV - `data/backtest/`)
+- [x] Write unit tests
 
 ### 5.2 Performance Analyzer
 
@@ -362,3 +362,4 @@
 | 4.5 | 2026-04-10 | Phase 4.5 complete - Asset/PnL Management (NFR-007, NFR-008) | Claude |
 | 4.6 | 2026-04-10 | Phase 4.6 complete - Trading Strategy Profiles (FR-005, FR-006, FR-007, FR-008) | Claude |
 | 4.0 | 2026-04-10 | Phase 4 complete - all sub-tasks checked | Claude |
+| 5.1 | 2026-04-11 | Phase 5.1 complete - Backtesting Engine (FR-025, NFR-006) | Claude |
