@@ -9,6 +9,7 @@ Related Requirements:
 - NFR-008: Asset/PnL History (mode separation — mode="backtest")
 """
 
+from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
 from src.backtest.engine import (
     BacktestConfig,
     Backtester,
@@ -23,4 +24,6 @@ __all__ = [
     "BacktestResult",
     "BacktestTrade",
     "BacktestError",
+    "PerformanceAnalyzer",
+    "PerformanceMetrics",
 ]

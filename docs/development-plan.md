@@ -225,13 +225,13 @@
 
 ### 5.2 Performance Analyzer
 
-- [ ] `src/backtest/analyzer.py` - PerformanceAnalyzer class
-- [ ] Win rate calculation
-- [ ] Total return / annualized return
-- [ ] Maximum drawdown (MDD) calculation
-- [ ] Sharpe ratio calculation
-- [ ] Report generation (md format)
-- [ ] Write unit tests
+- [x] `src/backtest/analyzer.py` - PerformanceAnalyzer class
+- [x] Win rate calculation
+- [x] Total return / annualized return
+- [x] Maximum drawdown (MDD) calculation
+- [x] Sharpe ratio calculation
+- [x] Report generation (md format)
+- [x] Write unit tests
 
 ### 5.3 Claude-Based Technique Improvement
 
@@ -363,3 +363,4 @@
 | 4.6 | 2026-04-10 | Phase 4.6 complete - Trading Strategy Profiles (FR-005, FR-006, FR-007, FR-008) | Claude |
 | 4.0 | 2026-04-10 | Phase 4 complete - all sub-tasks checked | Claude |
 | 5.1 | 2026-04-11 | Phase 5.1 complete - Backtesting Engine (FR-025, NFR-006) | Claude |
+| 5.2 | 2026-04-13 | Phase 5.2 complete - Performance Analyzer (FR-021, NFR-006) | Claude |
