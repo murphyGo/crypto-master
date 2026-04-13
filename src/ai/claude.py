@@ -103,6 +103,44 @@ class ClaudeCLI:
         # Parse and return JSON
         return self._parse_response(stdout)
 
+    async def complete(self, prompt: str) -> str:
+        """Execute Claude CLI with prompt and return raw stdout text.
+
+        Use this when the caller expects free-form text (e.g. a
+        generated markdown file) rather than a JSON payload. For
+        JSON-shaped responses, prefer :meth:`analyze`.
+
+        Args:
+            prompt: The prompt to send to Claude.
+
+        Returns:
+            The raw stdout text from the CLI, stripped of leading and
+            trailing whitespace.
+
+        Raises:
+            ClaudeNotFoundError: If claude CLI is not found.
+            ClaudeTimeoutError: If execution exceeds timeout.
+            ClaudeExecutionError: If CLI returns non-zero exit code.
+            ClaudeParseError: If Claude returned no output.
+        """
+        if not self.is_available():
+            raise ClaudeNotFoundError(
+                f"Claude CLI not found: '{self.claude_path}'. "
+                "Ensure Claude CLI is installed and in PATH."
+            )
+
+        self._logger.debug(
+            f"Executing Claude CLI for completion (timeout={self.timeout}s)"
+        )
+        stdout, _ = await self._execute_cli(prompt)
+        text = stdout.strip()
+        if not text:
+            raise ClaudeParseError(
+                "Claude returned empty response",
+                raw_output=stdout,
+            )
+        return text
+
     async def _execute_cli(self, prompt: str) -> tuple[str, str]:
         """Execute claude -p command.
 

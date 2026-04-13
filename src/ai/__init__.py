@@ -12,6 +12,13 @@ from src.ai.exceptions import (
     ClaudeParseError,
     ClaudeTimeoutError,
 )
+from src.ai.improver import (
+    DEFAULT_EXPERIMENTAL_DIR,
+    GeneratedTechnique,
+    GeneratedTechniqueError,
+    StrategyImprover,
+    StrategyImproverError,
+)
 
 __all__ = [
     "ClaudeCLI",
@@ -21,4 +28,9 @@ __all__ = [
     "ClaudeExecutionError",
     "ClaudeTimeoutError",
     "ClaudeParseError",
+    "StrategyImprover",
+    "StrategyImproverError",
+    "GeneratedTechnique",
+    "GeneratedTechniqueError",
+    "DEFAULT_EXPERIMENTAL_DIR",
 ]
