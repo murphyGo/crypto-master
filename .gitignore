@@ -33,6 +33,9 @@ Thumbs.db
 .coverage
 htmlcov/
 
+# Runtime data (logs, trades, backtests, performance, audit, feedback state)
+data/
+
 # Distribution
 dist/
 build/

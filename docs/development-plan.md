@@ -30,7 +30,7 @@
 | Performance Analyzer | ✅ Complete | 5 |
 | Strategy Improver (Hypothesis-Driven) | ✅ Complete | 5 |
 | Robustness Validation Gate | ✅ Complete | 5 |
-| Feedback Loop | ❌ Missing | 5 |
+| Feedback Loop | ✅ Complete | 5 |
 | Trading Proposal | ❌ Missing | 6 |
 | UI Dashboard | ❌ Missing | 7 |
 
@@ -276,17 +276,27 @@
 
 ### 5.5 Automated Feedback Loop
 
-**Related Requirements**: FR-026, FR-027, FR-034
+**Related Requirements**: FR-026, FR-027, FR-034, CON-003
 
-- [ ] `src/feedback/loop.py` - FeedbackLoop orchestrator
-- [ ] Loop execution: analysis → improvement → backtesting → **robustness gate** → evaluation
-- [ ] Automatic decision based on `RobustnessReport.overall_passed`
-  (FAILED → discard; PASSED → queue for user approval)
-- [ ] Technique adoption flow (user approval required for `experimental` → `active`)
-- [ ] Loop state saving and resumption
-- [ ] Audit log of every promote/demote/discard event under
-  `data/audit/` for traceability
-- [ ] Write unit tests
+- [x] `src/feedback/loop.py` - `FeedbackLoop` orchestrator with
+  `CandidateRecord`, `LoopStatus`, `FeedbackLoopError`
+- [x] Loop execution: improvement → backtesting → **robustness gate** → decision
+  via `improve_existing` / `propose_new` / `from_user_idea` / `reevaluate`
+- [x] Automatic decision based on `RobustnessReport.overall_passed`
+  (FAILED → `DISCARDED`; PASSED → `AWAITING_APPROVAL`)
+- [x] Technique adoption flow — `approve(candidate_id, approver)` moves
+  the file from `strategies/experimental/` to `strategies/` and
+  rewrites frontmatter `status: active`; `reject(...)` keeps the file
+  in experimental for further iteration. CON-003 enforced.
+- [x] Loop state persistence at `data/feedback/state/<candidate_id>.json`
+  with `save_state` / `load_state` / `list_pending` for manual resumption.
+- [x] Append-only JSONL audit log at `data/audit/feedback.jsonl`
+  (`src/feedback/audit.py`) recording every
+  GENERATED / BACKTESTED / GATE_PASSED / GATE_FAILED / APPROVED /
+  REJECTED / PROMOTED / DISCARDED / ERRORED event.
+- [x] Write unit tests (23 tests across audit and loop covering
+  happy paths, gate failure, approve/reject, state persistence,
+  error propagation, frontmatter rewrite).
 
 ---
 
@@ -405,3 +415,5 @@
 | 5.3a | 2026-04-14 | Phase 5.3 prompt redesign - hypothesis-driven generation (FR-033, FR-035); rejects generic indicator mashups; mandatory `hypothesis` frontmatter; Failure Analysis required for improvements | Claude |
 | 5.4 | 2026-04-14 | Phase 5.4 complete - Robustness Validation Gate (FR-034); 4 gates: OOS / walk-forward / regime / parameter sensitivity; 18 tests | Claude |
 | 5.x | 2026-04-14 | Renumbered prior 5.4 (Automated Feedback Loop) → 5.5 to slot the Robustness Gate before the loop orchestrator | Claude |
+| 5.5 | 2026-04-25 | Phase 5.5 complete - Automated Feedback Loop (FR-026, FR-027, FR-034, CON-003); FeedbackLoop orchestrator + JSONL audit log + state persistence; 23 tests | Claude |
+| 5.0 | 2026-04-25 | Phase 5 complete - all sub-tasks (5.1–5.5) checked | Claude |
