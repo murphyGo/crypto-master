@@ -25,6 +25,9 @@ Thumbs.db
 .env
 .env.local
 
+# MCP configuration (contains API keys)
+.mcp.json
+
 # Testing
 .pytest_cache/
 .coverage

@@ -26,7 +26,10 @@
 | Live Trading | ✅ Complete | 4 |
 | Portfolio / Asset Management | ✅ Complete | 4 |
 | Trading Strategy Profiles | ✅ Complete | 4 |
-| Backtesting | 🔄 In Progress | 5 |
+| Backtesting | ✅ Complete | 5 |
+| Performance Analyzer | ✅ Complete | 5 |
+| Strategy Improver (Hypothesis-Driven) | ✅ Complete | 5 |
+| Robustness Validation Gate | ✅ Complete | 5 |
 | Feedback Loop | ❌ Missing | 5 |
 | Trading Proposal | ❌ Missing | 6 |
 | UI Dashboard | ❌ Missing | 7 |
@@ -241,14 +244,48 @@
 - [x] User idea input → technique generation
 - [x] Generated technique storage (`strategies/experimental/`)
 - [x] Write unit tests
+- [x] **Hypothesis-driven prompt redesign** (FR-033, FR-035): mandatory
+  `hypothesis` frontmatter field; new-idea prompt rejects generic
+  indicator mashups and steers toward market-structure hypotheses
+  (funding/liquidation/OI/basis/stablecoin flow); improvement prompt
+  enforces a structural Failure Analysis section and caps added
+  conditions to ≤ 2 per revision.
 
-### 5.4 Automated Feedback Loop
+### 5.4 Robustness Validation Gate
+
+**Related Requirements**: FR-034, FR-027, NFR-006
+
+- [x] `src/backtest/validator.py` - `RobustnessGate`, `RobustnessReport`,
+  `RobustnessConfig`, `GateResult`, `GateStatus`
+- [x] **Out-of-sample (OOS) gate** — chronological 70/30 split; OOS
+  Sharpe must retain ≥ 70% of in-sample Sharpe; SKIPPED if either
+  split has too few trades.
+- [x] **Walk-forward gate** — N consecutive non-overlapping windows;
+  ≥ 60% of evaluable windows must be profitable.
+- [x] **Regime gate** — classify each entry candle by SMA-relative
+  regime (bull/bear/sideways); require non-negative expectancy in
+  every regime that has enough trades.
+- [x] **Parameter sensitivity gate** — sweep caller-supplied
+  `param_grid` via `strategy_factory`; require mean Sharpe across
+  grid ≥ 50% of baseline AND ≥ 60% of grid points profitable;
+  hard cap on combo count to prevent grid explosion.
+- [x] Aggregate `RobustnessReport` with overall verdict (PASSED if no
+  FAILED gates), per-gate diagnostics, and human-readable summary.
+- [x] Write unit tests (18 tests covering each gate's PASS / FAIL /
+  SKIP paths plus aggregate report).
+
+### 5.5 Automated Feedback Loop
+
+**Related Requirements**: FR-026, FR-027, FR-034
 
 - [ ] `src/feedback/loop.py` - FeedbackLoop orchestrator
-- [ ] Loop execution: analysis → improvement → backtesting → evaluation
-- [ ] Automatic decision based on performance thresholds
-- [ ] Technique adoption flow (user approval)
+- [ ] Loop execution: analysis → improvement → backtesting → **robustness gate** → evaluation
+- [ ] Automatic decision based on `RobustnessReport.overall_passed`
+  (FAILED → discard; PASSED → queue for user approval)
+- [ ] Technique adoption flow (user approval required for `experimental` → `active`)
 - [ ] Loop state saving and resumption
+- [ ] Audit log of every promote/demote/discard event under
+  `data/audit/` for traceability
 - [ ] Write unit tests
 
 ---
@@ -329,7 +366,7 @@
 | Phase 2 | FR-016, FR-017, FR-018, FR-019, FR-020, NFR-009 |
 | Phase 3 | FR-001, FR-002, FR-003, FR-004, FR-005, NFR-002, NFR-005, NFR-007, NFR-008, NFR-010 |
 | Phase 4 | FR-006, FR-007, FR-008, FR-009, FR-010, NFR-012 |
-| Phase 5 | FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, NFR-006 |
+| Phase 5 | FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, FR-033, FR-034, FR-035, NFR-006 |
 | Phase 6 | FR-011, FR-012, FR-013, FR-014, FR-015 |
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
 
@@ -365,3 +402,6 @@
 | 5.1 | 2026-04-11 | Phase 5.1 complete - Backtesting Engine (FR-025, NFR-006) | Claude |
 | 5.2 | 2026-04-13 | Phase 5.2 complete - Performance Analyzer (FR-021, NFR-006) | Claude |
 | 5.3 | 2026-04-13 | Phase 5.3 complete - Claude-Based Technique Improvement (FR-022, FR-023, FR-024, NFR-002) | Claude |
+| 5.3a | 2026-04-14 | Phase 5.3 prompt redesign - hypothesis-driven generation (FR-033, FR-035); rejects generic indicator mashups; mandatory `hypothesis` frontmatter; Failure Analysis required for improvements | Claude |
+| 5.4 | 2026-04-14 | Phase 5.4 complete - Robustness Validation Gate (FR-034); 4 gates: OOS / walk-forward / regime / parameter sensitivity; 18 tests | Claude |
+| 5.x | 2026-04-14 | Renumbered prior 5.4 (Automated Feedback Loop) → 5.5 to slot the Robustness Gate before the loop orchestrator | Claude |

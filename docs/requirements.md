@@ -74,6 +74,9 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | FR-025 | Backtesting Execution | Validate analysis technique performance using historical data | High |
 | FR-026 | Automated Feedback Loop | Automate the cycle of backtesting → analysis → improvement → revalidation | High |
 | FR-027 | Technique Adoption | Adopt techniques with good backtesting performance as official techniques after user approval | High |
+| FR-033 | Hypothesis-Driven Generation | Every Claude-generated technique must declare a falsifiable market hypothesis (frontmatter `hypothesis` field). Indicator-mashup strategies without an underlying market-structure rationale must be rejected at prompt level. | High |
+| FR-034 | Robustness Validation Gate | Before a strategy can be promoted from `experimental/` to `active`, it must pass a robustness gate consisting of: out-of-sample (OOS) split, walk-forward windows, regime split, and (when parameter grid available) parameter sensitivity. SKIPPED gates are surfaced; FAILED gates block promotion. | High |
+| FR-035 | Failure-Mode Improvement | Improvement prompts must require a structural failure analysis (root-cause enumeration) before proposing changes, and cap the number of new conditions added per revision to discourage overfitting. | High |
 
 ### 2.6 UI Dashboard
 
