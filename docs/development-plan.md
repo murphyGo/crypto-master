@@ -35,7 +35,7 @@
 | UI Dashboard | ✅ Complete | 7 |
 | Trading Engine Runtime | ✅ Complete | 8 |
 | Engine Status Dashboard Page | ✅ Complete | 8 |
-| Fly.io Deployment | ❌ Missing | 8 |
+| Fly.io Deployment | ✅ Complete | 8 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -410,10 +410,10 @@ to the dashboard via an append-only activity log.
 
 ### 8.3 Fly.io Deployment
 
-- [ ] `Dockerfile` (Claude CLI + Python deps)
-- [ ] `fly.toml` (multi-process: trader + dashboard, single volume)
-- [ ] `.dockerignore`
-- [ ] `docs/deployment.md` (Cloudflare Access setup, secrets list, region pick, rollout flow)
+- [x] `Dockerfile` (Claude CLI + Python deps)
+- [x] `fly.toml` (multi-process: trader + dashboard, single volume)
+- [x] `.dockerignore`
+- [x] `docs/deployment.md` (Cloudflare Access setup, secrets list, region pick, rollout flow)
 
 ---
 
@@ -479,3 +479,5 @@ to the dashboard via an append-only activity log.
 | 8.0 | 2026-04-27 | Phase 8 added to plan - production runtime + Fly.io deployment (8.1 engine, 8.2 dashboard page, 8.3 Fly packaging) | Claude |
 | 8.1 | 2026-04-27 | Phase 8.1 complete - Trading Engine Runtime; src/runtime/{engine,activity_log}.py + src/main.py + ProposalHistory.attach_trade; auto-decide + interruptible loop + JSONL activity log; 26 tests | Claude |
 | 8.2 | 2026-04-27 | Phase 8.2 complete - Engine Status Dashboard Page; src/dashboard/pages/engine.py with cycle aggregation + summary cards + recent-cycles table + duration bar chart + filterable timeline; 21 tests | Claude |
+| 8.3 | 2026-04-27 | Phase 8.3 complete - Fly.io Deployment; Dockerfile (Python 3.13 + Node 18 + Claude CLI + tini) + start.sh (signal-forwarding two-process supervisor) + fly.toml (single machine, single volume, Streamlit healthcheck) + .dockerignore + docs/deployment.md | Claude |
+| 8.0 | 2026-04-27 | Phase 8 complete - all sub-tasks (8.1–8.3) checked | Claude |

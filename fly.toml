@@ -1,0 +1,52 @@
+# Fly.io configuration — Crypto Master (Phase 8.3).
+#
+# One machine, one container, one volume.
+#
+# The trader and the Streamlit dashboard share the /data volume
+# (proposals, trades, audit log, activity log, portfolio snapshots,
+# performance records). Fly volumes are tied to a single machine, so
+# both processes must run in the same container; start.sh inside the
+# image launches them together. See Dockerfile + start.sh for the
+# supervision strategy.
+#
+# Customise before first deploy:
+#   - app: must be unique on Fly's global namespace
+#   - primary_region: change to wherever's cheapest/closest for you;
+#     `nrt` is Tokyo, generally close to Binance/Bybit primary regions
+#   - vm.memory_mb: bump if you see OOM under sustained load
+
+app = "crypto-master"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Volume for /data. Create it once with:
+#   fly volumes create data --region nrt --size 1
+[[mounts]]
+  source = "data"
+  destination = "/data"
+
+# HTTP exposes only the Streamlit dashboard on 8080.
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # auto_stop_machines = false because the trader must run 24/7.
+  # If we let Fly stop the machine on idle traffic the trader stops too.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # Streamlit ships a built-in healthcheck endpoint. The grace period
+  # is generous because cold start has to import pandas, ccxt, etc.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "120s"
+    method = "GET"
+    path = "/_stcore/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

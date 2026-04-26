@@ -1,0 +1,58 @@
+# Build-context exclusions for `fly deploy` / `docker build`.
+#
+# Only what the Dockerfile explicitly COPYs ends up in the image, but
+# the build context is uploaded in full first — keeping it small
+# means faster deploys and no risk of leaking developer state.
+
+# VCS / CI
+.git
+.github
+.gitignore
+
+# Python virtualenvs
+.venv
+venv
+
+# Python build / cache artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Test / coverage output
+htmlcov
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Application runtime state — must NOT ship in the image. The Fly
+# volume mount provides /data at runtime instead.
+data/
+
+# Documentation, tests, and developer tooling are not needed in the
+# production image. Strategy `.md` files DO ship (they live under
+# strategies/, not docs/).
+docs/
+tests/
+plans/
+.claude/
+
+# Environment files — these MUST stay out of images. Secrets come
+# from `fly secrets set` at deploy time.
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+
+# Project-local ephemera
+*.log
