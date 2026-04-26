@@ -19,11 +19,31 @@ from src.proposal.engine import (
     ProposalEngineError,
     ProposalScore,
 )
+from src.proposal.interaction import (
+    ProposalDecision,
+    ProposalDecisionCallback,
+    ProposalDecisionInput,
+    ProposalHistory,
+    ProposalHistoryError,
+    ProposalInteraction,
+    ProposalRecord,
+    default_decision_prompt,
+    format_proposal,
+)
 
 __all__ = [
     "Proposal",
+    "ProposalDecision",
+    "ProposalDecisionCallback",
+    "ProposalDecisionInput",
     "ProposalEngine",
     "ProposalEngineConfig",
     "ProposalEngineError",
+    "ProposalHistory",
+    "ProposalHistoryError",
+    "ProposalInteraction",
+    "ProposalRecord",
     "ProposalScore",
+    "default_decision_prompt",
+    "format_proposal",
 ]

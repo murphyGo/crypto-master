@@ -327,11 +327,11 @@
 
 ### 6.2 User Interaction
 
-- [ ] `src/proposal/interaction.py` - User interaction handling
-- [ ] Proposal display format (CLI)
-- [ ] Accept/reject input handling
-- [ ] Proposal history storage (`data/proposals/`)
-- [ ] Write unit tests
+- [x] `src/proposal/interaction.py` - User interaction handling
+- [x] Proposal display format (CLI)
+- [x] Accept/reject input handling
+- [x] Proposal history storage (`data/proposals/`)
+- [x] Write unit tests
 
 ### 6.3 Notification System
 
@@ -431,3 +431,4 @@
 | 5.5 | 2026-04-25 | Phase 5.5 complete - Automated Feedback Loop (FR-026, FR-027, FR-034, CON-003); FeedbackLoop orchestrator + JSONL audit log + state persistence; 23 tests | Claude |
 | 5.0 | 2026-04-25 | Phase 5 complete - all sub-tasks (5.1–5.5) checked | Claude |
 | 6.1 | 2026-04-25 | Phase 6.1 complete - Proposal Engine (FR-011, FR-012); ProposalEngine + Proposal/ProposalScore + composite score formula; 19 tests | Claude |
+| 6.2 | 2026-04-26 | Phase 6.2 complete - User Interaction (FR-013, FR-014); format_proposal + default_decision_prompt + ProposalHistory + ProposalInteraction; 22 tests | Claude |
