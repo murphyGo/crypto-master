@@ -11,11 +11,10 @@ Related Requirements:
 
 import importlib.util
 import re
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
-
-from decimal import Decimal
 
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import (
@@ -31,6 +30,11 @@ DEFAULT_STRATEGIES_DIR = Path("strategies")
 
 # YAML frontmatter pattern for .md files
 FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+# ``{identifier}`` style placeholder. Matches ``{ohlcv_4h}``,
+# ``{current_price}``, etc. but NOT JSON-shaped ``{"foo": ...}``
+# fragments inside example blocks.
+_TEMPLATE_PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 class PromptStrategy(BaseStrategy):
@@ -78,6 +82,13 @@ class PromptStrategy(BaseStrategy):
         Uses simple string replacement to avoid conflicts with JSON
         braces in the template.
 
+        Any remaining ``{identifier}`` placeholders after substitution
+        are treated as a template / framework mismatch and raise
+        :class:`StrategyValidationError`. Sending them through to
+        Claude unfilled produces conversational responses rather than
+        parseable JSON, which manifests downstream as a confusing
+        ``Failed to parse JSON`` error far from the actual cause.
+
         Args:
             ohlcv: OHLCV candlestick data.
             symbol: Trading pair symbol.
@@ -85,12 +96,36 @@ class PromptStrategy(BaseStrategy):
 
         Returns:
             Formatted prompt string ready for Claude.
+
+        Raises:
+            StrategyValidationError: If the template contains
+                placeholders this method does not know how to fill
+                (e.g. multi-timeframe templates that need
+                ``{ohlcv_4h}``, ``{ohlcv_1h}``, ``{current_price}``).
         """
         ohlcv_text = self._format_ohlcv_data(ohlcv)
         result = self._prompt_content
         result = result.replace("{symbol}", symbol)
         result = result.replace("{timeframe}", timeframe)
         result = result.replace("{ohlcv_data}", ohlcv_text)
+
+        # Any leftover ``{identifier}`` is a template hole the
+        # framework didn't know how to fill. Match identifier-like
+        # names only so JSON examples in the template (which contain
+        # ``{`` immediately followed by ``"`` or whitespace) are not
+        # flagged.
+        unfilled = sorted(set(_TEMPLATE_PLACEHOLDER.findall(result)))
+        if unfilled:
+            placeholders = ", ".join(f"{{{name}}}" for name in unfilled)
+            raise StrategyValidationError(
+                f"Prompt template for '{self.info.name}' has unfilled "
+                f"placeholders: {placeholders}. "
+                "PromptStrategy.format_prompt only substitutes {symbol}, "
+                "{timeframe}, and {ohlcv_data}; this technique appears to "
+                "expect multi-timeframe / multi-field data the framework "
+                "does not yet provide.",
+                field="prompt_content",
+            )
         return result
 
     def _format_ohlcv_data(self, ohlcv: list[OHLCV], max_candles: int = 50) -> str:
@@ -194,9 +229,7 @@ def load_technique_info_from_md(file_path: Path) -> tuple[TechniqueInfo, str]:
     # Extract YAML frontmatter
     match = FRONTMATTER_PATTERN.match(content)
     if not match:
-        raise StrategyLoadError(
-            "Missing YAML frontmatter (---...---)", str(file_path)
-        )
+        raise StrategyLoadError("Missing YAML frontmatter (---...---)", str(file_path))
 
     frontmatter_yaml = match.group(1)
     prompt_content = content[match.end() :].strip()
@@ -260,7 +293,7 @@ def load_technique_info_from_py(
     if not hasattr(module, "TECHNIQUE_INFO"):
         raise StrategyLoadError("Module missing TECHNIQUE_INFO dict", str(file_path))
 
-    info_dict = getattr(module, "TECHNIQUE_INFO")
+    info_dict = module.TECHNIQUE_INFO
     if not isinstance(info_dict, dict):
         raise StrategyLoadError("TECHNIQUE_INFO must be a dict", str(file_path))
 

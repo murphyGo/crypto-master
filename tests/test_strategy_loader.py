@@ -41,9 +41,7 @@ class TestPromptStrategy:
         strategy = PromptStrategy(info=technique_info, prompt_content="Test prompt")
         assert strategy.prompt == "Test prompt"
 
-    def test_prompt_strategy_inherits_base(
-        self, technique_info: TechniqueInfo
-    ) -> None:
+    def test_prompt_strategy_inherits_base(self, technique_info: TechniqueInfo) -> None:
         """Test PromptStrategy inherits from BaseStrategy."""
         strategy = PromptStrategy(info=technique_info, prompt_content="Test")
         assert isinstance(strategy, BaseStrategy)
@@ -93,6 +91,118 @@ class TestPromptStrategy:
         assert isinstance(result, AnalysisResult)
         assert result.signal == "long"
         assert result.confidence == 0.8
+
+    def test_format_prompt_substitutes_known_placeholders(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """All three documented placeholders are filled."""
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content="Symbol={symbol} TF={timeframe}\nData:\n{ohlcv_data}",
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime(2026, 1, 1),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+        ]
+        result = strategy.format_prompt(ohlcv, "BTC/USDT", "1h")
+        assert "Symbol=BTC/USDT" in result
+        assert "TF=1h" in result
+        assert "100,105,95,102" in result  # ohlcv_data row
+        # No leftover ``{ident}`` placeholders.
+        assert "{symbol}" not in result
+        assert "{ohlcv_data}" not in result
+
+    def test_format_prompt_raises_on_unfilled_placeholders(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """Multi-timeframe / extra-data templates surface a clear error.
+
+        This is the production failure mode that motivated the check:
+        a template with ``{ohlcv_4h}`` etc. would silently sail through
+        to Claude pre-fix, producing a confusing JSON-parse error
+        downstream. The explicit raise here makes the misconfig obvious
+        and the strategy gets skipped rather than confusing Claude.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+        from src.strategy.base import StrategyValidationError
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content=(
+                "Analyze {symbol} on {timeframe}.\n"
+                "Current price: {current_price}\n"
+                "4h candles: {ohlcv_4h}\n"
+                "1h candles: {ohlcv_1h}\n"
+            ),
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime(2026, 1, 1),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+        ]
+        with pytest.raises(StrategyValidationError) as exc_info:
+            strategy.format_prompt(ohlcv, "BTC/USDT", "1h")
+        message = str(exc_info.value)
+        # All three unfilled placeholders are listed.
+        assert "{current_price}" in message
+        assert "{ohlcv_4h}" in message
+        assert "{ohlcv_1h}" in message
+
+    def test_format_prompt_ignores_json_braces(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """JSON example blocks (``{"signal": ...}``) must NOT be flagged.
+
+        Many prompt templates include a "respond with this JSON shape"
+        example. Those braces are immediately followed by ``"`` or
+        whitespace, not an identifier, so the placeholder regex
+        shouldn't match them.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content=(
+                "Analyze {symbol}. {timeframe} candles: {ohlcv_data}\n\n"
+                'Respond with: {"signal": "long", "confidence": 0.8}\n'
+                "Or like this: { /* explanatory comment */ }"
+            ),
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime(2026, 1, 1),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+        ]
+        # Should not raise — JSON example braces are not template holes.
+        result = strategy.format_prompt(ohlcv, "BTC/USDT", "1h")
+        assert '"signal"' in result
 
 
 class TestLoadTechniqueInfoFromMd:
