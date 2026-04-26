@@ -36,6 +36,7 @@
 | Trading Engine Runtime | ✅ Complete | 8 |
 | Engine Status Dashboard Page | ✅ Complete | 8 |
 | Fly.io Deployment | ✅ Complete | 8 |
+| Multi-Timeframe Strategy Support | ❌ Missing | 9 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -417,6 +418,52 @@ to the dashboard via an append-only activity log.
 
 ---
 
+## Phase 9: Framework Extensions
+
+**Goal**: Extend the strategy framework to support methodologies
+that need richer input than the current single-timeframe contract.
+The first driver is multi-timeframe top-down analysis (ICT/SMC and
+similar) where one decision needs candles across 4h / 1h / 15m / 5m
+plus the current spot price.
+
+### 9.1 Multi-Timeframe Strategy Support
+
+**Background**: Phase 8.1's production rollout exposed that
+`chasulang_ict_smc` (and any other multi-TF technique) cannot run
+on the current framework. `PromptStrategy.format_prompt` only
+substitutes `{symbol}`, `{timeframe}`, `{ohlcv_data}`; templates
+asking for `{ohlcv_4h}` / `{ohlcv_1h}` / `{ohlcv_15m}` / `{ohlcv_5m}`
+/ `{current_price}` correctly fail-fast (introduced post-deploy)
+but the strategy is dormant. This sub-task lifts the
+single-timeframe restriction.
+
+**Related Requirements**: FR-001, FR-002, FR-003 (chart analysis
+methodology — generalising the existing contract; no new FR
+introduced)
+
+- [ ] Extend `PromptStrategy.format_prompt` to accept
+  `ohlcv_by_timeframe: dict[str, list[OHLCV]]` and
+  `current_price: Decimal`; fill `{ohlcv_<timeframe>}` and
+  `{current_price}` placeholders alongside the existing three
+- [ ] Adjust `BaseStrategy.analyze` (or add an opt-in companion
+  method) so multi-TF data threads through without breaking
+  single-TF strategies
+- [ ] Extend `ProposalEngine._propose_for_symbol` to read
+  `strategy.info.timeframes`, fetch each via `exchange.get_ohlcv`,
+  and pass the dict to `strategy.analyze` — fall back to the
+  current single-TF path when the strategy declares one timeframe
+- [ ] Update `Backtester` to feed multi-TF candles per simulated
+  step (or explicitly defer to a follow-up sub-task and document
+  the gap in the session log)
+- [ ] Verify `chasulang_ict_smc` runs end-to-end on the new
+  contract, returns parseable JSON, and the engine produces
+  proposals on its symbols (BTC/ETH/XRP)
+- [ ] Write unit tests covering the multi-TF `format_prompt` path,
+  the engine's multi-TF fetch flow, and a chasulang-style smoke
+  test
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -429,6 +476,7 @@ to the dashboard via an append-only activity log.
 | Phase 6 | FR-011, FR-012, FR-013, FR-014, FR-015 |
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
 | Phase 8 | FR-009, FR-010, FR-013, FR-014, FR-015, FR-026 (production wiring of existing requirements; no new FR/NFR introduced) |
+| Phase 9 | FR-001, FR-002, FR-003 (extending the strategy framework's input contract; no new FR introduced) |
 
 ---
 
@@ -481,3 +529,4 @@ to the dashboard via an append-only activity log.
 | 8.2 | 2026-04-27 | Phase 8.2 complete - Engine Status Dashboard Page; src/dashboard/pages/engine.py with cycle aggregation + summary cards + recent-cycles table + duration bar chart + filterable timeline; 21 tests | Claude |
 | 8.3 | 2026-04-27 | Phase 8.3 complete - Fly.io Deployment; Dockerfile (Python 3.13 + Node 18 + Claude CLI + tini) + start.sh (signal-forwarding two-process supervisor) + fly.toml (single machine, single volume, Streamlit healthcheck) + .dockerignore + docs/deployment.md | Claude |
 | 8.0 | 2026-04-27 | Phase 8 complete - all sub-tasks (8.1–8.3) checked | Claude |
+| 9.0 | 2026-04-27 | Phase 9 added to plan - framework extensions; 9.1 multi-timeframe strategy support (driven by chasulang_ict_smc dormancy under single-TF contract) | Claude |
