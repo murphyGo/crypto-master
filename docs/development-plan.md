@@ -32,7 +32,7 @@
 | Robustness Validation Gate | ✅ Complete | 5 |
 | Feedback Loop | ✅ Complete | 5 |
 | Trading Proposal | ✅ Complete | 6 |
-| UI Dashboard | ❌ Missing | 7 |
+| UI Dashboard | 🔄 In Progress | 7 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -348,10 +348,10 @@
 
 ### 7.1 Streamlit App Basic Structure
 
-- [ ] `src/dashboard/app.py` - Main Streamlit app
-- [ ] App layout setup (sidebar, main area)
-- [ ] Page navigation configuration
-- [ ] Common style/theme settings
+- [x] `src/dashboard/app.py` - Main Streamlit app
+- [x] App layout setup (sidebar, main area)
+- [x] Page navigation configuration
+- [x] Common style/theme settings
 
 ### 7.2 Analysis Technique Status Page
 
@@ -434,3 +434,4 @@
 | 6.2 | 2026-04-26 | Phase 6.2 complete - User Interaction (FR-013, FR-014); format_proposal + default_decision_prompt + ProposalHistory + ProposalInteraction; 22 tests | Claude |
 | 6.3 | 2026-04-26 | Phase 6.3 complete - Notification System (FR-015); ConsoleNotifier + FileNotifier (JSONL) + NotificationDispatcher with min_score gate and per-channel failure isolation; 20 tests | Claude |
 | 6.0 | 2026-04-26 | Phase 6 complete - all sub-tasks (6.1–6.3) checked | Claude |
+| 7.1 | 2026-04-27 | Phase 7.1 complete - Streamlit App Basic Structure (FR-032, NFR-003); src/dashboard/{app,theme}.py + st.navigation chassis + AppTest smoke; 7 tests | Claude |
