@@ -206,7 +206,18 @@ class ClaudeCLI:
     def _parse_response(self, raw_output: str) -> dict[str, Any]:
         """Parse Claude response to extract JSON.
 
-        Handles both raw JSON and JSON wrapped in markdown code blocks.
+        Tries three strategies in order:
+        1. JSON inside a ```json``` / ``` markdown fence.
+        2. Balanced-brace `{...}` substring anywhere in the output —
+           covers the common case where Claude prefixes the JSON with
+           prose ("Looking at this chart, here's my decision: {...}")
+           or appends commentary after it.
+        3. The raw output as-is (back-compat for prompts that already
+           guarantee a clean JSON-only reply).
+
+        On total failure, the raw response is logged at WARNING (truncated
+        to 1000 chars) so operators can see *what* Claude actually said
+        without re-running the cycle.
 
         Args:
             raw_output: Raw stdout from Claude CLI.
@@ -223,27 +234,46 @@ class ClaudeCLI:
                 raw_output=raw_output,
             )
 
-        # Try to extract JSON from markdown code block first
-        json_text = self._extract_json_from_markdown(raw_output)
+        candidates: list[str] = []
+        fenced = self._extract_json_from_markdown(raw_output)
+        if fenced is not None:
+            candidates.append(fenced)
+        balanced = self._extract_balanced_json_object(raw_output)
+        if balanced is not None and balanced not in candidates:
+            candidates.append(balanced)
+        candidates.append(raw_output.strip())
 
-        # If no code block found, try the raw output
-        if json_text is None:
-            json_text = raw_output.strip()
-
-        # Parse JSON
-        try:
-            result = json.loads(json_text)
+        last_error: json.JSONDecodeError | None = None
+        for json_text in candidates:
+            try:
+                result = json.loads(json_text)
+            except json.JSONDecodeError as e:
+                last_error = e
+                continue
             if not isinstance(result, dict):
-                raise ClaudeParseError(
+                # Wrong shape from this candidate; try the next one
+                # before giving up — a balanced match might land on
+                # an inner array while the fenced block has the dict.
+                last_error = json.JSONDecodeError(
                     f"Expected JSON object, got {type(result).__name__}",
-                    raw_output=raw_output,
+                    json_text,
+                    0,
                 )
+                continue
             return result
-        except json.JSONDecodeError as e:
-            raise ClaudeParseError(
-                f"Failed to parse JSON: {e}",
-                raw_output=raw_output,
-            )
+
+        # All candidates failed — log the raw output for diagnostics.
+        preview = raw_output.strip()
+        if len(preview) > 1000:
+            preview = preview[:1000] + "...(truncated)"
+        self._logger.warning(
+            "Claude response did not contain parseable JSON. Raw output:\n%s",
+            preview,
+        )
+        raise ClaudeParseError(
+            f"Failed to parse JSON: {last_error}",
+            raw_output=raw_output,
+        )
 
     def _extract_json_from_markdown(self, text: str) -> str | None:
         """Extract JSON from markdown code block.
@@ -261,4 +291,46 @@ class ClaudeCLI:
         match = JSON_BLOCK_PATTERN.search(text)
         if match:
             return match.group(1).strip()
+        return None
+
+    @staticmethod
+    def _extract_balanced_json_object(text: str) -> str | None:
+        """Find the first balanced ``{...}`` substring in ``text``.
+
+        Handles the common Claude Code response shape where the JSON
+        is embedded in prose without a code fence::
+
+            Looking at this chart, here is my analysis: {"signal": ...}.
+            The setup is strong because ...
+
+        String literals are tracked so that braces inside ``"..."`` do
+        not throw off the depth counter. Returns ``None`` if no
+        balanced object is found.
+        """
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape = False
+        for i in range(start, len(text)):
+            c = text[i]
+            if escape:
+                escape = False
+                continue
+            if c == "\\":
+                escape = True
+                continue
+            if c == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
         return None
