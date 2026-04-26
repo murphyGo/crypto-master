@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.theme import (
     APP_ICON,
     APP_TAGLINE,
@@ -40,10 +41,10 @@ def render_home() -> None:
     st.markdown("### Sections")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.info(
+        st.success(
             "**Strategies**\n\n"
             "Registered analysis techniques and their performance trends.\n\n"
-            "_Coming in Phase 7.2._"
+            "_Available now — see the sidebar._"
         )
     with col2:
         st.info(
@@ -81,9 +82,9 @@ def render_sidebar() -> None:
 def build_navigation() -> st.navigation:  # type: ignore[name-defined]
     """Construct the multi-page navigation.
 
-    Returns a Streamlit ``Page`` runner. Pages are grouped under a
-    single "Overview" section for now; 7.2+ will add their pages and
-    likely additional groups.
+    Returns a Streamlit ``Page`` runner. Pages are grouped under
+    "Overview" (landing) and "Sections" (per-domain views). 7.3+ will
+    append additional pages to the Sections list.
     """
     home = st.Page(
         render_home,
@@ -91,7 +92,17 @@ def build_navigation() -> st.navigation:  # type: ignore[name-defined]
         icon="🏠",
         default=True,
     )
-    return st.navigation({"Overview": [home]})
+    strategies = st.Page(
+        strategies_page.render,
+        title="Strategies",
+        icon="📊",
+    )
+    return st.navigation(
+        {
+            "Overview": [home],
+            "Sections": [strategies],
+        }
+    )
 
 
 def main() -> None:

@@ -355,10 +355,10 @@
 
 ### 7.2 Analysis Technique Status Page
 
-- [ ] `src/dashboard/pages/strategies.py` - Technique status page
-- [ ] Display registered technique list
-- [ ] Display technique-specific performance metrics
-- [ ] Performance trend charts
+- [x] `src/dashboard/pages/strategies.py` - Technique status page
+- [x] Display registered technique list
+- [x] Display technique-specific performance metrics
+- [x] Performance trend charts
 
 ### 7.3 Trading Status Page
 
@@ -435,3 +435,4 @@
 | 6.3 | 2026-04-26 | Phase 6.3 complete - Notification System (FR-015); ConsoleNotifier + FileNotifier (JSONL) + NotificationDispatcher with min_score gate and per-channel failure isolation; 20 tests | Claude |
 | 6.0 | 2026-04-26 | Phase 6 complete - all sub-tasks (6.1–6.3) checked | Claude |
 | 7.1 | 2026-04-27 | Phase 7.1 complete - Streamlit App Basic Structure (FR-032, NFR-003); src/dashboard/{app,theme}.py + st.navigation chassis + AppTest smoke; 7 tests | Claude |
+| 7.2 | 2026-04-27 | Phase 7.2 complete - Analysis Technique Status Page (FR-028, FR-005); src/dashboard/pages/strategies.py with summary table + per-technique cumulative-P&L trend chart; 14 tests | Claude |
