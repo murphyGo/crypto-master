@@ -81,12 +81,11 @@ def test_app_home_lists_three_sections() -> None:
 
 
 def test_app_home_marks_pending_phases() -> None:
-    """Trading and Feedback are still pending; Strategies is now available."""
+    """Feedback is still pending; Strategies and Trading are now available."""
     at = AppTest.from_file(APP_PATH).run(timeout=10)
 
     info_text = " ".join(i.value for i in at.info)
-    for phase_label in ("Phase 7.3", "Phase 7.4"):
-        assert phase_label in info_text, info_text
+    assert "Phase 7.4" in info_text, info_text
 
 
 def test_app_navigation_includes_strategies_page() -> None:

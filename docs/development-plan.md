@@ -362,11 +362,11 @@
 
 ### 7.3 Trading Status Page
 
-- [ ] `src/dashboard/pages/trading.py` - Trading status page
-- [ ] Display active positions (paper/live)
-- [ ] Recent trade history
-- [ ] Asset status and PnL summary
-- [ ] Equity curve chart
+- [x] `src/dashboard/pages/trading.py` - Trading status page
+- [x] Display active positions (paper/live)
+- [x] Recent trade history
+- [x] Asset status and PnL summary
+- [x] Equity curve chart
 
 ### 7.4 Feedback Loop Status Page
 
@@ -436,3 +436,4 @@
 | 6.0 | 2026-04-26 | Phase 6 complete - all sub-tasks (6.1–6.3) checked | Claude |
 | 7.1 | 2026-04-27 | Phase 7.1 complete - Streamlit App Basic Structure (FR-032, NFR-003); src/dashboard/{app,theme}.py + st.navigation chassis + AppTest smoke; 7 tests | Claude |
 | 7.2 | 2026-04-27 | Phase 7.2 complete - Analysis Technique Status Page (FR-028, FR-005); src/dashboard/pages/strategies.py with summary table + per-technique cumulative-P&L trend chart; 14 tests | Claude |
+| 7.3 | 2026-04-27 | Phase 7.3 complete - Trading Status Page (FR-029, FR-031); src/dashboard/pages/trading.py with paper/live mode toggle, summary metrics, active positions, recent trades, equity curve; 18 tests | Claude |

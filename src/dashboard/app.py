@@ -19,6 +19,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src.dashboard.pages import strategies as strategies_page
+from src.dashboard.pages import trading as trading_page
 from src.dashboard.theme import (
     APP_ICON,
     APP_TAGLINE,
@@ -47,10 +48,10 @@ def render_home() -> None:
             "_Available now — see the sidebar._"
         )
     with col2:
-        st.info(
+        st.success(
             "**Trading**\n\n"
             "Active positions, recent trades, equity curve, paper vs. live.\n\n"
-            "_Coming in Phase 7.3._"
+            "_Available now — see the sidebar._"
         )
     with col3:
         st.info(
@@ -96,11 +97,18 @@ def build_navigation() -> st.navigation:  # type: ignore[name-defined]
         strategies_page.render,
         title="Strategies",
         icon="📊",
+        url_path="strategies",
+    )
+    trading = st.Page(
+        trading_page.render,
+        title="Trading",
+        icon="💹",
+        url_path="trading",
     )
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies],
+            "Sections": [strategies, trading],
         }
     )
 
