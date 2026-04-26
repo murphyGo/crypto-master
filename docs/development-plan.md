@@ -31,7 +31,7 @@
 | Strategy Improver (Hypothesis-Driven) | ✅ Complete | 5 |
 | Robustness Validation Gate | ✅ Complete | 5 |
 | Feedback Loop | ✅ Complete | 5 |
-| Trading Proposal | ❌ Missing | 6 |
+| Trading Proposal | 🔄 In Progress | 6 |
 | UI Dashboard | ❌ Missing | 7 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -306,11 +306,24 @@
 
 ### 6.1 Proposal Engine
 
-- [ ] `src/proposal/engine.py` - ProposalEngine class
-- [ ] Bitcoin trading proposal logic (apply best technique)
-- [ ] Altcoin scan and proposal logic (multi-coin analysis)
-- [ ] Proposal score calculation (performance prediction)
-- [ ] Write unit tests
+- [x] `src/proposal/engine.py` - `ProposalEngine` class with
+  `Proposal`, `ProposalScore`, `ProposalEngineConfig`,
+  `ProposalEngineError`.
+- [x] Bitcoin trading proposal logic (FR-011) — `propose_bitcoin`
+  selects the best technique by historical edge × sample size and
+  produces a fully-priced `Proposal` (entry / SL / TP / quantity /
+  leverage) via `TradingStrategy.create_position`.
+- [x] Altcoin scan and proposal logic (FR-012) — `propose_altcoins`
+  scans a list of symbols, ranks by composite score, returns the
+  top-K. Per-symbol exchange and strategy errors are logged and
+  skipped so one bad pair doesn't kill the scan.
+- [x] Proposal score calculation — `composite = confidence × edge ×
+  sample_factor` with a confidence-only fallback when the technique
+  has no history. All factors surfaced in `ProposalScore` so callers
+  can explain the ranking.
+- [x] Write unit tests (19 tests covering happy paths, neutral
+  signals, missing strategies, exchange errors, ranking,
+  best-technique selection, score formula).
 
 ### 6.2 User Interaction
 
@@ -417,3 +430,4 @@
 | 5.x | 2026-04-14 | Renumbered prior 5.4 (Automated Feedback Loop) → 5.5 to slot the Robustness Gate before the loop orchestrator | Claude |
 | 5.5 | 2026-04-25 | Phase 5.5 complete - Automated Feedback Loop (FR-026, FR-027, FR-034, CON-003); FeedbackLoop orchestrator + JSONL audit log + state persistence; 23 tests | Claude |
 | 5.0 | 2026-04-25 | Phase 5 complete - all sub-tasks (5.1–5.5) checked | Claude |
+| 6.1 | 2026-04-25 | Phase 6.1 complete - Proposal Engine (FR-011, FR-012); ProposalEngine + Proposal/ProposalScore + composite score formula; 19 tests | Claude |
