@@ -18,6 +18,27 @@ from __future__ import annotations
 
 import streamlit as st
 
+# ---------------------------------------------------------------------------
+# Pre-load every submodule the dashboard pages import.
+#
+# Streamlit re-execs each page through ``Page.run()`` -> ``exec(code,
+# module.__dict__)`` with a fresh module dict. If a page's top-level
+# ``from src.X.Y import Z`` happens while ``src.X`` is not yet in
+# ``sys.modules``, Python's import machinery can hit
+# ``KeyError: 'src.X'`` deep inside ``_find_and_load_unlocked`` —
+# observed on Fly under Streamlit 1.56 even though local AppTest
+# runs are clean. Force-loading the submodules here populates
+# ``sys.modules`` once at app boot so every per-page exec is a cache
+# hit. ``noqa: F401`` because these are intentionally unused-but-needed.
+# ---------------------------------------------------------------------------
+import src.feedback.audit  # noqa: F401
+import src.feedback.loop  # noqa: F401
+import src.proposal.engine  # noqa: F401
+import src.runtime.activity_log  # noqa: F401
+import src.strategy.base  # noqa: F401
+import src.strategy.loader  # noqa: F401
+import src.strategy.performance  # noqa: F401
+import src.trading.portfolio  # noqa: F401
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import strategies as strategies_page
