@@ -22,10 +22,19 @@ when either dies the script exits and Fly restarts the machine.
   Get them from
   [testnet.binance.vision](https://testnet.binance.vision/) or
   [testnet.bybit.com](https://testnet.bybit.com/).
-- An Anthropic API key (`ANTHROPIC_API_KEY`). Claude Code's
-  headless mode (`claude -p ...`) uses this when no interactive
-  login session exists. The project shells out to `claude -p`
-  per NFR-002.
+- Claude auth — pick **one** of the two paths:
+  - **Recommended for personal use: Claude Code subscription**
+    via `CLAUDE_CODE_OAUTH_TOKEN`. Generate the token locally
+    (where Claude Code is already logged in) with
+    `claude setup-token` — it prints a long-lived OAuth token
+    starting with `sk-ant-oat01-...`. This routes `claude -p`
+    calls through your Pro / Max subscription rather than the
+    metered API.
+  - **Anthropic API key** via `ANTHROPIC_API_KEY`. Per-request
+    billing through console.anthropic.com. Use this if you don't
+    have a Claude Code subscription, or if you want to keep the
+    runtime's spend separate from your interactive Claude Code
+    usage.
 - A Cloudflare account if you want auth on the dashboard (recommended,
   see *Dashboard auth* below).
 
@@ -43,6 +52,19 @@ fly volumes create data --region nrt --size 1
 
 # 3. Push secrets. Live keys are deliberately omitted; first deploy
 #    is paper-only.
+#
+# Pick ONE of the two Claude auth paths:
+#
+#   (a) Claude Code subscription (recommended for personal use):
+fly secrets set \
+    CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...    \
+    BINANCE_TESTNET_API_KEY=...                 \
+    BINANCE_TESTNET_API_SECRET=...              \
+    TRADING_MODE=paper                          \
+    LOG_LEVEL=INFO                              \
+    PAPER_INITIAL_BALANCE=10000
+
+#   (b) Anthropic API key (per-request billing):
 fly secrets set \
     ANTHROPIC_API_KEY=sk-ant-...                \
     BINANCE_TESTNET_API_KEY=...                 \
