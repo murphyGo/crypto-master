@@ -33,6 +33,9 @@
 | Feedback Loop | ✅ Complete | 5 |
 | Trading Proposal | ✅ Complete | 6 |
 | UI Dashboard | ✅ Complete | 7 |
+| Trading Engine Runtime | ✅ Complete | 8 |
+| Engine Status Dashboard Page | ❌ Missing | 8 |
+| Fly.io Deployment | ❌ Missing | 8 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -381,6 +384,39 @@
 
 ---
 
+## Phase 8: Production Runtime & Deployment
+
+**Goal**: Wrap the existing components into a long-running headless
+service and deploy to Fly.io. Auto-approves proposals based on a
+configurable composite-score threshold; surfaces every cycle event
+to the dashboard via an append-only activity log.
+
+### 8.1 Trading Engine Runtime
+
+- [x] `src/runtime/activity_log.py` - Append-only JSONL event stream
+- [x] `src/runtime/engine.py` - `TradingEngine` orchestrator (scan → auto-decide → execute → monitor loop)
+- [x] `src/runtime/engine.py` - `EngineConfig` (cycle interval, auto-approve threshold, symbol list, balance)
+- [x] `src/main.py` - Production entrypoint with signal-based graceful shutdown
+- [x] `ProposalHistory.attach_trade` - Link a proposal to its executed `TradeHistory.id` at open time
+- [x] Write unit tests
+
+### 8.2 Engine Status Dashboard Page
+
+- [ ] `src/dashboard/pages/engine.py` - Engine activity page
+- [ ] Current cycle status + summary cards (last cycle, recent activity)
+- [ ] Activity log timeline with event-type filter
+- [ ] Cycle-time histogram
+- [ ] Write unit tests
+
+### 8.3 Fly.io Deployment
+
+- [ ] `Dockerfile` (Claude CLI + Python deps)
+- [ ] `fly.toml` (multi-process: trader + dashboard, single volume)
+- [ ] `.dockerignore`
+- [ ] `docs/deployment.md` (Cloudflare Access setup, secrets list, region pick, rollout flow)
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -392,6 +428,7 @@
 | Phase 5 | FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, FR-033, FR-034, FR-035, NFR-006 |
 | Phase 6 | FR-011, FR-012, FR-013, FR-014, FR-015 |
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
+| Phase 8 | FR-009, FR-010, FR-013, FR-014, FR-015, FR-026 (production wiring of existing requirements; no new FR/NFR introduced) |
 
 ---
 
@@ -439,3 +476,5 @@
 | 7.3 | 2026-04-27 | Phase 7.3 complete - Trading Status Page (FR-029, FR-031); src/dashboard/pages/trading.py with paper/live mode toggle, summary metrics, active positions, recent trades, equity curve; 18 tests | Claude |
 | 7.4 | 2026-04-27 | Phase 7.4 complete - Feedback Loop Status Page (FR-030); src/dashboard/pages/feedback.py with status summary cards, candidates table, per-candidate detail + audit timeline; 15 tests | Claude |
 | 7.0 | 2026-04-27 | Phase 7 complete - all sub-tasks (7.1–7.4) checked; 7.5 Tapbit deferred | Claude |
+| 8.0 | 2026-04-27 | Phase 8 added to plan - production runtime + Fly.io deployment (8.1 engine, 8.2 dashboard page, 8.3 Fly packaging) | Claude |
+| 8.1 | 2026-04-27 | Phase 8.1 complete - Trading Engine Runtime; src/runtime/{engine,activity_log}.py + src/main.py + ProposalHistory.attach_trade; auto-decide + interruptible loop + JSONL activity log; 26 tests | Claude |

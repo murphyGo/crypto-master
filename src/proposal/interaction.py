@@ -320,6 +320,38 @@ class ProposalHistory:
         )
         return updated
 
+    def attach_trade(
+        self,
+        proposal_id: str,
+        *,
+        trade_id: str,
+    ) -> ProposalRecord:
+        """Link an executed trade at open time, before the outcome is known.
+
+        Distinct from :meth:`attach_outcome` (which expects a realized
+        P&L): the engine calls this immediately after
+        ``PaperTrader.open_position`` so the proposal record carries
+        the trade pointer right away. Realized P&L is filled in later
+        by ``attach_outcome`` once the trade closes.
+
+        Args:
+            proposal_id: ID of the proposal to update.
+            trade_id: ``TradeHistory.id`` for the just-opened trade.
+
+        Returns:
+            The updated record (also persisted).
+
+        Raises:
+            ProposalHistoryError: If the proposal id is unknown.
+        """
+        record = self.load(proposal_id)
+        updated = record.model_copy(update={"trade_id": trade_id})
+        self.save(updated)
+        logger.info(
+            f"Linked trade {trade_id} to proposal {proposal_id} (outcome pending)"
+        )
+        return updated
+
     def _path_for(self, proposal_id: str) -> Path:
         return self.data_dir / f"{proposal_id}.json"
 
