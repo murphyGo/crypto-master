@@ -132,10 +132,10 @@ class TestLoadRealStrategies:
         """Test that strategies directory exists."""
         assert strategies_dir.exists(), f"Strategies directory not found: {strategies_dir}"
 
-    def test_load_sample_code_strategy(self, strategies_dir: Path) -> None:
-        """Test loading the sample code strategy."""
-        strategy_path = strategies_dir / "sample_code.py"
-        assert strategy_path.exists(), "sample_code.py not found"
+    def test_load_ma_crossover_strategy(self, strategies_dir: Path) -> None:
+        """Test loading the MA crossover baseline strategy."""
+        strategy_path = strategies_dir / "ma_crossover.py"
+        assert strategy_path.exists(), "ma_crossover.py not found"
 
         strategy = load_strategy(strategy_path)
 
@@ -186,7 +186,7 @@ class TestMACrossoverExecution:
     @pytest.fixture
     def ma_strategy(self, strategies_dir: Path):
         """Load the MA crossover strategy."""
-        return load_strategy(strategies_dir / "sample_code.py")
+        return load_strategy(strategies_dir / "ma_crossover.py")
 
     @pytest.mark.asyncio
     async def test_analyze_returns_analysis_result(
