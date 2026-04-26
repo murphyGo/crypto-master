@@ -16,6 +16,9 @@ streamlit>=1.30.0
 pandas>=2.0.0
 numpy>=1.24.0
 
+# Strategy / profile / candidate frontmatter parsing
+pyyaml>=6.0
+
 # Development dependencies (optional)
 # Install with: pip install -r requirements.txt && pip install -e ".[dev]"
 # pytest>=8.0.0
