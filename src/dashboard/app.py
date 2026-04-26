@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.pages import trading as trading_page
 from src.dashboard.theme import (
@@ -54,10 +55,10 @@ def render_home() -> None:
             "_Available now — see the sidebar._"
         )
     with col3:
-        st.info(
+        st.success(
             "**Feedback Loop**\n\n"
             "Experimental candidates, backtest verdicts, audit trail.\n\n"
-            "_Coming in Phase 7.4._"
+            "_Available now — see the sidebar._"
         )
 
     st.markdown("### Getting started")
@@ -105,10 +106,16 @@ def build_navigation() -> st.navigation:  # type: ignore[name-defined]
         icon="💹",
         url_path="trading",
     )
+    feedback = st.Page(
+        feedback_page.render,
+        title="Feedback Loop",
+        icon="🔁",
+        url_path="feedback",
+    )
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies, trading],
+            "Sections": [strategies, trading, feedback],
         }
     )
 

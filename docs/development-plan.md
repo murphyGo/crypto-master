@@ -32,7 +32,7 @@
 | Robustness Validation Gate | ✅ Complete | 5 |
 | Feedback Loop | ✅ Complete | 5 |
 | Trading Proposal | ✅ Complete | 6 |
-| UI Dashboard | 🔄 In Progress | 7 |
+| UI Dashboard | ✅ Complete | 7 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -370,10 +370,10 @@
 
 ### 7.4 Feedback Loop Status Page
 
-- [ ] `src/dashboard/pages/feedback.py` - Feedback loop page
-- [ ] Experimental technique list
-- [ ] Backtesting result display
-- [ ] Loop progress status
+- [x] `src/dashboard/pages/feedback.py` - Feedback loop page
+- [x] Experimental technique list
+- [x] Backtesting result display
+- [x] Loop progress status
 
 ### 7.5 Tapbit Integration (Deferred)
 
@@ -437,3 +437,5 @@
 | 7.1 | 2026-04-27 | Phase 7.1 complete - Streamlit App Basic Structure (FR-032, NFR-003); src/dashboard/{app,theme}.py + st.navigation chassis + AppTest smoke; 7 tests | Claude |
 | 7.2 | 2026-04-27 | Phase 7.2 complete - Analysis Technique Status Page (FR-028, FR-005); src/dashboard/pages/strategies.py with summary table + per-technique cumulative-P&L trend chart; 14 tests | Claude |
 | 7.3 | 2026-04-27 | Phase 7.3 complete - Trading Status Page (FR-029, FR-031); src/dashboard/pages/trading.py with paper/live mode toggle, summary metrics, active positions, recent trades, equity curve; 18 tests | Claude |
+| 7.4 | 2026-04-27 | Phase 7.4 complete - Feedback Loop Status Page (FR-030); src/dashboard/pages/feedback.py with status summary cards, candidates table, per-candidate detail + audit timeline; 15 tests | Claude |
+| 7.0 | 2026-04-27 | Phase 7 complete - all sub-tasks (7.1–7.4) checked; 7.5 Tapbit deferred | Claude |

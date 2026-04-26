@@ -80,12 +80,15 @@ def test_app_home_lists_three_sections() -> None:
     assert "Feedback Loop" in combined
 
 
-def test_app_home_marks_pending_phases() -> None:
-    """Feedback is still pending; Strategies and Trading are now available."""
+def test_app_home_no_pending_phase_labels() -> None:
+    """All three section cards are wired — none should advertise a coming phase."""
     at = AppTest.from_file(APP_PATH).run(timeout=10)
 
     info_text = " ".join(i.value for i in at.info)
-    assert "Phase 7.4" in info_text, info_text
+    success_text = " ".join(s.value for s in at.success)
+    combined = info_text + " " + success_text
+    for phase_label in ("Phase 7.2", "Phase 7.3", "Phase 7.4"):
+        assert phase_label not in combined, combined
 
 
 def test_app_navigation_includes_strategies_page() -> None:
