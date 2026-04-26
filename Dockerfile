@@ -47,10 +47,15 @@ RUN chmod +x start.sh
 
 # Runtime config:
 # - DATA_DIR points at the Fly volume mount (matches fly.toml).
+# - PYTHONPATH=/app so `streamlit run src/dashboard/app.py` can resolve
+#   `from src...` imports. `python -m src.main` already works because
+#   `-m` puts the CWD on sys.path; streamlit puts only the script's
+#   directory on sys.path, which would otherwise break the dashboard.
 # - PYTHONUNBUFFERED so `fly logs` is live, not buffered.
 # - PYTHONDONTWRITEBYTECODE because the volume is the only thing we
 #   want to grow with state, not __pycache__ noise.
 ENV DATA_DIR=/data \
+    PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
