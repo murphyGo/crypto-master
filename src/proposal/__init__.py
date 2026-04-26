@@ -30,8 +30,22 @@ from src.proposal.interaction import (
     default_decision_prompt,
     format_proposal,
 )
+from src.proposal.notification import (
+    ConsoleNotifier,
+    FileNotifier,
+    Notification,
+    NotificationDispatcher,
+    NotificationLevel,
+    Notifier,
+)
 
 __all__ = [
+    "ConsoleNotifier",
+    "FileNotifier",
+    "Notification",
+    "NotificationDispatcher",
+    "NotificationLevel",
+    "Notifier",
     "Proposal",
     "ProposalDecision",
     "ProposalDecisionCallback",

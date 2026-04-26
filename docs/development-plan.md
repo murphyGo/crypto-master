@@ -31,7 +31,7 @@
 | Strategy Improver (Hypothesis-Driven) | ✅ Complete | 5 |
 | Robustness Validation Gate | ✅ Complete | 5 |
 | Feedback Loop | ✅ Complete | 5 |
-| Trading Proposal | 🔄 In Progress | 6 |
+| Trading Proposal | ✅ Complete | 6 |
 | UI Dashboard | ❌ Missing | 7 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -335,10 +335,10 @@
 
 ### 6.3 Notification System
 
-- [ ] `src/proposal/notification.py` - Notification module
-- [ ] Console notification
-- [ ] File-based notification log
-- [ ] Write unit tests
+- [x] `src/proposal/notification.py` - Notification module
+- [x] Console notification
+- [x] File-based notification log
+- [x] Write unit tests
 
 ---
 
@@ -432,3 +432,5 @@
 | 5.0 | 2026-04-25 | Phase 5 complete - all sub-tasks (5.1–5.5) checked | Claude |
 | 6.1 | 2026-04-25 | Phase 6.1 complete - Proposal Engine (FR-011, FR-012); ProposalEngine + Proposal/ProposalScore + composite score formula; 19 tests | Claude |
 | 6.2 | 2026-04-26 | Phase 6.2 complete - User Interaction (FR-013, FR-014); format_proposal + default_decision_prompt + ProposalHistory + ProposalInteraction; 22 tests | Claude |
+| 6.3 | 2026-04-26 | Phase 6.3 complete - Notification System (FR-015); ConsoleNotifier + FileNotifier (JSONL) + NotificationDispatcher with min_score gate and per-channel failure isolation; 20 tests | Claude |
+| 6.0 | 2026-04-26 | Phase 6 complete - all sub-tasks (6.1–6.3) checked | Claude |
