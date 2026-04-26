@@ -16,7 +16,7 @@ TECHNIQUE_INFO = {
     "version": "1.0.0",
     "description": "Simple moving average crossover strategy",
     "author": "system",
-    "symbols": ["BTC/USDT", "ETH/USDT"],
+    "symbols": [],  # empty = applies to any USDT pair (generic MA crossover)
     "timeframes": ["1h", "4h", "1d"],
     "status": "experimental",
     "changelog": "Initial implementation",

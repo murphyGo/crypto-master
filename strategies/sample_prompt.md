@@ -3,7 +3,7 @@ name: simple_trend_analysis
 version: 1.0.0
 description: Simple trend analysis using Claude to identify support/resistance
 author: system
-symbols: ["BTC/USDT", "ETH/USDT"]
+symbols: []  # empty = applies to any USDT pair (generic trend analysis)
 timeframes: ["4h", "1d"]
 status: experimental
 changelog: Initial version
