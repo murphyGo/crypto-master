@@ -37,6 +37,7 @@
 | Engine Status Dashboard Page | ✅ Complete | 8 |
 | Fly.io Deployment | ✅ Complete | 8 |
 | Multi-Timeframe Strategy Support | ❌ Missing | 9 |
+| Baseline Indicator Strategies | ❌ Missing | 9 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -462,6 +463,44 @@ introduced)
   the engine's multi-TF fetch flow, and a chasulang-style smoke
   test
 
+### 9.2 Baseline Indicator Strategies
+
+**Background**: The LLM-driven techniques (`chasulang_ict_smc`,
+`simple_trend_analysis`) need a reference point. Without
+deterministic indicator strategies running side-by-side, we can't
+tell whether the LLM is contributing real edge or just
+confidently agreeing with simple TA. These baselines are also a
+useful safety net — even if every Claude call fails (rate limit,
+auth, parse), the engine still produces proposals from the
+indicator strategies.
+
+**Related Requirements**: FR-001, FR-002, FR-003, FR-004
+(extending the strategy library; reusing the existing
+``BaseStrategy`` interface — no framework changes here)
+
+- [ ] `strategies/rsi_4h.py` — 4h RSI strategy. Long when RSI < 30
+  on the close; short when RSI > 70. SL/TP from ATR or fixed %
+- [ ] `strategies/rsi_15m.py` — Same logic on 15m for shorter
+  swings. Symbol-agnostic
+- [ ] `strategies/bollinger_bands.py` — Bollinger Band mean
+  reversion. Long when close pierces the lower band and reverts;
+  short on the upper band
+- [ ] `strategies/ma_crossover.py` — Promote / extend the existing
+  `sample_code.py` (already implements SMA crossover) with
+  configurable fast/slow windows and a clean signal contract;
+  rename or supersede `sample_code.py` so it stops looking like
+  scaffolding
+- [ ] Mark all four with `status: experimental` and `symbols: []`
+  (universal) so they run on every symbol the engine scans
+- [ ] Backtest each baseline on 6 months of BTC/USDT historical
+  data, store results under `data/backtest/baselines/`, and add
+  a short `docs/baselines.md` summarising the win-rate / Sharpe /
+  max-drawdown so the LLM strategies have something concrete to
+  beat
+- [ ] Write unit tests for each strategy's signal logic (clear
+  triggers above/below threshold, edge cases at exactly the
+  threshold, neutral when no setup)
+
 ---
 
 ## Requirements Mapping
@@ -530,3 +569,4 @@ introduced)
 | 8.3 | 2026-04-27 | Phase 8.3 complete - Fly.io Deployment; Dockerfile (Python 3.13 + Node 18 + Claude CLI + tini) + start.sh (signal-forwarding two-process supervisor) + fly.toml (single machine, single volume, Streamlit healthcheck) + .dockerignore + docs/deployment.md | Claude |
 | 8.0 | 2026-04-27 | Phase 8 complete - all sub-tasks (8.1–8.3) checked | Claude |
 | 9.0 | 2026-04-27 | Phase 9 added to plan - framework extensions; 9.1 multi-timeframe strategy support (driven by chasulang_ict_smc dormancy under single-TF contract) | Claude |
+| 9.2 | 2026-04-27 | Phase 9.2 added to plan - baseline indicator strategies (RSI 4h, RSI 15m, Bollinger Bands, MA crossover) for LLM-vs-deterministic comparison + degraded-mode safety net | Claude |
