@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.pages import trading as trading_page
@@ -112,10 +113,16 @@ def build_navigation() -> st.navigation:  # type: ignore[name-defined]
         icon="🔁",
         url_path="feedback",
     )
+    engine = st.Page(
+        engine_page.render,
+        title="Engine",
+        icon="⚙️",
+        url_path="engine",
+    )
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies, trading, feedback],
+            "Sections": [strategies, trading, feedback, engine],
         }
     )
 

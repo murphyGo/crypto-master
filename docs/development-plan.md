@@ -34,7 +34,7 @@
 | Trading Proposal | ✅ Complete | 6 |
 | UI Dashboard | ✅ Complete | 7 |
 | Trading Engine Runtime | ✅ Complete | 8 |
-| Engine Status Dashboard Page | ❌ Missing | 8 |
+| Engine Status Dashboard Page | ✅ Complete | 8 |
 | Fly.io Deployment | ❌ Missing | 8 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -402,11 +402,11 @@ to the dashboard via an append-only activity log.
 
 ### 8.2 Engine Status Dashboard Page
 
-- [ ] `src/dashboard/pages/engine.py` - Engine activity page
-- [ ] Current cycle status + summary cards (last cycle, recent activity)
-- [ ] Activity log timeline with event-type filter
-- [ ] Cycle-time histogram
-- [ ] Write unit tests
+- [x] `src/dashboard/pages/engine.py` - Engine activity page
+- [x] Current cycle status + summary cards (last cycle, recent activity)
+- [x] Activity log timeline with event-type filter
+- [x] Cycle-time histogram
+- [x] Write unit tests
 
 ### 8.3 Fly.io Deployment
 
@@ -478,3 +478,4 @@ to the dashboard via an append-only activity log.
 | 7.0 | 2026-04-27 | Phase 7 complete - all sub-tasks (7.1–7.4) checked; 7.5 Tapbit deferred | Claude |
 | 8.0 | 2026-04-27 | Phase 8 added to plan - production runtime + Fly.io deployment (8.1 engine, 8.2 dashboard page, 8.3 Fly packaging) | Claude |
 | 8.1 | 2026-04-27 | Phase 8.1 complete - Trading Engine Runtime; src/runtime/{engine,activity_log}.py + src/main.py + ProposalHistory.attach_trade; auto-decide + interruptible loop + JSONL activity log; 26 tests | Claude |
+| 8.2 | 2026-04-27 | Phase 8.2 complete - Engine Status Dashboard Page; src/dashboard/pages/engine.py with cycle aggregation + summary cards + recent-cycles table + duration bar chart + filterable timeline; 21 tests | Claude |
