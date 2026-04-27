@@ -13,12 +13,12 @@ Related Requirements:
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from src.models import OHLCV, AnalysisResult
-
 
 # =============================================================================
 # Exceptions
@@ -145,6 +145,18 @@ class TechniqueInfo(BaseModel):
         description="Recommended timeframes",
     )
 
+    requires_multi_timeframe: bool = Field(
+        default=False,
+        description=(
+            "When True, ``timeframes`` lists every timeframe the strategy "
+            "consumes simultaneously (top-down analysis). The proposal "
+            "engine fetches all of them and passes the dict via "
+            "``ohlcv_by_timeframe``. When False (default), ``timeframes`` "
+            "is just the list of compatible/recommended timeframes — the "
+            "engine picks one and runs the strategy single-TF."
+        ),
+    )
+
     status: Literal["experimental", "active", "deprecated"] = Field(
         default="experimental",
         description="Technique lifecycle status",
@@ -226,6 +238,9 @@ class BaseStrategy(ABC):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         """Analyze chart data and produce trading signal.
 
@@ -235,9 +250,19 @@ class BaseStrategy(ABC):
 
         Args:
             ohlcv: List of OHLCV candlestick data, sorted by timestamp ascending.
-                   Must contain at least the minimum required candles.
+                   Must contain at least the minimum required candles. For
+                   multi-TF strategies this is the *primary* (smallest /
+                   highest-resolution) timeframe.
             symbol: Trading pair symbol (e.g., "BTC/USDT").
             timeframe: Candle timeframe (e.g., "1h", "4h", "1d").
+            ohlcv_by_timeframe: For strategies declaring
+                ``requires_multi_timeframe=True``, the full ``{tf: [OHLCV]}``
+                dict the engine fetched. Single-TF strategies ignore this
+                kwarg.
+            current_price: Latest spot price (typically the close of the
+                primary timeframe's last candle). Provided for templates
+                that reference the live price separately from the candle
+                stream. Single-TF strategies ignore this kwarg.
 
         Returns:
             AnalysisResult with signal, confidence, entry/exit prices.

@@ -167,6 +167,148 @@ class TestPromptStrategy:
         assert "{ohlcv_4h}" in message
         assert "{ohlcv_1h}" in message
 
+    def test_format_prompt_substitutes_multi_timeframe_placeholders(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """Phase 9.1: ``{ohlcv_<tf>}`` and ``{current_price}`` get filled.
+
+        When a multi-TF template provides ``ohlcv_by_timeframe`` and
+        ``current_price``, every per-TF placeholder and the current-price
+        token must be substituted. The fail-fast block must not fire.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content=(
+                "Symbol={symbol} primary={timeframe}\n"
+                "Current price: {current_price}\n"
+                "4h:\n{ohlcv_4h}\n"
+                "15m:\n{ohlcv_15m}\n"
+            ),
+        )
+
+        def _candle(close: str) -> OHLCV:
+            return OHLCV(
+                timestamp=datetime(2026, 1, 1),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal(close),
+                volume=Decimal("1000"),
+            )
+
+        ohlcv_4h = [_candle("100")]
+        ohlcv_15m = [_candle("103")]
+        # The first positional ``ohlcv`` mirrors the engine's contract:
+        # the primary (smallest) TF is also passed positionally so
+        # ``{ohlcv_data}``-style templates keep working.
+        result = strategy.format_prompt(
+            ohlcv_15m,
+            "BTC/USDT",
+            "15m",
+            ohlcv_by_timeframe={"4h": ohlcv_4h, "15m": ohlcv_15m},
+            current_price=Decimal("103.5"),
+        )
+
+        assert "Symbol=BTC/USDT" in result
+        assert "primary=15m" in result
+        assert "Current price: 103.5" in result
+        # Per-TF candle row (close column) made it into the right slot.
+        assert "100,105,95,100" in result
+        assert "100,105,95,103" in result
+        # Nothing left unfilled.
+        assert "{ohlcv_4h}" not in result
+        assert "{ohlcv_15m}" not in result
+        assert "{current_price}" not in result
+
+    def test_format_prompt_multi_timeframe_partial_dict_still_raises(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """Missing TF keys still trigger fail-fast.
+
+        Template asks for ``{ohlcv_4h}`` and ``{ohlcv_15m}`` but the dict
+        only carries ``"4h"`` — the 15m placeholder remains and the
+        fail-fast block must surface it. Keeps the safety net effective
+        for partially-wired multi-TF templates.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+        from src.strategy.base import StrategyValidationError
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content=(
+                "Symbol={symbol} TF={timeframe}\n"
+                "4h: {ohlcv_4h}\n15m: {ohlcv_15m}\n"
+            ),
+        )
+        candle = OHLCV(
+            timestamp=datetime(2026, 1, 1),
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("102"),
+            volume=Decimal("1000"),
+        )
+        with pytest.raises(StrategyValidationError) as exc_info:
+            strategy.format_prompt(
+                [candle],
+                "BTC/USDT",
+                "1h",
+                ohlcv_by_timeframe={"4h": [candle]},
+                current_price=Decimal("100"),
+            )
+        assert "{ohlcv_15m}" in str(exc_info.value)
+
+    def test_format_prompt_current_price_avoids_scientific_notation(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        """Tiny / huge prices must render as fixed-point.
+
+        Sub-cent altcoin prices (e.g. SHIB at 0.00000123) and very large
+        balances would otherwise hit Decimal's default scientific
+        notation, which confuses the LLM when the template says
+        ``compare against {current_price}``.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+
+        from src.models import OHLCV
+
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content="Price: {current_price}\nData: {ohlcv_data}",
+        )
+        candle = OHLCV(
+            timestamp=datetime(2026, 1, 1),
+            open=Decimal("0.00000100"),
+            high=Decimal("0.00000110"),
+            low=Decimal("0.00000095"),
+            close=Decimal("0.00000123"),
+            volume=Decimal("1000"),
+        )
+        # The framework still gets a {timeframe} placeholder to fill,
+        # but the prompt has none, so just check current_price.
+        result = strategy.format_prompt(
+            [candle],
+            "SHIB/USDT",
+            "1h",
+            current_price=Decimal("0.00000123"),
+        )
+        # Narrow check: just the {current_price} line must be fixed-point.
+        # The OHLCV CSV's per-cell rendering is not in scope for this test.
+        price_line = next(
+            line for line in result.splitlines() if line.startswith("Price:")
+        )
+        assert price_line == "Price: 0.00000123"
+        assert "E-" not in price_line and "e-" not in price_line
+
     def test_format_prompt_ignores_json_braces(
         self, technique_info: TechniqueInfo
     ) -> None:

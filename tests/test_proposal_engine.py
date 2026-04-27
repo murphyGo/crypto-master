@@ -458,6 +458,153 @@ def test_score_negative_ev_zero_edge() -> None:
     assert score.composite == 0.0
 
 
+# =============================================================================
+# Multi-timeframe dispatch (Phase 9.1)
+# =============================================================================
+
+
+async def test_propose_single_timeframe_makes_one_fetch() -> None:
+    """Regression: existing single-TF strategies still hit the exchange once."""
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    perf = make_perf("tech_a", total_trades=20, avg_pnl_percent=2.0)
+    engine, exchange = make_engine(
+        strategies={"tech_a": strategy},
+        perf_records={"tech_a": perf},
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert exchange.get_ohlcv.await_count == 1
+    # No multi-TF kwargs were threaded through.
+    call_kwargs = strategy.analyze.await_args.kwargs
+    assert call_kwargs.get("ohlcv_by_timeframe") is None
+    assert call_kwargs.get("current_price") is None
+
+
+async def test_propose_multi_timeframe_fetches_each_declared_tf() -> None:
+    """A ``requires_multi_timeframe=True`` strategy fetches every TF in order.
+
+    Mirrors the chasulang setup: the strategy declares 4h/1h/15m/5m and
+    the engine pre-fetches all four before invoking ``analyze``.
+    """
+    info = TechniqueInfo(
+        name="multi_tech",
+        version="1.0.0",
+        description="multi-tf",
+        technique_type="prompt",
+        symbols=["BTC/USDT"],
+        timeframes=["4h", "1h", "15m", "5m"],
+        requires_multi_timeframe=True,
+    )
+    strategy = make_strategy(info=info, analysis=make_analysis(signal="long"))
+    engine, exchange = make_engine(
+        strategies={"multi_tech": strategy},
+        perf_records={"multi_tech": make_perf("multi_tech", total_trades=20)},
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert exchange.get_ohlcv.await_count == 4
+    fetched_tfs = [c.kwargs["timeframe"] for c in exchange.get_ohlcv.await_args_list]
+    assert fetched_tfs == ["4h", "1h", "15m", "5m"]
+
+
+async def test_propose_multi_timeframe_passes_dict_and_current_price() -> None:
+    """The engine forwards the per-TF dict + last-close current_price.
+
+    Verifies the contract `PromptStrategy.format_prompt` relies on:
+    ``ohlcv_by_timeframe`` keyed by each declared TF, and
+    ``current_price`` derived from the primary (last-listed) TF's
+    final candle close.
+    """
+    info = TechniqueInfo(
+        name="multi_tech",
+        version="1.0.0",
+        description="multi-tf",
+        technique_type="prompt",
+        symbols=["BTC/USDT"],
+        timeframes=["4h", "15m"],
+        requires_multi_timeframe=True,
+    )
+    strategy = make_strategy(info=info, analysis=make_analysis(signal="long"))
+
+    exchange = AsyncMock(spec=BaseExchange)
+    candles_4h = make_ohlcv(n=30, base_price=49_000)
+    candles_15m = make_ohlcv(n=30, base_price=50_000)
+
+    def fake_get_ohlcv(**kwargs: object) -> list[OHLCV]:
+        return candles_4h if kwargs.get("timeframe") == "4h" else candles_15m
+
+    exchange.get_ohlcv.side_effect = fake_get_ohlcv
+    tracker = MagicMock(spec=PerformanceTracker)
+    tracker.get_performance.return_value = make_perf(
+        "multi_tech", total_trades=20, avg_pnl_percent=2.0
+    )
+    engine = ProposalEngine(
+        exchange=exchange,
+        strategies={"multi_tech": strategy},
+        performance_tracker=tracker,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    # Primary TF is the last entry in info.timeframes.
+    assert proposal.timeframe == "15m"
+
+    call_args = strategy.analyze.await_args
+    # First positional arg is the primary-TF candle list.
+    assert call_args.args[0] is candles_15m
+    assert call_args.args[1] == "BTC/USDT"
+    assert call_args.args[2] == "15m"
+    # Per-TF dict carries every declared TF.
+    dict_arg = call_args.kwargs["ohlcv_by_timeframe"]
+    assert set(dict_arg.keys()) == {"4h", "15m"}
+    assert dict_arg["4h"] is candles_4h
+    assert dict_arg["15m"] is candles_15m
+    # current_price = primary TF's last close.
+    assert call_args.kwargs["current_price"] == candles_15m[-1].close
+
+
+async def test_propose_multi_timeframe_skips_when_primary_empty() -> None:
+    """If the primary-TF fetch returns no candles, return None gracefully."""
+    info = TechniqueInfo(
+        name="multi_tech",
+        version="1.0.0",
+        description="multi-tf",
+        technique_type="prompt",
+        symbols=["BTC/USDT"],
+        timeframes=["4h", "15m"],
+        requires_multi_timeframe=True,
+    )
+    strategy = make_strategy(info=info, analysis=make_analysis(signal="long"))
+
+    exchange = AsyncMock(spec=BaseExchange)
+
+    def fake_get_ohlcv(**kwargs: object) -> list[OHLCV]:
+        return [] if kwargs.get("timeframe") == "15m" else make_ohlcv()
+
+    exchange.get_ohlcv.side_effect = fake_get_ohlcv
+    tracker = MagicMock(spec=PerformanceTracker)
+    tracker.get_performance.return_value = make_perf("multi_tech", total_trades=20)
+    engine = ProposalEngine(
+        exchange=exchange,
+        strategies={"multi_tech": strategy},
+        performance_tracker=tracker,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is None
+    # ``analyze`` was never reached.
+    strategy.analyze.assert_not_awaited()
+
+
 def test_score_clamps_confidence_above_one() -> None:
     """A misbehaving strategy returning confidence > 1 should not blow up."""
     engine, _ = make_engine()

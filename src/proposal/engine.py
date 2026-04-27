@@ -42,7 +42,7 @@ from pydantic import BaseModel, Field
 
 from src.exchange.base import BaseExchange, ExchangeError
 from src.logger import get_logger
-from src.models import AnalysisResult
+from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.trading.strategy import TradingStrategy, TradingValidationError
@@ -302,19 +302,56 @@ class ProposalEngine:
             return None
         strategy, perf = selection
 
-        # Exchange call propagates — let propose_altcoins decide how to
-        # handle per-symbol failures.
-        ohlcv = await self.exchange.get_ohlcv(
-            symbol=symbol,
-            timeframe=timeframe,  # type: ignore[arg-type]
-            limit=self.config.ohlcv_limit,
-        )
-
-        try:
-            analysis = await strategy.analyze(ohlcv, symbol, timeframe)
-        except StrategyError as e:
-            logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
-            return None
+        # Exchange calls propagate — let propose_altcoins decide how to
+        # handle per-symbol failures (the existing per-symbol skip in
+        # ``propose_altcoins`` covers both single-TF and multi-TF fetch
+        # failures uniformly).
+        if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
+            tfs = strategy.info.timeframes
+            ohlcv_by_tf: dict[str, list[OHLCV]] = {}
+            for tf in tfs:
+                ohlcv_by_tf[tf] = await self.exchange.get_ohlcv(
+                    symbol=symbol,
+                    timeframe=tf,  # type: ignore[arg-type]
+                    limit=self.config.ohlcv_limit,
+                )
+            # Templates list TFs macro→micro (e.g. 4h, 1h, 15m, 5m), so
+            # the last entry is the highest-resolution. Use it as the
+            # primary stream for ``{ohlcv_data}`` / ``{timeframe}`` and
+            # to derive ``current_price`` from the latest close.
+            primary_tf = tfs[-1]
+            primary_ohlcv = ohlcv_by_tf[primary_tf]
+            if not primary_ohlcv:
+                logger.warning(
+                    f"Multi-TF fetch returned no candles on {symbol} for "
+                    f"{primary_tf}; skipping proposal"
+                )
+                return None
+            current_price = primary_ohlcv[-1].close
+            primary_timeframe = primary_tf
+            try:
+                analysis = await strategy.analyze(
+                    primary_ohlcv,
+                    symbol,
+                    primary_timeframe,
+                    ohlcv_by_timeframe=ohlcv_by_tf,
+                    current_price=current_price,
+                )
+            except StrategyError as e:
+                logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
+                return None
+        else:
+            ohlcv = await self.exchange.get_ohlcv(
+                symbol=symbol,
+                timeframe=timeframe,  # type: ignore[arg-type]
+                limit=self.config.ohlcv_limit,
+            )
+            primary_timeframe = timeframe
+            try:
+                analysis = await strategy.analyze(ohlcv, symbol, timeframe)
+            except StrategyError as e:
+                logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
+                return None
 
         if analysis.signal == "neutral":
             logger.info(f"{strategy.name} returned neutral on {symbol}; " "no proposal")
@@ -337,7 +374,7 @@ class ProposalEngine:
 
         return Proposal(
             symbol=symbol,
-            timeframe=timeframe,
+            timeframe=primary_timeframe,
             technique_name=strategy.name,
             technique_version=strategy.version,
             signal=position.side,

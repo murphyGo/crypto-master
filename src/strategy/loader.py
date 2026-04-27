@@ -71,13 +71,24 @@ class PromptStrategy(BaseStrategy):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> str:
         """Format the prompt template with actual data.
 
         Substitutes placeholders in the prompt template with real values:
-        - {symbol} -> Trading pair symbol
-        - {timeframe} -> Candle timeframe
-        - {ohlcv_data} -> Formatted OHLCV data
+
+        Always:
+        - ``{symbol}`` → trading pair symbol
+        - ``{timeframe}`` → candle timeframe (the primary TF for multi-TF)
+        - ``{ohlcv_data}`` → formatted primary-TF OHLCV data
+
+        For multi-timeframe templates (when the kwargs are provided):
+        - ``{ohlcv_<tf>}`` → per-TF OHLCV CSV for each key in
+          ``ohlcv_by_timeframe`` (e.g. ``{ohlcv_4h}``, ``{ohlcv_15m}``)
+        - ``{current_price}`` → ``current_price`` formatted as a plain
+          (non-scientific) decimal string
 
         Uses simple string replacement to avoid conflicts with JSON
         braces in the template.
@@ -90,9 +101,14 @@ class PromptStrategy(BaseStrategy):
         ``Failed to parse JSON`` error far from the actual cause.
 
         Args:
-            ohlcv: OHLCV candlestick data.
+            ohlcv: Primary-TF OHLCV candlestick data.
             symbol: Trading pair symbol.
-            timeframe: Candle timeframe.
+            timeframe: Primary candle timeframe.
+            ohlcv_by_timeframe: For multi-TF templates, the full
+                ``{tf: [OHLCV]}`` dict. ``{ohlcv_<tf>}`` placeholders
+                are filled from this. Optional.
+            current_price: Latest spot price. Substitutes
+                ``{current_price}``. Optional.
 
         Returns:
             Formatted prompt string ready for Claude.
@@ -100,14 +116,26 @@ class PromptStrategy(BaseStrategy):
         Raises:
             StrategyValidationError: If the template contains
                 placeholders this method does not know how to fill
-                (e.g. multi-timeframe templates that need
-                ``{ohlcv_4h}``, ``{ohlcv_1h}``, ``{current_price}``).
+                (e.g. a multi-TF template with placeholders missing
+                from ``ohlcv_by_timeframe``).
         """
         ohlcv_text = self._format_ohlcv_data(ohlcv)
         result = self._prompt_content
         result = result.replace("{symbol}", symbol)
         result = result.replace("{timeframe}", timeframe)
         result = result.replace("{ohlcv_data}", ohlcv_text)
+
+        if ohlcv_by_timeframe:
+            for tf, candles in ohlcv_by_timeframe.items():
+                placeholder = "{ohlcv_" + tf + "}"
+                result = result.replace(placeholder, self._format_ohlcv_data(candles))
+
+        if current_price is not None:
+            # ``f"{x:f}"`` forces fixed-point so very small / very large
+            # decimals don't render in scientific notation, which is
+            # confusing when the template asks Claude to compare against
+            # a literal price.
+            result = result.replace("{current_price}", f"{current_price:f}")
 
         # Any leftover ``{identifier}`` is a template hole the
         # framework didn't know how to fill. Match identifier-like
@@ -120,10 +148,10 @@ class PromptStrategy(BaseStrategy):
             raise StrategyValidationError(
                 f"Prompt template for '{self.info.name}' has unfilled "
                 f"placeholders: {placeholders}. "
-                "PromptStrategy.format_prompt only substitutes {symbol}, "
-                "{timeframe}, and {ohlcv_data}; this technique appears to "
-                "expect multi-timeframe / multi-field data the framework "
-                "does not yet provide.",
+                "PromptStrategy.format_prompt fills {symbol}, {timeframe}, "
+                "{ohlcv_data}, {ohlcv_<tf>} (per timeframe key in "
+                "ohlcv_by_timeframe), and {current_price}; the template "
+                "appears to expect data the engine did not provide.",
                 field="prompt_content",
             )
         return result
@@ -152,13 +180,18 @@ class PromptStrategy(BaseStrategy):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         """Analyze using Claude CLI with the prompt template.
 
         Args:
-            ohlcv: OHLCV candlestick data.
+            ohlcv: Primary-TF OHLCV candlestick data.
             symbol: Trading pair symbol.
-            timeframe: Candle timeframe.
+            timeframe: Primary candle timeframe.
+            ohlcv_by_timeframe: For multi-TF templates, full per-TF dict.
+            current_price: Latest spot price; fills ``{current_price}``.
 
         Returns:
             AnalysisResult from Claude analysis.
@@ -173,7 +206,13 @@ class PromptStrategy(BaseStrategy):
         self.validate_input(ohlcv)
 
         # Format the prompt with actual data
-        prompt = self.format_prompt(ohlcv, symbol, timeframe)
+        prompt = self.format_prompt(
+            ohlcv,
+            symbol,
+            timeframe,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+            current_price=current_price,
+        )
 
         # Execute Claude CLI
         try:
