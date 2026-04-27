@@ -1,8 +1,9 @@
 # Baseline Strategies
 
-The crypto-master engine ships three deterministic indicator
-strategies alongside the LLM-driven techniques. They serve two
-purposes:
+The crypto-master engine ships five deterministic indicator
+strategies alongside the LLM-driven techniques (three Phase 9.2
+indicator baselines plus two Phase 9.4 cadence-locked RSI siblings).
+They serve two purposes:
 
 1. **Comparison floor.** "Is the LLM strategy contributing real
    edge, or just confidently re-deriving simple TA?" — without a
@@ -13,18 +14,22 @@ purposes:
    limit, auth, parse error), the engine still produces proposals
    from indicator strategies. The runtime keeps working.
 
-All three live under [`strategies/`](../strategies/) with
+All five live under [`strategies/`](../strategies/) with
 `status: experimental` and `symbols: []` (universal — they apply
 to every USDT pair the engine scans).
 
-## The three baselines
+## The five baselines
 
-### `rsi.py` — RSI Mean Reversion
+### `rsi.py` — RSI Mean Reversion (Universal Cadence)
 
 Wilder's RSI on the closes of whatever timeframe the engine passes.
+The shared signal logic; `rsi_4h.py` and `rsi_15m.py` reuse this
+exact strategy class with locked timeframes.
 
 | Setting | Value |
 |---------|-------|
+| Technique name | `rsi_universal` |
+| Declared timeframes | `["1h", "4h", "15m"]` (compatible — engine picks one) |
 | Indicator | RSI (Wilder's) |
 | Period | 14 |
 | Long trigger | RSI < 30 (oversold) |
@@ -33,10 +38,29 @@ Wilder's RSI on the closes of whatever timeframe the engine passes.
 | Take profit | 4% favorable (R/R 2:1) |
 | Confidence | Linear ramp from 0 (at threshold) to 1 (RSI 10 / 90) |
 
-> **Future split**: Once Phase 9.1 lands multi-timeframe support,
-> this becomes `rsi_4h.py` (swing) and `rsi_15m.py` (scalp) so the
-> engine can evaluate both cadences in parallel. Today it runs on
-> whichever timeframe `EngineConfig.timeframe` selects (default 1h).
+### `rsi_4h.py` — RSI Mean Reversion (Swing Cadence)
+
+Same logic as `rsi_universal`, locked to 4-hour candles. Phase 9.4
+split. Use this when you want the swing-cadence RSI to fire
+independently of the scalp variant — each has its own performance
+history in the tracker.
+
+| Setting | Value |
+|---------|-------|
+| Technique name | `rsi_4h` |
+| Declared timeframes | `["4h"]` |
+| Logic | Identical to `rsi_universal` |
+
+### `rsi_15m.py` — RSI Mean Reversion (Scalp Cadence)
+
+Scalp-cadence sibling of `rsi_4h`. Locked to 15-minute candles;
+fires roughly 16× more often than the 4h variant. Phase 9.4 split.
+
+| Setting | Value |
+|---------|-------|
+| Technique name | `rsi_15m` |
+| Declared timeframes | `["15m"]` |
+| Logic | Identical to `rsi_universal` |
 
 ### `bollinger_bands.py` — Bollinger Band Reversion
 
@@ -121,7 +145,9 @@ fill this table:
 
 | Strategy | Symbol | Period | Win Rate | Sharpe | MDD |
 |----------|--------|--------|----------|--------|-----|
-| `rsi_mean_reversion` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_universal` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_4h` | BTC/USDT | 6mo 4h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_15m` | BTC/USDT | 6mo 15m | _TBD_ | _TBD_ | _TBD_ |
 | `bollinger_band_reversion` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
 | `ma_crossover` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
 

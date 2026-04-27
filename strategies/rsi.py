@@ -1,4 +1,4 @@
-"""RSI mean-reversion strategy (Phase 9.2 baseline).
+"""RSI mean-reversion strategy — universal-timeframe baseline.
 
 Wilder's RSI on the closes. Long when RSI < 30 (oversold,
 expect reversion up), short when RSI > 70 (overbought, expect
@@ -8,11 +8,14 @@ the baseline's "edge" lives entirely in signal *timing*, which makes
 it a clean reference point for comparing against LLM-driven
 techniques.
 
-Once Phase 9.1 ships multi-timeframe support, this will split into
-``rsi_4h.py`` and ``rsi_15m.py`` for the swing- vs scalp-cadence
-variants the user asked for. Today the engine fetches one
-timeframe per cycle (``EngineConfig.timeframe``); this strategy
-runs on whatever the engine passes.
+This file is the universal-cadence variant: it runs on whatever
+timeframe the engine passes. Phase 9.4 added explicit
+``rsi_4h.py`` (swing) and ``rsi_15m.py`` (scalp) siblings that
+import the same :class:`RSIMeanReversionStrategy` class but lock
+their declared ``timeframes`` so each cadence has an independent
+performance history. The universal variant is still useful as a
+"match whatever the engine picks" fallback for cycles that scan
+on a single configured timeframe.
 
 Related Requirements:
 - FR-001 / FR-002 / FR-003 / FR-004
@@ -26,11 +29,12 @@ from src.strategy.base import BaseStrategy, StrategyExecutionError, TechniqueInf
 from src.strategy.indicators import InsufficientDataError, rsi
 
 TECHNIQUE_INFO = {
-    "name": "rsi_mean_reversion",
+    "name": "rsi_universal",
     "version": "1.0.0",
     "description": (
         "RSI mean-reversion: long when RSI<30, short when RSI>70. "
-        "Deterministic baseline."
+        "Universal-timeframe baseline; ``rsi_4h`` and ``rsi_15m`` "
+        "are explicit-cadence siblings."
     ),
     "author": "system",
     "symbols": [],  # universal

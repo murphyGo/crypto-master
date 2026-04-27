@@ -39,6 +39,7 @@
 | Multi-Timeframe Strategy Support | ✅ Complete | 9 |
 | Baseline Indicator Strategies | ✅ Complete | 9 |
 | Multi-Timeframe Backtester | ✅ Complete | 9 |
+| Per-Timeframe RSI Baselines | ✅ Complete | 9 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -574,6 +575,35 @@ gate; no new FR introduced.
   preserves no-leakage); 1 in ``tests/test_feedback_loop.py``
   (``ohlcv_by_timeframe`` reaches both backtester and gate).
 
+### 9.4 Per-Timeframe RSI Baselines
+
+**Background**: Phase 9.2 shipped a single universal-cadence
+``rsi_mean_reversion`` baseline that ran on whichever timeframe the
+engine passed. The user's original ask included both a 4h RSI
+(swing) and a 15m RSI (scalp) baseline as distinct strategies — but
+in a single-TF engine cycle a universal entry only covers *one*
+cadence at a time, so the swing and scalp behaviours can't fire side
+by side. This sub-task adds the explicit-cadence siblings and
+renames the universal entry for symmetry.
+
+**Related Requirements**: FR-001 / FR-002 / FR-003 / FR-004 —
+extending the strategy library only; reuses Phase 9.2's
+``RSIMeanReversionStrategy`` class verbatim.
+
+- [x] ``strategies/rsi_4h.py`` — declares ``timeframes: ["4h"]``,
+  imports ``RSIMeanReversionStrategy`` so signal logic equivalence
+  is automatic.
+- [x] ``strategies/rsi_15m.py`` — same logic, ``timeframes: ["15m"]``.
+- [x] Renamed universal ``rsi.py``'s ``TECHNIQUE_INFO["name"]``
+  from ``rsi_mean_reversion`` → ``rsi_universal`` for symmetry with
+  the new siblings. Module file path / class names unchanged so
+  every existing import keeps working.
+- [x] Updated ``docs/baselines.md`` to list all five baselines and
+  describe what each cadence is good for.
+- [x] Wrote unit tests (``tests/test_rsi_variants.py``, 6 tests)
+  covering loader pickup, metadata, signal-equivalence on identical
+  input, and ``TECHNIQUE_INFO`` dict isolation between variants.
+
 ---
 
 ## Requirements Mapping
@@ -646,3 +676,4 @@ gate; no new FR introduced.
 | 9.2 | 2026-04-27 | Phase 9.2 complete - Baseline Indicator Strategies (FR-001/002/003/004); src/strategy/indicators.py + strategies/{rsi,bollinger_bands,ma_crossover}.py + docs/baselines.md; 30 tests. Per-timeframe RSI split (rsi_4h/rsi_15m) deferred until Phase 9.1 multi-TF lands | Claude |
 | 9.1 | 2026-04-27 | Phase 9.1 complete - Multi-Timeframe Strategy Support (FR-001/002/003); `requires_multi_timeframe` flag on `TechniqueInfo`, `BaseStrategy.analyze` extended with keyword-only `ohlcv_by_timeframe` / `current_price`, `PromptStrategy.format_prompt` fills `{ohlcv_<tf>}` + `{current_price}`, `ProposalEngine` dispatches per-TF fetches; `chasulang_ict_smc` template wakes up. 7 new tests + chasulang smoke. Backtester multi-TF iteration deferred to a follow-up. | Claude |
 | 9.3 | 2026-04-27 | Phase 9.3 complete - Multi-Timeframe Backtester (FR-025, FR-027, FR-034); `Backtester.run_multi_timeframe` with bisect-based per-TF slicing + warmup gating across every TF; `Backtester.run_for_strategy` dispatcher; `RobustnessGate` threads `ohlcv_by_timeframe` through OOS / walk-forward / sensitivity gates with no future leakage; `FeedbackLoop` accepts `ohlcv_by_timeframe` end-to-end. 15 new tests across backtester / validator / loop suites. Multi-TF strategies (chasulang) can now reach AWAITING_APPROVAL. | Claude |
+| 9.4 | 2026-04-27 | Phase 9.4 complete - Per-Timeframe RSI Baselines (FR-001/002/003/004); strategies/rsi_4h.py + rsi_15m.py reuse RSIMeanReversionStrategy with locked timeframes; rsi.py renamed `rsi_mean_reversion` → `rsi_universal` for symmetry; 6 new tests + docs/baselines.md updated. Closes the user's original "4시간봉 RSI / 15분봉 RSI" request. | Claude |
