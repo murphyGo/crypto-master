@@ -40,3 +40,5 @@ data/
 dist/
 build/
 *.egg-info/
+
+tmp/
