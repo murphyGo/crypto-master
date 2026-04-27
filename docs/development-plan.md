@@ -460,11 +460,11 @@ introduced)
   list of required TFs), fetch each via `exchange.get_ohlcv`, and
   pass the dict + derived `current_price` to `strategy.analyze` —
   falls back to the current single-TF path otherwise
-- [ ] Update `Backtester` to feed multi-TF candles per simulated
-  step — *deferred to a follow-up sub-task; the alignment refactor
-  for aligned multi-stream iteration is out of scope here. Single-TF
-  backtests for every existing strategy + the 9.2 baselines remain
-  fully functional.*
+- [x] Update `Backtester` to feed multi-TF candles per simulated
+  step — delivered by Phase 9.3 (`Backtester.run_multi_timeframe`
+  with bisect-based per-TF slicing + per-TF warmup gating, plus
+  `Backtester.run_for_strategy` dispatcher and full
+  `RobustnessGate` / `FeedbackLoop` integration).
 - [x] Verify `chasulang_ict_smc` runs end-to-end on the new
   contract — `tests/test_multi_timeframe_smoke.py` loads the real
   template through `load_strategy` and confirms `format_prompt`
