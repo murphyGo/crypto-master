@@ -136,18 +136,22 @@ def build_engine(
     history = ProposalHistory(data_dir=tmp_path / "proposals")
     interaction = ProposalInteraction(history=history)
 
-    paper_trader = MagicMock()
-    paper_trader.get_open_trades.return_value = open_trades or []
-    # Default: open_position returns a fresh trade with the new id.
-    paper_trader.open_position.side_effect = lambda position, **kwargs: make_trade(
-        trade_id=f"t-{position.symbol}-{position.side}",
-        symbol=position.symbol,
-        side=position.side,
-        entry=str(position.entry_price),
-        quantity=str(position.quantity),
+    trader = MagicMock()
+    trader.get_open_trades.return_value = open_trades or []
+    # ``open_position`` and ``close_position`` are async on the
+    # Trader protocol — Phase 10.1.
+    trader.open_position = AsyncMock(
+        side_effect=lambda position, **kwargs: make_trade(
+            trade_id=f"t-{position.symbol}-{position.side}",
+            symbol=position.symbol,
+            side=position.side,
+            entry=str(position.entry_price),
+            quantity=str(position.quantity),
+        )
     )
+    trader.close_position = AsyncMock(return_value=None)
     # Default: no SL/TP exits.
-    paper_trader.check_exit_conditions.return_value = (False, None)
+    trader.check_exit_conditions.return_value = (False, None)
 
     notification_dispatcher = MagicMock(spec=NotificationDispatcher)
     notification_dispatcher.notify_proposal = AsyncMock(return_value=None)
@@ -159,7 +163,7 @@ def build_engine(
         proposal_engine=proposal_engine,
         proposal_interaction=interaction,
         proposal_history=history,
-        paper_trader=paper_trader,
+        trader=trader,
         notification_dispatcher=notification_dispatcher,
         activity_log=activity_log,
         config=config or EngineConfig(auto_approve_threshold=1.0),
@@ -169,7 +173,7 @@ def build_engine(
         "proposal_engine": proposal_engine,
         "history": history,
         "interaction": interaction,
-        "paper_trader": paper_trader,
+        "trader": trader,
         "notification_dispatcher": notification_dispatcher,
         "activity_log": activity_log,
     }
@@ -240,7 +244,7 @@ async def test_run_cycle_opens_position_for_accepted_proposal(
     assert result.proposals_accepted == 1
     assert result.proposals_rejected == 0
     assert result.positions_opened == 1
-    mocks["paper_trader"].open_position.assert_called_once()
+    mocks["trader"].open_position.assert_called_once()
     # Proposal record persisted with ACCEPTED + trade_id linked.
     record = mocks["history"].load("btc-1")
     assert record.decision == ProposalDecision.ACCEPTED.value
@@ -259,7 +263,7 @@ async def test_run_cycle_rejects_low_score_proposal(tmp_path: Path) -> None:
 
     assert result.proposals_rejected == 1
     assert result.positions_opened == 0
-    mocks["paper_trader"].open_position.assert_not_called()
+    mocks["trader"].open_position.assert_not_called()
     record = mocks["history"].load("btc-low")
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason is not None
@@ -351,16 +355,16 @@ async def test_monitor_pass_closes_position_on_sl_hit(tmp_path: Path) -> None:
     mocks["history"].attach_trade("p-existing", trade_id="t-existing")
 
     # Configure the trader: SL hit, close returns the closed trade.
-    mocks["paper_trader"].check_exit_conditions.return_value = (
+    mocks["trader"].check_exit_conditions.return_value = (
         True,
         "stop_loss",
     )
-    mocks["paper_trader"].close_position.return_value = closed_trade
+    mocks["trader"].close_position.return_value = closed_trade
 
     result = await engine.run_cycle()
 
     assert result.positions_closed == 1
-    mocks["paper_trader"].close_position.assert_called_once()
+    mocks["trader"].close_position.assert_called_once()
     # Proposal record now has the realized outcome.
     record = mocks["history"].load("p-existing")
     assert record.outcome_pnl_percent == pytest.approx(-1.0)
@@ -381,7 +385,7 @@ async def test_monitor_pass_skips_when_ticker_fails(tmp_path: Path) -> None:
     result = await engine.run_cycle()
 
     assert result.positions_closed == 0
-    mocks["paper_trader"].close_position.assert_not_called()
+    mocks["trader"].close_position.assert_not_called()
     monitor_errors = mocks["activity_log"].filter(
         event_type=ActivityEventType.MONITOR_ERRORED
     )

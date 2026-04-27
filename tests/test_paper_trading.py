@@ -28,7 +28,7 @@ from src.trading.paper import (
 class TestPaperBalance:
     """Tests for PaperBalance class."""
 
-    def test_init_default(self) -> None:
+    async def test_init_default(self) -> None:
         """Test default initialization."""
         balance = PaperBalance(currency="USDT")
         assert balance.currency == "USDT"
@@ -36,7 +36,7 @@ class TestPaperBalance:
         assert balance.locked == Decimal("0")
         assert balance.total == Decimal("0")
 
-    def test_init_with_values(self) -> None:
+    async def test_init_with_values(self) -> None:
         """Test initialization with values."""
         balance = PaperBalance(
             currency="USDT",
@@ -47,7 +47,7 @@ class TestPaperBalance:
         assert balance.locked == Decimal("500")
         assert balance.total == Decimal("1500")
 
-    def test_lock_success(self) -> None:
+    async def test_lock_success(self) -> None:
         """Test successful lock operation."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         balance.lock(Decimal("400"))
@@ -55,7 +55,7 @@ class TestPaperBalance:
         assert balance.locked == Decimal("400")
         assert balance.total == Decimal("1000")
 
-    def test_lock_insufficient_balance(self) -> None:
+    async def test_lock_insufficient_balance(self) -> None:
         """Test lock with insufficient balance."""
         balance = PaperBalance(currency="USDT", free=Decimal("100"))
         with pytest.raises(InsufficientPaperBalanceError) as exc_info:
@@ -64,19 +64,19 @@ class TestPaperBalance:
         assert exc_info.value.available == Decimal("100")
         assert exc_info.value.currency == "USDT"
 
-    def test_lock_zero_amount(self) -> None:
+    async def test_lock_zero_amount(self) -> None:
         """Test lock with zero amount."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         with pytest.raises(PaperTradingError, match="must be positive"):
             balance.lock(Decimal("0"))
 
-    def test_lock_negative_amount(self) -> None:
+    async def test_lock_negative_amount(self) -> None:
         """Test lock with negative amount."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         with pytest.raises(PaperTradingError, match="must be positive"):
             balance.lock(Decimal("-100"))
 
-    def test_unlock_success(self) -> None:
+    async def test_unlock_success(self) -> None:
         """Test successful unlock operation."""
         balance = PaperBalance(
             currency="USDT",
@@ -88,7 +88,7 @@ class TestPaperBalance:
         assert balance.locked == Decimal("200")
         assert balance.total == Decimal("1000")
 
-    def test_unlock_exceeds_locked(self) -> None:
+    async def test_unlock_exceeds_locked(self) -> None:
         """Test unlock with amount exceeding locked."""
         balance = PaperBalance(
             currency="USDT",
@@ -98,33 +98,33 @@ class TestPaperBalance:
         with pytest.raises(PaperTradingError, match="Cannot unlock"):
             balance.unlock(Decimal("500"))
 
-    def test_unlock_zero_amount(self) -> None:
+    async def test_unlock_zero_amount(self) -> None:
         """Test unlock with zero amount."""
         balance = PaperBalance(currency="USDT", locked=Decimal("100"))
         with pytest.raises(PaperTradingError, match="must be positive"):
             balance.unlock(Decimal("0"))
 
-    def test_add_success(self) -> None:
+    async def test_add_success(self) -> None:
         """Test successful add operation."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         balance.add(Decimal("500"))
         assert balance.free == Decimal("1500")
         assert balance.total == Decimal("1500")
 
-    def test_add_zero_amount(self) -> None:
+    async def test_add_zero_amount(self) -> None:
         """Test add with zero amount."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         with pytest.raises(PaperTradingError, match="must be positive"):
             balance.add(Decimal("0"))
 
-    def test_deduct_success(self) -> None:
+    async def test_deduct_success(self) -> None:
         """Test successful deduct operation."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         balance.deduct(Decimal("300"))
         assert balance.free == Decimal("700")
         assert balance.total == Decimal("700")
 
-    def test_deduct_insufficient_balance(self) -> None:
+    async def test_deduct_insufficient_balance(self) -> None:
         """Test deduct with insufficient balance."""
         balance = PaperBalance(currency="USDT", free=Decimal("100"))
         with pytest.raises(InsufficientPaperBalanceError) as exc_info:
@@ -132,7 +132,7 @@ class TestPaperBalance:
         assert exc_info.value.required == Decimal("500")
         assert exc_info.value.available == Decimal("100")
 
-    def test_deduct_zero_amount(self) -> None:
+    async def test_deduct_zero_amount(self) -> None:
         """Test deduct with zero amount."""
         balance = PaperBalance(currency="USDT", free=Decimal("1000"))
         with pytest.raises(PaperTradingError, match="must be positive"):
@@ -147,7 +147,7 @@ class TestPaperBalance:
 class TestOpenPosition:
     """Tests for OpenPosition class."""
 
-    def test_init(self) -> None:
+    async def test_init(self) -> None:
         """Test OpenPosition initialization."""
         position = Position(
             symbol="BTC/USDT",
@@ -176,12 +176,12 @@ class TestOpenPosition:
 class TestPaperTraderInit:
     """Tests for PaperTrader initialization."""
 
-    def test_init_no_balance(self, tmp_path: Path) -> None:
+    async def test_init_no_balance(self, tmp_path: Path) -> None:
         """Test initialization with no initial balance."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader.get_all_balances() == {}
 
-    def test_init_with_balance(self, tmp_path: Path) -> None:
+    async def test_init_with_balance(self, tmp_path: Path) -> None:
         """Test initialization with initial balance."""
         trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
@@ -192,7 +192,7 @@ class TestPaperTraderInit:
         assert balance.free == Decimal("10000")
         assert balance.locked == Decimal("0")
 
-    def test_init_multiple_currencies(self, tmp_path: Path) -> None:
+    async def test_init_multiple_currencies(self, tmp_path: Path) -> None:
         """Test initialization with multiple currencies."""
         trader = PaperTrader(
             initial_balance={
@@ -222,31 +222,31 @@ class TestPaperTraderBalance:
             data_dir=tmp_path,
         )
 
-    def test_get_balance(self, trader: PaperTrader) -> None:
+    async def test_get_balance(self, trader: PaperTrader) -> None:
         """Test getting balance."""
         balance = trader.get_balance("USDT")
         assert balance is not None
         assert balance.free == Decimal("10000")
 
-    def test_get_balance_not_found(self, trader: PaperTrader) -> None:
+    async def test_get_balance_not_found(self, trader: PaperTrader) -> None:
         """Test getting balance for non-existent currency."""
         assert trader.get_balance("ETH") is None
 
-    def test_set_balance_existing(self, trader: PaperTrader) -> None:
+    async def test_set_balance_existing(self, trader: PaperTrader) -> None:
         """Test setting balance for existing currency."""
         trader.set_balance("USDT", Decimal("5000"))
         balance = trader.get_balance("USDT")
         assert balance is not None
         assert balance.free == Decimal("5000")
 
-    def test_set_balance_new_currency(self, trader: PaperTrader) -> None:
+    async def test_set_balance_new_currency(self, trader: PaperTrader) -> None:
         """Test setting balance for new currency."""
         trader.set_balance("ETH", Decimal("10"))
         balance = trader.get_balance("ETH")
         assert balance is not None
         assert balance.free == Decimal("10")
 
-    def test_get_balance_summary(self, trader: PaperTrader) -> None:
+    async def test_get_balance_summary(self, trader: PaperTrader) -> None:
         """Test getting balance summary."""
         summary = trader.get_balance_summary()
         assert "USDT" in summary
@@ -297,11 +297,11 @@ class TestPaperTraderOpenPosition:
             take_profit=Decimal("48000"),
         )
 
-    def test_open_long_position(
+    async def test_open_long_position(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Test opening a long position."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         assert trade is not None
         assert trade.symbol == "BTC/USDT"
@@ -320,11 +320,11 @@ class TestPaperTraderOpenPosition:
         assert balance.free == Decimal("9500")
         assert balance.locked == Decimal("500")
 
-    def test_open_short_position(
+    async def test_open_short_position(
         self, trader: PaperTrader, short_position: Position
     ) -> None:
         """Test opening a short position."""
-        trade = trader.open_position(short_position)
+        trade = await trader.open_position(short_position)
 
         assert trade is not None
         assert trade.side == "short"
@@ -334,7 +334,7 @@ class TestPaperTraderOpenPosition:
         assert balance is not None
         assert balance.locked == Decimal("500")
 
-    def test_open_position_insufficient_balance(
+    async def test_open_position_insufficient_balance(
         self, trader: PaperTrader
     ) -> None:
         """Test opening position with insufficient balance."""
@@ -346,9 +346,9 @@ class TestPaperTraderOpenPosition:
             leverage=10,  # $50,000 margin required
         )
         with pytest.raises(InsufficientPaperBalanceError):
-            trader.open_position(large_position)
+            await trader.open_position(large_position)
 
-    def test_open_position_no_balance_currency(self, tmp_path: Path) -> None:
+    async def test_open_position_no_balance_currency(self, tmp_path: Path) -> None:
         """Test opening position without quote currency balance."""
         trader = PaperTrader(
             initial_balance={"BTC": Decimal("1")},
@@ -362,14 +362,14 @@ class TestPaperTraderOpenPosition:
             leverage=10,
         )
         with pytest.raises(PaperTradingError, match="No USDT balance"):
-            trader.open_position(position)
+            await trader.open_position(position)
 
-    def test_open_multiple_positions(
+    async def test_open_multiple_positions(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Test opening multiple positions."""
-        trade1 = trader.open_position(long_position)
-        trade2 = trader.open_position(long_position)
+        trade1 = await trader.open_position(long_position)
+        trade2 = await trader.open_position(long_position)
 
         assert trade1.id != trade2.id
 
@@ -407,14 +407,14 @@ class TestPaperTraderClosePosition:
             take_profit=Decimal("52000"),
         )
 
-    def test_close_position_with_profit(
+    async def test_close_position_with_profit(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Test closing position with profit."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         # Close at higher price (profit)
-        closed = trader.close_position(
+        closed = await trader.close_position(
             trade.id, Decimal("51000"), "take_profit"
         )
 
@@ -432,14 +432,14 @@ class TestPaperTraderClosePosition:
         assert balance.free == Decimal("10100")
         assert balance.locked == Decimal("0")
 
-    def test_close_position_with_loss(
+    async def test_close_position_with_loss(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Test closing position with loss."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         # Close at lower price (loss)
-        closed = trader.close_position(
+        closed = await trader.close_position(
             trade.id, Decimal("49500"), "stop_loss"
         )
 
@@ -456,22 +456,22 @@ class TestPaperTraderClosePosition:
         assert balance.free == Decimal("9950")
         assert balance.locked == Decimal("0")
 
-    def test_close_position_manual(
+    async def test_close_position_manual(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Test closing position manually."""
-        trade = trader.open_position(long_position)
-        closed = trader.close_position(trade.id, Decimal("50500"), "manual")
+        trade = await trader.open_position(long_position)
+        closed = await trader.close_position(trade.id, Decimal("50500"), "manual")
 
         assert closed is not None
         assert closed.close_reason == "manual"
 
-    def test_close_position_not_found(self, trader: PaperTrader) -> None:
+    async def test_close_position_not_found(self, trader: PaperTrader) -> None:
         """Test closing non-existent position."""
-        closed = trader.close_position("non-existent", Decimal("50000"))
+        closed = await trader.close_position("non-existent", Decimal("50000"))
         assert closed is None
 
-    def test_close_short_position_with_profit(
+    async def test_close_short_position_with_profit(
         self, trader: PaperTrader
     ) -> None:
         """Test closing short position with profit."""
@@ -484,10 +484,10 @@ class TestPaperTraderClosePosition:
             stop_loss=Decimal("51000"),
             take_profit=Decimal("48000"),
         )
-        trade = trader.open_position(short_position)
+        trade = await trader.open_position(short_position)
 
         # Close at lower price (profit for short)
-        closed = trader.close_position(
+        closed = await trader.close_position(
             trade.id, Decimal("49000"), "take_profit"
         )
 
@@ -512,7 +512,7 @@ class TestPaperTraderExitConditions:
             data_dir=tmp_path,
         )
 
-    def test_long_stop_loss_triggered(self, trader: PaperTrader) -> None:
+    async def test_long_stop_loss_triggered(self, trader: PaperTrader) -> None:
         """Test long position stop loss trigger."""
         position = Position(
             symbol="BTC/USDT",
@@ -523,7 +523,7 @@ class TestPaperTraderExitConditions:
             stop_loss=Decimal("49000"),
             take_profit=Decimal("52000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # Price at stop loss
         should_exit, reason = trader.check_exit_conditions(
@@ -539,7 +539,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is True
         assert reason == "stop_loss"
 
-    def test_long_take_profit_triggered(self, trader: PaperTrader) -> None:
+    async def test_long_take_profit_triggered(self, trader: PaperTrader) -> None:
         """Test long position take profit trigger."""
         position = Position(
             symbol="BTC/USDT",
@@ -550,7 +550,7 @@ class TestPaperTraderExitConditions:
             stop_loss=Decimal("49000"),
             take_profit=Decimal("52000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # Price at take profit
         should_exit, reason = trader.check_exit_conditions(
@@ -566,7 +566,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is True
         assert reason == "take_profit"
 
-    def test_long_no_exit(self, trader: PaperTrader) -> None:
+    async def test_long_no_exit(self, trader: PaperTrader) -> None:
         """Test long position no exit trigger."""
         position = Position(
             symbol="BTC/USDT",
@@ -577,7 +577,7 @@ class TestPaperTraderExitConditions:
             stop_loss=Decimal("49000"),
             take_profit=Decimal("52000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # Price in between
         should_exit, reason = trader.check_exit_conditions(
@@ -586,7 +586,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is False
         assert reason is None
 
-    def test_short_stop_loss_triggered(self, trader: PaperTrader) -> None:
+    async def test_short_stop_loss_triggered(self, trader: PaperTrader) -> None:
         """Test short position stop loss trigger."""
         position = Position(
             symbol="BTC/USDT",
@@ -597,7 +597,7 @@ class TestPaperTraderExitConditions:
             stop_loss=Decimal("51000"),
             take_profit=Decimal("48000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # Price at stop loss
         should_exit, reason = trader.check_exit_conditions(
@@ -606,7 +606,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is True
         assert reason == "stop_loss"
 
-    def test_short_take_profit_triggered(self, trader: PaperTrader) -> None:
+    async def test_short_take_profit_triggered(self, trader: PaperTrader) -> None:
         """Test short position take profit trigger."""
         position = Position(
             symbol="BTC/USDT",
@@ -617,7 +617,7 @@ class TestPaperTraderExitConditions:
             stop_loss=Decimal("51000"),
             take_profit=Decimal("48000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # Price at take profit
         should_exit, reason = trader.check_exit_conditions(
@@ -626,7 +626,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is True
         assert reason == "take_profit"
 
-    def test_check_exit_position_not_found(self, trader: PaperTrader) -> None:
+    async def test_check_exit_position_not_found(self, trader: PaperTrader) -> None:
         """Test checking exit for non-existent position."""
         should_exit, reason = trader.check_exit_conditions(
             "non-existent", Decimal("50000")
@@ -634,7 +634,7 @@ class TestPaperTraderExitConditions:
         assert should_exit is False
         assert reason is None
 
-    def test_position_without_sl_tp(self, trader: PaperTrader) -> None:
+    async def test_position_without_sl_tp(self, trader: PaperTrader) -> None:
         """Test position without SL/TP."""
         position = Position(
             symbol="BTC/USDT",
@@ -643,7 +643,7 @@ class TestPaperTraderExitConditions:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         # No SL/TP means no automatic exit
         should_exit, reason = trader.check_exit_conditions(
@@ -680,12 +680,12 @@ class TestPaperTraderQueries:
             leverage=10,
         )
 
-    def test_get_open_trades(
+    async def test_get_open_trades(
         self, trader: PaperTrader, position: Position
     ) -> None:
         """Test getting open trades."""
-        trade1 = trader.open_position(position)
-        trade2 = trader.open_position(position)
+        trade1 = await trader.open_position(position)
+        trade2 = await trader.open_position(position)
 
         open_trades = trader.get_open_trades()
         assert len(open_trades) == 2
@@ -693,33 +693,33 @@ class TestPaperTraderQueries:
         assert trade1.id in trade_ids
         assert trade2.id in trade_ids
 
-    def test_get_trade(self, trader: PaperTrader, position: Position) -> None:
+    async def test_get_trade(self, trader: PaperTrader, position: Position) -> None:
         """Test getting a specific trade."""
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
         retrieved = trader.get_trade(trade.id)
         assert retrieved is not None
         assert retrieved.id == trade.id
 
-    def test_get_trade_not_found(self, trader: PaperTrader) -> None:
+    async def test_get_trade_not_found(self, trader: PaperTrader) -> None:
         """Test getting non-existent trade."""
         assert trader.get_trade("non-existent") is None
 
-    def test_get_open_position(
+    async def test_get_open_position(
         self, trader: PaperTrader, position: Position
     ) -> None:
         """Test getting open position details."""
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
         open_pos = trader.get_open_position(trade.id)
         assert open_pos is not None
         assert open_pos.trade_id == trade.id
         assert open_pos.margin == Decimal("500")
 
-    def test_get_open_position_after_close(
+    async def test_get_open_position_after_close(
         self, trader: PaperTrader, position: Position
     ) -> None:
         """Test getting open position after closing."""
-        trade = trader.open_position(position)
-        trader.close_position(trade.id, Decimal("51000"))
+        trade = await trader.open_position(position)
+        await trader.close_position(trade.id, Decimal("51000"))
         assert trader.get_open_position(trade.id) is None
 
 
@@ -739,7 +739,7 @@ class TestPaperTraderPnL:
             data_dir=tmp_path,
         )
 
-    def test_update_unrealized_pnl(self, trader: PaperTrader) -> None:
+    async def test_update_unrealized_pnl(self, trader: PaperTrader) -> None:
         """Test updating unrealized P&L."""
         position = Position(
             symbol="BTC/USDT",
@@ -748,7 +748,7 @@ class TestPaperTraderPnL:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
 
         pnl_by_trade = trader.update_unrealized_pnl({
             "BTC/USDT": Decimal("51000")
@@ -758,7 +758,7 @@ class TestPaperTraderPnL:
         assert trade.id in pnl_by_trade
         assert pnl_by_trade[trade.id] == Decimal("100")
 
-    def test_get_total_unrealized_pnl(self, trader: PaperTrader) -> None:
+    async def test_get_total_unrealized_pnl(self, trader: PaperTrader) -> None:
         """Test getting total unrealized P&L."""
         position1 = Position(
             symbol="BTC/USDT",
@@ -775,8 +775,8 @@ class TestPaperTraderPnL:
             leverage=5,
         )
         trader.set_balance("USDT", Decimal("20000"))
-        trader.open_position(position1)
-        trader.open_position(position2)
+        await trader.open_position(position1)
+        await trader.open_position(position2)
 
         total_pnl = trader.get_total_unrealized_pnl({
             "BTC/USDT": Decimal("51000"),  # +100
@@ -785,7 +785,7 @@ class TestPaperTraderPnL:
 
         assert total_pnl == Decimal("200")
 
-    def test_get_total_equity(self, trader: PaperTrader) -> None:
+    async def test_get_total_equity(self, trader: PaperTrader) -> None:
         """Test getting total equity."""
         position = Position(
             symbol="BTC/USDT",
@@ -794,7 +794,7 @@ class TestPaperTraderPnL:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trader.open_position(position)
+        await trader.open_position(position)
 
         # Initial: 10000, Margin: 500, Unrealized: 100
         equity = trader.get_total_equity(
@@ -805,7 +805,7 @@ class TestPaperTraderPnL:
         # Total = 9500 (free) + 500 (locked) + 100 (unrealized) = 10100
         assert equity == Decimal("10100")
 
-    def test_get_total_equity_no_balance(self, trader: PaperTrader) -> None:
+    async def test_get_total_equity_no_balance(self, trader: PaperTrader) -> None:
         """Test getting total equity for non-existent currency."""
         equity = trader.get_total_equity("ETH")
         assert equity == Decimal("0")
@@ -819,7 +819,7 @@ class TestPaperTraderPnL:
 class TestPaperTraderIntegration:
     """Integration tests for PaperTrader."""
 
-    def test_full_trade_lifecycle(self, tmp_path: Path) -> None:
+    async def test_full_trade_lifecycle(self, tmp_path: Path) -> None:
         """Test complete trade lifecycle."""
         trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
@@ -836,7 +836,7 @@ class TestPaperTraderIntegration:
             stop_loss=Decimal("49000"),
             take_profit=Decimal("52000"),
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
         assert trade.status == "open"
 
         # Check balance
@@ -859,7 +859,7 @@ class TestPaperTraderIntegration:
         assert reason == "take_profit"
 
         # Close position
-        closed = trader.close_position(trade.id, Decimal("52000"), reason)
+        closed = await trader.close_position(trade.id, Decimal("52000"), reason)
         assert closed is not None
         assert closed.status == "closed"
         # TradeHistory P&L includes leverage: 0.1 * 2000 * 10 = 2000
@@ -871,7 +871,7 @@ class TestPaperTraderIntegration:
         assert balance.free == Decimal("10200")
         assert balance.locked == Decimal("0")
 
-    def test_multiple_positions_and_closes(self, tmp_path: Path) -> None:
+    async def test_multiple_positions_and_closes(self, tmp_path: Path) -> None:
         """Test multiple positions with different outcomes."""
         trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
@@ -886,7 +886,7 @@ class TestPaperTraderIntegration:
             quantity=Decimal("0.05"),
             leverage=10,
         )
-        trade1 = trader.open_position(pos1)
+        trade1 = await trader.open_position(pos1)
 
         # Position 2: Short, will profit
         pos2 = Position(
@@ -896,17 +896,17 @@ class TestPaperTraderIntegration:
             quantity=Decimal("0.5"),
             leverage=5,
         )
-        trade2 = trader.open_position(pos2)
+        trade2 = await trader.open_position(pos2)
 
         # Check both positions open
         assert len(trader.get_open_trades()) == 2
 
         # Close position 1 with profit
-        trader.close_position(trade1.id, Decimal("52000"))
+        await trader.close_position(trade1.id, Decimal("52000"))
         # P&L = 0.05 * 2000 = 100
 
         # Close position 2 with profit (short)
-        trader.close_position(trade2.id, Decimal("2800"))
+        await trader.close_position(trade2.id, Decimal("2800"))
         # P&L = 0.5 * 200 = 100
 
         # All closed
@@ -917,7 +917,7 @@ class TestPaperTraderIntegration:
         assert balance is not None
         assert balance.free == Decimal("10200")
 
-    def test_trade_history_persistence(self, tmp_path: Path) -> None:
+    async def test_trade_history_persistence(self, tmp_path: Path) -> None:
         """Test that trade history is persisted."""
         # Create trader and open/close position
         trader1 = PaperTrader(
@@ -931,9 +931,9 @@ class TestPaperTraderIntegration:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trade = trader1.open_position(position)
+        trade = await trader1.open_position(position)
         trade_id = trade.id
-        trader1.close_position(trade_id, Decimal("51000"))
+        await trader1.close_position(trade_id, Decimal("51000"))
 
         # Create new trader with same data dir
         trader2 = PaperTrader(
@@ -962,13 +962,13 @@ class TestPaperTraderIntegration:
 class TestFeeConfig:
     """Tests for the FeeConfig model and defaults."""
 
-    def test_default_zero_rates(self) -> None:
+    async def test_default_zero_rates(self) -> None:
         """FeeConfig defaults to zero maker/taker rates."""
         config = FeeConfig()
         assert config.maker_fee_rate == Decimal("0")
         assert config.taker_fee_rate == Decimal("0")
 
-    def test_custom_rates(self) -> None:
+    async def test_custom_rates(self) -> None:
         """FeeConfig accepts custom rates."""
         config = FeeConfig(
             maker_fee_rate=Decimal("0.0001"),
@@ -977,12 +977,12 @@ class TestFeeConfig:
         assert config.maker_fee_rate == Decimal("0.0001")
         assert config.taker_fee_rate == Decimal("0.0005")
 
-    def test_negative_rate_rejected(self) -> None:
+    async def test_negative_rate_rejected(self) -> None:
         """FeeConfig rejects negative rates."""
         with pytest.raises(ValueError):
             FeeConfig(maker_fee_rate=Decimal("-0.0001"))
 
-    def test_default_configs_present(self) -> None:
+    async def test_default_configs_present(self) -> None:
         """DEFAULT_FEE_CONFIGS contains known exchanges."""
         assert "binance" in DEFAULT_FEE_CONFIGS
         assert "bybit" in DEFAULT_FEE_CONFIGS
@@ -993,12 +993,12 @@ class TestFeeConfig:
 class TestPaperTraderFeeResolution:
     """Tests for how PaperTrader resolves its fee_config."""
 
-    def test_default_zero_without_exchange(self, tmp_path: Path) -> None:
+    async def test_default_zero_without_exchange(self, tmp_path: Path) -> None:
         """Without exchange or fee_config, trader uses zero fees."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader.fee_config == ZERO_FEE_CONFIG
 
-    def test_explicit_fee_config_overrides_default(
+    async def test_explicit_fee_config_overrides_default(
         self, tmp_path: Path
     ) -> None:
         """Explicit fee_config wins over exchange default."""
@@ -1009,7 +1009,7 @@ class TestPaperTraderFeeResolution:
         trader = PaperTrader(fee_config=custom, data_dir=tmp_path)
         assert trader.fee_config is custom
 
-    def test_exchange_default_lookup(self, tmp_path: Path) -> None:
+    async def test_exchange_default_lookup(self, tmp_path: Path) -> None:
         """Without explicit config, trader uses exchange's default."""
         from unittest.mock import MagicMock
 
@@ -1021,7 +1021,7 @@ class TestPaperTraderFeeResolution:
         trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
         assert trader.fee_config == DEFAULT_FEE_CONFIGS["binance"]
 
-    def test_unknown_exchange_falls_back_to_zero(
+    async def test_unknown_exchange_falls_back_to_zero(
         self, tmp_path: Path
     ) -> None:
         """Unknown exchange names fall back to zero fees."""
@@ -1071,25 +1071,25 @@ class TestPaperTraderFeeCalculation:
             take_profit=Decimal("52000"),
         )
 
-    def test_calculate_fee_taker(
+    async def test_calculate_fee_taker(
         self, trader: PaperTrader
     ) -> None:
         """_calculate_fee applies taker rate by default."""
         fee = trader._calculate_fee(Decimal("5000"))
         assert fee == Decimal("5")  # 5000 * 0.001
 
-    def test_calculate_fee_maker(
+    async def test_calculate_fee_maker(
         self, trader: PaperTrader
     ) -> None:
         """_calculate_fee applies maker rate when flagged."""
         fee = trader._calculate_fee(Decimal("5000"), is_maker=True)
         assert fee == Decimal("2.5")  # 5000 * 0.0005
 
-    def test_open_position_deducts_entry_fee(
+    async def test_open_position_deducts_entry_fee(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Opening position deducts entry fee from free balance."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         # Notional = 5000, entry_fee = 5000 * 0.001 = 5
         # Free = 10000 - 500 (margin) - 5 (fee) = 9495
@@ -1102,14 +1102,14 @@ class TestPaperTraderFeeCalculation:
         assert open_pos is not None
         assert open_pos.entry_fee == Decimal("5")
 
-    def test_close_position_deducts_exit_fee(
+    async def test_close_position_deducts_exit_fee(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Closing position deducts exit fee and records total fees."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         # Close at 51000 → exit_notional = 5100, exit_fee = 5.1
-        closed = trader.close_position(
+        closed = await trader.close_position(
             trade.id, Decimal("51000"), "take_profit"
         )
         assert closed is not None
@@ -1129,12 +1129,12 @@ class TestPaperTraderFeeCalculation:
         # Total fees = 5 + 5.1 = 10.1
         assert closed.fees == Decimal("10.1")
 
-    def test_close_position_pnl_includes_fees(
+    async def test_close_position_pnl_includes_fees(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """TradeHistory P&L subtracts total fees after leverage."""
-        trade = trader.open_position(long_position)
-        closed = trader.close_position(
+        trade = await trader.open_position(long_position)
+        closed = await trader.close_position(
             trade.id, Decimal("51000"), "take_profit"
         )
         assert closed is not None
@@ -1144,14 +1144,14 @@ class TestPaperTraderFeeCalculation:
         # Net P&L = 1000 - 10.1 = 989.9
         assert closed.pnl == Decimal("989.9")
 
-    def test_close_position_loss_with_fees(
+    async def test_close_position_loss_with_fees(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Losing trade also pays fees on entry and exit."""
-        trade = trader.open_position(long_position)
+        trade = await trader.open_position(long_position)
 
         # Close at 49500 → raw pnl = -50, leveraged = -500
-        closed = trader.close_position(
+        closed = await trader.close_position(
             trade.id, Decimal("49500"), "stop_loss"
         )
         assert closed is not None
@@ -1173,7 +1173,7 @@ class TestPaperTraderFeeCalculation:
         assert balance is not None
         assert balance.free == Decimal("9940.05")
 
-    def test_short_position_with_fees(
+    async def test_short_position_with_fees(
         self, trader: PaperTrader
     ) -> None:
         """Short positions also pay entry and exit fees."""
@@ -1184,11 +1184,11 @@ class TestPaperTraderFeeCalculation:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trade = trader.open_position(short_position)
+        trade = await trader.open_position(short_position)
 
         # entry_fee = 5
         # Close at 49000 → profit, exit_fee = 4900 * 0.001 = 4.9
-        closed = trader.close_position(trade.id, Decimal("49000"))
+        closed = await trader.close_position(trade.id, Decimal("49000"))
         assert closed is not None
 
         # Leveraged gross P&L: 0.1 * 1000 * 10 = 1000
@@ -1196,7 +1196,7 @@ class TestPaperTraderFeeCalculation:
         assert closed.fees == Decimal("9.9")
         assert closed.pnl == Decimal("990.1")
 
-    def test_zero_fee_config_skips_deduction(
+    async def test_zero_fee_config_skips_deduction(
         self, tmp_path: Path
     ) -> None:
         """Zero fee config preserves legacy balance behavior."""
@@ -1211,7 +1211,7 @@ class TestPaperTraderFeeCalculation:
             quantity=Decimal("0.1"),
             leverage=10,
         )
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
         # No fee deducted — same as pre-fee behavior.
         balance = trader.get_balance("USDT")
         assert balance is not None
@@ -1221,11 +1221,11 @@ class TestPaperTraderFeeCalculation:
         assert open_pos is not None
         assert open_pos.entry_fee == Decimal("0")
 
-        closed = trader.close_position(trade.id, Decimal("51000"))
+        closed = await trader.close_position(trade.id, Decimal("51000"))
         assert closed is not None
         assert closed.fees == Decimal("0")
 
-    def test_insufficient_balance_for_entry_fee_rolls_back(
+    async def test_insufficient_balance_for_entry_fee_rolls_back(
         self, tmp_path: Path
     ) -> None:
         """If fee deduction fails, margin lock is rolled back."""
@@ -1248,7 +1248,7 @@ class TestPaperTraderFeeCalculation:
         )
 
         with pytest.raises(InsufficientPaperBalanceError):
-            trader.open_position(position)
+            await trader.open_position(position)
 
         # Balance state should be untouched (no locked margin).
         balance = trader.get_balance("USDT")
@@ -1256,12 +1256,12 @@ class TestPaperTraderFeeCalculation:
         assert balance.free == Decimal("500")
         assert balance.locked == Decimal("0")
 
-    def test_round_trip_equity_matches_fees(
+    async def test_round_trip_equity_matches_fees(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
         """Opening and immediately closing at the same price costs fees only."""
-        trade = trader.open_position(long_position)
-        closed = trader.close_position(
+        trade = await trader.open_position(long_position)
+        closed = await trader.close_position(
             trade.id, long_position.entry_price, "manual"
         )
         assert closed is not None
@@ -1280,22 +1280,22 @@ class TestPaperTraderFeeCalculation:
 class TestQuoteCurrencyExtraction:
     """Tests for quote currency extraction from symbols."""
 
-    def test_extract_usdt(self, tmp_path: Path) -> None:
+    async def test_extract_usdt(self, tmp_path: Path) -> None:
         """Test extracting USDT from symbol."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("BTC/USDT") == "USDT"
 
-    def test_extract_usd(self, tmp_path: Path) -> None:
+    async def test_extract_usd(self, tmp_path: Path) -> None:
         """Test extracting USD from symbol."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("BTCUSD") == "USD"
 
-    def test_extract_btc(self, tmp_path: Path) -> None:
+    async def test_extract_btc(self, tmp_path: Path) -> None:
         """Test extracting BTC from symbol."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("ETHBTC") == "BTC"
 
-    def test_extract_with_slash(self, tmp_path: Path) -> None:
+    async def test_extract_with_slash(self, tmp_path: Path) -> None:
         """Test extracting currency with slash separator."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("ETH/BTC") == "BTC"

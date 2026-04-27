@@ -381,7 +381,7 @@ class TestLiveClosePosition:
         trade = await trader.open_position(long_position)
 
         with pytest.raises(LiveConfirmationRejectedError):
-            await trader.close_position(trade.id)
+            await trader.close_position(trade.id, exit_price=Decimal("50500"))
 
         # Position still tracked
         assert trader.get_tracked_position(trade.id) is not None
@@ -400,7 +400,7 @@ class TestLiveClosePosition:
             data_dir=tmp_path,
             confirmation_callback=make_approve(),
         )
-        result = await trader.close_position("unknown-id")
+        result = await trader.close_position("unknown-id", exit_price=Decimal("50000"))
         assert result is None
 
 

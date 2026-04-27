@@ -13,7 +13,7 @@ Related Requirements:
 import uuid
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -470,7 +470,7 @@ class PaperTrader:
         """
         return f"paper-{uuid.uuid4().hex[:12]}"
 
-    def open_position(
+    async def open_position(
         self,
         position: Position,
         performance_record_id: str | None = None,
@@ -478,6 +478,11 @@ class PaperTrader:
         """Open a paper trading position.
 
         Locks the required margin and creates a trade record.
+
+        Async to satisfy the :class:`~src.trading.base.Trader` protocol
+        (``LiveTrader`` is naturally async). The body itself is purely
+        in-memory and does not actually await anything; the runtime
+        cost of the ``async``/``await`` is negligible.
 
         Args:
             position: The Position to open (from TradingStrategy.create_position).
@@ -546,7 +551,7 @@ class PaperTrader:
 
         return trade
 
-    def close_position(
+    async def close_position(
         self,
         trade_id: str,
         exit_price: Decimal,
@@ -555,6 +560,9 @@ class PaperTrader:
         """Close a paper trading position.
 
         Calculates P&L, updates balance, and records the trade closure.
+
+        Async to satisfy the :class:`~src.trading.base.Trader` protocol;
+        the body is in-memory only and does not actually await anything.
 
         Args:
             trade_id: ID of the trade to close.

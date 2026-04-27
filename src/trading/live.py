@@ -256,24 +256,36 @@ class LiveTrader:
     async def close_position(
         self,
         trade_id: str,
+        exit_price: Decimal,
         reason: str = "manual",
-        exit_price: Decimal | None = None,
     ) -> TradeHistory | None:
-        """Close a live position after explicit user confirmation.
+        """Close a live position; asks for confirmation on manual closes.
+
+        Signature matches :meth:`PaperTrader.close_position` and the
+        :class:`~src.trading.base.Trader` protocol so the runtime
+        engine can drive both implementations through the same call
+        shape.
+
+        Confirmation policy: ``reason="manual"`` calls the
+        confirmation callback (the user explicitly initiated this
+        close). ``reason="stop_loss"`` / ``"take_profit"`` skip the
+        callback because the user already pre-authorized those bounds
+        when the position was opened — fulfilling the same
+        no-extra-prompt contract :meth:`monitor_positions` provides.
 
         Args:
             trade_id: ID of the trade to close.
-            reason: Reason for closing. Must be "manual" for
-                user-initiated closes; "stop_loss" and "take_profit"
-                are reserved for the monitor loop.
             exit_price: Expected exit price (used for P&L and records
                 since market orders may omit price in the response).
+            reason: Reason for closing. ``"manual"`` (default),
+                ``"stop_loss"``, or ``"take_profit"``.
 
         Returns:
             Updated TradeHistory, or None if the trade is not open.
 
         Raises:
-            LiveConfirmationRejectedError: If the callback declined.
+            LiveConfirmationRejectedError: If the callback declined a
+                manual close.
             LiveOrderRejectedError: If the exchange rejected the order.
         """
         position = self._open_positions.get(trade_id)
@@ -281,14 +293,15 @@ class LiveTrader:
             logger.warning(f"No open live position found: {trade_id}")
             return None
 
-        approved = await self._confirmation_callback(position, "close")
-        if not approved:
-            logger.info(
-                f"Live close rejected by user: trade_id={trade_id}"
-            )
-            raise LiveConfirmationRejectedError(
-                f"User declined to close trade {trade_id}"
-            )
+        if reason == "manual":
+            approved = await self._confirmation_callback(position, "close")
+            if not approved:
+                logger.info(
+                    f"Live close rejected by user: trade_id={trade_id}"
+                )
+                raise LiveConfirmationRejectedError(
+                    f"User declined to close trade {trade_id}"
+                )
 
         return await self._execute_close(
             trade_id=trade_id,
@@ -296,6 +309,25 @@ class LiveTrader:
             reason=reason,
             exit_price=exit_price,
         )
+
+    def check_exit_conditions(
+        self,
+        trade_id: str,
+        current_price: Decimal,
+    ) -> tuple[bool, str | None]:
+        """Decide whether ``trade_id`` should exit at ``current_price``.
+
+        Mirrors :meth:`PaperTrader.check_exit_conditions`. Returns
+        ``(False, None)`` if no SL/TP is configured, or the trade is
+        not currently open.
+        """
+        position = self._open_positions.get(trade_id)
+        if position is None:
+            return False, None
+        reason = self._check_exit_reason(position, current_price)
+        if reason is None:
+            return False, None
+        return True, reason
 
     async def monitor_positions(
         self,

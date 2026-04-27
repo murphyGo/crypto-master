@@ -58,7 +58,7 @@ from src.strategy.performance import TradeHistory
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
-    from src.trading.paper import PaperTrader
+    from src.trading.base import Trader
 
 logger = get_logger("crypto_master.runtime.engine")
 
@@ -139,7 +139,7 @@ class TradingEngine:
         proposal_engine: ProposalEngine,
         proposal_interaction: ProposalInteraction,
         proposal_history: ProposalHistory,
-        paper_trader: PaperTrader,
+        trader: Trader,
         notification_dispatcher: NotificationDispatcher,
         activity_log: ActivityLog,
         config: EngineConfig | None = None,
@@ -156,7 +156,10 @@ class TradingEngine:
             proposal_history: Same instance the interaction wraps.
                 Held separately so the engine can call
                 ``attach_trade`` / ``attach_outcome`` directly.
-            paper_trader: Where accepted proposals are executed.
+            trader: Where accepted proposals are executed. Either a
+                :class:`PaperTrader` or :class:`LiveTrader` — both
+                satisfy :class:`~src.trading.base.Trader`. The engine
+                does not introspect which.
             notification_dispatcher: Notify backend(s) for accepted
                 proposals.
             activity_log: Where to record cycle / proposal / trade events.
@@ -165,7 +168,7 @@ class TradingEngine:
         self.exchange = exchange
         self.proposal_engine = proposal_engine
         self.proposal_history = proposal_history
-        self.paper_trader = paper_trader
+        self.trader = trader
         self.notification_dispatcher = notification_dispatcher
         self.activity_log = activity_log
         self.config = config or EngineConfig()
@@ -397,7 +400,7 @@ class TradingEngine:
         """Open a paper position for an accepted proposal."""
         position = _proposal_to_position(proposal)
         try:
-            trade = self.paper_trader.open_position(position)
+            trade = await self.trader.open_position(position)
         except Exception as e:
             self.activity_log.append(
                 ActivityEventType.POSITION_OPEN_ERRORED,
@@ -441,7 +444,7 @@ class TradingEngine:
         Per-trade ticker errors are logged and skipped — one stale
         symbol shouldn't block the rest of the monitor pass.
         """
-        open_trades = self.paper_trader.get_open_trades()
+        open_trades = self.trader.get_open_trades()
         closed_count = 0
 
         for trade in open_trades:
@@ -457,13 +460,13 @@ class TradingEngine:
                 result.errors.append(f"ticker:{trade.symbol}:{e}")
                 continue
 
-            should_exit, reason = self.paper_trader.check_exit_conditions(
+            should_exit, reason = self.trader.check_exit_conditions(
                 trade.id, ticker.price
             )
             if not should_exit or reason is None:
                 continue
 
-            closed_trade = self.paper_trader.close_position(
+            closed_trade = await self.trader.close_position(
                 trade.id, ticker.price, reason=reason
             )
             if closed_trade is None:

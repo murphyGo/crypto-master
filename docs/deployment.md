@@ -183,20 +183,78 @@ or run live alongside paper.
 - **Suspend**: `fly scale count 0` stops the trader and dashboard
   without deleting state. `fly scale count 1` resumes.
 
-## Live trading (deferred)
+## Live trading
 
-The committed config is paper-only. To switch to live trading later:
+Phase 10.1 wired live mode end-to-end. Both modes share the same
+`Trader` protocol so the engine is mode-agnostic — flip the
+`TRADING_MODE` secret and provide live API keys to switch.
 
-1. Add live keys to secrets (`BINANCE_API_KEY`, `BINANCE_API_SECRET`
-   — without the `_TESTNET_` infix).
-2. Set `TRADING_MODE=live`.
-3. Update `src/main.py` to instantiate `LiveTrader` instead of
-   `PaperTrader` when `Settings.trading_mode == "live"`. This is a
-   small follow-up sub-task; the auto-approve loop has the same
-   shape either way.
-4. Lower `auto_approve_threshold` cautiously and **set notification
-   `min_score` higher than the auto-approve threshold** so you get
-   pinged on every accepted live proposal.
+**Live-mode checklist** — read this before you flip the switch.
+Live trading puts real money on the line; the cost of a misconfigured
+deploy is real losses, not test-data garbage.
+
+1. **Live keys**. Set `BINANCE_API_KEY` / `BINANCE_API_SECRET` (or
+   `BYBIT_API_KEY` / `BYBIT_API_SECRET`) — note: **without the
+   `_TESTNET_` infix**. Verify on the exchange dashboard that the
+   keys have only the permissions you need (futures trading; nothing
+   like withdrawal). Rotate after deploy if the keys ever transit a
+   non-encrypted channel:
+
+   ```bash
+   fly secrets set BINANCE_API_KEY=... BINANCE_API_SECRET=... TRADING_MODE=live
+   ```
+
+2. **`auto_approve_threshold`**. The same threshold gates both paper
+   and live execution; in live, every proposal that scores ≥ this
+   number is opened with **no second prompt**. Start conservative
+   (e.g. 1.5–2.0 vs the paper default of 1.0) and ratchet down only
+   after observing live proposal scores.
+
+3. **`paper_initial_balance` is meaningless in live mode.** Sizing
+   in live comes from real exchange balances and the configured
+   `risk_percent` / `leverage` per proposal. Verify that
+   `Settings.max_leverage` and `default_stop_loss_pct` are set
+   appropriately for your account and risk tolerance.
+
+4. **Notifications**. Set `NotificationDispatcher`'s `min_score`
+   *higher than* the auto-approve threshold so every accepted live
+   proposal pages you (Console + File backends today; Slack/Telegram
+   are a future add). The dashboard's Engine page also surfaces
+   every accepted proposal in real time.
+
+5. **Start small**. Send a small balance to the exchange (e.g.
+   $100–$500) and watch the first day of live trades on the
+   dashboard before scaling up. The runtime is paper-tested
+   thoroughly but the real exchange is the only place to validate
+   slippage and fee assumptions on your symbols.
+
+6. **Confirmation policy**. `LiveTrader` calls a confirmation
+   callback before submitting orders. In the production deploy,
+   `src/main.py` wires this to an *auto-confirm* function because
+   the engine's threshold gate has already authorized the
+   proposal — there is no operator at the keyboard to answer. If
+   you launch `python -m src.main` interactively (TTY attached),
+   swap the callback to `default_confirmation` for stdin prompts
+   per NFR-012.
+
+7. **Per-trade exits skip the callback.** When SL/TP fire, the
+   engine calls `LiveTrader.close_position(trade_id, exit_price,
+   reason="stop_loss"|"take_profit")` and `LiveTrader` deliberately
+   does *not* call the callback for those reasons — the user
+   pre-authorized those bounds at open time. Manual closes
+   (`reason="manual"`) still go through the callback.
+
+8. **Monitoring**. After the first live deploy, watch:
+   - `data/runtime/activity.jsonl` (cycle / proposal / position
+     events; every event the dashboard timeline shows)
+   - `data/trades/live/` (every fill)
+   - The engine page's cycle-time chart for sudden spikes
+     (rate-limit thrash, etc.)
+   - The Trading page's equity curve for unexpected drawdowns
+
+9. **Rollback to paper mode** is a `fly secrets set TRADING_MODE=paper`
+   away — but **does not auto-close any open live positions**.
+   Manually close them on the exchange first if needed.
 
 ## Risks to keep in mind
 

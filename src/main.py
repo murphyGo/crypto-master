@@ -1,4 +1,4 @@
-"""Production entrypoint for the trading runtime (Phase 8.1).
+"""Production entrypoint for the trading runtime.
 
 Run::
 
@@ -6,20 +6,22 @@ Run::
 
 or via the Fly.io ``trader`` process (see ``fly.toml``).
 
-Wires together Settings, an exchange (Binance testnet for paper-mode
-deploys), the proposal stack, paper trader, notification dispatcher,
-activity log, and the ``TradingEngine``. Adds POSIX signal handlers
-so SIGINT / SIGTERM trigger a graceful loop exit.
+Wires together Settings, an exchange (testnet for paper, mainnet for
+live per ``Settings.trading_mode``), the proposal stack, the trader
+(``PaperTrader`` or ``LiveTrader``), notification dispatcher, activity
+log, and the ``TradingEngine``. Adds POSIX signal handlers so
+SIGINT / SIGTERM trigger a graceful loop exit.
 
-Live-mode wiring is deliberately not built here yet — the first
-production deploy is paper-only per the Phase 8 plan. Adding live
-support later is a small follow-up: switch the exchange to mainnet
-and swap ``PaperTrader`` for ``LiveTrader``.
+Phase 10.1 wired live mode end-to-end. Both modes use the same
+:class:`~src.trading.base.Trader` protocol so the engine is mode-
+agnostic — flip ``TRADING_MODE=live`` and provide live API keys to
+go from paper to live.
 
 Related Requirements:
-- FR-009: Live trading mode (deferred to a later sub-task)
-- FR-010: Paper/live mode switching (paper-only here for now)
+- FR-009: Live trading mode
+- FR-010: Paper/live mode switching
 - FR-026: Automated feedback loop wiring (engine surfaces activity)
+- NFR-012: Live trading confirmation (delegated to ``LiveTrader``)
 """
 
 from __future__ import annotations
@@ -44,19 +46,45 @@ from src.runtime.activity_log import ActivityLog
 from src.runtime.engine import EngineConfig, TradingEngine
 from src.strategy.loader import load_all_strategies
 from src.strategy.performance import PerformanceTracker
+from src.trading.base import Trader
+from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 
 logger = get_logger("crypto_master.main")
 
 
 def build_exchange(settings: Settings) -> BaseExchange:
-    """Pick a configured exchange (Binance preferred), in testnet mode.
+    """Pick a configured exchange, testnet for paper, mainnet for live.
 
-    Phase 8.1 deploys paper-only, so we always use the testnet variant
-    of whichever exchange has credentials. If both are configured,
-    Binance wins by convention (deepest liquidity for the symbols in
+    Selection rules:
+
+    * ``trading_mode == "live"``: validates exchange credentials are
+      present and constructs a mainnet exchange (``testnet=False``).
+      Raises a clear error if no live API keys are configured.
+    * ``trading_mode == "paper"`` (default): testnet variant. Either
+      live or testnet credentials count as "configured" — testnet keys
+      alone are fine for paper deploys.
+
+    If both Binance and Bybit are configured, Binance wins by
+    convention (deepest liquidity for the symbols in
     ``EngineConfig.altcoin_symbols`` defaults).
     """
+    if settings.trading_mode == "live":
+        # Surfaces a friendly error if no live keys exist; the
+        # alternative is a generic "not configured" error after the
+        # engine has already started.
+        settings.validate_for_live_trading()
+
+        if settings.binance.api_key and settings.binance.api_secret:
+            return BinanceExchange(settings.binance, testnet=False)
+        if settings.bybit.api_key and settings.bybit.api_secret:
+            return BybitExchange(settings.bybit, testnet=False)
+        raise RuntimeError(
+            "TRADING_MODE=live requires live (mainnet) API keys. "
+            "Set BINANCE_API_KEY/BINANCE_API_SECRET or "
+            "BYBIT_API_KEY/BYBIT_API_SECRET."
+        )
+
     configured = settings.get_configured_exchanges()
     if "binance" in configured:
         return BinanceExchange(settings.binance, testnet=True)
@@ -66,6 +94,56 @@ def build_exchange(settings: Settings) -> BaseExchange:
         "No exchange configured. Set BINANCE_API_KEY/BINANCE_API_SECRET "
         "or BYBIT_API_KEY/BYBIT_API_SECRET (testnet keys are fine)."
     )
+
+
+def build_trader(
+    settings: Settings,
+    exchange: BaseExchange,
+    config: EngineConfig,
+) -> Trader:
+    """Build the right :class:`Trader` for ``Settings.trading_mode``.
+
+    Live mode plugs the engine's auto-decide threshold into
+    ``LiveTrader``'s confirmation callback so live execution shares
+    the same accept/reject gate as paper proposals — no second prompt
+    layered on top. The user controls live behaviour entirely through
+    ``EngineConfig.auto_approve_threshold`` (the same field that
+    drives notification gating). Per-trade SL/TP exits skip the
+    callback inside ``LiveTrader.close_position`` because the user
+    already pre-authorized those bounds at open time.
+    """
+    if settings.trading_mode == "live":
+        return LiveTrader(
+            exchange=exchange,
+            confirmation_callback=_engine_auto_confirmation,
+        )
+
+    return PaperTrader(
+        initial_balance={"USDT": Decimal(str(settings.paper_initial_balance))},
+        exchange=exchange,
+    )
+
+
+async def _engine_auto_confirmation(position: object, action: str) -> bool:
+    """Confirmation callback for live mode that approves automatically.
+
+    The engine's auto-decide path has already filtered the proposal
+    against ``EngineConfig.auto_approve_threshold``; if a Position has
+    reached this point, it has been authorized for execution.
+    Returning True here keeps the headless production loop unblocked.
+
+    For interactive operator-driven sessions (``python -m src.main``
+    with a TTY and a developer at the keyboard), passing the
+    ``LiveTrader`` constructor's default ``confirmation_callback``
+    instead gives the human-in-the-loop CLI prompt.
+    """
+    logger.info(
+        f"Live {action} auto-confirmed by engine threshold gate: "
+        f"{getattr(position, 'symbol', '?')} "
+        f"side={getattr(position, 'side', '?')} "
+        f"qty={getattr(position, 'quantity', '?')}"
+    )
+    return True
 
 
 def build_engine(
@@ -90,22 +168,25 @@ def build_engine(
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
-    paper_trader = PaperTrader(
-        initial_balance={"USDT": Decimal(str(settings.paper_initial_balance))},
-        exchange=exchange,
-    )
+    trader = build_trader(settings, exchange, config)
     notifier = NotificationDispatcher(
         notifiers=[ConsoleNotifier(), FileNotifier()],
         min_score=config.auto_approve_threshold,
     )
     activity = ActivityLog()
 
+    logger.info(
+        f"Trading mode: {settings.trading_mode} "
+        f"(trader={type(trader).__name__}, exchange={exchange.name}, "
+        f"testnet={getattr(exchange, 'testnet', '?')})"
+    )
+
     return TradingEngine(
         exchange=exchange,
         proposal_engine=proposal_engine,
         proposal_interaction=interaction,
         proposal_history=history,
-        paper_trader=paper_trader,
+        trader=trader,
         notification_dispatcher=notifier,
         activity_log=activity,
         config=config,

@@ -40,6 +40,10 @@
 | Baseline Indicator Strategies | ✅ Complete | 9 |
 | Multi-Timeframe Backtester | ✅ Complete | 9 |
 | Per-Timeframe RSI Baselines | ✅ Complete | 9 |
+| Live Trading Wiring | ✅ Complete | 10 |
+| EngineConfig Env Override | ❌ Missing | 10 |
+| Baseline Reference Numbers | ❌ Missing | 10 |
+| Log Retention Policy | ❌ Missing | 10 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -606,6 +610,124 @@ extending the strategy library only; reuses Phase 9.2's
 
 ---
 
+## Phase 10: Operational Maturation
+
+**Goal**: Take the system from "feature-complete + deployable" to
+"operable in production". Each sub-task closes a specific
+operational gap surfaced in prior-phase session logs and risk
+lists. No new framework abstractions — production wiring of
+existing components plus operator tooling.
+
+### 10.1 Live Trading Wiring
+
+**Background**: Phase 8.3 deployed paper-only — `src/main.py::build_exchange`
+always returns a testnet exchange even when `Settings.trading_mode == "live"`.
+The Phase 8 cross-check explicitly carried this as a deliberate deferral.
+
+**Related Requirements**: FR-009, FR-010, NFR-012.
+
+- [x] `src/main.py::build_exchange` switches on `Settings.trading_mode`
+  — testnet for paper (with either live or testnet keys accepted),
+  mainnet for live (requires live keys; raises a friendly error
+  otherwise).
+- [x] `src/main.py::build_trader` factory dispatches on
+  `Settings.trading_mode`: returns `PaperTrader` for paper,
+  `LiveTrader` for live. Engine code path is now mode-agnostic
+  (consumes the new `Trader` protocol).
+- [x] Introduced `src/trading/base.py::Trader` Protocol —
+  `open_position` / `close_position` async, `get_open_trades` /
+  `check_exit_conditions` sync. Both `PaperTrader` and `LiveTrader`
+  satisfy it; `TradingEngine` now takes `trader: Trader` instead of
+  `paper_trader: PaperTrader`.
+- [x] `LiveTrader.close_position` signature aligned with PaperTrader's
+  (`(trade_id, exit_price, reason="manual")`); auto-exit reasons
+  (`stop_loss` / `take_profit`) skip the confirmation callback —
+  the user pre-authorized those bounds at open time.
+- [x] Wired live confirmation callback to a `_engine_auto_confirmation`
+  shim that auto-approves (the engine's threshold gate has already
+  authorized the proposal). Interactive sessions can still swap in
+  `default_confirmation` for stdin prompts per NFR-012.
+- [x] Updated `docs/deployment.md` with a 9-step live-mode checklist
+  covering key rotation, threshold tuning, sizing, notifications,
+  start-small advice, confirmation policy, exit policy, monitoring,
+  and rollback.
+- [x] Tests: 11 new dispatch tests in `tests/test_main_dispatch.py`;
+  refactored `tests/test_runtime_engine.py` to mock the new `Trader`
+  protocol; converted PaperTrader tests to async (open/close
+  methods are now async). Existing live-trader tests adjusted to
+  the new signature.
+
+### 10.2 EngineConfig Env Override
+
+**Background**: `EngineConfig` (cycle interval, auto-approve threshold,
+symbol list, balance) is built from literals in `src/main.py`. Changing
+any value requires a code edit + redeploy — bad operability. Phase 8
+cross-check tracked this as a documented small follow-up.
+
+**Related Requirements**: NFR-004 (env-driven config); operational concern.
+
+- [ ] Add `engine_*` fields to `Settings` (`engine_cycle_interval`,
+  `engine_auto_approve_threshold`, `engine_symbols`,
+  `engine_balance`).
+- [ ] `src/main.py` builds `EngineConfig` from `Settings`, not from
+  literals.
+- [ ] `.env.example` documents each new env var with sensible
+  defaults that match today's hardcoded values (so existing
+  deployments don't change behaviour without an explicit env
+  setting).
+- [ ] `docs/deployment.md` lists the new env vars in the Fly secrets
+  / config section.
+- [ ] Tests: settings-load tests for the new fields; smoke that env
+  override propagates through to `EngineConfig`.
+
+### 10.3 Baseline Reference Numbers
+
+**Background**: `docs/baselines.md` shows TBD for win-rate / Sharpe / MDD
+on every baseline. Without numbers, "is the LLM beating the baselines?"
+isn't answerable. Phase 9.3's multi-TF backtester is in place; this
+sub-task is purely operational glue: fetch historical OHLCV, run the
+existing `Backtester`, write the table.
+
+**Related Requirements**: FR-025 (consumed); operator tooling.
+
+- [ ] `scripts/backtest_baselines.py` — operator script (not a service):
+  fetch Binance historical OHLCV (3 months × 1h for swing baselines;
+  1 month × 15m for `rsi_15m`), run `Backtester.run` per baseline,
+  run `PerformanceAnalyzer`, persist results under
+  `data/backtest/baselines/<strategy>/`. Idempotent — re-runnable
+  to refresh the numbers.
+- [ ] Update `docs/baselines.md` reference-numbers table from the
+  latest run.
+- [ ] No automated tests required (one-off operator script); a smoke
+  test that mocks the exchange and verifies the script writes the
+  expected output files is sufficient.
+
+### 10.4 Log Retention Policy
+
+**Background**: `data/audit/feedback.jsonl`, `data/runtime/activity.jsonl`,
+and `data/proposals/` all grow unbounded. Phase 5 / 7 / 8 risk lists
+all flagged this. Today's volumes are tiny but post-deployment the
+files balloon — a few MB/day at current scan cadence.
+
+**Related Requirements**: NFR-008 (mode-separated storage extends to
+retention); operational concern.
+
+- [ ] Add a small `JsonlRotator` utility that wraps an append-only
+  JSONL file with **time-based monthly rotation**: writes go to
+  `<base>.YYYY-MM.jsonl`; reads merge across the active month +
+  the most recent N archives in timestamp order.
+- [ ] `AuditLog` and `ActivityLog` use the rotator. ProposalHistory
+  (which uses one file per proposal) gets its own age-based purge:
+  records older than the retention window move to
+  `data/proposals/archive/<YYYY-MM>/`.
+- [ ] Retention default: 12 months active + archives. Configurable
+  via `Settings.log_retention_months`.
+- [ ] Tests: rotation triggers at month boundary; reads see merged
+  history; archives don't affect new writes; corrupt archive lines
+  don't kill the read.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -619,6 +741,7 @@ extending the strategy library only; reuses Phase 9.2's
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
 | Phase 8 | FR-009, FR-010, FR-013, FR-014, FR-015, FR-026 (production wiring of existing requirements; no new FR/NFR introduced) |
 | Phase 9 | FR-001, FR-002, FR-003 (extending the strategy framework's input contract; no new FR introduced) |
+| Phase 10 | FR-009, FR-010, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
 
 ---
 
@@ -677,3 +800,5 @@ extending the strategy library only; reuses Phase 9.2's
 | 9.1 | 2026-04-27 | Phase 9.1 complete - Multi-Timeframe Strategy Support (FR-001/002/003); `requires_multi_timeframe` flag on `TechniqueInfo`, `BaseStrategy.analyze` extended with keyword-only `ohlcv_by_timeframe` / `current_price`, `PromptStrategy.format_prompt` fills `{ohlcv_<tf>}` + `{current_price}`, `ProposalEngine` dispatches per-TF fetches; `chasulang_ict_smc` template wakes up. 7 new tests + chasulang smoke. Backtester multi-TF iteration deferred to a follow-up. | Claude |
 | 9.3 | 2026-04-27 | Phase 9.3 complete - Multi-Timeframe Backtester (FR-025, FR-027, FR-034); `Backtester.run_multi_timeframe` with bisect-based per-TF slicing + warmup gating across every TF; `Backtester.run_for_strategy` dispatcher; `RobustnessGate` threads `ohlcv_by_timeframe` through OOS / walk-forward / sensitivity gates with no future leakage; `FeedbackLoop` accepts `ohlcv_by_timeframe` end-to-end. 15 new tests across backtester / validator / loop suites. Multi-TF strategies (chasulang) can now reach AWAITING_APPROVAL. | Claude |
 | 9.4 | 2026-04-27 | Phase 9.4 complete - Per-Timeframe RSI Baselines (FR-001/002/003/004); strategies/rsi_4h.py + rsi_15m.py reuse RSIMeanReversionStrategy with locked timeframes; rsi.py renamed `rsi_mean_reversion` → `rsi_universal` for symmetry; 6 new tests + docs/baselines.md updated. Closes the user's original "4시간봉 RSI / 15분봉 RSI" request. | Claude |
+| 10.0 | 2026-04-27 | Phase 10 added to plan - Operational Maturation; 10.1 Live Trading Wiring, 10.2 EngineConfig Env Override, 10.3 Baseline Reference Numbers, 10.4 Log Retention Policy. Closes accumulated operational gaps from prior-phase session logs. | Claude |
+| 10.1 | 2026-04-28 | Phase 10.1 complete - Live Trading Wiring (FR-009, FR-010, NFR-012); introduced `src/trading/base.py::Trader` Protocol; `PaperTrader` open/close converted to async; `LiveTrader` aligned to the protocol (close signature, get_open_trades, check_exit_conditions, SL/TP-skips-confirm); `TradingEngine.trader: Trader` (replaces `paper_trader`); `src/main.py::build_exchange` + `build_trader` dispatch on `Settings.trading_mode`; engine auto-confirmation shim for headless live; `docs/deployment.md` 9-step live checklist. 11 new tests + extensive test churn (~50 PaperTrader call sites converted to async). 1027 total passing. | Claude |

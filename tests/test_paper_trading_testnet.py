@@ -7,8 +7,7 @@ via exchange APIs.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -16,11 +15,9 @@ from src.exchange.base import BaseExchange, ExchangeAPIError
 from src.models import Balance, Order, OrderRequest, OrderStatus, Position
 from src.trading.paper import (
     InsufficientPaperBalanceError,
-    PaperBalance,
     PaperTrader,
     PaperTradingError,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -741,11 +738,11 @@ class TestTestnetIntegration:
             leverage=10,
         )
 
-        trade = trader.open_position(position)
+        trade = await trader.open_position(position)
         assert trade is not None
         assert trade.entry_order_id.startswith("paper-")
 
         # Local close_position should still work
-        closed = trader.close_position(trade.id, Decimal("51000"), "manual")
+        closed = await trader.close_position(trade.id, Decimal("51000"), "manual")
         assert closed is not None
         assert closed.status == "closed"
