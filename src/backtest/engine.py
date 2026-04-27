@@ -16,6 +16,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+import bisect
 import json
 import uuid
 from dataclasses import dataclass
@@ -173,6 +174,53 @@ class _OpenTrade:
     entry_time: datetime
     actual_entry_price: Decimal
     entry_fee: Decimal
+
+
+def slice_multi_tf_by_index(
+    primary_ohlcv: list[OHLCV],
+    ohlcv_by_timeframe: dict[str, list[OHLCV]] | None,
+    start: int,
+    end: int,
+) -> tuple[list[OHLCV], dict[str, list[OHLCV]] | None]:
+    """Slice a primary candle stream by index, propagating to higher TFs.
+
+    Used by the multi-TF backtester loop and by the robustness gates'
+    chronological splits (OOS, walk-forward). Higher-TF series have
+    different bar counts than the primary, so we cut them by the
+    primary slice's timestamp range, not by index.
+
+    Args:
+        primary_ohlcv: Primary-TF candle list (driver of iteration).
+        ohlcv_by_timeframe: Per-TF candle dict, or ``None`` for
+            single-TF mode (the function then just slices the primary
+            and returns ``None`` for the dict).
+        start: Inclusive start index on the primary series.
+        end: Exclusive end index on the primary series.
+
+    Returns:
+        A ``(primary_slice, multi_tf_slice_or_None)`` tuple. The
+        higher-TF slices are inclusive on both ends (every candle
+        whose timestamp is between the primary slice's first and last
+        timestamp inclusive). When ``primary_slice`` is empty the dict
+        slices are also empty.
+    """
+    primary_slice = primary_ohlcv[start:end]
+    if ohlcv_by_timeframe is None:
+        return primary_slice, None
+    if not primary_slice:
+        return primary_slice, {tf: [] for tf in ohlcv_by_timeframe}
+
+    start_ts = primary_slice[0].timestamp
+    end_ts = primary_slice[-1].timestamp
+    sliced: dict[str, list[OHLCV]] = {}
+    for tf, candles in ohlcv_by_timeframe.items():
+        # Pre-extract timestamps once per TF; bisect needs a sorted
+        # key sequence and OHLCV is not directly comparable.
+        timestamps = [c.timestamp for c in candles]
+        lo = bisect.bisect_left(timestamps, start_ts)
+        hi = bisect.bisect_right(timestamps, end_ts)
+        sliced[tf] = candles[lo:hi]
+    return primary_slice, sliced
 
 
 class Backtester:
@@ -365,6 +413,245 @@ class Backtester:
             trades=trades,
             final_balance=balance,
         )
+
+    async def run_multi_timeframe(
+        self,
+        strategy: BaseStrategy,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]],
+        symbol: str,
+        primary_timeframe: str,
+        profile: TradingProfile | None = None,
+    ) -> BacktestResult:
+        """Walk-forward backtest for multi-timeframe strategies.
+
+        Drives off the primary TF, slicing higher TFs by timestamp at
+        each step. The strategy is called with the primary slice as
+        its main ``ohlcv`` argument plus the full ``ohlcv_by_timeframe``
+        dict and ``current_price`` derived from the primary candle's
+        close — the same contract ``ProposalEngine`` uses (Phase 9.1).
+
+        Args:
+            strategy: Multi-TF analysis technique under test.
+            ohlcv_by_timeframe: ``{tf: [OHLCV]}`` mapping. Each list
+                must be chronologically ascending. The primary TF's
+                list drives iteration; higher TFs are sliced by
+                timestamp at each step.
+            symbol: Trading pair symbol.
+            primary_timeframe: Key into ``ohlcv_by_timeframe`` whose
+                series drives the iteration. By convention this is the
+                smallest / highest-resolution TF (matches
+                ``strategy.info.timeframes[-1]`` when the macro→micro
+                ordering is followed).
+            profile: Optional trading profile.
+
+        Returns:
+            ``BacktestResult`` with ``timeframe`` set to the primary TF.
+
+        Raises:
+            BacktestError: ``ohlcv_by_timeframe`` empty, primary key
+                missing, or primary series empty.
+        """
+        if not ohlcv_by_timeframe:
+            raise BacktestError(
+                "Cannot backtest with empty ohlcv_by_timeframe dict"
+            )
+        if primary_timeframe not in ohlcv_by_timeframe:
+            raise BacktestError(
+                f"primary_timeframe {primary_timeframe!r} not in "
+                f"ohlcv_by_timeframe (keys: "
+                f"{sorted(ohlcv_by_timeframe.keys())})"
+            )
+        primary_ohlcv = ohlcv_by_timeframe[primary_timeframe]
+        if not primary_ohlcv:
+            raise BacktestError(
+                f"Primary timeframe {primary_timeframe!r} has empty "
+                "candle list"
+            )
+
+        trading_strategy = self._build_trading_strategy(profile)
+        risk_percent, leverage = self._resolve_sizing(profile)
+
+        # Pre-extract timestamps for non-primary TFs so the per-step
+        # bisect is O(log n). Cursors monotonically advance with the
+        # primary index, but we still use bisect_right for correctness
+        # when timestamps don't align cleanly to higher-TF candle opens.
+        higher_timeframes = [
+            tf for tf in ohlcv_by_timeframe if tf != primary_timeframe
+        ]
+        higher_timestamps: dict[str, list[datetime]] = {
+            tf: [c.timestamp for c in ohlcv_by_timeframe[tf]]
+            for tf in higher_timeframes
+        }
+
+        balance = self.config.initial_balance
+        trades: list[BacktestTrade] = []
+        open_trade: _OpenTrade | None = None
+
+        for i, current_candle in enumerate(primary_ohlcv):
+            # 1. Apply intra-candle SL/TP checks to any open trade.
+            if open_trade is not None:
+                exit_hit = self._check_intra_candle_exit(
+                    open_trade, current_candle
+                )
+                if exit_hit is not None:
+                    target_exit_price, reason = exit_hit
+                    trade, pnl_delta = self._close_trade(
+                        open_trade=open_trade,
+                        exit_time=current_candle.timestamp,
+                        target_exit_price=target_exit_price,
+                        reason=reason,
+                    )
+                    trades.append(trade)
+                    balance += pnl_delta
+                    open_trade = None
+
+            # 2. Build the multi-TF slice through the current bar.
+            primary_slice = primary_ohlcv[: i + 1]
+            slice_dict: dict[str, list[OHLCV]] = {primary_timeframe: primary_slice}
+            cur_ts = current_candle.timestamp
+            for tf in higher_timeframes:
+                hi = bisect.bisect_right(higher_timestamps[tf], cur_ts)
+                slice_dict[tf] = ohlcv_by_timeframe[tf][:hi]
+
+            # 3. Warmup gate — every TF must have enough history. ICT
+            # / SMC-style top-down analysis is meaningless without a
+            # full higher-TF context window.
+            warmup = self.config.warmup_candles
+            if any(len(slice_dict[tf]) < warmup for tf in slice_dict):
+                continue
+
+            # 4. Concurrent positions gate.
+            if (
+                open_trade is not None
+                and not self.config.allow_concurrent_positions
+            ):
+                continue
+
+            # 5. Run the technique with the full multi-TF context.
+            try:
+                analysis = await strategy.analyze(
+                    primary_slice,
+                    symbol,
+                    primary_timeframe,
+                    ohlcv_by_timeframe=slice_dict,
+                    current_price=current_candle.close,
+                )
+            except StrategyError as e:
+                logger.debug(
+                    f"Strategy raised on candle {i}: {e}; skipping"
+                )
+                continue
+
+            if analysis.signal == "neutral":
+                continue
+
+            # 6. Profile filter (confidence, neutral rejection).
+            if profile is not None and not profile.accepts_signal(analysis):
+                continue
+
+            # 7. Build the position; skip on any validation failure.
+            try:
+                position = trading_strategy.create_position(
+                    analysis=analysis,
+                    symbol=symbol,
+                    balance=balance,
+                    leverage=leverage,
+                    risk_percent=risk_percent,
+                )
+            except TradingValidationError as e:
+                logger.debug(
+                    f"Position rejected on candle {i}: {e}; skipping"
+                )
+                continue
+
+            # 8. Simulate fill at current candle close with slippage.
+            actual_entry = self._apply_slippage(
+                base_price=current_candle.close,
+                side=position.side,
+                is_entry=True,
+            )
+            entry_fee = (
+                actual_entry * position.quantity * self.config.fee_rate
+            )
+            if entry_fee > balance:
+                logger.debug(
+                    f"Insufficient balance for entry fee on candle {i}"
+                )
+                continue
+
+            balance -= entry_fee
+            open_trade = _OpenTrade(
+                position=position,
+                entry_time=current_candle.timestamp,
+                actual_entry_price=actual_entry,
+                entry_fee=entry_fee,
+            )
+
+        # End of data: force-close any lingering position.
+        if open_trade is not None:
+            last_candle = primary_ohlcv[-1]
+            final_exit = self._apply_slippage(
+                base_price=last_candle.close,
+                side=open_trade.position.side,
+                is_entry=False,
+            )
+            trade, pnl_delta = self._close_trade(
+                open_trade=open_trade,
+                exit_time=last_candle.timestamp,
+                target_exit_price=final_exit,
+                reason="end_of_data",
+                skip_slippage=True,
+            )
+            trades.append(trade)
+            balance += pnl_delta
+            open_trade = None
+
+        return self._build_result(
+            strategy=strategy,
+            ohlcv=primary_ohlcv,
+            symbol=symbol,
+            timeframe=primary_timeframe,
+            profile=profile,
+            trades=trades,
+            final_balance=balance,
+        )
+
+    async def run_for_strategy(
+        self,
+        strategy: BaseStrategy,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        profile: TradingProfile | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+    ) -> BacktestResult:
+        """Dispatcher: picks single- or multi-TF run from strategy metadata.
+
+        The robustness gate and feedback loop call this so they do not
+        need to branch on ``strategy.info.requires_multi_timeframe``
+        themselves. ``timeframe`` is interpreted as the primary TF in
+        the multi-TF case.
+
+        Raises:
+            BacktestError: When the strategy declares multi-TF but no
+                ``ohlcv_by_timeframe`` was supplied.
+        """
+        if strategy.info.requires_multi_timeframe:
+            if ohlcv_by_timeframe is None:
+                raise BacktestError(
+                    f"Strategy {strategy.name} declares "
+                    "requires_multi_timeframe=True but ohlcv_by_timeframe "
+                    "was not provided"
+                )
+            return await self.run_multi_timeframe(
+                strategy=strategy,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
+                symbol=symbol,
+                primary_timeframe=timeframe,
+                profile=profile,
+            )
+        return await self.run(strategy, ohlcv, symbol, timeframe, profile)
 
     # ------------------------------------------------------------------
     # Helpers

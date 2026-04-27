@@ -181,7 +181,11 @@ def make_loop(
         improver.generate_from_user_idea.return_value = generated
 
     backtester = AsyncMock(spec=Backtester)
+    # The loop dispatches via ``run_for_strategy`` (Phase 9.3); legacy
+    # ``run`` is also stubbed for any test that constructs the
+    # backtester directly.
     backtester.run.return_value = make_backtest_result()
+    backtester.run_for_strategy.return_value = make_backtest_result()
 
     analyzer = MagicMock(spec=PerformanceAnalyzer)
     analyzer.analyze.return_value = make_metrics()
@@ -277,6 +281,40 @@ async def test_propose_new_gate_passed_awaits_approval(tmp_path: Path) -> None:
     assert record.kind == "new_idea"
     types = [e.event_type for e in audit_log.read_all()]
     assert AuditEventType.GATE_PASSED.value in types
+
+
+@pytest.mark.asyncio
+async def test_improve_existing_threads_multi_tf_dict_to_backtester(
+    tmp_path: Path,
+) -> None:
+    """Phase 9.3: ``ohlcv_by_timeframe`` reaches both the backtester
+    and the gate via ``run_for_strategy`` / ``gate.evaluate``."""
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+
+    multi_tf = {
+        "4h": [],
+        "1h": [],
+        "15m": [],
+        "5m": [],
+    }
+    await loop.improve_existing(
+        technique=sample_technique_info(),
+        original_source="original prompt body",
+        performance=sample_performance(),
+        records=[],
+        ohlcv=[],
+        symbol="BTC/USDT",
+        timeframe="5m",
+        ohlcv_by_timeframe=multi_tf,
+    )
+
+    bt_call = loop.backtester.run_for_strategy.await_args
+    assert bt_call.kwargs["ohlcv_by_timeframe"] is multi_tf
+    assert bt_call.kwargs["timeframe"] == "5m"
+
+    gate_call = loop.gate.evaluate.await_args
+    assert gate_call.kwargs["ohlcv_by_timeframe"] is multi_tf
+    assert gate_call.kwargs["timeframe"] == "5m"
 
 
 # =============================================================================

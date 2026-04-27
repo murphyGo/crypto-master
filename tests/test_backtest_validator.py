@@ -494,3 +494,103 @@ class TestAggregateReport:
         report = await gate.evaluate(strategy, candles, "BTC/USDT")
         assert "Robustness verdict" in report.summary
         assert "Baseline Sharpe" in report.summary
+
+
+# =============================================================================
+# Phase 9.3: Multi-TF gate routing
+# =============================================================================
+
+
+class _MultiTFPeriodicLongStrategy(BaseStrategy):
+    """Like ``PeriodicLongStrategy`` but declares multi-TF and verifies
+    the engine actually fed it the per-TF dict.
+
+    The signal logic is unchanged so existing pattern fixtures (winning
+    candles → trades hit TP) still drive the gate's accept/reject path.
+    Captures every analyze call so tests can assert no future leakage
+    in the OOS / walk-forward higher-TF slices.
+    """
+
+    def __init__(self, period: int = 5) -> None:
+        super().__init__(
+            info=TechniqueInfo(
+                name="multi_tf_periodic",
+                version="1.0.0",
+                description="multi-tf periodic long for gate testing",
+                technique_type="code",
+                requires_multi_timeframe=True,
+            )
+        )
+        self.period = period
+        self.calls: list[dict[str, object]] = []
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
+    ) -> AnalysisResult:
+        self.calls.append(
+            {
+                "primary_last_ts": ohlcv[-1].timestamp if ohlcv else None,
+                "by_tf_keys": (
+                    sorted(ohlcv_by_timeframe.keys())
+                    if ohlcv_by_timeframe is not None
+                    else None
+                ),
+                "by_tf_last_ts": (
+                    {
+                        tf: (c[-1].timestamp if c else None)
+                        for tf, c in ohlcv_by_timeframe.items()
+                    }
+                    if ohlcv_by_timeframe is not None
+                    else None
+                ),
+            }
+        )
+        idx = len(ohlcv) - 1
+        if idx > 0 and idx % self.period == 0:
+            return long_signal()
+        return neutral()
+
+
+class TestMultiTimeframeRouting:
+    @pytest.mark.asyncio
+    async def test_oos_gate_does_not_leak_future_higher_tf(self) -> None:
+        """The IS half must not see any higher-TF candle past its boundary."""
+        gate = make_gate(
+            config=RobustnessConfig(
+                regime_sma_period=20,
+                walk_forward_windows=4,
+                walk_forward_min_trades_per_window=1,
+                oos_min_trades=1,
+            )
+        )
+        primary = make_candles(80, pattern="winning")
+        # Build a sparser higher-TF stream with the same timestamps as
+        # every 4th primary candle. Cleanly aligned so the bisect cut
+        # falls on a candle boundary.
+        higher = [primary[i] for i in range(0, len(primary), 4)]
+        strategy = _MultiTFPeriodicLongStrategy(period=4)
+
+        report = await gate.evaluate(
+            strategy,
+            primary,
+            "BTC/USDT",
+            ohlcv_by_timeframe={"1h": primary, "4h": higher},
+        )
+
+        # Every analyze call's higher-TF cutoff must be ≤ primary cutoff.
+        for c in strategy.calls:
+            primary_ts = c["primary_last_ts"]
+            higher_last = c["by_tf_last_ts"]["4h"]  # type: ignore[index]
+            assert primary_ts is not None
+            if higher_last is not None:
+                assert higher_last <= primary_ts
+        assert report.baseline_trades > 0
+        # Sanity: every analyze call was multi-TF (no fallback to
+        # single-TF dispatch on this strategy).
+        assert all(c["by_tf_keys"] == ["1h", "4h"] for c in strategy.calls)

@@ -51,9 +51,10 @@ from pydantic import BaseModel, Field
 
 from src.backtest.engine import (
     BacktestConfig,
+    Backtester,
     BacktestResult,
     BacktestTrade,
-    Backtester,
+    slice_multi_tf_by_index,
 )
 from src.logger import get_logger
 from src.models import OHLCV
@@ -250,19 +251,23 @@ class RobustnessGate:
         profile: TradingProfile | None = None,
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
         param_grid: dict[str, list[Any]] | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> RobustnessReport:
         """Run all four gates and produce an aggregate verdict.
 
         Args:
             strategy: The strategy under evaluation. Used as-is for
                 the OOS, walk-forward, and regime gates.
-            ohlcv: Historical candles, chronologically ascending.
-                Must be long enough for at least
+            ohlcv: Historical primary-TF candles, chronologically
+                ascending. Must be long enough for at least
                 ``walk_forward_windows`` slices and the
                 ``regime_sma_period`` lookback.
             symbol: Trading pair symbol passed through to the
                 backtester.
-            timeframe: Candle timeframe label.
+            timeframe: Primary candle timeframe label. In multi-TF
+                mode this is also the key into ``ohlcv_by_timeframe``
+                whose series drives walk-forward iteration.
             profile: Optional trading profile applied to every sub-run.
             strategy_factory: Optional callable that builds a strategy
                 from a parameter dict. Required for the sensitivity
@@ -270,6 +275,14 @@ class RobustnessGate:
             param_grid: Mapping of parameter name → list of values to
                 sweep. Required for the sensitivity gate. Cartesian
                 product capped at ``sensitivity_max_combos``.
+            ohlcv_by_timeframe: For multi-TF strategies, the full
+                ``{tf: [OHLCV]}`` dict. When provided, every gate
+                slices it alongside the primary candles by timestamp
+                so each sub-run sees aligned multi-TF data with no
+                future leakage. The sensitivity gate's
+                ``strategy_factory`` is responsible for producing
+                strategies whose ``requires_multi_timeframe`` flag
+                matches the original.
 
         Returns:
             A ``RobustnessReport`` with one ``GateResult`` per gate.
@@ -277,16 +290,25 @@ class RobustnessGate:
         # Baseline run — used by gates for context (e.g. baseline Sharpe
         # for sensitivity comparison) and surfaced in the summary.
         baseline = await self._run_subset(
-            strategy, ohlcv, symbol, timeframe, profile
+            strategy,
+            ohlcv,
+            symbol,
+            timeframe,
+            profile,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
         baseline_sharpe = _sharpe_from_trades(
             baseline.trades, baseline.initial_balance
         )
 
         gates: list[GateResult] = [
-            await self._gate_oos(strategy, ohlcv, symbol, timeframe, profile),
+            await self._gate_oos(
+                strategy, ohlcv, symbol, timeframe, profile,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
+            ),
             await self._gate_walk_forward(
-                strategy, ohlcv, symbol, timeframe, profile
+                strategy, ohlcv, symbol, timeframe, profile,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
             ),
             await self._gate_regime(baseline, ohlcv),
             await self._gate_sensitivity(
@@ -297,6 +319,7 @@ class RobustnessGate:
                 strategy_factory,
                 param_grid,
                 baseline_sharpe,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
             ),
         ]
 
@@ -320,6 +343,8 @@ class RobustnessGate:
         symbol: str,
         timeframe: str,
         profile: TradingProfile | None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> GateResult:
         """In-sample / out-of-sample split (chronological).
 
@@ -328,8 +353,12 @@ class RobustnessGate:
         """
         cfg = self.config
         split_idx = int(len(ohlcv) * (1 - cfg.oos_fraction))
-        is_data = ohlcv[:split_idx]
-        oos_data = ohlcv[split_idx:]
+        is_data, is_mtf = slice_multi_tf_by_index(
+            ohlcv, ohlcv_by_timeframe, 0, split_idx
+        )
+        oos_data, oos_mtf = slice_multi_tf_by_index(
+            ohlcv, ohlcv_by_timeframe, split_idx, len(ohlcv)
+        )
 
         # Both splits need enough warm-up for the strategy to fire.
         warmup = self.backtester.config.warmup_candles
@@ -344,10 +373,12 @@ class RobustnessGate:
             )
 
         is_run = await self._run_subset(
-            strategy, is_data, symbol, timeframe, profile
+            strategy, is_data, symbol, timeframe, profile,
+            ohlcv_by_timeframe=is_mtf,
         )
         oos_run = await self._run_subset(
-            strategy, oos_data, symbol, timeframe, profile
+            strategy, oos_data, symbol, timeframe, profile,
+            ohlcv_by_timeframe=oos_mtf,
         )
 
         if (
@@ -422,6 +453,8 @@ class RobustnessGate:
         symbol: str,
         timeframe: str,
         profile: TradingProfile | None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> GateResult:
         """N consecutive non-overlapping windows.
 
@@ -452,9 +485,12 @@ class RobustnessGate:
             start = w * window_size
             # Last window absorbs any remainder so no candles are lost.
             end = (w + 1) * window_size if w < n - 1 else len(ohlcv)
-            window = ohlcv[start:end]
+            window, window_mtf = slice_multi_tf_by_index(
+                ohlcv, ohlcv_by_timeframe, start, end
+            )
             result = await self._run_subset(
-                strategy, window, symbol, timeframe, profile
+                strategy, window, symbol, timeframe, profile,
+                ohlcv_by_timeframe=window_mtf,
             )
             results.append(result)
 
@@ -625,6 +661,8 @@ class RobustnessGate:
         factory: StrategyFactory | AsyncStrategyFactory | None,
         param_grid: dict[str, list[Any]] | None,
         baseline_sharpe: float | None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> GateResult:
         """Sweep the parameter grid; require a robust hill, not a peak.
 
@@ -681,7 +719,8 @@ class RobustnessGate:
             built = factory(**params)
             variant = await built if isinstance(built, Awaitable) else built
             run = await self._run_subset(
-                variant, ohlcv, symbol, timeframe, profile
+                variant, ohlcv, symbol, timeframe, profile,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
             )
             sharpe = _sharpe_from_trades(run.trades, run.initial_balance)
             sharpes.append(sharpe if sharpe is not None else 0.0)
@@ -741,19 +780,24 @@ class RobustnessGate:
         symbol: str,
         timeframe: str,
         profile: TradingProfile | None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> BacktestResult:
         """Run a backtest on a candle subset.
 
         A thin wrapper so every gate uses the same call shape and the
         backtester's config (fees, slippage, leverage) is consistent
-        across all sub-runs.
+        across all sub-runs. Routes to ``Backtester.run_for_strategy``
+        which dispatches single-TF vs multi-TF based on
+        ``strategy.info.requires_multi_timeframe``.
         """
-        return await self.backtester.run(
+        return await self.backtester.run_for_strategy(
             strategy=strategy,
             ohlcv=ohlcv,
             symbol=symbol,
             timeframe=timeframe,
             profile=profile,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
 
     @staticmethod

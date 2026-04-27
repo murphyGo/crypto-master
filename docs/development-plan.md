@@ -38,6 +38,7 @@
 | Fly.io Deployment | ✅ Complete | 8 |
 | Multi-Timeframe Strategy Support | ✅ Complete | 9 |
 | Baseline Indicator Strategies | ✅ Complete | 9 |
+| Multi-Timeframe Backtester | ✅ Complete | 9 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -518,6 +519,61 @@ indicator strategies.
   triggers above/below threshold, edge cases at exactly the
   threshold, neutral when no setup)
 
+### 9.3 Multi-Timeframe Backtester
+
+**Background**: Phase 9.1 wired multi-TF through the live
+``ProposalEngine`` but the offline path (backtester → robustness gate
+→ feedback loop) still operated on a single candle stream. A
+multi-TF strategy declaring ``requires_multi_timeframe=True`` reached
+``format_prompt`` with ``ohlcv_by_timeframe=None`` → unfilled
+placeholders → ``StrategyValidationError``. So ``chasulang_ict_smc``
+could not pass through the four robustness gates, blocking promotion
+through the feedback loop.
+
+**Related Requirements**: FR-025 (Backtesting Execution), FR-027 /
+FR-034 (Robustness Validation Gate) — extending existing backtester +
+gate; no new FR introduced.
+
+- [x] ``Backtester.run_multi_timeframe(strategy, ohlcv_by_timeframe,
+  symbol, primary_timeframe, profile=None)`` — walks the primary TF,
+  slices higher TFs by timestamp at each step using ``bisect`` for
+  O(N log M) total work, calls ``strategy.analyze`` with the full
+  per-TF dict + ``current_price`` derived from the primary candle's
+  close. Reuses every existing helper (``_check_intra_candle_exit`` /
+  ``_close_trade`` / ``_apply_slippage`` / ``_build_result``). All
+  strategy-irrelevant logic — fees, slippage, sizing, end-of-data
+  force-close — driven by the primary TF.
+- [x] Module-level ``slice_multi_tf_by_index(primary, by_tf, start,
+  end)`` helper used by the run loop and the gate splits. Single-TF
+  callers pass ``by_tf=None`` and get a clean passthrough.
+- [x] ``Backtester.run_for_strategy`` dispatcher — picks
+  ``run`` / ``run_multi_timeframe`` from
+  ``strategy.info.requires_multi_timeframe``. Raises
+  ``BacktestError`` early when a multi-TF strategy has no dict.
+- [x] ``RobustnessGate`` — ``evaluate``, ``_gate_oos``,
+  ``_gate_walk_forward``, ``_gate_sensitivity``, and ``_run_subset``
+  thread an opt-in ``ohlcv_by_timeframe`` keyword through. The OOS
+  and walk-forward splits use ``slice_multi_tf_by_index`` to derive
+  aligned per-TF subsets — no future leakage. ``_gate_regime``
+  unchanged (operates on baseline trades + primary SMA only).
+- [x] ``FeedbackLoop`` — every entry point
+  (``improve_existing`` / ``propose_new`` / ``from_user_idea`` /
+  ``reevaluate``) accepts ``ohlcv_by_timeframe``; ``_run_cycle``
+  calls ``backtester.run_for_strategy`` and forwards the dict to
+  ``gate.evaluate``. ``chasulang_ict_smc`` (and any future multi-TF
+  technique) can now reach ``AWAITING_APPROVAL`` end-to-end.
+- [x] Validation: empty dict / missing primary key / empty primary
+  series each raise ``BacktestError`` with a useful message.
+- [x] Warmup gates every TF, not just the primary — multi-TF
+  top-down strategies are useless without a full higher-TF context
+  window.
+- [x] Write unit tests — 13 in
+  ``tests/test_backtest_multi_timeframe.py`` (slicer, validation,
+  no-future-leakage, warmup gating, dispatcher); 1 in
+  ``tests/test_backtest_validator.py`` (multi-TF gate routing
+  preserves no-leakage); 1 in ``tests/test_feedback_loop.py``
+  (``ohlcv_by_timeframe`` reaches both backtester and gate).
+
 ---
 
 ## Requirements Mapping
@@ -589,3 +645,4 @@ indicator strategies.
 | 9.2 | 2026-04-27 | Phase 9.2 added to plan - baseline indicator strategies (RSI 4h, RSI 15m, Bollinger Bands, MA crossover) for LLM-vs-deterministic comparison + degraded-mode safety net | Claude |
 | 9.2 | 2026-04-27 | Phase 9.2 complete - Baseline Indicator Strategies (FR-001/002/003/004); src/strategy/indicators.py + strategies/{rsi,bollinger_bands,ma_crossover}.py + docs/baselines.md; 30 tests. Per-timeframe RSI split (rsi_4h/rsi_15m) deferred until Phase 9.1 multi-TF lands | Claude |
 | 9.1 | 2026-04-27 | Phase 9.1 complete - Multi-Timeframe Strategy Support (FR-001/002/003); `requires_multi_timeframe` flag on `TechniqueInfo`, `BaseStrategy.analyze` extended with keyword-only `ohlcv_by_timeframe` / `current_price`, `PromptStrategy.format_prompt` fills `{ohlcv_<tf>}` + `{current_price}`, `ProposalEngine` dispatches per-TF fetches; `chasulang_ict_smc` template wakes up. 7 new tests + chasulang smoke. Backtester multi-TF iteration deferred to a follow-up. | Claude |
+| 9.3 | 2026-04-27 | Phase 9.3 complete - Multi-Timeframe Backtester (FR-025, FR-027, FR-034); `Backtester.run_multi_timeframe` with bisect-based per-TF slicing + warmup gating across every TF; `Backtester.run_for_strategy` dispatcher; `RobustnessGate` threads `ohlcv_by_timeframe` through OOS / walk-forward / sensitivity gates with no future leakage; `FeedbackLoop` accepts `ohlcv_by_timeframe` end-to-end. 15 new tests across backtester / validator / loop suites. Multi-TF strategies (chasulang) can now reach AWAITING_APPROVAL. | Claude |

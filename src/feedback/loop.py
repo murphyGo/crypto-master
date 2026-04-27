@@ -194,8 +194,15 @@ class FeedbackLoop:
         profile: TradingProfile | None = None,
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
         param_grid: dict[str, list[Any]] | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> CandidateRecord:
-        """Improve an existing technique and run it through the gate."""
+        """Improve an existing technique and run it through the gate.
+
+        Multi-TF candidates: pass ``ohlcv_by_timeframe`` and use
+        ``timeframe`` as the primary TF key. The backtester and gate
+        dispatch on ``strategy.info.requires_multi_timeframe``.
+        """
         generated = await self.improver.suggest_improvement(
             technique=technique,
             original_source=original_source,
@@ -212,6 +219,7 @@ class FeedbackLoop:
             profile=profile,
             strategy_factory=strategy_factory,
             param_grid=param_grid,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
 
     async def propose_new(
@@ -223,6 +231,8 @@ class FeedbackLoop:
         profile: TradingProfile | None = None,
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
         param_grid: dict[str, list[Any]] | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> CandidateRecord:
         """Generate a brand-new technique and run it through the gate."""
         generated = await self.improver.generate_idea(context=context, save=True)
@@ -235,6 +245,7 @@ class FeedbackLoop:
             profile=profile,
             strategy_factory=strategy_factory,
             param_grid=param_grid,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
 
     async def from_user_idea(
@@ -246,6 +257,8 @@ class FeedbackLoop:
         profile: TradingProfile | None = None,
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
         param_grid: dict[str, list[Any]] | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> CandidateRecord:
         """Turn a free-form user idea into a candidate and gate it."""
         generated = await self.improver.generate_from_user_idea(
@@ -260,6 +273,7 @@ class FeedbackLoop:
             profile=profile,
             strategy_factory=strategy_factory,
             param_grid=param_grid,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
 
     async def reevaluate(
@@ -272,6 +286,8 @@ class FeedbackLoop:
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
         param_grid: dict[str, list[Any]] | None = None,
         parent_technique: str | None = None,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> CandidateRecord:
         """Re-run the gate on an already-saved experimental file.
 
@@ -302,6 +318,7 @@ class FeedbackLoop:
             profile=profile,
             strategy_factory=strategy_factory,
             param_grid=param_grid,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
 
     # ------------------------------------------------------------------
@@ -436,6 +453,7 @@ class FeedbackLoop:
         profile: TradingProfile | None,
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None,
         param_grid: dict[str, list[Any]] | None,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
     ) -> CandidateRecord:
         """Run the full backtest → gate cycle for a fresh candidate."""
         if generated.saved_path is None:
@@ -466,12 +484,13 @@ class FeedbackLoop:
 
         try:
             strategy = load_strategy(generated.saved_path)
-            backtest = await self.backtester.run(
+            backtest = await self.backtester.run_for_strategy(
                 strategy=strategy,
                 ohlcv=ohlcv,
                 symbol=symbol,
                 timeframe=timeframe,
                 profile=profile,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
             )
             record = self._after_backtest(record, backtest)
 
@@ -483,6 +502,7 @@ class FeedbackLoop:
                 profile=profile,
                 strategy_factory=strategy_factory,
                 param_grid=param_grid,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
             )
             return self._after_gate(record, report)
 
