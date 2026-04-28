@@ -47,7 +47,7 @@
 | Volume-Aware Default Paths | ✅ Complete | 10 |
 | Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
 | Pre-Existing Lint/Type Sweep | ✅ Complete | 11 |
-| OHLCV Cache for Multi-Technique Scan | ❌ Missing | 11 |
+| OHLCV Cache for Multi-Technique Scan | ✅ Complete | 11 |
 | Notification Push Backend | ❌ Missing | 11 |
 | ProposalHistory.purge_old Wiring | ❌ Missing | 11 |
 
@@ -896,18 +896,18 @@ scale. Tracked as DEBT-002 (Low).
 **Related Requirements**: FR-005 (consumed); operational concern —
 no new FR introduced.
 
-- [ ] Add a per-call OHLCV cache keyed by `(symbol, timeframe)`
+- [x] Add a per-call OHLCV cache keyed by `(symbol, timeframe)`
   threaded through `_propose_all_for_symbol` and
   `_build_proposal_for_strategy`. The simplest shape is a
   `dict[(str, str), list[OHLCV]]` instantiated at the public entry
   point.
-- [ ] Cache MUST be per-call, not per-engine — strategy decisions
+- [x] Cache MUST be per-call, not per-engine — strategy decisions
   need fresh data each cycle. Lifetime is exactly one
   `propose_bitcoin` / `propose_altcoins` invocation.
-- [ ] Multi-TF strategies: keying by `(symbol, tf)` means each
+- [x] Multi-TF strategies: keying by `(symbol, tf)` means each
   timeframe is fetched at most once per call regardless of how many
   strategies request it.
-- [ ] Tests: extend `tests/test_proposal_engine_multi_technique.py`
+- [x] Tests: extend `tests/test_proposal_engine_multi_technique.py`
   with a "fetch is called once per (symbol, tf) even when N
   techniques request it" test (mock `exchange.get_ohlcv`, assert
   call count).
@@ -1054,4 +1054,5 @@ to retention); operational concern — no new FR introduced.
 | 10.3 | 2026-04-28 | Phase 10.3 complete - Baseline Reference Numbers (FR-025 consumed; operator tooling); `scripts/backtest_baselines.py` (620 lines) operator script fetches Binance public OHLCV with pagination (>1500 candles needs reaching past `BaseExchange.get_ohlcv` contract via `BinanceExchange._client`), runs `Backtester.run_for_strategy` + `PerformanceAnalyzer` per baseline, persists `result.json` + `analysis.md` + `summary.json` under `data/backtest/baselines/<strategy>/`. Idempotent overwrite. `--no-update-doc` flag. Updates `docs/baselines.md` operator-instructions section + period labels; metric cells stay `_TBD_` until operator runs the script (no synthesised numbers). 6 new smoke tests (1052 → 1058). 1 mypy nit at lines 241/248 + `_client` reach-around recorded as DEBT-004 (Low). | Claude |
 | 10.4 | 2026-04-28 | Phase 10.4 complete - Log Retention Policy (NFR-008); new `src/runtime/jsonl_rotator.py` (`JsonlRotator`) wraps append-only JSONL with time-based monthly rotation (`<base>.YYYY-MM.jsonl`) + retention-bounded timestamp-ordered merged reads + corrupt-line tolerance + legacy un-rotated file read-as-oldest-archive (never written). `AuditLog` and `ActivityLog` compose the rotator (`self.path` preserved as `.jsonl`-form for back-compat; trailing-suffix stripped to derive rotator base). `ProposalHistory.purge_old(now, retention_months)` ships as operator-callable age-based archive into `<data_dir>/proposals/archive/<YYYY-MM>/` keyed on the proposal's own creation month — idempotent, no startup hook (deferred). `Settings.log_retention_months: int = 12` (`Field(ge=1)`) + `LOG_RETENTION_MONTHS` env var documented in `.env.example`. 25 new tests (1058 → 1083). No new debt. | Claude |
 | 11.1 | 2026-04-28 | Phase 11.1 complete - Pre-Existing Lint/Type Sweep (NFR-001; resolves DEBT-001); cleared all in-scope ruff + mypy errors (18 ruff → 0; 12 in-scope mypy → 0; total mypy 39 → 29 with remainder out-of-scope per spec). In-scope fixes: `src/ai/claude.py` (2 B904 with `from e`), `src/strategy/loader.py` (5 B904), `src/strategy/factory.py` (UP035 `Callable` from `collections.abc`), `src/ai/improver.py` (str-coerce `fm.get(...) or fallback` at parse-time), `src/trading/live.py` (`Order` import + return-type widening + `Literal["buy","sell"]` for closing_side), `src/trading/paper.py` (same Literal fix), `src/backtest/analyzer.py` (`float(...)` cast for no-any-return), 6 test files (F401/F841/I001 cleanup via `ruff --fix`). `pyproject.toml` ruff config migrated from deprecated top-level `select`/`ignore` to `[tool.ruff.lint]`. `types-PyYAML>=6.0` added to dev extras. New `scripts/lint.sh` (uses `--fix` — flagged by qa as unsafe for CI; recorded as DEBT-009). 1083 tests pass (no behaviour change, no new tests). Zero `# noqa` / `# type: ignore` added. Remaining 29 mypy errors clustered in 4 modules (binance / factory / dashboard / main lambda) recorded as DEBT-005 / 006 / 007 / 008. | Claude |
+| 11.2 | 2026-04-28 | Phase 11.2 complete - OHLCV Cache for Multi-Technique Scan (FR-005 consumed; resolves DEBT-002); per-call OHLCV cache keyed by `(symbol, tf)` threaded through `propose_bitcoin` / `propose_altcoins` → `_propose_for_symbol` / `_propose_all_for_symbol` → `_build_proposal_for_strategy` (Option A). Local dict per call, no module/class state. Both single-TF and multi-TF branches use it; legacy `_select_best_technique` path also threads cache for consistency (no per-path divergence). Fetch counts verified: 3 sym × 4 tech 12 → 3, multi-TF (2 strategies sharing 3 TFs) 6 → 3, sequential 2× `propose_bitcoin` 2 (no leak), legacy 3 sym × 1 tech 3 (no regression). 4 new tests in `tests/test_proposal_engine_multi_technique.py` (1083 → 1087). ruff clean; mypy zero new errors on `engine.py`. 23 existing `test_proposal_engine.py` tests pass unchanged. PEP 604 union syntax for type hints. No new debt. | Claude |
 | 10.0 | 2026-04-28 | Phase 10 complete - all sub-tasks (10.1, 10.2, 10.3, 10.4, 10.5, 10.6) checked. Phase 10 cross-check: `docs/cross-checks/2026-04-28-phase-10-operational-maturation.md`. | Claude |

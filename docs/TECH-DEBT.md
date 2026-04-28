@@ -41,36 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-002: OHLCV Per-Technique Refetch in Multi-Technique Scan
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 10.6 |
-| **Component** | `src/proposal/engine.py` (`_propose_all_for_symbol`) |
-
-**Description:**
-Phase 10.6's multi-technique scan calls `_propose_all_for_symbol`, which re-fetches OHLCV per technique. This produces N×M `get_ohlcv` calls per symbol per cycle (N = techniques, M = timeframes), versus 1×M previously when only one technique ran per symbol.
-
-Two concerns, both operational rather than correctness:
-
-1. **Temporal-consistency drift** — technique A could see candle T while technique B sees T+δ if a candle rolls mid-cycle. Quant flagged this as 🟡 in post-review: "no look-ahead bias in strict sense (every fetch is now-relative)" but the per-technique candle skew is real.
-2. **API rate-limit pressure at scale** — current envelope (5 symbols × 5 strategies × 4 timeframes = 100 calls/cycle) is fine for single-machine deployments. As `M` grows (more multi-TF strategies) or `N` grows (more baselines), the call count compounds.
-
-**Impact:**
-- No correctness defect today; the existing 100-calls/cycle envelope sits well inside Binance's rate limits.
-- Will start to bite once a second multi-TF strategy lands (chasulang_ict_smc is currently the only one) or the symbol list grows beyond 5.
-- The temporal drift is observable but not measurable in current production logs.
-
-**Suggested Resolution:**
-- Cache OHLCV per `(symbol, timeframe)` for the duration of one `propose_*` call. The cache lives only inside the public method's frame, so there is no global-state risk.
-- Alternative: hoist the OHLCV fetch above the technique loop in `_propose_all_for_symbol` and pass the dict down. Same effect, simpler than a cache.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-10.6-multi-technique-scan.md`
-- Quant code review flagged as 🟡 in post-review (item 2: Look-ahead).
-
 ### DEBT-003: EngineConfig Remaining Fields Not Env-Overridable
 
 | Field | Value |
@@ -282,18 +252,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 11.1 cleared all 18 ruff + 12 in-scope mypy errors; ruff config migrated to `[tool.ruff.lint]`; `types-PyYAML` added. |
 
+### DEBT-002: OHLCV Per-Technique Refetch in Multi-Technique Scan ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 11.2 added per-call (symbol, tf) cache; verified 3-symbol × 4-technique example drops from 12 → 3 fetches. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 8 |
+| Total Active | 7 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 8 |
-| Resolved (All Time) | 1 |
+| Low | 7 |
+| Resolved (All Time) | 2 |
 
 ---
 
@@ -312,3 +291,4 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Added | DEBT-007 Dashboard Streamlit type errors (Low) — surfaced during Phase 11.1 |
 | 2026-04-28 | Added | DEBT-008 `src/main.py:220` lambda annotation (Low) — surfaced during Phase 11.1 |
 | 2026-04-28 | Added | DEBT-009 `scripts/lint.sh --fix` unsafe for CI (Low) — surfaced during Phase 11.1 |
+| 2026-04-28 | Resolved | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan — Phase 11.2 added per-call (symbol, tf) cache |

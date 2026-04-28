@@ -273,16 +273,23 @@ class ProposalEngine:
         tf = timeframe or self.config.timeframe
         bal = balance or self.config.default_balance
 
+        # Per-call OHLCV cache (Phase 11.2 / DEBT-002). Keyed by
+        # ``(symbol, timeframe)`` so multi-TF strategies share fetches
+        # across timeframes too. Lifetime is exactly this invocation —
+        # the next call gets a fresh dict so strategies always see
+        # current candles.
+        cache: dict[tuple[str, str], list[OHLCV]] = {}
+
         if not self.config.multi_technique_per_symbol:
             return await self._propose_for_symbol(
-                symbol=symbol, timeframe=tf, balance=bal
+                symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
             )
 
         # Multi-technique path: run every applicable technique, dedup
         # by symbol (highest composite wins), return the single
         # survivor.
         candidates = await self._propose_all_for_symbol(
-            symbol=symbol, timeframe=tf, balance=bal
+            symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
         )
         if not candidates:
             return None
@@ -318,17 +325,22 @@ class ProposalEngine:
         tf = timeframe or self.config.timeframe
         bal = balance or self.config.default_balance
 
+        # Per-call OHLCV cache (Phase 11.2 / DEBT-002). Shared across
+        # every symbol in this scan so a multi-TF strategy that overlaps
+        # symbols doesn't refetch the same ``(symbol, tf)`` pair.
+        cache: dict[tuple[str, str], list[OHLCV]] = {}
+
         candidates: list[Proposal] = []
         for symbol in symbols:
             try:
                 if self.config.multi_technique_per_symbol:
                     per_symbol = await self._propose_all_for_symbol(
-                        symbol=symbol, timeframe=tf, balance=bal
+                        symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
                     )
                     candidates.extend(per_symbol)
                 else:
                     proposal = await self._propose_for_symbol(
-                        symbol=symbol, timeframe=tf, balance=bal
+                        symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
                     )
                     if proposal is not None:
                         candidates.append(proposal)
@@ -363,6 +375,7 @@ class ProposalEngine:
         symbol: str,
         timeframe: str,
         balance: Decimal,
+        ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
     ) -> Proposal | None:
         """Build a proposal for one symbol, or return None if unfit.
 
@@ -374,6 +387,10 @@ class ProposalEngine:
         Exchange errors propagate; strategy errors and validation
         errors return None (logged) so this method is safe to call
         from the multi-symbol scanner with try/except per symbol.
+
+        ``ohlcv_cache`` is the per-call cache threaded from the public
+        entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
+        local dict is used so direct callers (e.g. tests) still work.
         """
         selection = self._select_best_technique(symbol)
         if selection is None:
@@ -386,6 +403,7 @@ class ProposalEngine:
             balance=balance,
             strategy=strategy,
             perf=perf,
+            ohlcv_cache=ohlcv_cache if ohlcv_cache is not None else {},
         )
 
     async def _propose_all_for_symbol(
@@ -393,6 +411,7 @@ class ProposalEngine:
         symbol: str,
         timeframe: str,
         balance: Decimal,
+        ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
     ) -> list[Proposal]:
         """Phase 10.6: run every applicable technique for ``symbol``.
 
@@ -403,12 +422,17 @@ class ProposalEngine:
         per symbol). Exchange errors propagate; strategy / validation
         errors are logged and skipped per technique so one flaky
         technique can't block the rest.
+
+        ``ohlcv_cache`` is the per-call cache threaded from the public
+        entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
+        local dict is used so direct callers (e.g. tests) still work.
         """
         selections = self._select_all_techniques(symbol)
         if not selections:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return []
 
+        cache = ohlcv_cache if ohlcv_cache is not None else {}
         proposals: list[Proposal] = []
         for strategy, perf in selections:
             proposal = await self._build_proposal_for_strategy(
@@ -417,6 +441,7 @@ class ProposalEngine:
                 balance=balance,
                 strategy=strategy,
                 perf=perf,
+                ohlcv_cache=cache,
             )
             if proposal is not None:
                 proposals.append(proposal)
@@ -430,6 +455,7 @@ class ProposalEngine:
         balance: Decimal,
         strategy: BaseStrategy,
         perf: TechniquePerformance | None,
+        ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
     ) -> Proposal | None:
         """Run ``strategy`` against fresh OHLCV and build a Proposal.
 
@@ -442,15 +468,26 @@ class ProposalEngine:
         # handle per-symbol failures (the existing per-symbol skip in
         # ``propose_altcoins`` covers both single-TF and multi-TF fetch
         # failures uniformly).
+        #
+        # Phase 11.2 / DEBT-002: every fetch goes through ``ohlcv_cache``
+        # (keyed by ``(symbol, timeframe)``) so N applicable techniques
+        # share at most M fetches per symbol, and so all techniques in
+        # the same call see the same candle T (no temporal drift if a
+        # candle rolls mid-cycle).
         if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
             tfs = strategy.info.timeframes
             ohlcv_by_tf: dict[str, list[OHLCV]] = {}
             for tf in tfs:
-                ohlcv_by_tf[tf] = await self.exchange.get_ohlcv(
-                    symbol=symbol,
-                    timeframe=tf,  # type: ignore[arg-type]
-                    limit=self.config.ohlcv_limit,
-                )
+                key = (symbol, tf)
+                cached = ohlcv_cache.get(key)
+                if cached is None:
+                    cached = await self.exchange.get_ohlcv(
+                        symbol=symbol,
+                        timeframe=tf,  # type: ignore[arg-type]
+                        limit=self.config.ohlcv_limit,
+                    )
+                    ohlcv_cache[key] = cached
+                ohlcv_by_tf[tf] = cached
             # Templates list TFs macro→micro (e.g. 4h, 1h, 15m, 5m), so
             # the last entry is the highest-resolution. Use it as the
             # primary stream for ``{ohlcv_data}`` / ``{timeframe}`` and
@@ -477,11 +514,15 @@ class ProposalEngine:
                 logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
                 return None
         else:
-            ohlcv = await self.exchange.get_ohlcv(
-                symbol=symbol,
-                timeframe=timeframe,  # type: ignore[arg-type]
-                limit=self.config.ohlcv_limit,
-            )
+            key = (symbol, timeframe)
+            ohlcv = ohlcv_cache.get(key)
+            if ohlcv is None:
+                ohlcv = await self.exchange.get_ohlcv(
+                    symbol=symbol,
+                    timeframe=timeframe,  # type: ignore[arg-type]
+                    limit=self.config.ohlcv_limit,
+                )
+                ohlcv_cache[key] = ohlcv
             primary_timeframe = timeframe
             try:
                 analysis = await strategy.analyze(ohlcv, symbol, timeframe)

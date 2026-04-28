@@ -12,7 +12,10 @@ quant-trader-expert review:
   top-K (FR-012 diversification);
 * the single-applicable-technique smoke path still works;
 * ``multi_technique_per_symbol=False`` reproduces pre-10.6 behaviour
-  (legacy back-compat smoke).
+  (legacy back-compat smoke);
+* Phase 11.2 / DEBT-002: OHLCV is fetched at most once per
+  ``(symbol, timeframe)`` per ``propose_*`` call, and the cache does
+  not leak across calls.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from src.exchange.base import BaseExchange
 from src.proposal.engine import ProposalEngine, ProposalEngineConfig
+from src.strategy.base import TechniqueInfo
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from tests.test_proposal_engine import (
     make_analysis,
@@ -47,6 +51,24 @@ def _engine(
     ``multi_technique_per_symbol`` flag and skips returning the
     exchange — these tests don't introspect get_ohlcv calls.
     """
+    return _engine_with_exchange(
+        strategies,
+        perf_records,
+        multi_technique_per_symbol=multi_technique_per_symbol,
+    )[0]
+
+
+def _engine_with_exchange(
+    strategies: dict[str, object],
+    perf_records: dict[str, TechniquePerformance] | None = None,
+    *,
+    multi_technique_per_symbol: bool = True,
+) -> tuple[ProposalEngine, AsyncMock]:
+    """Same as ``_engine`` but exposes the mocked exchange.
+
+    Used by the Phase 11.2 cache tests that introspect
+    ``get_ohlcv.await_count``.
+    """
     exchange = AsyncMock(spec=BaseExchange)
     exchange.get_ohlcv.return_value = make_ohlcv()
 
@@ -58,13 +80,32 @@ def _engine(
 
     tracker.get_performance.side_effect = _get_perf
 
-    return ProposalEngine(
+    engine = ProposalEngine(
         exchange=exchange,
         strategies=strategies,  # type: ignore[arg-type]
         performance_tracker=tracker,
         config=ProposalEngineConfig(
             multi_technique_per_symbol=multi_technique_per_symbol
         ),
+    )
+    return engine, exchange
+
+
+def _make_multi_tf_info(
+    name: str,
+    timeframes: list[str],
+    symbols: list[str] | None = None,
+    version: str = "1.0.0",
+) -> TechniqueInfo:
+    """Build a multi-TF ``TechniqueInfo`` for cache tests."""
+    return TechniqueInfo(
+        name=name,
+        version=version,
+        description=f"{name} multi-tf",
+        technique_type="prompt",
+        symbols=symbols if symbols is not None else ["BTC/USDT"],
+        timeframes=timeframes,
+        requires_multi_timeframe=True,
     )
 
 
@@ -296,3 +337,131 @@ async def test_legacy_opt_out_uses_select_best_technique_unchanged() -> None:
     # Pre-10.6 behaviour: only the chosen technique was analysed.
     assert high.analyze.await_count == 1
     assert low.analyze.await_count == 0
+
+
+# =============================================================================
+# Phase 11.2 / DEBT-002 — per-call OHLCV cache
+# =============================================================================
+
+
+async def test_ohlcv_fetched_once_per_symbol_timeframe_per_call() -> None:
+    """3 symbols × 4 single-TF techniques → exactly 3 ``get_ohlcv``
+    calls (one per ``(symbol, tf)``), not 12.
+
+    Without the cache, every applicable technique fetches its own
+    candles, which is N×M calls per symbol — both wasteful (rate
+    limit) and dangerous (techniques can see different candle T's
+    if a candle rolls mid-cycle).
+    """
+    symbols = ["ETH/USDT", "SOL/USDT", "ADA/USDT"]
+    strategies = {
+        f"tech_{i}": make_strategy(
+            info=make_info(f"tech_{i}", symbols=symbols),
+            analysis=make_analysis(signal="long", confidence=0.5 + i * 0.1),
+        )
+        for i in range(4)
+    }
+    perf = {
+        f"tech_{i}": make_perf(
+            f"tech_{i}", total_trades=20, avg_pnl_percent=1.0 + i * 0.1
+        )
+        for i in range(4)
+    }
+    engine, exchange = _engine_with_exchange(strategies, perf)  # type: ignore[arg-type]
+
+    await engine.propose_altcoins(symbols=symbols, top_k=3)
+
+    # All 4 techniques ran on each of 3 symbols — so 12 analyses ran,
+    # but the exchange was only hit once per (symbol, tf) pair = 3.
+    assert exchange.get_ohlcv.await_count == 3
+    for strategy in strategies.values():
+        assert strategy.analyze.await_count == len(symbols)
+
+
+async def test_multi_tf_strategy_caches_each_tf_once() -> None:
+    """Two multi-TF strategies sharing TFs → each TF fetched once.
+
+    Strategy A and B both declare ``timeframes=["4h", "1h", "15m"]``.
+    Cache keying by ``(symbol, tf)`` means 3 fetches total, not 6.
+    """
+    tfs = ["4h", "1h", "15m"]
+    strat_a = make_strategy(
+        info=_make_multi_tf_info("multi_a", timeframes=tfs),
+        analysis=make_analysis(signal="long", confidence=0.7),
+    )
+    strat_b = make_strategy(
+        info=_make_multi_tf_info("multi_b", timeframes=tfs),
+        analysis=make_analysis(signal="long", confidence=0.6),
+    )
+    engine, exchange = _engine_with_exchange(
+        {"multi_a": strat_a, "multi_b": strat_b},
+        {
+            "multi_a": make_perf("multi_a", total_trades=20, avg_pnl_percent=2.0),
+            "multi_b": make_perf("multi_b", total_trades=20, avg_pnl_percent=1.0),
+        },
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    # 3 distinct timeframes × 1 symbol = 3 fetches, regardless of the
+    # 2 strategies that requested them.
+    assert exchange.get_ohlcv.await_count == 3
+    fetched_tfs = {
+        call.kwargs["timeframe"] for call in exchange.get_ohlcv.await_args_list
+    }
+    assert fetched_tfs == set(tfs)
+
+
+async def test_cache_does_not_leak_across_calls() -> None:
+    """Calling ``propose_bitcoin`` twice → fresh cache each time.
+
+    Strategies need current candles every cycle. The cache lives for
+    exactly one ``propose_*`` invocation and is rebuilt on the next
+    call.
+    """
+    strat = make_strategy(
+        info=make_info("solo", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.7),
+    )
+    engine, exchange = _engine_with_exchange(
+        {"solo": strat},
+        {"solo": make_perf("solo", total_trades=20, avg_pnl_percent=1.0)},
+    )
+
+    await engine.propose_bitcoin(symbol="BTC/USDT")
+    after_first = exchange.get_ohlcv.await_count
+    await engine.propose_bitcoin(symbol="BTC/USDT")
+    after_second = exchange.get_ohlcv.await_count
+
+    # Single-TF, single applicable technique: 1 fetch per call → 2 total.
+    assert after_first == 1
+    assert after_second == 2
+
+
+async def test_legacy_path_also_uses_cache() -> None:
+    """Phase 11.2: the legacy single-best path also threads the cache.
+
+    Calling ``propose_altcoins`` with ``multi_technique_per_symbol=False``
+    over 3 symbols should hit the exchange exactly 3 times (one per
+    symbol). Two ``propose_bitcoin`` calls in a row over the same
+    symbol must produce 2 fetches (cache is per-call).
+    """
+    strat = make_strategy(
+        info=make_info("solo", symbols=["ETH/USDT", "SOL/USDT", "ADA/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.7),
+    )
+    engine, exchange = _engine_with_exchange(
+        {"solo": strat},
+        {"solo": make_perf("solo", total_trades=20, avg_pnl_percent=1.0)},
+        multi_technique_per_symbol=False,
+    )
+
+    await engine.propose_altcoins(
+        symbols=["ETH/USDT", "SOL/USDT", "ADA/USDT"], top_k=3
+    )
+
+    # 3 symbols × 1 technique × 1 TF = 3 fetches. Cache present in the
+    # legacy path means a re-run within the same call wouldn't refetch
+    # — and the cache is fresh for the next call.
+    assert exchange.get_ohlcv.await_count == 3
