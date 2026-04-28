@@ -42,7 +42,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -163,12 +162,11 @@ async def fetch_ohlcv_window(
 ) -> list[OHLCV]:
     """Fetch ``total_candles`` of OHLCV, paginating past Binance's 1500-bar cap.
 
-    The project's ``BinanceExchange.get_ohlcv`` clamps to 1500 and
-    doesn't expose a ``since`` cursor, so for windows longer than that
-    we drop down to the underlying ccxt client. We page back from the
-    most recent available bar and stitch the results together; the
-    returned list is chronologically ascending and de-duplicated by
-    timestamp.
+    For windows longer than the per-call cap we page backwards using
+    ``BinanceExchange.get_ohlcv(..., since=...)``: fetch the most
+    recent page first, then repeatedly request the page that ends just
+    before that one's earliest timestamp. The returned list is
+    chronologically ascending and de-duplicated by timestamp.
 
     Args:
         exchange: A connected :class:`BinanceExchange`.
@@ -180,57 +178,42 @@ async def fetch_ohlcv_window(
 
     Returns:
         List of :class:`OHLCV`, ascending by timestamp.
-
-    Raises:
-        RuntimeError: If the exchange has not been connected (no
-            underlying ccxt client available).
     """
     if total_candles <= BINANCE_MAX_LIMIT:
         return await exchange.get_ohlcv(
             symbol=symbol, timeframe=timeframe, limit=total_candles
         )
 
-    # Paginate via the underlying ccxt client. We deliberately reach
-    # past the BaseExchange contract here because adding ``since`` to
-    # the abstraction is out of scope for this phase.
-    client = getattr(exchange, "_client", None)
-    if client is None:
-        raise RuntimeError(
-            "BinanceExchange must be connected before fetching OHLCV "
-            "(call await exchange.connect() first)."
-        )
-
     candle_ms = TIMEFRAME_MS[timeframe]
-    ccxt_tf = BinanceExchange.TIMEFRAME_MAP[timeframe]
 
     # Page back from "now": fetch the most-recent page first, then
     # repeatedly request the page that ends just before that one's
     # earliest timestamp.
-    pages: list[list[list[float]]] = []
-    raw_recent = await client.fetch_ohlcv(
-        symbol=symbol, timeframe=ccxt_tf, limit=BINANCE_MAX_LIMIT
+    pages: list[list[OHLCV]] = []
+    recent = await exchange.get_ohlcv(
+        symbol=symbol, timeframe=timeframe, limit=BINANCE_MAX_LIMIT
     )
-    if not raw_recent:
+    if not recent:
         return []
-    pages.append(raw_recent)
-    earliest_ts = raw_recent[0][0]
-    fetched = len(raw_recent)
+    pages.append(recent)
+    earliest_ts = int(recent[0].timestamp.timestamp() * 1000)
+    fetched = len(recent)
 
     while fetched < total_candles:
         page_size = min(BINANCE_MAX_LIMIT, total_candles - fetched)
         # Request the window ending just before the earliest bar we
         # already have. ccxt's ``since`` is inclusive on the start.
         since = earliest_ts - candle_ms * page_size
-        page = await client.fetch_ohlcv(
+        page = await exchange.get_ohlcv(
             symbol=symbol,
-            timeframe=ccxt_tf,
-            since=since,
+            timeframe=timeframe,
             limit=page_size,
+            since=since,
         )
         if not page:
             break
         pages.append(page)
-        new_earliest = page[0][0]
+        new_earliest = int(page[0].timestamp.timestamp() * 1000)
         if new_earliest >= earliest_ts:
             # No older data available; bail to avoid an infinite loop.
             break
@@ -239,29 +222,16 @@ async def fetch_ohlcv_window(
 
     # Flatten + dedupe (pages may overlap by a candle at the boundary).
     seen: set[int] = set()
-    flat: list[list[float]] = []
+    flat: list[OHLCV] = []
     for page in pages:
         for candle in page:
-            ts = candle[0]
+            ts = int(candle.timestamp.timestamp() * 1000)
             if ts in seen:
                 continue
             seen.add(ts)
             flat.append(candle)
-    flat.sort(key=lambda c: c[0])
-
-    from datetime import datetime as _dt  # local to keep header tidy
-
-    return [
-        OHLCV(
-            timestamp=_dt.fromtimestamp(c[0] / 1000),
-            open=Decimal(str(c[1])),
-            high=Decimal(str(c[2])),
-            low=Decimal(str(c[3])),
-            close=Decimal(str(c[4])),
-            volume=Decimal(str(c[5])),
-        )
-        for c in flat
-    ]
+    flat.sort(key=lambda c: c.timestamp)
+    return flat
 
 
 def serialize_result(result: BacktestResult) -> dict:

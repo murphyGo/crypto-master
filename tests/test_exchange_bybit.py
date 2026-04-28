@@ -310,6 +310,43 @@ class TestBybitExchangeOHLCV:
                 await exchange.get_ohlcv("BTC/USDT", "1h")
             assert exc_info.value.code == "RATE_LIMIT"
 
+    @pytest.mark.asyncio
+    async def test_get_ohlcv_forwards_since_to_ccxt(
+        self, bybit_config: BybitConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """Test get_ohlcv forwards ``since`` to ccxt.fetch_ohlcv (DEBT-004)."""
+        mock_ccxt_client.fetch_ohlcv.return_value = []
+
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BybitExchange(config=bybit_config, testnet=True)
+            await exchange.connect()
+
+            await exchange.get_ohlcv("BTC/USDT", "1h", limit=150, since=12345)
+
+            call_kwargs = mock_ccxt_client.fetch_ohlcv.call_args[1]
+            assert call_kwargs["since"] == 12345
+            assert call_kwargs["limit"] == 150
+
+    @pytest.mark.asyncio
+    async def test_get_ohlcv_defaults_since_to_none(
+        self, bybit_config: BybitConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """When ``since`` is omitted the ccxt call gets ``since=None``."""
+        mock_ccxt_client.fetch_ohlcv.return_value = []
+
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BybitExchange(config=bybit_config, testnet=True)
+            await exchange.connect()
+
+            await exchange.get_ohlcv("BTC/USDT", "1h", limit=100)
+
+            call_kwargs = mock_ccxt_client.fetch_ohlcv.call_args[1]
+            assert call_kwargs["since"] is None
+
 
 class TestBybitExchangeTicker:
     """Tests for get_ticker method."""

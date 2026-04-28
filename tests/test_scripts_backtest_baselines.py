@@ -63,74 +63,17 @@ def _synthetic_ohlcv(
     return candles
 
 
-def _ohlcv_to_raw(c: OHLCV) -> list[float]:
-    """Convert an :class:`OHLCV` to ccxt's raw [ts_ms, o, h, l, c, v] form."""
-    return [
-        int(c.timestamp.timestamp() * 1000),
-        float(c.open),
-        float(c.high),
-        float(c.low),
-        float(c.close),
-        float(c.volume),
-    ]
-
-
-class _FakeCCXTClient:
-    """Minimal stand-in for ccxt's binance client.
-
-    Supports the ``fetch_ohlcv(symbol, timeframe, since=None, limit=...)``
-    contract that :func:`scripts.backtest_baselines.fetch_ohlcv_window`
-    uses for paginated reads. The pagination path in the script reaches
-    past ``BinanceExchange.get_ohlcv`` and talks to ccxt directly, so
-    the fake exchange exposes one of these as ``_client``.
-    """
-
-    def __init__(self, candles_by_tf: dict[str, list[OHLCV]]) -> None:
-        self._raw_by_tf = {
-            tf: [_ohlcv_to_raw(c) for c in candles]
-            for tf, candles in candles_by_tf.items()
-        }
-
-    async def fetch_ohlcv(
-        self,
-        symbol: str,
-        timeframe: str,
-        since: int | None = None,
-        limit: int = 500,
-    ) -> list[list[float]]:
-        raw = self._raw_by_tf.get(timeframe)
-        if raw is None:
-            raise AssertionError(f"unexpected timeframe {timeframe!r}")
-        # ccxt clamps server-side, but real Binance silently caps at
-        # 1500. The script never asks for more than that per page, so
-        # we only need to honour the cap and the ``since`` cursor.
-        page_limit = min(limit, 1500)
-        if since is None:
-            return raw[-page_limit:]
-        # ``since`` is inclusive on start. Walk forward.
-        start_idx = 0
-        for i, candle in enumerate(raw):
-            if candle[0] >= since:
-                start_idx = i
-                break
-        else:
-            return []
-        return raw[start_idx : start_idx + page_limit]
-
-
 class _FakeBinanceExchange:
     """Stand-in for :class:`BinanceExchange` that serves canned candles.
 
     Implements just the surface ``run_baseline`` touches:
-    ``get_ohlcv``, ``connect``, ``disconnect``, plus a ``_client``
-    attribute the pagination path reads through. Since the smoke test
+    ``get_ohlcv``, ``connect``, ``disconnect``. Since the smoke test
     constructs the exchange itself and passes it through the
     ``exchange=`` injection, the script never tries to dial Binance.
     """
 
     def __init__(self, candles_by_tf: dict[str, list[OHLCV]]) -> None:
         self._candles_by_tf = candles_by_tf
-        self._client = _FakeCCXTClient(candles_by_tf)
         self.connected = False
 
     async def connect(self) -> None:  # pragma: no cover - not used by the test
@@ -140,13 +83,26 @@ class _FakeBinanceExchange:
         self.connected = False
 
     async def get_ohlcv(
-        self, symbol: str, timeframe: str, limit: int = 100
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+        since: int | None = None,
     ) -> list[OHLCV]:
         candles = self._candles_by_tf.get(timeframe)
         if candles is None:
             raise AssertionError(f"unexpected timeframe {timeframe!r}")
         # Mirror the real BinanceExchange clamp.
-        return candles[-min(limit, 1500):]
+        page_limit = min(limit, 1500)
+        if since is None:
+            # Most-recent page (no anchor) — same shape as Binance default.
+            return candles[-page_limit:]
+        # ``since`` is inclusive on start. Walk forward.
+        for i, candle in enumerate(candles):
+            since_dt_ms = int(candle.timestamp.timestamp() * 1000)
+            if since_dt_ms >= since:
+                return candles[i : i + page_limit]
+        return []
 
 
 @pytest.fixture

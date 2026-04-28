@@ -96,6 +96,7 @@ class BaseExchange(ABC):
         symbol: str,
         timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
         limit: int = 100,
+        since: int | None = None,
     ) -> list[OHLCV]:
         """Fetch OHLCV candlestick data.
 
@@ -103,6 +104,11 @@ class BaseExchange(ABC):
             symbol: Trading pair (e.g., "BTC/USDT")
             timeframe: Candle timeframe
             limit: Number of candles to fetch (max depends on exchange)
+            since: Optional UTC timestamp in milliseconds. When provided,
+                the exchange returns the page of candles whose start
+                timestamp is >= ``since``. When ``None`` (default), the
+                exchange returns the most recent candles — preserving
+                pre-13.3 behaviour.
 
         Returns:
             List of OHLCV data points, sorted by timestamp ascending

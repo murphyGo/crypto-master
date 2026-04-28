@@ -109,6 +109,7 @@ class MockExchange(BaseExchange):
         symbol: str,
         timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
         limit: int = 100,
+        since: int | None = None,
     ) -> list[OHLCV]:
         """Get mock OHLCV data."""
         return [

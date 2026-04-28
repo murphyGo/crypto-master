@@ -128,6 +128,7 @@ class BybitExchange(BaseExchange):
         symbol: str,
         timeframe: Literal["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
         limit: int = 100,
+        since: int | None = None,
     ) -> list[OHLCV]:
         """Fetch OHLCV candlestick data from Bybit.
 
@@ -135,6 +136,9 @@ class BybitExchange(BaseExchange):
             symbol: Trading pair (e.g., "BTC/USDT")
             timeframe: Candle timeframe
             limit: Number of candles (max 200 for Bybit)
+            since: Optional UTC timestamp in milliseconds. Forwarded to
+                ccxt's ``fetch_ohlcv(since=...)`` to anchor the returned
+                page; ``None`` (default) returns the most recent candles.
 
         Returns:
             List of OHLCV data points, sorted by timestamp ascending
@@ -152,6 +156,7 @@ class BybitExchange(BaseExchange):
             raw_data = await client.fetch_ohlcv(
                 symbol=symbol,
                 timeframe=self.TIMEFRAME_MAP[timeframe],
+                since=since,
                 limit=limit,
             )
 
