@@ -10,6 +10,18 @@ import pytest
 
 from src.config import reload_settings
 from src.feedback.audit import AuditEvent, AuditEventType, AuditLog
+from src.runtime import jsonl_rotator
+
+
+def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
+    """Pin ``datetime.now()`` inside the rotator module."""
+
+    class _DT(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
+            return when
+
+    monkeypatch.setattr(jsonl_rotator, "datetime", _DT)
 
 
 def make_event(
@@ -64,8 +76,12 @@ def test_append_creates_parent_dir(tmp_path: Path) -> None:
     nested = tmp_path / "deep" / "nested" / "audit.jsonl"
     log = AuditLog(path=nested)
     log.append(make_event())
-    assert nested.exists()
+    # Phase 10.4 routes writes through the monthly rotator. The
+    # parent must exist; the actual file lives next to ``log.path``
+    # with a ``YYYY-MM`` token.
     assert nested.parent.is_dir()
+    rotated = list(nested.parent.glob("audit.*.jsonl"))
+    assert len(rotated) == 1
 
 
 def test_jsonl_format(tmp_path: Path) -> None:
@@ -74,7 +90,8 @@ def test_jsonl_format(tmp_path: Path) -> None:
     log.append(make_event(event_type=AuditEventType.GENERATED))
     log.append(make_event(event_type=AuditEventType.PROMOTED))
 
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    rotated = next(tmp_path.glob("audit.*.jsonl"))
+    raw = rotated.read_text(encoding="utf-8")
     lines = [line for line in raw.split("\n") if line]
     assert len(lines) == 2
     for line in lines:
@@ -87,8 +104,9 @@ def test_malformed_trailing_line_is_skipped(tmp_path: Path) -> None:
     """A crash mid-write can leave a partial last line. Don't crash."""
     log = AuditLog(path=tmp_path / "audit.jsonl")
     log.append(make_event())
-    # Simulate a half-written line.
-    with (tmp_path / "audit.jsonl").open("a", encoding="utf-8") as fh:
+    # Simulate a half-written line on the rotator's active file.
+    rotated = next(tmp_path.glob("audit.*.jsonl"))
+    with rotated.open("a", encoding="utf-8") as fh:
         fh.write('{"timestamp": "2026-')
 
     history = log.read_all()
@@ -126,9 +144,37 @@ def test_event_type_serializes_as_string(tmp_path: Path) -> None:
     log = AuditLog(path=tmp_path / "audit.jsonl")
     log.append(make_event(event_type=AuditEventType.GATE_PASSED))
 
-    raw = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    rotated = next(tmp_path.glob("audit.*.jsonl"))
+    raw = rotated.read_text(encoding="utf-8")
     payload = json.loads(raw.strip())
     assert payload["event_type"] == "gate_passed"
+
+
+# =============================================================================
+# Phase 10.4 — monthly rotation + retention
+# =============================================================================
+
+
+def test_rotator_integration_merges_across_months(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit events split into per-month files and merge on read."""
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+
+    _set_clock(monkeypatch, datetime(2026, 3, 15, 9, 0, 0))
+    log.append(make_event(candidate_id="march-cand"))
+
+    _set_clock(monkeypatch, datetime(2026, 4, 1, 0, 0, 1))
+    log.append(make_event(candidate_id="april-cand"))
+
+    rotated = sorted(tmp_path.glob("audit.*.jsonl"))
+    assert [p.name for p in rotated] == [
+        "audit.2026-03.jsonl",
+        "audit.2026-04.jsonl",
+    ]
+
+    history = log.read_all()
+    assert [e.candidate_id for e in history] == ["march-cand", "april-cand"]
 
 
 def test_default_timestamp_is_set(tmp_path: Path) -> None:

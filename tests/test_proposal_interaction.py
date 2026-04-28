@@ -385,6 +385,177 @@ def test_history_attach_outcome_unknown_id_raises(tmp_path: Path) -> None:
 
 
 # =============================================================================
+# Phase 10.4 — purge_old (age-based archive)
+# =============================================================================
+
+
+def test_purge_old_moves_aged_records_to_archive(tmp_path: Path) -> None:
+    """Records older than retention move to ``archive/<YYYY-MM>/``."""
+    history = ProposalHistory(data_dir=tmp_path)
+    old = ProposalRecord(
+        proposal=make_proposal(
+            proposal_id="old",
+            created_at=datetime(2024, 1, 15, 10, 0, 0),
+        )
+    )
+    fresh = ProposalRecord(
+        proposal=make_proposal(
+            proposal_id="fresh",
+            created_at=datetime(2026, 4, 1, 10, 0, 0),
+        )
+    )
+    history.save(old)
+    history.save(fresh)
+
+    archived = history.purge_old(
+        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
+    )
+
+    assert len(archived) == 1
+    # Old record moved into archive/2024-01/old.json
+    archived_path = tmp_path / "archive" / "2024-01" / "old.json"
+    assert archived_path.exists()
+    assert archived[0] == archived_path
+    # Fresh record left in place.
+    assert (tmp_path / "fresh.json").exists()
+    # Old record no longer at top level.
+    assert not (tmp_path / "old.json").exists()
+
+
+def test_purge_old_respects_retention_window(tmp_path: Path) -> None:
+    """A record exactly at the cutoff stays; older records archive."""
+    history = ProposalHistory(data_dir=tmp_path)
+    boundary = datetime(2026, 1, 1, 0, 0, 0)
+    just_inside = ProposalRecord(
+        proposal=make_proposal(
+            proposal_id="just-inside",
+            # 11 months back — inside the 12-month window.
+            created_at=boundary,
+        )
+    )
+    just_outside = ProposalRecord(
+        proposal=make_proposal(
+            proposal_id="just-outside",
+            # 13 months back — outside the 12-month window.
+            created_at=datetime(2024, 12, 1, 0, 0, 0),
+        )
+    )
+    history.save(just_inside)
+    history.save(just_outside)
+
+    archived = history.purge_old(
+        now=datetime(2026, 12, 1, 0, 0, 0), retention_months=12
+    )
+
+    assert len(archived) == 1
+    assert archived[0].name == "just-outside.json"
+    assert (tmp_path / "just-inside.json").exists()
+
+
+def test_purge_old_is_idempotent(tmp_path: Path) -> None:
+    """Re-running with the same retention archives nothing the second time."""
+    history = ProposalHistory(data_dir=tmp_path)
+    history.save(
+        ProposalRecord(
+            proposal=make_proposal(
+                proposal_id="ancient",
+                created_at=datetime(2024, 1, 1, 0, 0, 0),
+            )
+        )
+    )
+
+    first = history.purge_old(
+        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
+    )
+    second = history.purge_old(
+        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
+    )
+
+    assert len(first) == 1
+    assert second == []
+
+
+def test_purge_old_uses_settings_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without explicit ``retention_months``, falls back to Settings."""
+    monkeypatch.setenv("LOG_RETENTION_MONTHS", "1")
+    reload_settings()
+    try:
+        history = ProposalHistory(data_dir=tmp_path)
+        history.save(
+            ProposalRecord(
+                proposal=make_proposal(
+                    proposal_id="month-old",
+                    created_at=datetime(2026, 1, 1, 0, 0, 0),
+                )
+            )
+        )
+
+        archived = history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0))
+    finally:
+        monkeypatch.delenv("LOG_RETENTION_MONTHS", raising=False)
+        reload_settings()
+
+    assert len(archived) == 1
+    assert archived[0].parent.name == "2026-01"
+
+
+def test_purge_old_does_not_revisit_archive_subdir(tmp_path: Path) -> None:
+    """``list_all`` and ``purge_old`` ignore the ``archive/`` subdir."""
+    history = ProposalHistory(data_dir=tmp_path)
+    history.save(
+        ProposalRecord(
+            proposal=make_proposal(
+                proposal_id="ancient",
+                created_at=datetime(2024, 1, 1, 0, 0, 0),
+            )
+        )
+    )
+    history.purge_old(
+        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
+    )
+
+    # Top-level listing must not surface the archived file.
+    assert history.list_all() == []
+
+
+def test_purge_old_handles_missing_data_dir(tmp_path: Path) -> None:
+    history = ProposalHistory(data_dir=tmp_path / "never_created")
+
+    assert (
+        history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12)
+        == []
+    )
+
+
+def test_purge_old_skips_unreadable_files(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Corrupt JSON in the proposals dir doesn't crash the purge."""
+    history = ProposalHistory(data_dir=tmp_path)
+    history.save(
+        ProposalRecord(
+            proposal=make_proposal(
+                proposal_id="ancient",
+                created_at=datetime(2024, 1, 1, 0, 0, 0),
+            )
+        )
+    )
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+
+    archived = history.purge_old(
+        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
+    )
+
+    # The well-formed old record was archived; the corrupt file was skipped.
+    assert len(archived) == 1
+    assert archived[0].name == "ancient.json"
+    # The broken file is left where it was.
+    assert (tmp_path / "broken.json").exists()
+
+
+# =============================================================================
 # ProposalInteraction
 # =============================================================================
 

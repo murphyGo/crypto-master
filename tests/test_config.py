@@ -463,6 +463,24 @@ class TestEngineSettings:
         assert s.engine_balance == Decimal("10000")
 
 
+class TestLogRetentionSettings:
+    """Tests for the Phase 10.4 ``log_retention_months`` field."""
+
+    def test_default_is_twelve_months(self) -> None:
+        assert Settings().log_retention_months == 12
+
+    def test_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"LOG_RETENTION_MONTHS": "6"}):
+            assert Settings().log_retention_months == 6
+
+    def test_must_be_at_least_one(self) -> None:
+        """``ge=1`` floor — zero or negative retention is meaningless."""
+        with pytest.raises(ValidationError):
+            Settings(log_retention_months=0)
+        with pytest.raises(ValidationError):
+            Settings(log_retention_months=-1)
+
+
 class TestSingleton:
     """Tests for singleton pattern functions."""
 

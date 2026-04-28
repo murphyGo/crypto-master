@@ -11,14 +11,20 @@ readers and writers don't corrupt earlier events. The append-only
 shape means a crash leaves at most one partially-written final line —
 which ``read_all`` skips with a warning.
 
+Phase 10.4 routes the file through :class:`JsonlRotator` so writes
+land in monthly files (``activity.YYYY-MM.jsonl``) and reads merge the
+active month + the most-recent ``Settings.log_retention_months``
+archives. The base path stored on ``self.path`` is now the rotator's
+base (no extension), not a single concrete file.
+
 Related Requirements:
 - FR-009 / FR-010: Live + paper trading mode (production wiring)
 - FR-026: Automated Feedback Loop (visibility into the loop)
+- NFR-008: log retention (Phase 10.4).
 """
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -28,6 +34,7 @@ from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.logger import get_logger
+from src.runtime.jsonl_rotator import JsonlRotator
 
 logger = get_logger("crypto_master.runtime.activity_log")
 
@@ -127,19 +134,36 @@ class ActivityLog:
         Args:
             path: Where to read from / append to. When supplied, this
                 explicit path wins (tests should pass
-                ``tmp_path / "activity.jsonl"``).
+                ``tmp_path / "activity.jsonl"``). A trailing
+                ``.jsonl`` suffix is stripped to derive the rotator
+                base so existing test fixtures keep working.
             data_dir: Optional override for the runtime data root.
                 When ``path`` is not given, the activity log defaults
-                to ``<data_dir>/runtime/activity.jsonl``. ``data_dir``
-                itself defaults to ``Settings().data_dir`` so the
-                file lands on the persistent volume operations has
-                mounted (Phase 10.5 — fly.toml mounts ``/data``).
+                to ``<data_dir>/runtime/activity`` (no extension — it
+                is the rotator base; the actual files are
+                ``activity.YYYY-MM.jsonl``). ``data_dir`` itself
+                defaults to ``Settings().data_dir`` so the file lands
+                on the persistent volume operations has mounted
+                (Phase 10.5 — fly.toml mounts ``/data``).
         """
         if path is not None:
+            # ``self.path`` is preserved for backward compatibility —
+            # callers and tests still inspect it. Internally we work
+            # off the rotator base, which is the same path with any
+            # ``.jsonl`` suffix removed.
             self.path = path
+            base = (
+                path.with_suffix("") if path.suffix == ".jsonl" else path
+            )
         else:
-            base = data_dir if data_dir is not None else get_settings().data_dir
-            self.path = base / "runtime" / "activity.jsonl"
+            root = data_dir if data_dir is not None else get_settings().data_dir
+            base = root / "runtime" / "activity"
+            # Keep ``self.path`` in the .jsonl form for callers that
+            # reference it for display / log lines.
+            self.path = base.with_name("activity.jsonl")
+
+        retention = get_settings().log_retention_months
+        self._rotator = JsonlRotator(base, retention_months=retention)
 
     def append(
         self,
@@ -156,38 +180,28 @@ class ActivityLog:
             details=details or {},
             cycle_id=cycle_id,
         )
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        line = event.model_dump_json()
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        # Pydantic round-trips through JSON to get a dict the rotator
+        # can re-serialize uniformly (including datetime → ISO string).
+        record = event.model_dump(mode="json")
+        self._rotator.append(record)
         logger.debug(
             f"Activity: {event.event_type} {event.message} " f"cycle={event.cycle_id}"
         )
         return event
 
     def read_all(self) -> list[ActivityEvent]:
-        """Load every event from the log.
+        """Load every event across the active month + retained archives.
 
         Skips malformed trailing lines (the only kind a crash can
         produce) with a warning. Empty / missing files return an
         empty list.
         """
-        if not self.path.exists():
-            return []
         events: list[ActivityEvent] = []
-        with self.path.open("r", encoding="utf-8") as fh:
-            for lineno, raw in enumerate(fh, start=1):
-                stripped = raw.strip()
-                if not stripped:
-                    continue
-                try:
-                    payload = json.loads(stripped)
-                    events.append(ActivityEvent(**payload))
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(
-                        f"Skipping malformed activity line {lineno} in "
-                        f"{self.path}: {e}"
-                    )
+        for payload in self._rotator.read_all():
+            try:
+                events.append(ActivityEvent(**payload))
+            except ValueError as e:
+                logger.warning(f"Skipping unparseable activity record: {e}")
         return events
 
     def tail(self, n: int = 100) -> list[ActivityEvent]:

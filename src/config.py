@@ -146,6 +146,14 @@ class Settings(BaseSettings):
     )
     engine_balance: Decimal = Field(default=Decimal("10000"))
 
+    # Log Retention (Phase 10.4)
+    # ``JsonlRotator`` keeps the active month + this many archive
+    # months merged into ``read_all``. Older rotated files stay on
+    # disk untouched but are not surfaced to the application. The
+    # same value also drives ``ProposalHistory.purge_old`` (one file
+    # per proposal, age-based purge into ``proposals/archive/<YYYY-MM>/``).
+    log_retention_months: int = Field(default=12, ge=1)
+
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)

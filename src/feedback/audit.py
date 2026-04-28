@@ -15,14 +15,19 @@ The audit log is the source of truth for "what happened to which
 candidate." ``CandidateRecord`` JSON files capture the latest snapshot;
 this log captures the full history.
 
+Phase 10.4 routes the file through :class:`JsonlRotator` so writes
+land in monthly files (``feedback.YYYY-MM.jsonl``) and reads merge the
+active month + the most-recent ``Settings.log_retention_months``
+archives.
+
 Related Requirements:
 - FR-026: Automated Feedback Loop
 - FR-027: Technique Adoption (traceability)
+- NFR-008: log retention (Phase 10.4).
 """
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -32,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.logger import get_logger
+from src.runtime.jsonl_rotator import JsonlRotator
 
 logger = get_logger("crypto_master.feedback.audit")
 
@@ -115,65 +121,64 @@ class AuditLog:
             path: Where to read from / append to. When supplied, this
                 explicit path wins (tests should supply
                 ``tmp_path / "audit.jsonl"`` to avoid touching the
-                real data directory).
+                real data directory). A trailing ``.jsonl`` suffix is
+                stripped to derive the rotator base so existing test
+                fixtures keep working.
             data_dir: Optional override for the audit data root.
                 When ``path`` is not given, the audit log defaults to
-                ``<data_dir>/audit/feedback.jsonl``. ``data_dir``
-                itself defaults to ``Settings().data_dir`` so the
-                trail lands on the persistent volume (Phase 10.5).
+                ``<data_dir>/audit/feedback`` (no extension — it is
+                the rotator base; the actual files are
+                ``feedback.YYYY-MM.jsonl``). ``data_dir`` itself
+                defaults to ``Settings().data_dir`` so the trail lands
+                on the persistent volume (Phase 10.5).
         """
         if path is not None:
             self.path = path
+            base = (
+                path.with_suffix("") if path.suffix == ".jsonl" else path
+            )
         else:
-            base = data_dir if data_dir is not None else get_settings().data_dir
-            self.path = base / "audit" / "feedback.jsonl"
+            root = data_dir if data_dir is not None else get_settings().data_dir
+            base = root / "audit" / "feedback"
+            self.path = base.with_name("feedback.jsonl")
+
+        retention = get_settings().log_retention_months
+        self._rotator = JsonlRotator(base, retention_months=retention)
 
     def append(self, event: AuditEvent) -> None:
         """Append one event to the log.
 
+        Routes through :class:`JsonlRotator` so the active calendar
+        month determines the destination file (``feedback.YYYY-MM.jsonl``).
         Creates the parent directory on first write so callers don't
         have to pre-create ``data/audit/``.
 
         Args:
             event: The event to record.
         """
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Pydantic's ``model_dump_json`` produces a single-line JSON
-        # object — exactly what JSONL wants.
-        line = event.model_dump_json()
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        record = event.model_dump(mode="json")
+        self._rotator.append(record)
         logger.debug(
             f"Audit: {event.event_type} candidate={event.candidate_id} "
             f"technique={event.technique_name}"
         )
 
     def read_all(self) -> list[AuditEvent]:
-        """Load every event from the log.
+        """Load every event across the active month + retained archives.
 
         Skips malformed trailing lines (the only kind a crash can
         produce) with a warning. Empty / missing files return an empty
         list.
 
         Returns:
-            All successfully-parsed events, in append order.
+            All successfully-parsed events, in timestamp order.
         """
-        if not self.path.exists():
-            return []
         events: list[AuditEvent] = []
-        with self.path.open("r", encoding="utf-8") as fh:
-            for lineno, raw in enumerate(fh, start=1):
-                stripped = raw.strip()
-                if not stripped:
-                    continue
-                try:
-                    payload = json.loads(stripped)
-                    events.append(AuditEvent(**payload))
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(
-                        f"Skipping malformed audit line {lineno} in "
-                        f"{self.path}: {e}"
-                    )
+        for payload in self._rotator.read_all():
+            try:
+                events.append(AuditEvent(**payload))
+            except ValueError as e:
+                logger.warning(f"Skipping unparseable audit record: {e}")
         return events
 
     def filter(

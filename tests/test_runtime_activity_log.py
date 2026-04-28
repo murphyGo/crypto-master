@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from src.config import reload_settings
+from src.runtime import jsonl_rotator
 from src.runtime.activity_log import (
     ActivityEvent,
     ActivityEventType,
     ActivityLog,
 )
+
+
+def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
+    """Pin ``datetime.now()`` inside the rotator module."""
+
+    class _DT(datetime):
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
+            return when
+
+    monkeypatch.setattr(jsonl_rotator, "datetime", _DT)
 
 # =============================================================================
 # Append + read round-trip
@@ -41,8 +54,12 @@ def test_append_creates_parent_directory(tmp_path: Path) -> None:
 
     log.append(ActivityEventType.STARTUP, "engine up")
 
-    assert log.path.exists()
+    # Phase 10.4 routes writes through the monthly rotator. The active
+    # file lives next to ``log.path`` with a ``YYYY-MM`` token; the
+    # parent directory must still exist.
     assert log.path.parent.is_dir()
+    rotated = list(log.path.parent.glob("activity.*.jsonl"))
+    assert len(rotated) == 1
 
 
 def test_append_returns_event(tmp_path: Path) -> None:
@@ -99,8 +116,9 @@ def test_read_all_skips_malformed_lines(
 ) -> None:
     log = ActivityLog(path=tmp_path / "activity.jsonl")
     log.append(ActivityEventType.STARTUP, "up")
-    # Append a corrupt trailing line.
-    with log.path.open("a", encoding="utf-8") as fh:
+    # Append a corrupt trailing line directly to the rotated file.
+    rotated = next(tmp_path.glob("activity.*.jsonl"))
+    with rotated.open("a", encoding="utf-8") as fh:
         fh.write("{not json\n")
 
     events = log.read_all()
@@ -188,6 +206,33 @@ def test_filter_by_event_type_string(tmp_path: Path) -> None:
 
     assert len(events) == 1
     assert events[0].event_type == "startup"
+
+
+# =============================================================================
+# Phase 10.4 — monthly rotation + retention
+# =============================================================================
+
+
+def test_rotator_integration_merges_across_months(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Writes spanning two months produce two files; reads see them merged."""
+    log = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    _set_clock(monkeypatch, datetime(2026, 3, 15, 9, 0, 0))
+    log.append(ActivityEventType.STARTUP, "march startup")
+
+    _set_clock(monkeypatch, datetime(2026, 4, 1, 0, 0, 1))
+    log.append(ActivityEventType.CYCLE_STARTED, "april cycle")
+
+    rotated = sorted(tmp_path.glob("activity.*.jsonl"))
+    assert [p.name for p in rotated] == [
+        "activity.2026-03.jsonl",
+        "activity.2026-04.jsonl",
+    ]
+
+    events = log.read_all()
+    assert [e.message for e in events] == ["march startup", "april cycle"]
 
 
 def test_filter_combined_predicates(tmp_path: Path) -> None:

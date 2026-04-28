@@ -27,7 +27,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 
@@ -363,6 +363,81 @@ class ProposalHistory:
 
     def _path_for(self, proposal_id: str) -> Path:
         return self.data_dir / f"{proposal_id}.json"
+
+    # =========================================================================
+    # Retention (Phase 10.4)
+    # =========================================================================
+
+    def purge_old(
+        self,
+        now: datetime | None = None,
+        retention_months: int | None = None,
+    ) -> list[Path]:
+        """Move records older than the retention window to an archive subdir.
+
+        Walks ``<data_dir>/*.json``, parses each proposal's
+        ``created_at``, and for any record older than
+        ``now - 30 * retention_months`` days moves the file to
+        ``<data_dir>/archive/<YYYY-MM>/<original_filename>`` where
+        ``YYYY-MM`` is the proposal's *own* creation month (so the
+        archive is naturally bucketed alongside the matching audit /
+        activity rotations).
+
+        Idempotent — re-running with the same retention does nothing
+        because the archive lives under a subdirectory the top-level
+        glob ignores.
+
+        Operator-callable: the engine does *not* call this on every
+        write. A startup hook or CLI command can invoke it; for Phase
+        10.4 the method exists, is tested, and is left wired up to
+        nothing.
+
+        Args:
+            now: Wall-clock reference. Defaults to ``datetime.now()``.
+                Tests pass a fixed datetime to make the cutoff
+                deterministic.
+            retention_months: Window in months. Defaults to
+                ``Settings.log_retention_months``.
+
+        Returns:
+            The list of archived file paths (post-move). Empty when
+            nothing was old enough.
+        """
+        if not self.data_dir.exists():
+            return []
+
+        if now is None:
+            now = datetime.now()
+        if retention_months is None:
+            retention_months = get_settings().log_retention_months
+        cutoff = now - timedelta(days=30 * retention_months)
+
+        archived: list[Path] = []
+        for path in sorted(self.data_dir.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                record = ProposalRecord(**payload)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(
+                    f"Skipping unreadable proposal file during purge {path}: {e}"
+                )
+                continue
+
+            created_at = record.proposal.created_at
+            if created_at >= cutoff:
+                continue
+
+            month_token = created_at.strftime("%Y-%m")
+            archive_dir = self.data_dir / "archive" / month_token
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            destination = archive_dir / path.name
+            path.replace(destination)
+            archived.append(destination)
+            logger.info(
+                f"Purged proposal {record.proposal.proposal_id} "
+                f"(created {created_at.isoformat()}) → {destination}"
+            )
+        return archived
 
 
 # =============================================================================
