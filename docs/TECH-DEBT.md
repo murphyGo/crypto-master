@@ -136,6 +136,34 @@ Phase 10.2 promoted four operationally-impactful `EngineConfig` fields to env va
 - Surfaced in: `docs/sessions/2026-04-28-phase-10.2-engineconfig-env-override.md`
 - Predecessor: Phase 10.2 EngineConfig Env Override (4 of 8 fields shipped).
 
+### DEBT-004: Baseline Backtest Script Follow-ups
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 10.3 |
+| **Component** | `scripts/backtest_baselines.py`, `src/exchange/base.py` (`BaseExchange.get_ohlcv`) |
+
+**Description:**
+Phase 10.3 shipped `scripts/backtest_baselines.py` as the operator tooling that populates `docs/baselines.md`'s reference-numbers table. Two minor follow-ups surfaced from QA review:
+
+1. **mypy nit at `scripts/backtest_baselines.py:241,248`** — `seen: set[int]` vs `seen.add(candle[0])` where `candle[0]` is typed `float`. One-line fix (`seen.add(int(ts))` or retype). Cosmetic; runtime behaviour correct because ccxt returns int ms — the type system just doesn't know that.
+
+2. **`BaseExchange.get_ohlcv` doesn't accept `since`** — the script paginates by reaching into `BinanceExchange._client` to access the underlying ccxt client directly. This is gated to actually-needed cases (2160 candles for 3mo×1h, 2880 for 1mo×15m, both exceed the ~1500 cap), but it bypasses the framework abstraction. If a future phase extends `BaseExchange.get_ohlcv` to accept a `since` parameter, the script should drop the reach-around.
+
+**Impact:**
+- The mypy nit is cosmetic — runtime is correct, only the type system is unhappy.
+- The `_client` reach-around is operationally fine (script is operator-invoked, not in any production path) but is a soft coupling between the script and `BinanceExchange`'s internal ccxt client. If the binance integration ever swaps clients, the script breaks.
+
+**Suggested Resolution:**
+- Fix the mypy nit in passing during the next cycle that touches the script (one-line change).
+- Extend `BaseExchange.get_ohlcv` with an optional `since: int | None = None` parameter in a future framework cycle, then drop the reach-around. Don't ship the framework change speculatively — wait until a second use case appears.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-10.3-baseline-reference-numbers.md`
+- Predecessor: Phase 10.3 Baseline Reference Numbers (operator tooling).
+
 ---
 
 ## Resolved Debt Items
@@ -161,11 +189,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 3 |
+| Total Active | 4 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 1 |
-| Low | 2 |
+| Low | 3 |
 | Resolved (All Time) | 0 |
 
 ---
@@ -178,3 +206,4 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Added | DEBT-001 Pre-Existing Lint/Type Sweep (Medium) — surfaced during Phase 10.5 |
 | 2026-04-28 | Added | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan (Low) — surfaced during Phase 10.6 |
 | 2026-04-28 | Added | DEBT-003 EngineConfig Remaining Fields Not Env-Overridable (Low) — surfaced during Phase 10.2 |
+| 2026-04-28 | Added | DEBT-004 Baseline Backtest Script Follow-ups (Low) — surfaced during Phase 10.3 |

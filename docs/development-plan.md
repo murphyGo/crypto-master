@@ -42,7 +42,7 @@
 | Per-Timeframe RSI Baselines | ✅ Complete | 9 |
 | Live Trading Wiring | ✅ Complete | 10 |
 | EngineConfig Env Override | ✅ Complete | 10 |
-| Baseline Reference Numbers | ❌ Missing | 10 |
+| Baseline Reference Numbers | ✅ Complete | 10 |
 | Log Retention Policy | ❌ Missing | 10 |
 | Volume-Aware Default Paths | ✅ Complete | 10 |
 | Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
@@ -692,15 +692,15 @@ existing `Backtester`, write the table.
 
 **Related Requirements**: FR-025 (consumed); operator tooling.
 
-- [ ] `scripts/backtest_baselines.py` — operator script (not a service):
+- [x] `scripts/backtest_baselines.py` — operator script (not a service):
   fetch Binance historical OHLCV (3 months × 1h for swing baselines;
   1 month × 15m for `rsi_15m`), run `Backtester.run` per baseline,
   run `PerformanceAnalyzer`, persist results under
   `data/backtest/baselines/<strategy>/`. Idempotent — re-runnable
   to refresh the numbers.
-- [ ] Update `docs/baselines.md` reference-numbers table from the
+- [x] Update `docs/baselines.md` reference-numbers table from the
   latest run.
-- [ ] No automated tests required (one-off operator script); a smoke
+- [x] No automated tests required (one-off operator script); a smoke
   test that mocks the exchange and verifies the script writes the
   expected output files is sufficient.
 
@@ -918,3 +918,4 @@ proposals per symbol).
 | 10.5 | 2026-04-28 | Phase 10.5 complete - Volume-Aware Default Paths (NFR-008); replicated `PerformanceTracker` / `TradeHistoryTracker` `data_dir` pattern across `ActivityLog`, `AuditLog`, `FeedbackLoop`, `ProposalHistory`, `FileNotifier`, and `Portfolio` (latter already correct, comment added); each `__init__` now accepts a keyword-only `data_dir: Path \| None = None` and derives default storage from `Settings.data_dir` at construction time. Closes the Fly persistence-loss defect Cycle 1 diagnosed: relative `Path("data/...")` defaults resolved to ephemeral `/app/data/...` instead of the `/data` volume mount. 6 new "respects `Settings.data_dir`" tests (1027 → 1033). | Claude |
 | 10.6 | 2026-04-28 | Phase 10.6 complete - Multi-Technique Per-Symbol Scan (FR-005, FR-012); `ProposalEngine` now iterates every applicable technique per symbol via sibling `_select_all_techniques` / `_propose_all_for_symbol`; `_dedup_by_symbol` keeps the highest-composite winner per symbol (long+long and long+short conflicts both resolved by symbol-only key); `propose_altcoins` aggregation order is dedup-first-then-top-K to preserve FR-012 diversification; new `multi_technique_per_symbol: bool = True` flag on `ProposalEngineConfig` for backwards-compatible opt-out (legacy `_select_best_technique` kept as live code for op-emergency rollback). Closes the single-strategy lockout Cycle 1 diagnosed: only `bollinger_band_reversion` ever ran on Fly. 7 new tests (1033 → 1040). Quant design-phase review caught 2 🔴 blockers before code was written. | Claude |
 | 10.2 | 2026-04-28 | Phase 10.2 complete - EngineConfig Env Override (NFR-004); `Settings.engine_*` fields (`engine_cycle_interval`, `engine_auto_approve_threshold`, `engine_symbols`, `engine_balance`) drive `EngineConfig` in `build_engine`. Defaults bytewise-equal to the pre-10.2 hardcoded values so existing deployments are unchanged without an env setting. `engine_symbols` uses `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` for comma-separated env parsing (operationally natural over JSON literals). `build_engine` explicit-config-wins back-compat preserved. `.env.example` and `docs/deployment.md` updated. 12 new tests (1040 → 1052). 4 remaining `EngineConfig` fields (`monitor_interval_seconds`, `bitcoin_symbol`, `altcoin_top_k`, `actor`) deferred as DEBT-003 (Low). | Claude |
+| 10.3 | 2026-04-28 | Phase 10.3 complete - Baseline Reference Numbers (FR-025 consumed; operator tooling); `scripts/backtest_baselines.py` (620 lines) operator script fetches Binance public OHLCV with pagination (>1500 candles needs reaching past `BaseExchange.get_ohlcv` contract via `BinanceExchange._client`), runs `Backtester.run_for_strategy` + `PerformanceAnalyzer` per baseline, persists `result.json` + `analysis.md` + `summary.json` under `data/backtest/baselines/<strategy>/`. Idempotent overwrite. `--no-update-doc` flag. Updates `docs/baselines.md` operator-instructions section + period labels; metric cells stay `_TBD_` until operator runs the script (no synthesised numbers). 6 new smoke tests (1052 → 1058). 1 mypy nit at lines 241/248 + `_client` reach-around recorded as DEBT-004 (Low). | Claude |

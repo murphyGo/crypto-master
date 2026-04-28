@@ -96,59 +96,42 @@ Classic golden / death cross. Promoted from the original
 
 ## How to backtest these
 
-The engine bundles a `Backtester` (Phase 5.1). Running each
-baseline against historical OHLCV gives the win-rate / Sharpe / MDD
-the LLM strategies need to beat. Phase 9.2 ships the strategies +
-tests; running the actual backtests against fetched historical data
-is a separate small task (it needs a historical-OHLCV fetcher we
-don't bundle yet — Binance/Bybit klines REST is the obvious source).
+Phase 10.3 ships an operator script that handles fetching historical
+OHLCV from Binance's public klines endpoint, running each baseline
+through `Backtester` + `PerformanceAnalyzer`, and persisting the
+artefacts the dashboard's Strategies page consumes. From the project
+root with the venv active:
 
-The minimal call shape from the existing API:
-
-```python
-from datetime import datetime, timedelta
-from src.backtest.engine import Backtester
-from src.backtest.analyzer import PerformanceAnalyzer
-from src.strategy.loader import load_strategy
-
-strategy = load_strategy(Path("strategies/rsi.py"))
-ohlcv = await exchange.get_ohlcv(
-    symbol="BTC/USDT",
-    timeframe="1h",
-    limit=4380,  # ~6 months of hourly candles
-)
-
-backtester = Backtester()
-result = await backtester.run(
-    strategy=strategy,
-    ohlcv=ohlcv,
-    symbol="BTC/USDT",
-    timeframe="1h",
-    initial_balance=Decimal("10000"),
-)
-analyzer = PerformanceAnalyzer()
-metrics = analyzer.analyze(result)
-
-print(f"Win rate: {metrics.win_rate:.2%}")
-print(f"Sharpe:   {metrics.sharpe_ratio:.2f}")
-print(f"MDD:      {metrics.max_drawdown_pct:.2f}%")
+```bash
+python -m scripts.backtest_baselines
 ```
 
-Save the results under `data/backtest/baselines/<strategy>/` so the
-dashboard's Strategies page can surface them next to the LLM
-techniques.
+The script writes three files per baseline under
+`data/backtest/baselines/<technique_name>/`:
+
+- `result.json` — full `BacktestResult` (NFR-006).
+- `analysis.md` — human-readable performance report.
+- `summary.json` — flat row consumed by the doc-table updater.
+
+It then rewrites the **Reference numbers** table below from the new
+`summary.json` files. Re-running is idempotent — artefacts are
+overwritten cleanly. Pass `--no-update-doc` to skip the table rewrite.
+
+The script makes real network calls; CI does not run it. The smoke
+test in `tests/test_scripts_backtest_baselines.py` mocks the exchange
+and verifies the artefact layout.
 
 ## Reference numbers (TBD)
 
-Once the baselines have been backtested on representative data,
-fill this table:
+Until an operator runs `scripts/backtest_baselines.py`, these stay
+TBD. The script fills them in from real Binance OHLCV.
 
 | Strategy | Symbol | Period | Win Rate | Sharpe | MDD |
 |----------|--------|--------|----------|--------|-----|
-| `rsi_universal` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
-| `rsi_4h` | BTC/USDT | 6mo 4h | _TBD_ | _TBD_ | _TBD_ |
-| `rsi_15m` | BTC/USDT | 6mo 15m | _TBD_ | _TBD_ | _TBD_ |
-| `bollinger_band_reversion` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
-| `ma_crossover` | BTC/USDT | 6mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_universal` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_4h` | BTC/USDT | 3mo 4h | _TBD_ | _TBD_ | _TBD_ |
+| `rsi_15m` | BTC/USDT | 1mo 15m | _TBD_ | _TBD_ | _TBD_ |
+| `bollinger_band_reversion` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| `ma_crossover` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
 
 These numbers are the bar each LLM-driven technique needs to clear.
