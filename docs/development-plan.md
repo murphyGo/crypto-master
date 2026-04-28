@@ -44,6 +44,8 @@
 | EngineConfig Env Override | ❌ Missing | 10 |
 | Baseline Reference Numbers | ❌ Missing | 10 |
 | Log Retention Policy | ❌ Missing | 10 |
+| Volume-Aware Default Paths | ❌ Missing | 10 |
+| Multi-Technique Per-Symbol Scan | ❌ Missing | 10 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -726,6 +728,90 @@ retention); operational concern.
   history; archives don't affect new writes; corrupt archive lines
   don't kill the read.
 
+### 10.5 Volume-Aware Default Paths
+
+**Background**: Cycle 1's runtime verification (see
+`docs/sessions/2026-04-28-priorities-fly-zero-trades-diagnosis.md`,
+Runtime Verification Addendum) confirmed that `fly.toml` mounts the
+persistent volume at `/data` but the Dockerfile sets `WORKDIR=/app`.
+`src/runtime/activity_log.py:34` defaults `DEFAULT_ACTIVITY_PATH` to
+`Path("data/runtime/activity.jsonl")` — a relative path that resolves
+to `/app/data/runtime/activity.jsonl` (ephemeral container root), not
+`/data/runtime/activity.jsonl` (persistent volume). Same defect in
+`src/feedback/audit.py`, `src/feedback/loop.py`,
+`src/proposal/interaction.py`, `src/proposal/notification.py`, and
+`src/trading/portfolio.py`. `PerformanceTracker` and
+`TradeHistoryTracker` already thread `Settings.data_dir` correctly
+and are the pattern to copy. Impact: every Fly machine recycle
+(auto-deploy, OOM, host migration) wipes the activity log, audit
+log, proposal history, and portfolio history — producing dashboard
+timeline holes and breaking the audit trail Phase 5.5 was designed
+to provide.
+
+**Related Requirements**: NFR-008 (mode-separated storage extends to
+retention); operational concern — no new FR introduced.
+
+- [ ] Route `src/runtime/activity_log.py`'s default activity path
+  through `Settings.data_dir` (replicate the
+  `PerformanceTracker.__init__` pattern: read `data_dir` from
+  settings, build the JSONL path under it).
+- [ ] Same fix in `src/feedback/audit.py` (`data/audit/feedback.jsonl`).
+- [ ] Same fix in `src/feedback/loop.py` (loop state directory
+  `data/feedback/state/`).
+- [ ] Same fix in `src/proposal/interaction.py` (`data/proposals/`
+  history directory).
+- [ ] Same fix in `src/proposal/notification.py` (file-notifier
+  JSONL path).
+- [ ] Same fix in `src/trading/portfolio.py` (`data/portfolio/`
+  history directory).
+- [ ] Tests: each component's existing test file gains a "respects
+  `data_dir` override" case using `tmp_path` — assert the default
+  path is rooted under the configured `data_dir`, not the literal
+  string `data/...`.
+
+### 10.6 Multi-Technique Per-Symbol Scan
+
+**Background**: Cycle 1's runtime verification (see
+`docs/sessions/2026-04-28-priorities-fly-zero-trades-diagnosis.md`,
+Runtime Verification Addendum) showed that
+`ProposalEngine._select_best_technique` (`src/proposal/engine.py:391`)
+returns exactly one strategy per symbol per cycle, with an
+alphabetic-by-name tiebreaker in cold-start. On the live Fly
+deployment this means only `bollinger_band_reversion` ever runs —
+every other strategy (`rsi`, `ma_crossover`, `chasulang_ict_smc`,
+`simple_trend_analysis`, `sample_prompt`) is loaded but never
+analyses a candle. Bollinger reversion has a low-base-rate signal
+(price piercing the bands), so most cycles produce zero proposals
+and the threshold gate never fires. The Phase 9.2 stated goal of
+"side-by-side LLM-vs-deterministic comparison + degraded-mode safety
+net" is structurally broken by this single-selection design. Note
+that Phase 9.4's `rsi_4h` / `rsi_15m` strategies are not on the
+deployed Fly image today; once 10.6 ships, the user will manually
+redeploy so those siblings actually fire alongside the existing
+baselines (out of scope for this sub-task).
+
+**Related Requirements**: FR-005 (Analysis Technique Performance
+Tracking — multi-strategy diversification feeds the tracker), FR-012
+(Altcoin Trading Proposal — ranking semantics extend to multiple
+proposals per symbol).
+
+- [ ] Change `ProposalEngine._propose_for_symbol` (or add a sibling)
+  so it iterates over **every** applicable technique for the symbol,
+  generating one candidate `Proposal` per `(symbol, technique)` pair.
+  Neutral signals are still filtered out as today.
+- [ ] `propose_altcoins` collects candidates across symbols, sorts by
+  composite score, returns top-K. Existing top-K contract preserved.
+- [ ] `propose_bitcoin` returns the single highest-scoring candidate
+  from the BTC set. Existing single-proposal contract preserved.
+- [ ] Add a `ProposalEngineConfig` flag (e.g.
+  `multi_technique_per_symbol: bool = True`) for backwards-compatible
+  opt-out. Default behaviour is multi-technique.
+- [ ] Tests: new `tests/test_proposal_engine_multi_technique.py`
+  covering — multiple non-neutral techniques each produce one
+  proposal; neutral techniques are filtered out; top-K ranks across
+  the combined cross-symbol set; single-applicable-technique still
+  works (back-compat smoke).
+
 ---
 
 ## Requirements Mapping
@@ -741,7 +827,7 @@ retention); operational concern.
 | Phase 7 | FR-028, FR-029, FR-030, FR-031, FR-032, NFR-003 |
 | Phase 8 | FR-009, FR-010, FR-013, FR-014, FR-015, FR-026 (production wiring of existing requirements; no new FR/NFR introduced) |
 | Phase 9 | FR-001, FR-002, FR-003 (extending the strategy framework's input contract; no new FR introduced) |
-| Phase 10 | FR-009, FR-010, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
+| Phase 10 | FR-005, FR-009, FR-010, FR-012, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
 
 ---
 
