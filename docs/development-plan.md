@@ -45,7 +45,7 @@
 | Baseline Reference Numbers | ❌ Missing | 10 |
 | Log Retention Policy | ❌ Missing | 10 |
 | Volume-Aware Default Paths | ✅ Complete | 10 |
-| Multi-Technique Per-Symbol Scan | ❌ Missing | 10 |
+| Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -795,22 +795,49 @@ Tracking — multi-strategy diversification feeds the tracker), FR-012
 (Altcoin Trading Proposal — ranking semantics extend to multiple
 proposals per symbol).
 
-- [ ] Change `ProposalEngine._propose_for_symbol` (or add a sibling)
+- [x] Change `ProposalEngine._propose_for_symbol` (or add a sibling)
   so it iterates over **every** applicable technique for the symbol,
   generating one candidate `Proposal` per `(symbol, technique)` pair.
   Neutral signals are still filtered out as today.
-- [ ] `propose_altcoins` collects candidates across symbols, sorts by
-  composite score, returns top-K. Existing top-K contract preserved.
-- [ ] `propose_bitcoin` returns the single highest-scoring candidate
+- [x] **Per-symbol dedup (trading-correctness — required)**: each
+  public entry point (`propose_bitcoin` / `propose_altcoins`) must
+  guarantee **at most one proposal per symbol** in its return value.
+  When multiple non-neutral techniques produce candidates on the same
+  symbol — including the long-vs-short conflict case — the
+  highest-composite candidate wins; the others are dropped. Group key
+  is the symbol alone, never `(symbol, side)`. Without this guard the
+  runtime engine would call `trader.open_position` once per
+  technique per symbol per cycle, opening N positions on the same
+  pair at N× the intended `risk_percent` — a real-money defect.
+- [x] `propose_altcoins` aggregation order: **dedup-by-symbol first,
+  then top-K**. With ≤ 1 candidate per symbol and `top_k=3`, the
+  result is the 3 best symbols (preserves FR-012's diversification
+  semantic). Sorting first then deduping would change the K-th
+  selection — don't.
+- [x] `propose_bitcoin` returns the single highest-scoring candidate
   from the BTC set. Existing single-proposal contract preserved.
-- [ ] Add a `ProposalEngineConfig` flag (e.g.
+- [x] Add a `ProposalEngineConfig` flag (e.g.
   `multi_technique_per_symbol: bool = True`) for backwards-compatible
-  opt-out. Default behaviour is multi-technique.
-- [ ] Tests: new `tests/test_proposal_engine_multi_technique.py`
-  covering — multiple non-neutral techniques each produce one
-  proposal; neutral techniques are filtered out; top-K ranks across
-  the combined cross-symbol set; single-applicable-technique still
-  works (back-compat smoke).
+  opt-out. Default behaviour is multi-technique. When `False`, the
+  legacy `_select_best_technique` path is used unchanged. Decide
+  whether to keep `_select_best_technique` as live code (gated by the
+  flag) or retire it; document the choice in the session log.
+- [x] Tests: new `tests/test_proposal_engine_multi_technique.py`
+  covering —
+  - multiple non-neutral techniques each produce one proposal on the
+    same symbol → only the highest-composite one is returned (long+long
+    case);
+  - one long candidate and one short candidate on the same symbol with
+    different composites → only the highest-composite one is returned
+    (long+short conflict case — explicit, not implicit);
+  - neutral techniques are filtered out before the dedup;
+  - cold-start techniques (no history, composite = `confidence × 0.5`)
+    don't crowd out proven techniques (existing scoring semantic
+    preserved);
+  - top-K across the combined cross-symbol set after per-symbol dedup;
+  - single-applicable-technique still works (back-compat smoke);
+  - `multi_technique_per_symbol=False` produces identical output to
+    the pre-10.6 behaviour (legacy-path smoke).
 
 ---
 
@@ -889,3 +916,4 @@ proposals per symbol).
 | 10.0 | 2026-04-27 | Phase 10 added to plan - Operational Maturation; 10.1 Live Trading Wiring, 10.2 EngineConfig Env Override, 10.3 Baseline Reference Numbers, 10.4 Log Retention Policy. Closes accumulated operational gaps from prior-phase session logs. | Claude |
 | 10.1 | 2026-04-28 | Phase 10.1 complete - Live Trading Wiring (FR-009, FR-010, NFR-012); introduced `src/trading/base.py::Trader` Protocol; `PaperTrader` open/close converted to async; `LiveTrader` aligned to the protocol (close signature, get_open_trades, check_exit_conditions, SL/TP-skips-confirm); `TradingEngine.trader: Trader` (replaces `paper_trader`); `src/main.py::build_exchange` + `build_trader` dispatch on `Settings.trading_mode`; engine auto-confirmation shim for headless live; `docs/deployment.md` 9-step live checklist. 11 new tests + extensive test churn (~50 PaperTrader call sites converted to async). 1027 total passing. | Claude |
 | 10.5 | 2026-04-28 | Phase 10.5 complete - Volume-Aware Default Paths (NFR-008); replicated `PerformanceTracker` / `TradeHistoryTracker` `data_dir` pattern across `ActivityLog`, `AuditLog`, `FeedbackLoop`, `ProposalHistory`, `FileNotifier`, and `Portfolio` (latter already correct, comment added); each `__init__` now accepts a keyword-only `data_dir: Path \| None = None` and derives default storage from `Settings.data_dir` at construction time. Closes the Fly persistence-loss defect Cycle 1 diagnosed: relative `Path("data/...")` defaults resolved to ephemeral `/app/data/...` instead of the `/data` volume mount. 6 new "respects `Settings.data_dir`" tests (1027 → 1033). | Claude |
+| 10.6 | 2026-04-28 | Phase 10.6 complete - Multi-Technique Per-Symbol Scan (FR-005, FR-012); `ProposalEngine` now iterates every applicable technique per symbol via sibling `_select_all_techniques` / `_propose_all_for_symbol`; `_dedup_by_symbol` keeps the highest-composite winner per symbol (long+long and long+short conflicts both resolved by symbol-only key); `propose_altcoins` aggregation order is dedup-first-then-top-K to preserve FR-012 diversification; new `multi_technique_per_symbol: bool = True` flag on `ProposalEngineConfig` for backwards-compatible opt-out (legacy `_select_best_technique` kept as live code for op-emergency rollback). Closes the single-strategy lockout Cycle 1 diagnosed: only `bollinger_band_reversion` ever ran on Fly. 7 new tests (1033 → 1040). Quant design-phase review caught 2 🔴 blockers before code was written. | Claude |

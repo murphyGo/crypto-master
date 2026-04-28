@@ -164,6 +164,40 @@ class ProposalEngineConfig(BaseModel):
     risk_percent: float = Field(default=1.0, gt=0, le=100)
     min_trades_for_full_score: int = Field(default=20, ge=1)
     no_history_score_factor: float = Field(default=0.5, ge=0, le=1)
+    multi_technique_per_symbol: bool = True
+    """If True (default, Phase 10.6), every applicable technique is run
+    per symbol and the highest-composite candidate per symbol survives
+    the per-symbol dedup. If False, the legacy single-best-technique
+    path (``_select_best_technique``) is used unchanged. Per-symbol
+    dedup is a real-money safety guard: without it, the runtime engine
+    would open N positions per symbol per cycle at N× the intended
+    risk_percent."""
+
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+
+def _dedup_by_symbol(candidates: list[Proposal]) -> dict[str, Proposal]:
+    """Phase 10.6: keep only the highest-composite proposal per symbol.
+
+    Group key is the symbol alone — never ``(symbol, side)``. If two
+    techniques produced opposing signals on the same pair (long vs
+    short conflict), the higher-composite one still wins; we never
+    let both through, because the runtime engine would otherwise open
+    a synthetic hedge at 2× ``risk_percent`` (real-money defect).
+
+    Replacement is on **strict** composite improvement so the iteration
+    order of ``candidates`` provides the tiebreaker, matching the
+    deterministic lex-by-name order of ``_select_all_techniques``.
+    """
+    best: dict[str, Proposal] = {}
+    for candidate in candidates:
+        existing = best.get(candidate.symbol)
+        if existing is None or candidate.score.composite > existing.score.composite:
+            best[candidate.symbol] = candidate
+    return best
 
 
 # =============================================================================
@@ -226,12 +260,34 @@ class ProposalEngine:
         resulting trade fails sizing/validation. Exchange errors
         propagate — single-symbol intent means the caller should hear
         about them.
+
+        When ``ProposalEngineConfig.multi_technique_per_symbol`` is True
+        (Phase 10.6 default), every applicable technique is run for the
+        symbol and the highest-composite candidate is returned. When
+        False, the legacy single-best-technique path is used unchanged.
+        Either way the contract is the same: at most one proposal per
+        symbol, never more — opening multiple positions on the same
+        pair from concurrent technique signals would multiply
+        ``risk_percent`` by N (real-money defect).
         """
-        return await self._propose_for_symbol(
-            symbol=symbol,
-            timeframe=timeframe or self.config.timeframe,
-            balance=balance or self.config.default_balance,
+        tf = timeframe or self.config.timeframe
+        bal = balance or self.config.default_balance
+
+        if not self.config.multi_technique_per_symbol:
+            return await self._propose_for_symbol(
+                symbol=symbol, timeframe=tf, balance=bal
+            )
+
+        # Multi-technique path: run every applicable technique, dedup
+        # by symbol (highest composite wins), return the single
+        # survivor.
+        candidates = await self._propose_all_for_symbol(
+            symbol=symbol, timeframe=tf, balance=bal
         )
+        if not candidates:
+            return None
+        deduped = _dedup_by_symbol(candidates)
+        return deduped.get(symbol)
 
     async def propose_altcoins(
         self,
@@ -262,23 +318,41 @@ class ProposalEngine:
         tf = timeframe or self.config.timeframe
         bal = balance or self.config.default_balance
 
-        proposals: list[Proposal] = []
+        candidates: list[Proposal] = []
         for symbol in symbols:
             try:
-                proposal = await self._propose_for_symbol(
-                    symbol=symbol, timeframe=tf, balance=bal
-                )
+                if self.config.multi_technique_per_symbol:
+                    per_symbol = await self._propose_all_for_symbol(
+                        symbol=symbol, timeframe=tf, balance=bal
+                    )
+                    candidates.extend(per_symbol)
+                else:
+                    proposal = await self._propose_for_symbol(
+                        symbol=symbol, timeframe=tf, balance=bal
+                    )
+                    if proposal is not None:
+                        candidates.append(proposal)
             except ExchangeError as e:
                 logger.warning(f"Exchange error scanning {symbol}: {e}; skipping")
                 continue
             except StrategyError as e:
                 logger.warning(f"Strategy error on {symbol}: {e}; skipping")
                 continue
-            if proposal is not None:
-                proposals.append(proposal)
 
-        proposals.sort(key=lambda p: p.score.composite, reverse=True)
-        return proposals[:top_k]
+        # Order matters (Phase 10.6): dedup by symbol FIRST so each
+        # symbol contributes at most one proposal, then top-K across
+        # the cross-symbol set. Sorting first then deduping would
+        # change the K-th selection — see the dev plan for FR-012's
+        # diversification semantic.
+        if self.config.multi_technique_per_symbol:
+            deduped = list(_dedup_by_symbol(candidates).values())
+        else:
+            # Legacy path already returns ≤ 1 per symbol from
+            # ``_propose_for_symbol`` — nothing to dedup.
+            deduped = candidates
+
+        deduped.sort(key=lambda p: p.score.composite, reverse=True)
+        return deduped[:top_k]
 
     # ------------------------------------------------------------------
     # Internals
@@ -292,6 +366,11 @@ class ProposalEngine:
     ) -> Proposal | None:
         """Build a proposal for one symbol, or return None if unfit.
 
+        Legacy single-best-technique path — used when
+        ``ProposalEngineConfig.multi_technique_per_symbol`` is False
+        and preserved bit-for-bit so the opt-out is a clean back-compat
+        switch.
+
         Exchange errors propagate; strategy errors and validation
         errors return None (logged) so this method is safe to call
         from the multi-symbol scanner with try/except per symbol.
@@ -301,7 +380,64 @@ class ProposalEngine:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return None
         strategy, perf = selection
+        return await self._build_proposal_for_strategy(
+            symbol=symbol,
+            timeframe=timeframe,
+            balance=balance,
+            strategy=strategy,
+            perf=perf,
+        )
 
+    async def _propose_all_for_symbol(
+        self,
+        symbol: str,
+        timeframe: str,
+        balance: Decimal,
+    ) -> list[Proposal]:
+        """Phase 10.6: run every applicable technique for ``symbol``.
+
+        Returns one ``Proposal`` per applicable technique that produced
+        a non-neutral, sizing-valid result. Caller is responsible for
+        per-symbol dedup (the entry points
+        ``propose_bitcoin`` / ``propose_altcoins`` enforce ≤ 1 proposal
+        per symbol). Exchange errors propagate; strategy / validation
+        errors are logged and skipped per technique so one flaky
+        technique can't block the rest.
+        """
+        selections = self._select_all_techniques(symbol)
+        if not selections:
+            logger.info(f"No applicable technique for {symbol}; skipping proposal")
+            return []
+
+        proposals: list[Proposal] = []
+        for strategy, perf in selections:
+            proposal = await self._build_proposal_for_strategy(
+                symbol=symbol,
+                timeframe=timeframe,
+                balance=balance,
+                strategy=strategy,
+                perf=perf,
+            )
+            if proposal is not None:
+                proposals.append(proposal)
+        return proposals
+
+    async def _build_proposal_for_strategy(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        balance: Decimal,
+        strategy: BaseStrategy,
+        perf: TechniquePerformance | None,
+    ) -> Proposal | None:
+        """Run ``strategy`` against fresh OHLCV and build a Proposal.
+
+        Returns ``None`` for neutral signals, strategy crashes,
+        empty-multi-TF-primary, and sizing-validation failures.
+        Exchange errors propagate so the multi-symbol scanner can
+        skip the symbol uniformly.
+        """
         # Exchange calls propagate — let propose_altcoins decide how to
         # handle per-symbol failures (the existing per-symbol skip in
         # ``propose_altcoins`` covers both single-TF and multi-TF fetch
@@ -440,6 +576,43 @@ class ProposalEngine:
         ranked.sort(key=key)
         best_strategy, best_perf = ranked[0]
         return (best_strategy, best_perf if best_perf.total_trades > 0 else None)
+
+    def _select_all_techniques(
+        self,
+        symbol: str,
+    ) -> list[tuple[BaseStrategy, TechniquePerformance | None]]:
+        """Phase 10.6: every applicable technique for ``symbol``.
+
+        Filters strategies the same way as ``_select_best_technique``
+        (symbol whitelist or no whitelist), but returns the full
+        applicable population instead of picking one. Each entry
+        carries a ``perf`` record (or ``None`` for cold-start
+        techniques with zero closed trades) so the caller can compute
+        composite scores via ``_score`` exactly as the legacy path
+        does.
+
+        Order is lex by strategy name — deterministic for tests; the
+        actual ranking happens after analysis on the composite score.
+        """
+        applicable = sorted(
+            (
+                s
+                for s in self.strategies.values()
+                if not s.info.symbols or symbol in s.info.symbols
+            ),
+            key=lambda s: s.name,
+        )
+
+        results: list[tuple[BaseStrategy, TechniquePerformance | None]] = []
+        for strategy in applicable:
+            perf = self.performance_tracker.get_performance(
+                strategy.name, strategy.version
+            )
+            # Treat zero-history records as None so ``_score`` takes
+            # the cold-start branch — consistent with
+            # ``_select_best_technique``.
+            results.append((strategy, perf if perf.total_trades > 0 else None))
+        return results
 
     def _score(
         self,

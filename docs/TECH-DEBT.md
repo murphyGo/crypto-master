@@ -77,6 +77,36 @@ Phase 10.5's touch-and-verify discipline surfaced lint/type errors that pre-exis
 - Surfaced in: `docs/sessions/2026-04-28-phase-10.5-volume-aware-default-paths.md`
 - Dev report flagged these as suggested TECH-DEBT items; auditor judged groups 1 + 2 worth recording, group 3 (`DEFAULT_*_PATH` rename) skipped as not worth the noise.
 
+### DEBT-002: OHLCV Per-Technique Refetch in Multi-Technique Scan
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 10.6 |
+| **Component** | `src/proposal/engine.py` (`_propose_all_for_symbol`) |
+
+**Description:**
+Phase 10.6's multi-technique scan calls `_propose_all_for_symbol`, which re-fetches OHLCV per technique. This produces N×M `get_ohlcv` calls per symbol per cycle (N = techniques, M = timeframes), versus 1×M previously when only one technique ran per symbol.
+
+Two concerns, both operational rather than correctness:
+
+1. **Temporal-consistency drift** — technique A could see candle T while technique B sees T+δ if a candle rolls mid-cycle. Quant flagged this as 🟡 in post-review: "no look-ahead bias in strict sense (every fetch is now-relative)" but the per-technique candle skew is real.
+2. **API rate-limit pressure at scale** — current envelope (5 symbols × 5 strategies × 4 timeframes = 100 calls/cycle) is fine for single-machine deployments. As `M` grows (more multi-TF strategies) or `N` grows (more baselines), the call count compounds.
+
+**Impact:**
+- No correctness defect today; the existing 100-calls/cycle envelope sits well inside Binance's rate limits.
+- Will start to bite once a second multi-TF strategy lands (chasulang_ict_smc is currently the only one) or the symbol list grows beyond 5.
+- The temporal drift is observable but not measurable in current production logs.
+
+**Suggested Resolution:**
+- Cache OHLCV per `(symbol, timeframe)` for the duration of one `propose_*` call. The cache lives only inside the public method's frame, so there is no global-state risk.
+- Alternative: hoist the OHLCV fetch above the technique loop in `_propose_all_for_symbol` and pass the dict down. Same effect, simpler than a cache.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-10.6-multi-technique-scan.md`
+- Quant code review flagged as 🟡 in post-review (item 2: Look-ahead).
+
 ---
 
 ## Resolved Debt Items
@@ -102,11 +132,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 1 |
-| Low | 0 |
+| Low | 1 |
 | Resolved (All Time) | 0 |
 
 ---
@@ -117,3 +147,4 @@ Move resolved items here with resolution date and notes.
 |------|--------|------|
 | 2026-04-05 | Created | Initial TECH-DEBT tracker |
 | 2026-04-28 | Added | DEBT-001 Pre-Existing Lint/Type Sweep (Medium) — surfaced during Phase 10.5 |
+| 2026-04-28 | Added | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan (Low) — surfaced during Phase 10.6 |
