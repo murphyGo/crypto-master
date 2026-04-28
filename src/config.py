@@ -203,15 +203,21 @@ class Settings(BaseSettings):
     # dispatcher silently skips email and falls back to the other
     # backends (matches Slack/Telegram opt-in pattern). The password is
     # a secret — the application MUST NOT log it. STARTTLS is the
-    # default (port 587). For an SMTP-over-SSL provider, use the
-    # provider's documented SSL port (typically 465) and accept that
-    # only STARTTLS is implemented today.
+    # default (port 587). For an SMTP-over-SSL provider (Yahoo Mail,
+    # AT&T, ProtonMail), set ``EMAIL_USE_SSL=true`` AND
+    # ``EMAIL_SMTP_PORT=465`` so the notifier uses ``smtplib.SMTP_SSL``
+    # and skips the STARTTLS handshake (Phase 14.2 / DEBT-012).
     email_smtp_host: str | None = Field(default=None)
     email_smtp_port: int = Field(default=587, ge=1, le=65535)
     email_smtp_user: str | None = Field(default=None)
     email_smtp_password: str | None = Field(default=None)
     email_from: str | None = Field(default=None)
     email_to: str | None = Field(default=None)
+    # Phase 14.2 (DEBT-012): when True, the notifier uses
+    # ``smtplib.SMTP_SSL`` on the configured port (typically 465) and
+    # skips the STARTTLS upgrade. Default False keeps the existing
+    # STARTTLS path (port 587) untouched for backward compatibility.
+    email_use_ssl: bool = Field(default=False)
 
     # Claude CLI Timeout / Retry (Phase 12.3)
     # Base timeout for one ``claude -p`` invocation in seconds.

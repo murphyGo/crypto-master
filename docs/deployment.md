@@ -331,6 +331,26 @@ deploy is real losses, not test-data garbage.
    dispatcher's per-channel isolation, same as Slack and Telegram.
    Unset any field to disable.
 
+   **SMTP_SSL providers (Phase 14.2 / DEBT-012).** Some providers —
+   Yahoo Mail, AT&T, ProtonMail — only offer SMTP-over-SSL on port
+   465 with no STARTTLS option. For those, set `EMAIL_USE_SSL=true`
+   alongside `EMAIL_SMTP_PORT=465`. The notifier then uses
+   `smtplib.SMTP_SSL` (TLS on connect) and skips the STARTTLS
+   upgrade. Default `EMAIL_USE_SSL=false` keeps the existing
+   STARTTLS-on-587 path for Gmail / Mailgun / SendGrid / corporate
+   relays — backward compatible. Yahoo example:
+
+   ```bash
+   fly secrets set \
+       EMAIL_SMTP_HOST=smtp.mail.yahoo.com \
+       EMAIL_SMTP_PORT=465 \
+       EMAIL_USE_SSL=true \
+       EMAIL_SMTP_USER=you@yahoo.com \
+       EMAIL_SMTP_PASSWORD=your_app_password_here \
+       'EMAIL_FROM=Crypto Master <you@yahoo.com>' \
+       EMAIL_TO=alerts@example.com
+   ```
+
 5. **Start small**. Send a small balance to the exchange (e.g.
    $100–$500) and watch the first day of live trades on the
    dashboard before scaling up. The runtime is paper-tested

@@ -512,12 +512,23 @@ def _build_email_body(notification: Notification) -> str:
 
 
 class EmailNotifier:
-    """Sends notifications via SMTP (Phase 13.4).
+    """Sends notifications via SMTP (Phase 13.4, Phase 14.2).
 
     Uses stdlib :mod:`smtplib` + :class:`email.message.EmailMessage`
     (zero new dependency) wrapped in :func:`asyncio.to_thread` so the
-    dispatcher's event loop is not blocked. STARTTLS is the default;
-    the SMTP password is a secret — never logged, masked in
+    dispatcher's event loop is not blocked. Two transports are
+    supported:
+
+    * **STARTTLS** (default, port 587): plain ``smtplib.SMTP`` upgraded
+      via ``starttls()`` after connect. Works for Gmail, Mailgun,
+      SendGrid, most corporate relays.
+    * **SMTP_SSL** (``use_ssl=True``, port 465): ``smtplib.SMTP_SSL``
+      with the TLS handshake on connect; ``starttls()`` is NOT called
+      because the channel is already encrypted. Required by some
+      providers (Yahoo Mail, AT&T, ProtonMail) that don't offer
+      STARTTLS — Phase 14.2 / DEBT-012.
+
+    The SMTP password is a secret — never logged, masked in
     ``__repr__``.
 
     Failure isolation is enforced by ``NotificationDispatcher``: if
@@ -538,12 +549,14 @@ class EmailNotifier:
         to_addr: str,
         *,
         timeout: float = 10.0,
+        use_ssl: bool = False,
     ) -> None:
         """Initialize the email notifier.
 
         Args:
             host: SMTP server hostname (e.g. ``smtp.gmail.com``).
-            port: SMTP server port. Default 587 = STARTTLS.
+            port: SMTP server port. Default 587 = STARTTLS; pair
+                ``use_ssl=True`` with port 465 for SMTP_SSL providers.
             user: SMTP auth username (typically the From address).
             password: SMTP auth password (or app password). Treated as
                 a secret — never logged, masked in ``__repr__``.
@@ -553,6 +566,11 @@ class EmailNotifier:
                 separated list per RFC 5322).
             timeout: Per-request timeout in seconds. Defaults to 10s
                 so a slow SMTP server can't stall the cycle.
+            use_ssl: When True, use ``smtplib.SMTP_SSL`` (TLS on
+                connect, no STARTTLS upgrade). Default False uses the
+                existing ``smtplib.SMTP`` + ``starttls()`` path so
+                pre-Phase 14.2 callers behave identically. Phase 14.2
+                / DEBT-012.
         """
         self._host = host
         self._port = port
@@ -561,6 +579,7 @@ class EmailNotifier:
         self._from = from_addr
         self._to = to_addr
         self._timeout = timeout
+        self._use_ssl = use_ssl
 
     def __repr__(self) -> str:
         # Mask the password — only its presence is informative for
@@ -591,10 +610,21 @@ class EmailNotifier:
         user = self._user
         password = self._password
         timeout = self._timeout
+        use_ssl = self._use_ssl
 
         def _send() -> None:
-            with smtplib.SMTP(host, port, timeout=timeout) as smtp:
-                smtp.starttls()
+            # Phase 14.2: ``smtplib.SMTP_SSL`` handshakes TLS on connect,
+            # so ``starttls()`` is intentionally skipped on that path.
+            # ``smtplib.SMTP`` (the default) still upgrades via STARTTLS
+            # after connect, matching the pre-14.2 behaviour exactly.
+            smtp: smtplib.SMTP
+            if use_ssl:
+                smtp = smtplib.SMTP_SSL(host, port, timeout=timeout)
+            else:
+                smtp = smtplib.SMTP(host, port, timeout=timeout)
+            with smtp:
+                if not use_ssl:
+                    smtp.starttls()
                 smtp.login(user, password)
                 smtp.send_message(msg)
 

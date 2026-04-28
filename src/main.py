@@ -243,6 +243,10 @@ def build_engine(
                 password=settings.email_smtp_password,
                 from_addr=settings.email_from,
                 to_addr=settings.email_to,
+                # Phase 14.2 (DEBT-012): SMTP_SSL alternative for
+                # providers without STARTTLS (Yahoo / AT&T / ProtonMail).
+                # Default False keeps the STARTTLS path unchanged.
+                use_ssl=settings.email_use_ssl,
             )
         )
         # Deliberately log presence only — never the password.

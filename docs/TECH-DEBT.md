@@ -41,45 +41,7 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-012: SMTP_SSL alternative for port 465 SMTP providers
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Phase 13.4 |
-| **Component** | `src/proposal/notification.py::EmailNotifier` |
-
-**Description:**
-Phase 13.4 ships `EmailNotifier` with STARTTLS only (port 587 is the
-default for `email_smtp_port`). Port 465 (SMTP_SSL — implicit TLS
-from the start of the connection) is a real path for some
-providers, notably Yahoo, ATT, and certain ProtonMail / privacy
-providers. Operators on those providers currently cannot enable
-email push because `smtplib.SMTP(...)` + `smtp.starttls()` doesn't
-match what a port-465 server expects (it expects `smtplib.SMTP_SSL`
-from the first byte).
-
-**Impact:**
-Operators on port-465-only SMTP providers cannot use email push
-without an intermediary relay (Mailgun / SendGrid / Postmark on
-port 587). Workaround exists; not a hard block. Most modern
-providers offer STARTTLS / port 587 as the recommended path.
-
-**Suggested Resolution:**
-Add a `email_smtp_use_ssl: bool = False` setting (env
-`EMAIL_SMTP_USE_SSL`); when `True`, `EmailNotifier._send` uses
-`smtplib.SMTP_SSL(host, port, timeout=...)` and skips the
-`starttls()` call (SSL/TLS is already established at connect time).
-Default `False` preserves Phase 13.4 behaviour bytewise. Add a
-test that `SMTP_SSL` is constructed when the flag is set and that
-`starttls` is NOT called on that path.
-
-**Related:**
-- Surfaced during Phase 13.4 senior-developer report.
-- Deliberate scope decision; not a defect — the major operator
-  providers (Gmail, SendGrid, Mailgun, Office 365) all support
-  STARTTLS.
+_No active debt items._
 
 ---
 
@@ -197,18 +159,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 13.3 added `since: int | None = None` to `BaseExchange.get_ohlcv` ABC; Binance + Bybit forward to ccxt; `scripts/backtest_baselines.py` drops the `_client` reach-around. |
 
+### DEBT-012: SMTP_SSL alternative for port 465 SMTP providers ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 14.2 added `email_use_ssl` Settings flag; `EmailNotifier` branches between `smtplib.SMTP`+STARTTLS (default) and `smtplib.SMTP_SSL` (port 465 providers). |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 1 |
-| Resolved (All Time) | 11 |
+| Low | 0 |
+| Resolved (All Time) | 12 |
 
 ---
 
@@ -240,3 +211,4 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Resolved | DEBT-003 EngineConfig Remaining Fields Not Env-Overridable — Phase 13.2 added `engine_monitor_interval` / `engine_bitcoin_symbol` / `engine_altcoin_top_k` / `engine_actor` Settings fields; `build_engine` wires all 4 |
 | 2026-04-28 | Resolved | DEBT-004 Baseline Backtest Script Follow-ups — Phase 13.3 added `since: int | None = None` to `BaseExchange.get_ohlcv` ABC; Binance + Bybit forward to ccxt; `scripts/backtest_baselines.py` drops the `_client` reach-around |
 | 2026-04-28 | Added | DEBT-012 SMTP_SSL alternative for port 465 SMTP providers (Low) — surfaced during Phase 13.4 (deliberate scope deferral; STARTTLS-only Phase 13.4 ships) |
+| 2026-04-28 | Resolved | DEBT-012 SMTP_SSL alternative for port 465 SMTP providers — Phase 14.2 added `email_use_ssl` Settings flag; `EmailNotifier` branches between `smtplib.SMTP`+STARTTLS (default) and `smtplib.SMTP_SSL` (port 465 providers) |

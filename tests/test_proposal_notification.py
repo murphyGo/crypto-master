@@ -958,3 +958,95 @@ async def test_email_notifier_uses_configured_timeout(
 
     assert len(_FakeSMTP.instances) == 1
     assert _FakeSMTP.instances[0].timeout == 3.5
+
+
+# =============================================================================
+# EmailNotifier SMTP_SSL alternative (Phase 14.2 / DEBT-012)
+# =============================================================================
+
+
+async def test_email_notifier_uses_smtp_ssl_when_flag_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``use_ssl=True`` routes through ``smtplib.SMTP_SSL`` and skips
+    ``starttls()`` (the channel is already encrypted on connect).
+
+    Phase 14.2 / DEBT-012: Yahoo Mail, AT&T, and ProtonMail only offer
+    SMTP-over-SSL on port 465. The notifier must construct
+    ``SMTP_SSL`` (not ``SMTP``) and must NOT call ``starttls`` on the
+    SSL path — calling it on an already-TLS connection raises
+    ``SMTPNotSupportedError`` at runtime.
+    """
+    _FakeSMTP.instances = []
+    # Patch ``SMTP_SSL`` for the SSL path; also patch ``SMTP`` to a
+    # raising stub so the test fails loudly if the wrong constructor
+    # is selected.
+    monkeypatch.setattr(
+        "src.proposal.notification.smtplib.SMTP_SSL", _FakeSMTP
+    )
+
+    def _wrong_constructor(*args: object, **kwargs: object) -> _FakeSMTP:
+        raise AssertionError(
+            "smtplib.SMTP must not be called when use_ssl=True"
+        )
+
+    monkeypatch.setattr(
+        "src.proposal.notification.smtplib.SMTP", _wrong_constructor
+    )
+
+    notifier = EmailNotifier(
+        host=EMAIL_SMTP_HOST,
+        port=465,
+        user=EMAIL_SMTP_USER,
+        password=EMAIL_SMTP_PASSWORD,
+        from_addr=EMAIL_FROM,
+        to_addr=EMAIL_TO,
+        use_ssl=True,
+    )
+
+    await notifier.send(make_notification())
+
+    assert len(_FakeSMTP.instances) == 1
+    fake = _FakeSMTP.instances[0]
+    assert fake.host == EMAIL_SMTP_HOST
+    assert fake.port == 465
+    # The SSL channel is already encrypted — STARTTLS must NOT fire.
+    assert fake.starttls_called is False
+    # Login + send_message still happen on the SSL path.
+    assert fake.login_args == (EMAIL_SMTP_USER, EMAIL_SMTP_PASSWORD)
+    assert len(fake.sent_messages) == 1
+
+
+async def test_email_notifier_uses_starttls_when_flag_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default ``use_ssl=False`` keeps the existing STARTTLS path
+    intact — backward compatibility for pre-Phase 14.2 callers.
+
+    The notifier must construct ``smtplib.SMTP`` (not ``SMTP_SSL``)
+    and must call ``starttls()`` before login.
+    """
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    def _wrong_constructor(*args: object, **kwargs: object) -> _FakeSMTP:
+        raise AssertionError(
+            "smtplib.SMTP_SSL must not be called when use_ssl=False"
+        )
+
+    monkeypatch.setattr(
+        "src.proposal.notification.smtplib.SMTP_SSL", _wrong_constructor
+    )
+
+    notifier = _make_email_notifier()  # use_ssl defaults to False
+
+    await notifier.send(make_notification())
+
+    assert len(_FakeSMTP.instances) == 1
+    fake = _FakeSMTP.instances[0]
+    assert fake.host == EMAIL_SMTP_HOST
+    assert fake.port == EMAIL_SMTP_PORT
+    # STARTTLS handshake fires on the default path.
+    assert fake.starttls_called is True
+    assert fake.login_args == (EMAIL_SMTP_USER, EMAIL_SMTP_PASSWORD)
+    assert len(fake.sent_messages) == 1
