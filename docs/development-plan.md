@@ -58,6 +58,8 @@
 | EngineConfig Remaining-Fields Env Override | ✅ Complete | 13 |
 | BaseExchange.get_ohlcv `since` Parameter | ✅ Complete | 13 |
 | Email Notification Backend | ✅ Complete | 13 |
+| Chasulang Timeout Mitigation | ❌ Missing | 14 |
+| SMTP_SSL Alternative | ❌ Missing | 14 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1259,6 +1261,90 @@ existing); NFR-012 (live trading awareness redundancy).
 
 ---
 
+## Phase 14: Production Reliability
+
+**Goal**: Phase 14 closes two prod-observed and tracked items: the
+persistent chasulang Claude CLI timeouts that Phase 12.3's retry
+didn't eliminate, and the SMTP_SSL alternative DEBT-012 that emerged
+in 13.4. Compact two-sub-task phase — production reliability polish,
+no new framework abstractions.
+
+### 14.1 Chasulang Timeout Mitigation
+
+**Background**: Phase 12.3 added Claude CLI retry-with-1.5×-backoff
+(default `max_retries=1`, base timeout 120s → 180s on retry). Live
+Fly logs after the Phase 12 redeploy still show `chasulang_ict_smc`
+timing out after 120s on every BTC scan cycle (~once per 5 minutes).
+Two probable causes worth investigating: (a) the chasulang prompt
+template is too long for 120s on the Fly machine's shared CPU /
+1 GB RAM, and (b) the retry is firing but both attempts time out —
+meaning even 180s isn't enough. Operator tuning of
+`CLAUDE_CLI_TIMEOUT_SECONDS` / `CLAUDE_CLI_MAX_RETRIES` only delays
+the actual problem if the prompt is the issue; the right fix
+combines a per-strategy timeout override (so chasulang can run on a
+longer leash without slowing baselines like `rsi_4h.analyze` that
+don't need 120s) with observability on the retry path.
+
+**Related Requirements**: FR-022 (Claude AI Integration — extending
+the existing contract; no new FR introduced); NFR-001 (operational
+reliability).
+
+- [ ] Read recent Fly logs (`fly logs -a crypto-master`) and grep
+  for `chasulang_ict_smc` + `LLM_TIMEOUT` to confirm actual
+  frequency and whether the retry path is being hit (look for the
+  Phase 12.3 `retrying with timeout=180s` warning).
+- [ ] Add per-strategy timeout override to `BaseStrategy.info`
+  (e.g. `claude_timeout_seconds: int | None = None` on
+  `TechniqueInfo`). When set, `PromptStrategy` passes that to
+  `ClaudeCLI` instead of the `Settings.claude_cli_timeout_seconds`
+  default; `None` (existing strategies unaffected) falls back to
+  Settings.
+- [ ] Update `strategies/chasulang_ict_smc.md` frontmatter with
+  `claude_timeout_seconds: 240` (240s × 1.5 = 360s total with one
+  retry).
+- [ ] Extend `LLM_TIMEOUT` activity event details with
+  `attempt_number` (1, 2, ...) + `final_timeout_seconds` so the
+  dashboard / operator can verify retry path execution.
+- [ ] Tests: `BaseStrategy.info` gains a new optional field —
+  default `None` keeps existing strategies unaffected; per-strategy
+  override path tested with mocked subprocess; `LLM_TIMEOUT` event
+  payload tests verify `attempt_number` + `final_timeout_seconds`
+  fields.
+
+### 14.2 SMTP_SSL Alternative (DEBT-012)
+
+**Background**: Phase 13.4's `EmailNotifier` ships STARTTLS-only
+(`smtplib.SMTP` + `starttls()`). Some SMTP providers (Yahoo Mail,
+AT&T, ProtonMail) only offer SMTP-over-SSL on port 465 with no
+STARTTLS option. Tracked as DEBT-012 (Low). Now that Phase 13's
+notifier shipped, the gap can close cleanly.
+
+**Related Requirements**: FR-015 (Proposal Notification — extending
+existing); operational concern.
+
+- [ ] Add `email_use_ssl: bool = Field(default=False)` to
+  `Settings` in `src/config.py`. Env `EMAIL_USE_SSL=true` activates
+  SMTP_SSL on port 465 instead of SMTP+STARTTLS on port 587.
+- [ ] `src/proposal/notification.py::EmailNotifier` constructor
+  accepts a `use_ssl: bool` flag. When True: `smtplib.SMTP_SSL(host,
+  port, timeout=...)` with NO `starttls()` call (already encrypted).
+  When False (default): existing `smtplib.SMTP` + `starttls()`
+  path.
+- [ ] `src/main.py::build_engine` reads `settings.email_use_ssl`
+  and forwards to `EmailNotifier(...)`.
+- [ ] `.env.example` documents the new env var with provider-specific
+  guidance ("Set `EMAIL_USE_SSL=true` and `EMAIL_SMTP_PORT=465` for
+  Yahoo / AT&T / ProtonMail").
+- [ ] `docs/deployment.md` extends the Email subsection with an
+  SMTP_SSL note.
+- [ ] Tests: extend `tests/test_proposal_notification.py` with two
+  tests — `test_email_notifier_uses_smtp_ssl_when_flag_set`
+  (verifies `smtplib.SMTP_SSL` constructor called, `starttls` NOT
+  called) and `test_email_notifier_uses_starttls_when_flag_unset`
+  (existing default path stays correct).
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1276,6 +1362,7 @@ existing); NFR-012 (live trading awareness redundancy).
 | Phase 11 | FR-005, FR-015, NFR-001, NFR-008, NFR-012 (operational hardening + observability — lint/type sweep, OHLCV cache, Slack notifier, `purge_old` wiring; no new FR/NFR introduced) |
 | Phase 12 | FR-006, FR-007, FR-008, FR-015, FR-022, NFR-001, NFR-012 (risk hardening + reliability — cross-cycle position cap, residual mypy sweep, LLM timeout retry/fallback, Telegram notifier; no new FR/NFR introduced) |
 | Phase 13 | FR-015, FR-020, NFR-001, NFR-004, NFR-012 (cleanup + operational polish — DEBT-009/010/011 batch, EngineConfig remaining-fields env override, `BaseExchange.get_ohlcv` `since` param, email notifier; no new FR/NFR introduced) |
+| Phase 14 | FR-015, FR-022, NFR-001 (production reliability — chasulang per-strategy Claude CLI timeout override + retry observability, SMTP_SSL alternative for `EmailNotifier`; no new FR/NFR introduced) |
 
 ---
 
