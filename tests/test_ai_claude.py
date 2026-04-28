@@ -3,9 +3,9 @@
 Tests the ClaudeCLI class and its async subprocess execution.
 """
 
-import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+import subprocess
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,6 +17,40 @@ from src.ai.exceptions import (
     ClaudeParseError,
     ClaudeTimeoutError,
 )
+
+
+def _make_popen_success(stdout: str, stderr: str = "", returncode: int = 0) -> MagicMock:
+    """Build a Popen mock whose ``communicate`` returns ``(stdout, stderr)``.
+
+    Phase 16.1: ``_execute_cli_once`` uses ``subprocess.Popen`` (run
+    via ``asyncio.to_thread``) so tests need to mock ``Popen`` rather
+    than the old ``asyncio.create_subprocess_exec`` surface.
+    """
+    proc = MagicMock(spec=subprocess.Popen)
+    proc.communicate = MagicMock(return_value=(stdout, stderr))
+    proc.returncode = returncode
+    proc.kill = MagicMock()
+    proc.wait = MagicMock()
+    proc.pid = 12345
+    return proc
+
+
+def _make_popen_timeout() -> MagicMock:
+    """Build a Popen mock whose ``communicate`` raises ``TimeoutExpired``.
+
+    The child reaps cleanly on ``proc.wait(timeout=5)``. Use
+    :func:`_make_popen_unkillable` for the SIGKILL-fails-too case.
+    """
+    proc = MagicMock(spec=subprocess.Popen)
+    proc.communicate = MagicMock(
+        side_effect=subprocess.TimeoutExpired(cmd=["claude"], timeout=0.1)
+    )
+    proc.returncode = None
+    proc.kill = MagicMock()
+    # wait succeeds (child reaped after SIGKILL)
+    proc.wait = MagicMock(return_value=0)
+    proc.pid = 12345
+    return proc
 
 
 class TestClaudeCLIInit:
@@ -62,15 +96,8 @@ class TestClaudeCLIIsAvailable:
 class TestClaudeCLIAnalyze:
     """Tests for analyze method."""
 
-    @pytest.fixture
-    def mock_process(self) -> AsyncMock:
-        """Create a mock subprocess."""
-        process = AsyncMock()
-        process.returncode = 0
-        return process
-
     @pytest.mark.asyncio
-    async def test_successful_json_response(self, mock_process: AsyncMock) -> None:
+    async def test_successful_json_response(self) -> None:
         """Test successful analysis with direct JSON response."""
         response = {
             "signal": "long",
@@ -80,27 +107,24 @@ class TestClaudeCLIAnalyze:
             "take_profit": 52000,
             "reasoning": "Strong uptrend",
         }
-        mock_process.communicate.return_value = (
-            json.dumps(response).encode(),
-            b"",
-        )
+        proc = _make_popen_success(json.dumps(response))
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
                 result = await client.analyze("test prompt")
 
         assert result == response
 
     @pytest.mark.asyncio
-    async def test_json_in_markdown_code_block(self, mock_process: AsyncMock) -> None:
+    async def test_json_in_markdown_code_block(self) -> None:
         """Test parsing JSON wrapped in markdown code block."""
         response = {"signal": "short", "confidence": 0.7}
         output = f"Here is the analysis:\n```json\n{json.dumps(response)}\n```"
-        mock_process.communicate.return_value = (output.encode(), b"")
+        proc = _make_popen_success(output)
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
                 result = await client.analyze("test prompt")
 
@@ -108,14 +132,14 @@ class TestClaudeCLIAnalyze:
         assert result["confidence"] == 0.7
 
     @pytest.mark.asyncio
-    async def test_json_in_plain_code_block(self, mock_process: AsyncMock) -> None:
+    async def test_json_in_plain_code_block(self) -> None:
         """Test parsing JSON in code block without language specifier."""
         response = {"signal": "neutral", "confidence": 0.5}
         output = f"```\n{json.dumps(response)}\n```"
-        mock_process.communicate.return_value = (output.encode(), b"")
+        proc = _make_popen_success(output)
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
                 result = await client.analyze("test prompt")
 
@@ -133,13 +157,12 @@ class TestClaudeCLIAnalyze:
             assert "not found" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_claude_execution_failure(self, mock_process: AsyncMock) -> None:
+    async def test_claude_execution_failure(self) -> None:
         """Test ClaudeExecutionError on non-zero exit code."""
-        mock_process.returncode = 1
-        mock_process.communicate.return_value = (b"", b"Error: API limit")
+        proc = _make_popen_success("", "Error: API limit", returncode=1)
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
 
                 with pytest.raises(ClaudeExecutionError) as exc_info:
@@ -150,20 +173,16 @@ class TestClaudeCLIAnalyze:
 
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
-        """Test ClaudeTimeoutError when process times out (no retry)."""
+        """Test ClaudeTimeoutError when process times out (no retry).
 
-        async def slow_communicate() -> tuple[bytes, bytes]:
-            await asyncio.sleep(10)
-            return (b"", b"")
-
-        mock_process = AsyncMock()
-        mock_process.returncode = None
-        mock_process.communicate = slow_communicate
-        mock_process.kill = MagicMock()
-        mock_process.wait = AsyncMock()
+        Phase 16.1: ``communicate`` raises ``TimeoutExpired``; the
+        wrapper must call ``proc.kill()`` and surface a
+        :class:`ClaudeTimeoutError`.
+        """
+        proc = _make_popen_timeout()
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 # Phase 12.3: pin max_retries=0 so this single-attempt
                 # test stays single-attempt (the default is 1).
                 client = ClaudeCLI(timeout=0.1, max_retries=0)
@@ -172,15 +191,15 @@ class TestClaudeCLIAnalyze:
                     await client.analyze("test prompt")
 
                 assert exc_info.value.timeout_seconds == 0.1
-                mock_process.kill.assert_called_once()
+                proc.kill.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_empty_response(self, mock_process: AsyncMock) -> None:
+    async def test_empty_response(self) -> None:
         """Test ClaudeParseError on empty response."""
-        mock_process.communicate.return_value = (b"", b"")
+        proc = _make_popen_success("")
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
 
                 with pytest.raises(ClaudeParseError) as exc_info:
@@ -189,12 +208,12 @@ class TestClaudeCLIAnalyze:
                 assert "empty" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_whitespace_only_response(self, mock_process: AsyncMock) -> None:
+    async def test_whitespace_only_response(self) -> None:
         """Test ClaudeParseError on whitespace-only response."""
-        mock_process.communicate.return_value = (b"   \n\t\n  ", b"")
+        proc = _make_popen_success("   \n\t\n  ")
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
 
                 with pytest.raises(ClaudeParseError) as exc_info:
@@ -203,12 +222,12 @@ class TestClaudeCLIAnalyze:
                 assert "empty" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_invalid_json(self, mock_process: AsyncMock) -> None:
+    async def test_invalid_json(self) -> None:
         """Test ClaudeParseError on malformed JSON."""
-        mock_process.communicate.return_value = (b"{invalid json", b"")
+        proc = _make_popen_success("{invalid json")
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
 
                 with pytest.raises(ClaudeParseError) as exc_info:
@@ -217,15 +236,12 @@ class TestClaudeCLIAnalyze:
                 assert exc_info.value.raw_output == "{invalid json"
 
     @pytest.mark.asyncio
-    async def test_non_dict_json(self, mock_process: AsyncMock) -> None:
+    async def test_non_dict_json(self) -> None:
         """Test ClaudeParseError when JSON is not an object."""
-        mock_process.communicate.return_value = (
-            b'["array", "not", "dict"]',
-            b"",
-        )
+        proc = _make_popen_success('["array", "not", "dict"]')
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
 
                 with pytest.raises(ClaudeParseError) as exc_info:
@@ -234,20 +250,17 @@ class TestClaudeCLIAnalyze:
                 assert "Expected JSON object" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_unicode_handling(self, mock_process: AsyncMock) -> None:
+    async def test_unicode_handling(self) -> None:
         """Test proper handling of unicode characters."""
         response = {
             "signal": "long",
             "confidence": 0.8,
             "reasoning": "Strong trend 📈",
         }
-        mock_process.communicate.return_value = (
-            json.dumps(response).encode("utf-8"),
-            b"",
-        )
+        proc = _make_popen_success(json.dumps(response))
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
-            with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+            with patch("subprocess.Popen", return_value=proc):
                 client = ClaudeCLI()
                 result = await client.analyze("test prompt")
 
@@ -255,34 +268,21 @@ class TestClaudeCLIAnalyze:
 
 
 class TestClaudeCLIRetryOnTimeout:
-    """Phase 12.3: retry-on-timeout with 1.5x backoff."""
+    """Phase 12.3: retry-on-timeout with 1.5x backoff.
 
-    def _make_slow_process(self) -> AsyncMock:
-        """Build a mock subprocess whose ``communicate`` never returns
-        within the test's ``timeout``, so ``asyncio.wait_for`` raises
-        ``TimeoutError`` deterministically."""
+    Phase 16.1 rewired this onto :class:`subprocess.Popen`-shaped
+    mocks (the implementation now uses blocking ``Popen`` via
+    :func:`asyncio.to_thread`). Behaviour under test is unchanged —
+    only the mock surface moved.
+    """
 
-        async def slow_communicate() -> tuple[bytes, bytes]:
-            await asyncio.sleep(10)
-            return (b"", b"")
+    def _make_slow_process(self) -> MagicMock:
+        """Popen mock whose ``communicate`` raises ``TimeoutExpired``."""
+        return _make_popen_timeout()
 
-        process = AsyncMock()
-        process.returncode = None
-        process.communicate = slow_communicate
-        process.kill = MagicMock()
-        process.wait = AsyncMock()
-        return process
-
-    def _make_success_process(self, payload: dict[str, object]) -> AsyncMock:
-        """Build a mock subprocess that returns ``payload`` as JSON."""
-        process = AsyncMock()
-        process.returncode = 0
-        process.communicate = AsyncMock(
-            return_value=(json.dumps(payload).encode(), b"")
-        )
-        process.kill = MagicMock()
-        process.wait = AsyncMock()
-        return process
+    def _make_success_process(self, payload: dict[str, object]) -> MagicMock:
+        """Popen mock whose ``communicate`` returns ``payload`` as JSON."""
+        return _make_popen_success(json.dumps(payload))
 
     @pytest.mark.asyncio
     async def test_subprocess_retries_on_timeout(self) -> None:
@@ -294,14 +294,14 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 side_effect=[slow1, slow2, success],
-            ) as mock_exec:
+            ) as mock_popen:
                 client = ClaudeCLI(timeout=0.05, max_retries=2)
                 result = await client.analyze("test")
 
         assert result == success_payload
-        assert mock_exec.call_count == 3
+        assert mock_popen.call_count == 3
 
     @pytest.mark.asyncio
     async def test_subprocess_raises_after_max_retries(self) -> None:
@@ -310,37 +310,50 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 side_effect=processes,
-            ) as mock_exec:
+            ) as mock_popen:
                 client = ClaudeCLI(timeout=0.05, max_retries=2)
 
                 with pytest.raises(ClaudeTimeoutError):
                     await client.analyze("test")
 
-        assert mock_exec.call_count == 3
+        assert mock_popen.call_count == 3
 
     @pytest.mark.asyncio
     async def test_timeout_escalates_each_retry(self) -> None:
-        """The per-attempt timeout multiplies by 1.5x each retry."""
+        """The per-attempt timeout multiplies by 1.5x each retry.
+
+        Phase 16.1: capture the ``timeout`` kwarg passed to
+        ``proc.communicate``, since the wrapper now drives the
+        timeout there (instead of via ``asyncio.wait_for``).
+        """
         captured_timeouts: list[float] = []
-        original_wait_for = asyncio.wait_for
 
-        async def capture_wait_for(awaitable: object, timeout: float) -> object:
-            captured_timeouts.append(timeout)
-            return await original_wait_for(awaitable, timeout=timeout)
+        def make_capturing_proc() -> MagicMock:
+            proc = MagicMock(spec=subprocess.Popen)
 
-        processes = [self._make_slow_process() for _ in range(3)]
+            def capture_communicate(timeout: float) -> tuple[str, str]:
+                captured_timeouts.append(timeout)
+                raise subprocess.TimeoutExpired(cmd=["claude"], timeout=timeout)
+
+            proc.communicate = MagicMock(side_effect=capture_communicate)
+            proc.returncode = None
+            proc.kill = MagicMock()
+            proc.wait = MagicMock(return_value=0)
+            proc.pid = 12345
+            return proc
+
+        processes = [make_capturing_proc() for _ in range(3)]
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 side_effect=processes,
             ):
-                with patch("asyncio.wait_for", side_effect=capture_wait_for):
-                    client = ClaudeCLI(timeout=0.04, max_retries=2)
-                    with pytest.raises(ClaudeTimeoutError):
-                        await client.analyze("test")
+                client = ClaudeCLI(timeout=0.04, max_retries=2)
+                with pytest.raises(ClaudeTimeoutError):
+                    await client.analyze("test")
 
         assert len(captured_timeouts) == 3
         # 0.04 -> 0.06 -> 0.09 (1.5x backoff)
@@ -355,37 +368,33 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 return_value=slow,
-            ) as mock_exec:
+            ) as mock_popen:
                 client = ClaudeCLI(timeout=0.05, max_retries=0)
 
                 with pytest.raises(ClaudeTimeoutError):
                     await client.analyze("test")
 
-        assert mock_exec.call_count == 1
+        assert mock_popen.call_count == 1
 
     @pytest.mark.asyncio
     async def test_non_timeout_errors_do_not_trigger_retry(self) -> None:
         """ClaudeExecutionError must NOT be retried — bail immediately."""
-        process = AsyncMock()
-        process.returncode = 1
-        process.communicate = AsyncMock(return_value=(b"", b"server error"))
-        process.kill = MagicMock()
-        process.wait = AsyncMock()
+        proc = _make_popen_success("", "server error", returncode=1)
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
-                return_value=process,
-            ) as mock_exec:
+                "subprocess.Popen",
+                return_value=proc,
+            ) as mock_popen:
                 client = ClaudeCLI(timeout=0.05, max_retries=2)
 
                 with pytest.raises(ClaudeExecutionError):
                     await client.analyze("test")
 
         # No retry — execution errors are not transient.
-        assert mock_exec.call_count == 1
+        assert mock_popen.call_count == 1
 
     @pytest.mark.asyncio
     async def test_timeout_error_carries_final_timeout(self) -> None:
@@ -394,7 +403,7 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 side_effect=processes,
             ):
                 client = ClaudeCLI(timeout=0.04, max_retries=1)
@@ -419,7 +428,7 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 side_effect=processes,
             ):
                 client = ClaudeCLI(timeout=0.04, max_retries=2)
@@ -435,7 +444,7 @@ class TestClaudeCLIRetryOnTimeout:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch(
-                "asyncio.create_subprocess_exec",
+                "subprocess.Popen",
                 return_value=slow,
             ):
                 client = ClaudeCLI(timeout=0.04, max_retries=0)
@@ -626,3 +635,271 @@ class TestParseResponseRobustness:
             "I can't help with that" in record.getMessage()
             for record in caplog.records
         )
+
+
+class TestParseResponseNestedTradeForm:
+    """Phase 16.1: parser must accept the chasulang nested-``trade`` shape.
+
+    The chasulang_ict_smc.md template returns a top-level dict whose
+    actionable trade is nested under ``trade``, alongside structural
+    analysis frames (``external_structure``, ``liquidity_map``, etc.).
+    The parser promotes ``trade.*`` to top level so the downstream
+    ``StrategyTechnique.analyze`` consumer in ``src/strategy/loader.py``
+    sees a single canonical shape.
+    """
+
+    def test_parse_response_handles_nested_trade_form(self) -> None:
+        """Chasulang shape: signal/entry/SL/TP nested under ``trade``."""
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "external_structure": {
+                    "timeframe": "4h",
+                    "bias": "bullish",
+                    "reference_price": 95.0,
+                },
+                "liquidity_map": {"primary_target": 110.0},
+                "order_blocks": [{"type": "bullish_ob", "timeframe": "1h"}],
+                "trade": {
+                    "signal": "long",
+                    "entry_price": 100,
+                    "stop_loss": 95,
+                    "take_profit_1": 105,
+                    "confidence": 0.8,
+                    "reasoning": "structure + liquidity + MSS aligned",
+                },
+            }
+        )
+
+        result = client._parse_response(raw)
+
+        # Promoted to top-level for downstream consumer.
+        assert result["signal"] == "long"
+        assert result["entry_price"] == 100
+        assert result["stop_loss"] == 95
+        assert result["take_profit"] == 105
+        assert result["confidence"] == 0.8
+        assert result["reasoning"] == "structure + liquidity + MSS aligned"
+        # Original nested ``trade`` block remains intact for callers
+        # that want the full view (e.g. ``take_profit_2``).
+        assert result["trade"]["take_profit_1"] == 105
+
+    def test_parse_response_handles_top_level_form(self) -> None:
+        """Legacy flat shape (sample_prompt.md) parses unchanged."""
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "signal": "short",
+                "entry_price": 50000,
+                "stop_loss": 51000,
+                "take_profit": 48000,
+                "confidence": 0.65,
+                "reasoning": "bearish breakdown",
+            }
+        )
+
+        result = client._parse_response(raw)
+
+        assert result["signal"] == "short"
+        assert result["entry_price"] == 50000
+        assert result["stop_loss"] == 51000
+        assert result["take_profit"] == 48000
+        assert result["confidence"] == 0.65
+        assert result["reasoning"] == "bearish breakdown"
+
+    def test_parse_response_picks_take_profit_1_when_tp2_present(self) -> None:
+        """When nested form has TP1 + TP2, pick TP1 (closer, conservative)."""
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "trade": {
+                    "signal": "long",
+                    "entry_price": 100,
+                    "stop_loss": 95,
+                    "take_profit_1": 105,
+                    "take_profit_2": 115,
+                    "confidence": 0.7,
+                    "reasoning": "two-step target",
+                },
+            }
+        )
+
+        result = client._parse_response(raw)
+
+        # TP1 wins; TP2 is the stretch target and is dropped from the
+        # canonical top-level view (callers can still read it from
+        # ``result["trade"]["take_profit_2"]`` if needed).
+        assert result["take_profit"] == 105
+
+    def test_parse_response_explicit_take_profit_beats_tp1(self) -> None:
+        """Explicit nested ``trade.take_profit`` wins over ``take_profit_1``.
+
+        Defensive: if a future template carries both an explicit
+        ``take_profit`` and a ``take_profit_1``, the explicit value
+        is the source of truth.
+        """
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "trade": {
+                    "signal": "long",
+                    "entry_price": 100,
+                    "stop_loss": 95,
+                    "take_profit": 110,
+                    "take_profit_1": 105,
+                    "confidence": 0.7,
+                    "reasoning": "explicit tp wins",
+                },
+            }
+        )
+
+        result = client._parse_response(raw)
+
+        assert result["take_profit"] == 110
+
+    def test_parse_response_raises_clear_error_when_neither_has_signal(
+        self,
+    ) -> None:
+        """Missing signal in both top-level and ``trade``: error names both paths."""
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "external_structure": {"bias": "ranging"},
+                "trade": {
+                    # No 'signal' key.
+                    "confidence": 0.2,
+                    "reasoning": "no setup",
+                },
+            }
+        )
+
+        with pytest.raises(ClaudeParseError) as exc_info:
+            client._parse_response(raw)
+
+        msg = str(exc_info.value)
+        # Both candidate paths must be referenced so operators can
+        # quickly identify which template needs a signal field.
+        assert "'signal'" in msg
+        assert "trade.signal" in msg
+
+    def test_parse_response_top_level_signal_wins_when_trade_lacks_one(
+        self,
+    ) -> None:
+        """If top-level has ``signal`` but ``trade`` doesn't, top-level wins.
+
+        Back-compat insurance: a template could legitimately mix in
+        a ``trade`` sub-dict (e.g. for trade-detail metadata) while
+        the canonical signal stays at top level. We must not lose the
+        top-level value.
+        """
+        client = ClaudeCLI()
+        raw = json.dumps(
+            {
+                "signal": "neutral",
+                "entry_price": 100,
+                "stop_loss": 95,
+                "take_profit": 105,
+                "confidence": 0.4,
+                "reasoning": "wait",
+                "trade": {
+                    # Trade block carries metadata, not the signal.
+                    "notes": "see top-level signal",
+                },
+            }
+        )
+
+        result = client._parse_response(raw)
+
+        assert result["signal"] == "neutral"
+        assert result["take_profit"] == 105
+
+
+class TestSubprocessKillOnTimeout:
+    """Phase 16.1: explicit ``proc.kill()`` on timeout.
+
+    The pre-Phase-16.1 wrapper used
+    ``asyncio.create_subprocess_exec`` + ``asyncio.wait_for`` which
+    was observed in prod (2026-04-28T15:02:15Z chasulang retry) to
+    leave the child alive even after the wrapper raised, wedging the
+    engine for 12+ hours. The new implementation uses blocking
+    ``Popen`` via ``asyncio.to_thread`` so we get a real SIGKILL on
+    timeout.
+    """
+
+    @pytest.mark.asyncio
+    async def test_subprocess_kill_on_timeout(self) -> None:
+        """``communicate`` raises TimeoutExpired -> ``proc.kill()`` is called.
+
+        Verifies the wrapper:
+        1. Calls ``proc.kill()`` exactly once on timeout.
+        2. Calls ``proc.wait(timeout=5)`` to reap the child.
+        3. Raises :class:`ClaudeTimeoutError` with the right
+           ``timeout_seconds`` and ``attempt_number`` (Phase 14.1
+           propagation must keep working).
+        4. Returns within bounded wall-clock time — the assertion
+           uses pytest's default test-timeout handling but the test
+           itself never sleeps.
+        """
+        proc = MagicMock(spec=subprocess.Popen)
+        proc.communicate = MagicMock(
+            side_effect=subprocess.TimeoutExpired(cmd=["claude"], timeout=0.05)
+        )
+        proc.returncode = None
+        proc.kill = MagicMock()
+        # ``wait(timeout=5)`` succeeds — child reaped cleanly after
+        # SIGKILL. The ``test_subprocess_kill_failed_on_timeout`` test
+        # below covers the harder case where SIGKILL itself doesn't
+        # work.
+        proc.wait = MagicMock(return_value=0)
+        proc.pid = 99999
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen", return_value=proc):
+                client = ClaudeCLI(timeout=0.05, max_retries=0)
+                with pytest.raises(ClaudeTimeoutError) as exc_info:
+                    await client.analyze("test")
+
+        # 1. kill() called exactly once.
+        proc.kill.assert_called_once()
+        # 2. wait() called with the bounded 5s reap timeout.
+        proc.wait.assert_called_once_with(timeout=5)
+        # 3. Error carries the right metadata for the retry path.
+        assert exc_info.value.timeout_seconds == 0.05
+        assert exc_info.value.attempt_number == 1
+
+    @pytest.mark.asyncio
+    async def test_subprocess_kill_failed_on_timeout(self) -> None:
+        """Even SIGKILL hanging surfaces a distinct ``ClaudeTimeoutError``.
+
+        If ``proc.wait(timeout=5)`` itself raises ``TimeoutExpired``,
+        the child didn't respond to SIGKILL — likely a zombie or
+        stuck-in-kernel process. Surface it with a distinct message
+        so operators can spot the difference in the activity log,
+        but keep the same exception type so the proposal engine's
+        ``except StrategyError`` path still treats it as a clean
+        per-strategy skip.
+        """
+        proc = MagicMock(spec=subprocess.Popen)
+        proc.communicate = MagicMock(
+            side_effect=subprocess.TimeoutExpired(cmd=["claude"], timeout=0.05)
+        )
+        proc.returncode = None
+        proc.kill = MagicMock()
+        # SIGKILL fails to reap within 5s.
+        proc.wait = MagicMock(
+            side_effect=subprocess.TimeoutExpired(cmd=["claude"], timeout=5)
+        )
+        proc.pid = 99999
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen", return_value=proc):
+                client = ClaudeCLI(timeout=0.05, max_retries=0)
+                with pytest.raises(ClaudeTimeoutError) as exc_info:
+                    await client.analyze("test")
+
+        proc.kill.assert_called_once()
+        # The error message differentiates SIGKILL-failed from a
+        # normal timeout.
+        assert "SIGKILL" in str(exc_info.value)
+        assert exc_info.value.timeout_seconds == 0.05
+        assert exc_info.value.attempt_number == 1

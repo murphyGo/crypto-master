@@ -12,6 +12,7 @@ import asyncio
 import json
 import re
 import shutil
+import subprocess
 from typing import Any
 
 from src.ai.exceptions import (
@@ -230,6 +231,18 @@ class ClaudeCLI:
         loop can call it with an escalating timeout per attempt
         without re-implementing subprocess teardown for each.
 
+        Phase 16.1: rebuilt on top of the blocking
+        :class:`subprocess.Popen` API (run via :func:`asyncio.to_thread`
+        so we don't block the event loop). The previous
+        :func:`asyncio.create_subprocess_exec` + :func:`asyncio.wait_for`
+        path was observed to wedge in prod — on
+        ``2026-04-28T15:02:15Z`` a chasulang retry timed out at 360s
+        and the engine sat silent for 12+ hours, suggesting the child
+        wasn't actually killed when the wrapper raised. With explicit
+        ``Popen`` + ``proc.kill()`` + ``proc.wait(timeout=5)`` we get
+        a hard SIGKILL on timeout and a separate error if even SIGKILL
+        fails to reap the child.
+
         Args:
             prompt: The prompt text to pass to Claude.
             timeout: Per-attempt timeout in seconds.
@@ -244,59 +257,77 @@ class ClaudeCLI:
 
         Raises:
             ClaudeNotFoundError: If claude executable not found.
-            ClaudeTimeoutError: If this single attempt times out.
+            ClaudeTimeoutError: If this single attempt times out (or if
+                even SIGKILL fails to reap the child within 5s).
             ClaudeExecutionError: If CLI returns non-zero exit code.
         """
-        process = None
+
+        def _run_blocking() -> tuple[str, str, int]:
+            """Spawn Claude, communicate with timeout, hard-kill on hang.
+
+            Returns ``(stdout, stderr, returncode)``. Raises
+            :class:`ClaudeTimeoutError` directly so the caller doesn't
+            need to translate :class:`subprocess.TimeoutExpired`
+            (which would lose the kill-failed vs kill-succeeded
+            distinction). Re-raises :class:`FileNotFoundError`
+            unchanged for the caller to convert.
+            """
+            proc = subprocess.Popen(
+                [self.claude_path, "-p", prompt],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired as timeout_exc:
+                # Hard SIGKILL — Phase 16.1: prior soft-terminate path
+                # was observed to leave the child alive and the engine
+                # wedged. Force-kill, then bounded-wait for reap.
+                proc.kill()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired as kill_failed:
+                    # Even SIGKILL didn't reap the child within 5s —
+                    # this is a different failure mode than a normal
+                    # timeout (likely zombie / kernel-stuck process).
+                    # Surface as a ClaudeTimeoutError but with a
+                    # distinct message so operators can tell them
+                    # apart in logs.
+                    raise ClaudeTimeoutError(
+                        f"Claude CLI timed out after {timeout}s and "
+                        f"did not respond to SIGKILL within 5s "
+                        f"(pid={proc.pid})",
+                        timeout_seconds=timeout,
+                        attempt_number=attempt_number,
+                    ) from kill_failed
+                raise ClaudeTimeoutError(
+                    f"Claude CLI timed out after {timeout} seconds",
+                    timeout_seconds=timeout,
+                    attempt_number=attempt_number,
+                ) from timeout_exc
+            return stdout, stderr, proc.returncode
+
         try:
-            # Create subprocess
-            process = await asyncio.create_subprocess_exec(
-                self.claude_path,
-                "-p",
-                prompt,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            # Wait for completion with timeout
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout,
-            )
-
-            stdout = stdout_bytes.decode("utf-8", errors="replace")
-            stderr = stderr_bytes.decode("utf-8", errors="replace")
-
-            # Check exit code
-            if process.returncode != 0:
-                self._logger.error(
-                    f"Claude CLI failed with exit code {process.returncode}: {stderr}"
-                )
-                raise ClaudeExecutionError(
-                    f"Claude CLI failed with exit code {process.returncode}",
-                    exit_code=process.returncode,
-                    stderr=stderr,
-                )
-
-            self._logger.debug("Claude CLI completed successfully")
-            return stdout, stderr
-
-        except asyncio.TimeoutError as e:
-            # Kill the process if it's still running
-            if process is not None and process.returncode is None:
-                process.kill()
-                await process.wait()
-
-            raise ClaudeTimeoutError(
-                f"Claude CLI timed out after {timeout} seconds",
-                timeout_seconds=timeout,
-                attempt_number=attempt_number,
-            ) from e
-
+            stdout, stderr, returncode = await asyncio.to_thread(_run_blocking)
         except FileNotFoundError as e:
             raise ClaudeNotFoundError(
                 f"Claude CLI not found: '{self.claude_path}'"
             ) from e
+
+        # Check exit code
+        if returncode != 0:
+            self._logger.error(
+                f"Claude CLI failed with exit code {returncode}: {stderr}"
+            )
+            raise ClaudeExecutionError(
+                f"Claude CLI failed with exit code {returncode}",
+                exit_code=returncode,
+                stderr=stderr,
+            )
+
+        self._logger.debug("Claude CLI completed successfully")
+        return stdout, stderr
 
     def _parse_response(self, raw_output: str) -> dict[str, Any]:
         """Parse Claude response to extract JSON.
@@ -310,6 +341,16 @@ class ClaudeCLI:
         3. The raw output as-is (back-compat for prompts that already
            guarantee a clean JSON-only reply).
 
+        Phase 16.1: once the JSON is extracted, normalize the trade
+        fields. Some prompts (chasulang_ict_smc.md) nest the trade
+        decision under a ``trade`` sub-dict alongside structural
+        analysis frames (``external_structure``, ``liquidity_map``,
+        etc.). Other prompts (sample_prompt.md, simple_trend_analysis)
+        use a flat top-level shape. We promote ``trade.*`` keys to
+        the top level so downstream code (``StrategyTechnique`` /
+        ``AnalysisResult`` construction in ``src/strategy/loader.py``)
+        sees a single canonical shape regardless of template.
+
         On total failure, the raw response is logged at WARNING (truncated
         to 1000 chars) so operators can see *what* Claude actually said
         without re-running the cycle.
@@ -318,10 +359,12 @@ class ClaudeCLI:
             raw_output: Raw stdout from Claude CLI.
 
         Returns:
-            Parsed JSON as dictionary.
+            Parsed JSON as dictionary, with ``trade.*`` flattened to
+            top level when present.
 
         Raises:
-            ClaudeParseError: If JSON cannot be extracted or parsed.
+            ClaudeParseError: If JSON cannot be extracted, parsed, or
+                neither shape carries a ``signal`` key.
         """
         if not raw_output or not raw_output.strip():
             raise ClaudeParseError(
@@ -355,7 +398,7 @@ class ClaudeCLI:
                     0,
                 )
                 continue
-            return result
+            return self._normalize_trade_fields(result)
 
         # All candidates failed — log the raw output for diagnostics.
         preview = raw_output.strip()
@@ -369,6 +412,90 @@ class ClaudeCLI:
             f"Failed to parse JSON: {last_error}",
             raw_output=raw_output,
         )
+
+    def _normalize_trade_fields(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Promote nested ``trade.*`` keys to top level (Phase 16.1).
+
+        The chasulang_ict_smc.md template nests the actionable trade
+        under ``response["trade"]`` alongside structural analysis
+        frames; sample_prompt.md / simple_trend_analysis.md use a flat
+        top-level shape. To keep the downstream
+        ``StrategyTechnique.analyze`` consumer in
+        ``src/strategy/loader.py`` single-shape, we promote the
+        nested fields when present.
+
+        Precedence:
+        1. If a ``trade`` sub-dict exists and carries the canonical
+           keys, those win — operationally the structural top-level
+           keys (``external_structure``, ``liquidity_map``, ...) are
+           never themselves the trade decision in the chasulang shape,
+           and the ``trade`` block is the single source of truth.
+        2. Otherwise the top-level value is preserved (back-compat
+           for the simple flat shapes).
+
+        Take-profit handling: when the nested ``trade`` carries
+        both ``take_profit_1`` and ``take_profit_2`` (chasulang's
+        primary + secondary targets), we pick ``take_profit_1`` —
+        the closer, more conservative target. The secondary target
+        is not preserved on the top-level view; downstream code only
+        consumes a single ``take_profit``. If the strategy ever needs
+        the secondary target it should read from
+        ``trade.take_profit_2`` directly (the original ``trade``
+        block is left intact in the result).
+
+        Validation: after normalization, the result must carry a
+        ``signal`` key; if neither the top level nor ``trade`` had
+        one, raise ``ClaudeParseError`` with a message that names
+        both candidate paths so operators can quickly spot which
+        prompt template needs fixing.
+
+        Args:
+            result: Already-parsed JSON object (a dict).
+
+        Returns:
+            Normalized dict with ``trade.*`` flattened to the top
+            level when applicable. The original ``trade`` sub-dict
+            is left in place for callers that want the full nested
+            view.
+        """
+        # Make a shallow copy so we don't mutate the caller's view of
+        # the parsed JSON. Inner dicts are not mutated either way.
+        normalized = dict(result)
+        trade = result.get("trade")
+        if isinstance(trade, dict):
+            # Canonical fields the downstream loader expects. Keep
+            # this list in sync with src/strategy/loader.py's
+            # AnalysisResult construction.
+            for key in (
+                "signal",
+                "entry_price",
+                "stop_loss",
+                "take_profit",
+                "confidence",
+                "reasoning",
+            ):
+                if key in trade:
+                    normalized[key] = trade[key]
+            # take_profit precedence: explicit `take_profit` >
+            # `take_profit_1` (closest target, conservative) >
+            # nothing. We deliberately pick TP1 over TP2 — TP2 is
+            # the stretch target, far more likely to give back open
+            # profit than be hit.
+            if "take_profit" not in trade:
+                if "take_profit_1" in trade:
+                    normalized["take_profit"] = trade["take_profit_1"]
+
+        if "signal" not in normalized:
+            raise ClaudeParseError(
+                "Claude response missing 'signal'. Checked top-level "
+                "'signal' and nested 'trade.signal' — neither was "
+                "present. Either the prompt template needs to declare "
+                "one of these paths, or Claude returned an unexpected "
+                "shape.",
+                raw_output=json.dumps(result),
+            )
+
+        return normalized
 
     def _extract_json_from_markdown(self, text: str) -> str | None:
         """Extract JSON from markdown code block.

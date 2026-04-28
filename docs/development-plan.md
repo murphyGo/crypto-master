@@ -61,6 +61,7 @@
 | Chasulang Timeout Mitigation | ✅ Complete | 14 |
 | SMTP_SSL Alternative | ✅ Complete | 14 |
 | Diagnostic Clarity | ✅ Complete | 15 |
+| chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1406,6 +1407,72 @@ operational concern.
 
 ---
 
+## Phase 16: Chasulang Stability
+
+**Goal**: Address two prod-observed chasulang failures from the
+Phase 15.1 redeploy on 2026-04-28: (a) every successful Claude
+return parses with `KeyError: 'signal'` because the response is
+nested under `trade.*` rather than flat, and (b) the engine
+wedged at `15:02:15` for 12+ hours on a 360s chasulang retry —
+the subprocess never released, so the wrapper's declared
+timeout was a lie. Both render chasulang effectively disabled in
+prod and pose a wedge risk for the engine. No new framework
+abstractions.
+
+### 16.1 chasulang Parse + Wedge Mitigation
+
+**Background**: After 2026-04-28's Phase 15.1 redeploy, fly logs
+showed every chasulang Claude response failing with
+`Invalid Claude response format: 'signal'` (a `KeyError` on
+`response["signal"]`). The actual response from
+`strategies/chasulang_ict_smc.md` returns trade fields nested
+under `trade`: `{"external_structure": ..., "liquidity_map":
+..., "order_blocks": [...], "trade": {"signal": "neutral", ...},
+"wait_conditions": ...}`. Intentional per the chasulang SMC
+methodology — top-level keys are the analysis frame; the
+actionable trade is the synthesis. Parser needs to look in
+`trade.*` first, fall back to top-level for back-compat.
+
+Separately, the engine wedged at `2026-04-28T15:02:15Z` on a
+chasulang retry attempt with `timeout=360.0s` and stayed silent
+for 12+ hours until the operator manually restarted. Likely
+cause: `subprocess.run(..., timeout=...)` under `asyncio.to_thread`
+fires the timeout but the child process doesn't get killed
+cleanly — stdout buffer fills, child blocks on write, parent
+blocks on the timeout exit path. Need explicit kill.
+
+**Related Requirements**: FR-022 (Claude AI Integration —
+extending), NFR-001 (operational reliability).
+
+- [x] `src/ai/claude.py::_parse_response` — accept the nested
+  `trade.*` form. When the response has a `trade` sub-dict,
+  prefer its keys (`signal`, `entry_price`, `stop_loss`,
+  `take_profit`, `confidence`, `reasoning`) over top-level. Keep
+  top-level fallback for back-compat (`sample_prompt.md`,
+  `simple_trend_analysis.md`). When neither form has `signal`,
+  raise a clearer error mentioning both candidate paths.
+- [x] When the nested form carries `take_profit_1` + `take_profit_2`,
+  pick `take_profit_1` (closest target, conservative). Document
+  the choice in a parser comment.
+- [x] Subprocess wedge: harden `_execute_cli_once` so a timeout
+  actually terminates the child. Replace `subprocess.run(...,
+  timeout=...)` with explicit `Popen` + `proc.kill()` +
+  `proc.wait(timeout=5)` on timeout. Drain stdout/stderr via
+  `communicate(timeout=...)` so the process can complete writes.
+- [x] Tests:
+  - `test_parse_response_handles_nested_trade_form` — chasulang
+    shape; `signal` resolved from `trade.signal`.
+  - `test_parse_response_handles_top_level_form` — legacy flat
+    shape still works.
+  - `test_parse_response_picks_take_profit_1_when_tp2_present`.
+  - `test_parse_response_raises_clear_error_when_neither_has_signal` —
+    error mentions both candidate paths.
+  - `test_subprocess_kill_on_timeout` — mock `Popen` to never
+    complete; assert `proc.kill()` was called and
+    `ClaudeTimeoutError` is raised within bounded wall-clock time.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1425,6 +1492,7 @@ operational concern.
 | Phase 13 | FR-015, FR-020, NFR-001, NFR-004, NFR-012 (cleanup + operational polish — DEBT-009/010/011 batch, EngineConfig remaining-fields env override, `BaseExchange.get_ohlcv` `since` param, email notifier; no new FR/NFR introduced) |
 | Phase 14 | FR-015, FR-022, NFR-001 (production reliability — chasulang per-strategy Claude CLI timeout override + retry observability, SMTP_SSL alternative for `EmailNotifier`; no new FR/NFR introduced) |
 | Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
+| Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
 
 ---
 
@@ -1510,3 +1578,5 @@ operational concern.
 | 14.2 | 2026-04-28 | Phase 14.2 complete - SMTP_SSL Alternative (FR-015 extended, NFR-001; resolves DEBT-012 — Phase 13.4 carry). `Settings.email_use_ssl: bool = Field(default=False)` in `src/config.py` (env `EMAIL_USE_SSL=true` activates the SMTP_SSL path; default `False` keeps the Phase 13.4 STARTTLS path bytewise unchanged for every existing deployment — strict back-compat). `EmailNotifier.__init__` (`src/proposal/notification.py`) accepts keyword-only `use_ssl: bool = False` stored as `self._use_ssl`; class docstring expanded to describe both transports (STARTTLS default for Gmail / Mailgun / SendGrid / corporate; SMTP_SSL for Yahoo Mail / AT&T / ProtonMail). Inner `_send` closure branches at send-time: `use_ssl=True` → `smtplib.SMTP_SSL(host, port, timeout=...)` with NO `starttls()` call (channel already encrypted on connect); `use_ssl=False` → existing `smtplib.SMTP(host, port, timeout=...)` + `starttls()`. `with smtp:` socket cleanup, `login`, `send_message` shared by both paths. `src/main.py::build_engine` reads `settings.email_use_ssl` and forwards to `EmailNotifier(use_ssl=...)`. `.env.example` + `docs/deployment.md` document `EMAIL_USE_SSL` with the Yahoo / AT&T / ProtonMail pairing guidance (`EMAIL_USE_SSL=true` + `EMAIL_SMTP_PORT=465`); deployment doc adds a `fly secrets set` example for Yahoo. 7 files modified (src/config.py, src/proposal/notification.py, src/main.py, .env.example, docs/deployment.md, tests/test_proposal_notification.py, plus dev plan). 1158 → 1160 tests (+2 net new — `test_email_notifier_uses_smtp_ssl_when_flag_set` and `test_email_notifier_uses_starttls_when_flag_unset`, each with cross-protection: patches BOTH constructors, raises on the wrong one so a regression where both branches accidentally call the same constructor fails loudly rather than silently passing). ruff/mypy clean (53 files). No new debt. No ADR — extends Phase 13.4's `EmailNotifier` with one config branch; `Notifier` protocol and dispatcher failure-isolation contract unchanged. | Claude |
 | 14.0 | 2026-04-28 | Phase 14 complete - all sub-tasks (14.1, 14.2) checked. Phase 14 cross-check: `docs/cross-checks/2026-04-28-phase-14-production-reliability.md`. | Claude |
 | 15.1 | 2026-04-28 | Phase 15.1 complete - Diagnostic Clarity (NFR-001; closes the 2026-04-28 misdiagnosis where 139 rejected proposals read as "0 trades, must be a bug" instead of "threshold gate working as designed"). Two surgical changes. (1) `src/trading/strategy.py:474` log verb rename: `"Created position: ..."` → `"Sized position candidate: ..."` so the proposal-sizing emit can't be misread as a trade-execution event in `fly logs` greps; same fields and verbosity, only the verb changes. The `PaperTrader.open_position` "Opened paper position" log (`src/trading/paper.py:546`) stays unchanged so the two events are clearly distinct. (2) `src/dashboard/pages/trading.py` extends `TradingSummaryMetrics` (Phase 13.1 TypedDict) with `proposals_rejected_threshold_count: int`; `build_summary_metrics` accepts an optional `proposal_history: ProposalHistory \| None = None` (defaults to `ProposalHistory()` so existing callers don't need to wire it up — backward-compat) and counts records where `decision == "rejected"` and `rejection_reason` matches `^composite \d+\.\d+ below threshold \d+\.\d+$` (the exact format from `RuntimeEngine._auto_decide` at `src/runtime/engine.py:586`); cap-rejected records (Phase 12.1, reason starts with `"symbol "`) are excluded so the metric stays interpretable. New helper `_count_threshold_rejections` wraps `history.list_all()` in `try/except` so a malformed proposals dir warns + returns 0 rather than crashing the page render. Render layout: `st.columns([3, 1])` next to "Active Positions" so an operator seeing 0 active positions immediately sees how many proposals were rejected and why. `render(...)` accepts `proposal_history=` for test injection; defaults to `ProposalHistory()`. 4 files modified (src/trading/strategy.py, src/dashboard/pages/trading.py, tests/test_dashboard_trading.py, plus dev plan). 1160 → 1162 tests (+2 net new — `test_summary_metrics_counts_threshold_rejections` seeds 4 records (accepted / threshold-rejected / cap-rejected / no-reason) and asserts the count surfaces only the threshold-rejected one; `test_summary_metrics_handles_empty_proposal_history` pins backward-compat for an absent proposals dir). Existing `test_summary_metrics_empty_inputs` extended with a `tmp_path: Path` fixture and the new field assertion. AppTest smoke tests updated to inject `ProposalHistory(data_dir=...)` and assert the metric card renders with value `"0"`. ruff/mypy clean. No new debt. No ADR — log-string rename + one new dashboard field is mechanical clarity, not a component-shape decision. | Claude |
+| 16.1 | 2026-04-29 | Phase 16.1 complete - chasulang Parse + Wedge Mitigation (FR-022 extended, NFR-001; closes two prod-observed defects from the 2026-04-28 redeploy: (a) every chasulang Claude response failed with `KeyError: 'signal'` because chasulang_ict_smc.md returns the trade nested under `trade.*` rather than flat top-level, and (b) at `2026-04-28T15:02:15Z` a chasulang retry timed out at 360s and the engine wedged silent for 12+ hours, the prior `asyncio.create_subprocess_exec` + `asyncio.wait_for` path failing to actually kill the child). `src/ai/claude.py::_parse_response` now calls a new `_normalize_trade_fields` helper after JSON extraction; helper promotes nested `trade.*` keys (`signal`, `entry_price`, `stop_loss`, `take_profit`, `confidence`, `reasoning`) to top level when present (non-destructive — original `trade` sub-dict preserved in returned result for callers wanting full nested view, e.g. `take_profit_2`). Take-profit precedence: explicit `trade.take_profit` > `trade.take_profit_1` > nothing — TP1 is the conservative target, deliberately picked over TP2 stretch. When neither top-level nor `trade.signal` carries a signal, raises `ClaudeParseError` with a message naming both candidate paths so operators can spot the failing template fast. `src/ai/claude.py::_execute_cli_once` rebuilt on `subprocess.Popen` run via `asyncio.to_thread` (decades-stable blocking subprocess semantics, event loop unblocked); `proc.communicate(timeout=...)` drives the timeout, `proc.kill()` (SIGKILL — not soft-terminate) + `proc.wait(timeout=5)` on `subprocess.TimeoutExpired` guarantees the child is reaped or surfaces as a distinct error. SIGKILL-itself-fails branch raises a distinct `ClaudeTimeoutError` ("did not respond to SIGKILL within 5s") so operators can spot zombie / kernel-stuck children in logs; same exception type so the proposal engine's `except StrategyError` path still treats it as a clean per-strategy skip. `ClaudeTimeoutError` continues to carry `attempt_number` per Phase 14.1 contract on both branches. `FileNotFoundError` re-raised unchanged. Test mock surface fully migrated from `asyncio.create_subprocess_exec` / `AsyncMock` to `subprocess.Popen` / `MagicMock(spec=Popen)` — `_make_popen_success` / `_make_popen_timeout` helpers factor the new pattern; `TestClaudeCLIRetryOnTimeout` rewired (timeout-escalation test now captures `proc.communicate(timeout=...)` kwarg instead of patching `asyncio.wait_for`). 3 files modified (src/ai/claude.py, tests/test_ai_claude.py, plus dev plan). 1162 → 1170 tests (+8 net new — 6 `TestParseResponseNestedTradeForm`: chasulang nested-form / top-level back-compat / TP1-over-TP2 / explicit-tp-beats-TP1 / clear-error-names-both-paths / top-level-signal-wins-when-trade-lacks-one; 2 `TestSubprocessKillOnTimeout`: kill-called-once + wait(timeout=5) with attempt_number/timeout_seconds preserved on normal timeout, distinct ClaudeTimeoutError when SIGKILL itself hangs). ruff/mypy clean (53 files). No new debt. No ADR — bug fix to existing component, `ClaudeCLI` public contract unchanged (same `analyze` signature, same exception types, same retry semantics, same `attempt_number` propagation from Phase 14.1). | Claude |
+| 16.0 | 2026-04-29 | Phase 16 complete - all sub-tasks (16.1) checked. Phase 16 cross-check: `docs/cross-checks/2026-04-29-phase-16-chasulang-stability.md`. | Claude |
