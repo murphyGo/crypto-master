@@ -22,6 +22,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal, TypedDict
@@ -30,6 +31,7 @@ import pandas as pd
 import streamlit as st
 
 from src.logger import get_logger
+from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.portfolio import AssetSnapshot, PortfolioTracker
 
@@ -37,6 +39,15 @@ logger = get_logger("crypto_master.dashboard.trading")
 
 DashboardMode = Literal["paper", "live"]
 DEFAULT_HISTORY_LIMIT = 25
+
+# Phase 15.1: matches the threshold-gate rejection reason emitted by
+# ``src.runtime.engine.RuntimeEngine._auto_decide`` —
+# ``f"composite {composite:.4f} below threshold {threshold:.4f}"``.
+# The cap-rejection reason (Phase 12.1) starts with "symbol " and is a
+# different cause, so it must not match this pattern.
+_THRESHOLD_REJECTION_PATTERN = re.compile(
+    r"^composite \d+\.\d+ below threshold \d+\.\d+$"
+)
 
 
 class TradingSummaryMetrics(TypedDict):
@@ -53,6 +64,7 @@ class TradingSummaryMetrics(TypedDict):
     unrealized_pnl: float
     latest_equity: float
     latest_snapshot_at: datetime | None
+    proposals_rejected_threshold_count: int
 
 
 # =============================================================================
@@ -185,6 +197,7 @@ def build_equity_curve_dataframe(
 def build_summary_metrics(
     trades: list[TradeHistory],
     snapshots: list[AssetSnapshot],
+    proposal_history: ProposalHistory | None = None,
 ) -> TradingSummaryMetrics:
     """Aggregate key headline numbers for the summary cards.
 
@@ -196,13 +209,18 @@ def build_summary_metrics(
     Args:
         trades: All trades for the selected mode.
         snapshots: All asset snapshots for the selected mode.
+        proposal_history: Source of proposal records used to count
+            threshold-gated rejections (Phase 15.1). Defaults to
+            ``ProposalHistory()`` so callers don't need to wire it up.
+            An empty / missing directory yields a count of ``0``.
 
     Returns:
         Dict with keys: ``open_positions``, ``closed_trades``,
         ``win_rate`` (float in [0, 1]), ``realized_pnl``,
-        ``unrealized_pnl``, ``latest_equity``, ``latest_snapshot_at``.
-        Numeric values are floats so the dashboard can format them
-        with `:.2f` etc; tests assert on the raw numbers.
+        ``unrealized_pnl``, ``latest_equity``, ``latest_snapshot_at``,
+        ``proposals_rejected_threshold_count``. Numeric values are
+        floats so the dashboard can format them with `:.2f` etc;
+        tests assert on the raw numbers.
     """
     open_count = sum(1 for t in trades if t.status == "open")
     closed = [t for t in trades if t.status == "closed"]
@@ -226,6 +244,10 @@ def build_summary_metrics(
         latest_unrealized = 0.0
         latest_at = None
 
+    threshold_rejection_count = _count_threshold_rejections(
+        proposal_history if proposal_history is not None else ProposalHistory()
+    )
+
     return {
         "open_positions": open_count,
         "closed_trades": closed_count,
@@ -234,7 +256,36 @@ def build_summary_metrics(
         "unrealized_pnl": latest_unrealized,
         "latest_equity": latest_equity,
         "latest_snapshot_at": latest_at,
+        "proposals_rejected_threshold_count": threshold_rejection_count,
     }
+
+
+def _count_threshold_rejections(history: ProposalHistory) -> int:
+    """Count proposal records rejected by the composite-threshold gate.
+
+    Phase 15.1: only the threshold-gate pattern from
+    ``RuntimeEngine._auto_decide`` is counted. Cap-rejected records
+    (Phase 12.1, reason starts with ``"symbol "``) are a different
+    cause and are excluded so the metric stays interpretable.
+    """
+    try:
+        records = history.list_all()
+    except Exception:  # pragma: no cover - defensive
+        # Backward-compat: a malformed proposals dir must not crash
+        # the whole Trading page render.
+        logger.warning("Failed to list proposal history; counting 0 rejections")
+        return 0
+
+    count = 0
+    for record in records:
+        if record.decision != "rejected":
+            continue
+        reason = record.rejection_reason
+        if reason is None:
+            continue
+        if _THRESHOLD_REJECTION_PATTERN.match(reason):
+            count += 1
+    return count
 
 
 # =============================================================================
@@ -245,6 +296,7 @@ def build_summary_metrics(
 def render(
     trade_tracker: TradeHistoryTracker | None = None,
     portfolio_tracker: PortfolioTracker | None = None,
+    proposal_history: ProposalHistory | None = None,
 ) -> None:
     """Render the Trading page.
 
@@ -253,6 +305,9 @@ def render(
             ``TradeHistoryTracker()``.
         portfolio_tracker: Override the snapshot source. Defaults to
             ``PortfolioTracker()``.
+        proposal_history: Override the proposal-history source used
+            for the threshold-rejection summary card (Phase 15.1).
+            Defaults to ``ProposalHistory()``.
     """
     st.title("💹 Trading")
     st.caption("Active positions, recent trade history, and equity curve.")
@@ -268,10 +323,11 @@ def render(
     portfolio_t = portfolio_tracker or PortfolioTracker(
         trade_tracker=trades_t,
     )
+    history_t = proposal_history or ProposalHistory()
 
     trades = trades_t.load_trades(mode=mode)
     snapshots = portfolio_t.load_snapshots(mode)
-    metrics = build_summary_metrics(trades, snapshots)
+    metrics = build_summary_metrics(trades, snapshots, history_t)
 
     # ---- Summary cards ----
     st.subheader("Summary")
@@ -296,11 +352,19 @@ def render(
 
     # ---- Active positions ----
     st.subheader("Active Positions")
+    pos_col, rej_col = st.columns([3, 1])
     open_df = build_open_positions_dataframe(trades)
-    if open_df.empty:
-        st.info("No open positions.")
-    else:
-        st.dataframe(open_df, hide_index=True, use_container_width=True)
+    with pos_col:
+        if open_df.empty:
+            st.info("No open positions.")
+        else:
+            st.dataframe(open_df, hide_index=True, use_container_width=True)
+    # Phase 15.1: surfaces *why* the table can be empty —
+    # threshold-gated rejections are working-as-designed, not a bug.
+    rej_col.metric(
+        "Proposals rejected (threshold)",
+        metrics["proposals_rejected_threshold_count"],
+    )
 
     # ---- Recent trade history ----
     st.subheader("Recent Trade History")

@@ -60,6 +60,7 @@
 | Email Notification Backend | ✅ Complete | 13 |
 | Chasulang Timeout Mitigation | ✅ Complete | 14 |
 | SMTP_SSL Alternative | ✅ Complete | 14 |
+| Diagnostic Clarity | ✅ Complete | 15 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1345,6 +1346,66 @@ existing); operational concern.
 
 ---
 
+## Phase 15: Diagnostic Clarity
+
+**Goal**: Surface diagnostic signals that would have prevented the
+2026-04-28 misdiagnosis where 139 rejected proposals showed as "0
+trades on the dashboard, must be a bug" instead of "threshold gate
+working as designed". Two concrete fixes — log message rename for
+the proposal sizing path, and a dashboard rejection-reason summary
+so operators can see *why* the trade table is empty. No new
+framework abstractions.
+
+### 15.1 Diagnostic Clarity (Log + Dashboard)
+
+**Background**: While monitoring the 2026-04-28 Phase 12 redeploy,
+the `crypto_master.trading.strategy` logger emitted lines like
+`Created position: short BTC/USDT @ 76750.0` — which read like a
+trade was opened, but is actually emitted from
+`TradingStrategy.create_position` during proposal sizing
+(`src/trading/strategy.py:473`), called from
+`ProposalEngine._propose_for_symbol` (`src/proposal/engine.py:548`),
+**before** the threshold gate runs. The actual trade-open log lives
+in `PaperTrader.open_position` at `src/trading/paper.py:546`
+(`Opened paper position: ...`) and never fired because every
+proposal was rejected at `auto_approve_threshold = 1.0` while
+composite scores topped out around 0.35. Result: an hour of
+mistaken "trades are happening" reads on logs that turned into
+"why does the dashboard show 0?" — both assumptions wrong.
+The fix is two safe, mechanical changes plus the operator action
+(setting `ENGINE_AUTO_APPROVE_THRESHOLD=0.30` via Fly secrets) that
+unblocks actual execution. The operator action is out-of-scope for
+this sub-task; only the code clarity follow-up is in scope.
+
+**Related Requirements**: NFR-001 (operability / observability);
+operational concern.
+
+- [x] `src/trading/strategy.py` — rename the
+  `Created position: ...` log emit at line ~473 to
+  `Sized position candidate: ...` so it can't be misread as a
+  trade-execution event. Same fields and verbosity; only the verb
+  changes. The existing `PaperTrader` "Opened paper position" log
+  stays unchanged so the two events are clearly distinct in `fly
+  logs` greps.
+- [x] `src/dashboard/pages/trading.py` — extend
+  `build_summary_metrics` (and the `TradingSummaryMetrics` TypedDict
+  from Phase 13.1) with a `proposals_rejected_threshold_count`
+  field. Read from `ProposalHistory.list_all()` and count records
+  with `decision == "rejected"` whose rejection reason matches the
+  threshold-gate pattern (`"composite … below threshold …"`) — the
+  cap-rejected pattern (Phase 12.1) is a different cause. Render as
+  a compact metric card next to "Active Positions" so an operator
+  seeing 0 active positions immediately sees how many proposals
+  were rejected and why.
+- [x] Tests: extend `tests/test_dashboard_trading.py` with a fixture
+  that seeds `ProposalHistory` with one threshold-rejected, one
+  cap-rejected (Phase 12.1 pattern), one accepted, and one neutral;
+  assert the count surfaces only the threshold-rejected one. Also a
+  smoke test that the existing trade renderer still works when the
+  new field is `0`.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1363,6 +1424,7 @@ existing); operational concern.
 | Phase 12 | FR-006, FR-007, FR-008, FR-015, FR-022, NFR-001, NFR-012 (risk hardening + reliability — cross-cycle position cap, residual mypy sweep, LLM timeout retry/fallback, Telegram notifier; no new FR/NFR introduced) |
 | Phase 13 | FR-015, FR-020, NFR-001, NFR-004, NFR-012 (cleanup + operational polish — DEBT-009/010/011 batch, EngineConfig remaining-fields env override, `BaseExchange.get_ohlcv` `since` param, email notifier; no new FR/NFR introduced) |
 | Phase 14 | FR-015, FR-022, NFR-001 (production reliability — chasulang per-strategy Claude CLI timeout override + retry observability, SMTP_SSL alternative for `EmailNotifier`; no new FR/NFR introduced) |
+| Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
 
 ---
 
@@ -1447,3 +1509,4 @@ existing); operational concern.
 | 14.1 | 2026-04-28 | Phase 14.1 complete - Chasulang Timeout Mitigation (FR-022 extended, NFR-001; closes prod-observed `chasulang_ict_smc` 120s timeouts that Phase 12.3's retry didn't eliminate — Fly logs confirmed retry path was firing but 180s still timing out, so per-strategy 240s override is the right fix). `TechniqueInfo` gains `claude_timeout_seconds: int \| None = Field(default=None, ge=1)` in `src/strategy/base.py` — `None` keeps existing strategies on `Settings.claude_cli_timeout_seconds`, integer overrides go straight to `ClaudeCLI`; `ge=1` rejects zero at load time as a config bug. `PromptStrategy.analyze` (`src/strategy/loader.py`) reads `self.info.claude_timeout_seconds`; when set constructs `ClaudeCLI(timeout=float(override))`, when `None` constructs `ClaudeCLI()` so the wrapper resolves Settings lazily. `strategies/chasulang_ict_smc.md` frontmatter gains `claude_timeout_seconds: 240` (240 × 1.5 = 360s worst case with one retry, comfortably above the observed timeout floor on Fly's shared-CPU/1GB machine). `ClaudeTimeoutError` (`src/ai/exceptions.py`) grows `attempt_number: int = 1` on `__init__` (default preserves Phase 12.3 single-shot semantics for unmigrated callers); `_execute_cli_once` (`src/ai/claude.py`) accepts the kwarg and stamps it onto raised errors, while the retry loop forwards `attempt + 1` so the surfacing error carries the final attempt's index. `_log_llm_timeout` (`src/proposal/engine.py`) extends the `LLM_TIMEOUT` event payload with `attempt_number` (from `error.attempt_number`) and `final_timeout_seconds` (alias of `error.timeout_seconds`, intent-revealing for the dashboard) so operators can distinguish "first attempt fails, retry didn't fire" (wiring bug) from "every attempt timed out" (leash too short); legacy `timeout_seconds` key preserved for back-compat. 11 files modified (src/ai/exceptions.py, src/ai/claude.py, src/strategy/base.py, src/strategy/loader.py, src/proposal/engine.py, strategies/chasulang_ict_smc.md, plus 5 test files and dev plan). 1153 → 1158 tests (+5 net new — 2 in test_ai_claude.py covering attempt_number through retry loop, 2 in test_ai_exceptions.py for the new field, 2 in test_strategy_base.py for the schema field + ge=1 rejection, 2 in test_strategy_loader.py pinning `ClaudeCLI(timeout=240.0)` vs `ClaudeCLI()`, 1 in test_proposal_engine.py for the `LLM_TIMEOUT` payload). ruff/mypy clean (53 files). No new debt. No ADR — extends existing per-strategy frontmatter pattern. | Claude |
 | 14.2 | 2026-04-28 | Phase 14.2 complete - SMTP_SSL Alternative (FR-015 extended, NFR-001; resolves DEBT-012 — Phase 13.4 carry). `Settings.email_use_ssl: bool = Field(default=False)` in `src/config.py` (env `EMAIL_USE_SSL=true` activates the SMTP_SSL path; default `False` keeps the Phase 13.4 STARTTLS path bytewise unchanged for every existing deployment — strict back-compat). `EmailNotifier.__init__` (`src/proposal/notification.py`) accepts keyword-only `use_ssl: bool = False` stored as `self._use_ssl`; class docstring expanded to describe both transports (STARTTLS default for Gmail / Mailgun / SendGrid / corporate; SMTP_SSL for Yahoo Mail / AT&T / ProtonMail). Inner `_send` closure branches at send-time: `use_ssl=True` → `smtplib.SMTP_SSL(host, port, timeout=...)` with NO `starttls()` call (channel already encrypted on connect); `use_ssl=False` → existing `smtplib.SMTP(host, port, timeout=...)` + `starttls()`. `with smtp:` socket cleanup, `login`, `send_message` shared by both paths. `src/main.py::build_engine` reads `settings.email_use_ssl` and forwards to `EmailNotifier(use_ssl=...)`. `.env.example` + `docs/deployment.md` document `EMAIL_USE_SSL` with the Yahoo / AT&T / ProtonMail pairing guidance (`EMAIL_USE_SSL=true` + `EMAIL_SMTP_PORT=465`); deployment doc adds a `fly secrets set` example for Yahoo. 7 files modified (src/config.py, src/proposal/notification.py, src/main.py, .env.example, docs/deployment.md, tests/test_proposal_notification.py, plus dev plan). 1158 → 1160 tests (+2 net new — `test_email_notifier_uses_smtp_ssl_when_flag_set` and `test_email_notifier_uses_starttls_when_flag_unset`, each with cross-protection: patches BOTH constructors, raises on the wrong one so a regression where both branches accidentally call the same constructor fails loudly rather than silently passing). ruff/mypy clean (53 files). No new debt. No ADR — extends Phase 13.4's `EmailNotifier` with one config branch; `Notifier` protocol and dispatcher failure-isolation contract unchanged. | Claude |
 | 14.0 | 2026-04-28 | Phase 14 complete - all sub-tasks (14.1, 14.2) checked. Phase 14 cross-check: `docs/cross-checks/2026-04-28-phase-14-production-reliability.md`. | Claude |
+| 15.1 | 2026-04-28 | Phase 15.1 complete - Diagnostic Clarity (NFR-001; closes the 2026-04-28 misdiagnosis where 139 rejected proposals read as "0 trades, must be a bug" instead of "threshold gate working as designed"). Two surgical changes. (1) `src/trading/strategy.py:474` log verb rename: `"Created position: ..."` → `"Sized position candidate: ..."` so the proposal-sizing emit can't be misread as a trade-execution event in `fly logs` greps; same fields and verbosity, only the verb changes. The `PaperTrader.open_position` "Opened paper position" log (`src/trading/paper.py:546`) stays unchanged so the two events are clearly distinct. (2) `src/dashboard/pages/trading.py` extends `TradingSummaryMetrics` (Phase 13.1 TypedDict) with `proposals_rejected_threshold_count: int`; `build_summary_metrics` accepts an optional `proposal_history: ProposalHistory \| None = None` (defaults to `ProposalHistory()` so existing callers don't need to wire it up — backward-compat) and counts records where `decision == "rejected"` and `rejection_reason` matches `^composite \d+\.\d+ below threshold \d+\.\d+$` (the exact format from `RuntimeEngine._auto_decide` at `src/runtime/engine.py:586`); cap-rejected records (Phase 12.1, reason starts with `"symbol "`) are excluded so the metric stays interpretable. New helper `_count_threshold_rejections` wraps `history.list_all()` in `try/except` so a malformed proposals dir warns + returns 0 rather than crashing the page render. Render layout: `st.columns([3, 1])` next to "Active Positions" so an operator seeing 0 active positions immediately sees how many proposals were rejected and why. `render(...)` accepts `proposal_history=` for test injection; defaults to `ProposalHistory()`. 4 files modified (src/trading/strategy.py, src/dashboard/pages/trading.py, tests/test_dashboard_trading.py, plus dev plan). 1160 → 1162 tests (+2 net new — `test_summary_metrics_counts_threshold_rejections` seeds 4 records (accepted / threshold-rejected / cap-rejected / no-reason) and asserts the count surfaces only the threshold-rejected one; `test_summary_metrics_handles_empty_proposal_history` pins backward-compat for an absent proposals dir). Existing `test_summary_metrics_empty_inputs` extended with a `tmp_path: Path` fixture and the new field assertion. AppTest smoke tests updated to inject `ProposalHistory(data_dir=...)` and assert the metric card renders with value `"0"`. ruff/mypy clean. No new debt. No ADR — log-string rename + one new dashboard field is mechanical clarity, not a component-shape decision. | Claude |

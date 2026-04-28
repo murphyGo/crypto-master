@@ -471,7 +471,7 @@ class TradingStrategy:
         )
 
         logger.info(
-            f"Created position: {position.side} {symbol} @ {position.entry_price}, "
+            f"Sized position candidate: {position.side} {symbol} @ {position.entry_price}, "
             f"qty={position.quantity:.8f}, leverage={leverage}x, "
             f"SL={position.stop_loss}, TP={position.take_profit}"
         )

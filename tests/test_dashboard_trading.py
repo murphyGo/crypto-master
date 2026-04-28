@@ -15,6 +15,12 @@ from src.dashboard.pages.trading import (
     build_summary_metrics,
     build_trade_history_dataframe,
 )
+from src.proposal.engine import Proposal, ProposalScore
+from src.proposal.interaction import (
+    ProposalDecision,
+    ProposalHistory,
+    ProposalRecord,
+)
 from src.strategy.performance import TradeHistory
 from src.trading.portfolio import AssetSnapshot
 
@@ -75,6 +81,34 @@ def make_snapshot(
         balances={quote_currency: Decimal(quote_balance)},
         realized_pnl=Decimal(realized_pnl),
         unrealized_pnl=Decimal(unrealized_pnl),
+    )
+
+
+def _make_proposal(proposal_id: str) -> Proposal:
+    """Build a minimal valid Proposal for ProposalHistory fixtures."""
+    return Proposal(
+        proposal_id=proposal_id,
+        symbol="BTC/USDT",
+        timeframe="1h",
+        technique_name="tech_a",
+        technique_version="1.0.0",
+        signal="long",
+        entry_price=Decimal("50000"),
+        stop_loss=Decimal("49500"),
+        take_profit=Decimal("51500"),
+        quantity=Decimal("0.1"),
+        leverage=1,
+        risk_reward_ratio=3.0,
+        score=ProposalScore(
+            confidence=0.8,
+            win_rate=0.6,
+            sample_size=25,
+            expected_value=2.0,
+            sample_factor=1.0,
+            edge_factor=2.0,
+            composite=0.45,
+        ),
+        reasoning="test",
     )
 
 
@@ -244,8 +278,8 @@ def test_equity_curve_empty_returns_empty_frame_with_columns() -> None:
 # =============================================================================
 
 
-def test_summary_metrics_empty_inputs() -> None:
-    metrics = build_summary_metrics([], [])
+def test_summary_metrics_empty_inputs(tmp_path: Path) -> None:
+    metrics = build_summary_metrics([], [], ProposalHistory(data_dir=tmp_path))
 
     assert metrics["open_positions"] == 0
     assert metrics["closed_trades"] == 0
@@ -254,6 +288,7 @@ def test_summary_metrics_empty_inputs() -> None:
     assert metrics["unrealized_pnl"] == 0.0
     assert metrics["latest_equity"] == 0.0
     assert metrics["latest_snapshot_at"] is None
+    assert metrics["proposals_rejected_threshold_count"] == 0
 
 
 def test_summary_metrics_counts_open_and_closed() -> None:
@@ -318,6 +353,57 @@ def test_summary_metrics_realized_pnl_sums_closed_only() -> None:
     assert metrics["realized_pnl"] == pytest.approx(75.0)
 
 
+def test_summary_metrics_counts_threshold_rejections(tmp_path: Path) -> None:
+    """Phase 15.1: only the threshold-gate rejection pattern is counted.
+
+    Cap-rejected proposals (Phase 12.1, reason starts ``"symbol "``)
+    must not be counted, and accepted/pending records contribute zero.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+
+    accepted = ProposalRecord(
+        proposal=_make_proposal("p-accepted"),
+        decision=ProposalDecision.ACCEPTED,
+        decision_at=datetime(2026, 1, 1, 10, 0, 0),
+    )
+    threshold_rejected = ProposalRecord(
+        proposal=_make_proposal("p-threshold"),
+        decision=ProposalDecision.REJECTED,
+        decision_at=datetime(2026, 1, 1, 11, 0, 0),
+        rejection_reason="composite 0.4500 below threshold 1.0000",
+    )
+    cap_rejected = ProposalRecord(
+        proposal=_make_proposal("p-cap"),
+        decision=ProposalDecision.REJECTED,
+        decision_at=datetime(2026, 1, 1, 12, 0, 0),
+        rejection_reason="symbol BTC/USDT cap 1 reached (1 open)",
+    )
+    no_reason = ProposalRecord(
+        proposal=_make_proposal("p-no-reason"),
+        decision=ProposalDecision.REJECTED,
+        decision_at=datetime(2026, 1, 1, 13, 0, 0),
+        rejection_reason=None,
+    )
+    for record in (accepted, threshold_rejected, cap_rejected, no_reason):
+        history.save(record)
+
+    metrics = build_summary_metrics([], [], history)
+
+    assert metrics["proposals_rejected_threshold_count"] == 1
+
+
+def test_summary_metrics_handles_empty_proposal_history(tmp_path: Path) -> None:
+    """Backward-compat: empty proposals dir → count 0, no exception."""
+    history = ProposalHistory(data_dir=tmp_path / "never_created")
+
+    metrics = build_summary_metrics([], [], history)
+
+    assert metrics["proposals_rejected_threshold_count"] == 0
+    # Existing fields still computed correctly.
+    assert metrics["open_positions"] == 0
+    assert metrics["closed_trades"] == 0
+
+
 def test_summary_metrics_uses_latest_snapshot() -> None:
     snapshots = [
         make_snapshot(
@@ -359,6 +445,7 @@ import sys
 sys.path.insert(0, {str(Path.cwd())!r})
 from pathlib import Path
 from src.dashboard.pages.trading import render
+from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistoryTracker
 from src.trading.portfolio import PortfolioTracker
 
@@ -367,8 +454,9 @@ pt = PortfolioTracker(
     data_dir=Path({str(tmp_path / "portfolio")!r}),
     trade_tracker=tt,
 )
+ph = ProposalHistory(data_dir=Path({str(tmp_path / "proposals")!r}))
 
-render(trade_tracker=tt, portfolio_tracker=pt)
+render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph)
 """
     at = AppTest.from_string(script).run(timeout=10)
 
@@ -377,6 +465,13 @@ render(trade_tracker=tt, portfolio_tracker=pt)
     assert "No open positions" in info_text
     assert "No trade history" in info_text
     assert "No equity history" in info_text
+    # Phase 15.1: the threshold-rejection metric card must render.
+    metric_labels = [m.label for m in at.metric]
+    assert "Proposals rejected (threshold)" in metric_labels
+    rej_metric = next(
+        m for m in at.metric if m.label == "Proposals rejected (threshold)"
+    )
+    assert rej_metric.value == "0"
 
 
 def test_trading_page_renders_summary_with_data(tmp_path: Path) -> None:
@@ -391,6 +486,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from src.dashboard.pages.trading import render
+from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistoryTracker, TradeHistory
 from src.trading.portfolio import PortfolioTracker, AssetSnapshot
 
@@ -427,7 +523,8 @@ snap = AssetSnapshot(
 # Use the public save path used elsewhere in the codebase.
 pt._save_snapshots("paper", [snap])
 
-render(trade_tracker=tt, portfolio_tracker=pt)
+ph = ProposalHistory(data_dir=Path({str(tmp_path / "proposals")!r}))
+render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph)
 """
     at = AppTest.from_string(script).run(timeout=15)
 
