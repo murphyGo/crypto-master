@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -436,6 +436,156 @@ async def test_run_forever_exits_when_stop_called(tmp_path: Path) -> None:
     # Engine exited; SHUTDOWN was logged.
     shutdowns = mocks["activity_log"].filter(event_type=ActivityEventType.SHUTDOWN)
     assert len(shutdowns) == 1
+
+
+# =============================================================================
+# Phase 12.1: Cross-Cycle Position Cap
+# =============================================================================
+
+
+def test_cap_default_is_one() -> None:
+    """EngineConfig defaults to a per-symbol cap of 1."""
+    config = EngineConfig()
+
+    assert config.max_open_positions_per_symbol == 1
+
+
+def test_cap_respects_env_via_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL flows into build_engine's config."""
+    monkeypatch.setenv("ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL", "3")
+
+    from src.config import reload_settings
+    from src.main import build_engine
+
+    settings = reload_settings()
+    assert settings.engine_max_open_positions_per_symbol == 3
+
+    # ``build_engine`` constructs an exchange-dependent stack; we only
+    # care that the cap field is wired through, so stub out the heavy
+    # downstream constructors.
+    fake_exchange = MagicMock(spec=BaseExchange)
+    fake_exchange.name = "fake"
+    fake_exchange.testnet = True
+    with (
+        patch("src.main.load_all_strategies", return_value=[]),
+        patch("src.main.build_trader", return_value=MagicMock()),
+    ):
+        engine = build_engine(settings, fake_exchange)
+
+    assert engine.config.max_open_positions_per_symbol == 3
+    # Restore the singleton to defaults so other tests don't see the env value.
+    monkeypatch.delenv("ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL", raising=False)
+    reload_settings()
+
+
+async def test_proposal_rejected_when_symbol_cap_reached(tmp_path: Path) -> None:
+    """Cap reached across cycles: accepted proposal is blocked at the gate."""
+    # Trader already holds an open BNB short from a prior cycle.
+    existing_trade = make_trade(
+        trade_id="t-bnb-existing",
+        symbol="BNB/USDT",
+        side="short",
+    )
+    proposal = make_proposal(
+        proposal_id="bnb-2",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[existing_trade],
+    )
+
+    result = await engine.run_cycle()
+
+    # Composite gate accepted; cap layer rejected.
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+
+    # Activity log carries a PROPOSAL_REJECTED event with the cap reason.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    rejection = rejections[0]
+    reason = rejection.details["reason"]
+    assert "BNB/USDT" in reason
+    assert "cap 1 reached" in reason
+    assert rejection.details["open_count"] == 1
+    assert rejection.details["cap"] == 1
+
+
+async def test_proposal_executes_when_cap_not_reached(tmp_path: Path) -> None:
+    """No existing open trade on the symbol: proposal executes normally."""
+    proposal = make_proposal(
+        proposal_id="bnb-1",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[],
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 0
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_called_once()
+    # No PROPOSAL_REJECTED in the log for this cycle.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 0
+
+
+async def test_cap_counts_only_matching_symbol(tmp_path: Path) -> None:
+    """Open trades on other symbols don't count against this symbol's cap."""
+    other_trade = make_trade(
+        trade_id="t-eth-existing",
+        symbol="ETH/USDT",
+        side="long",
+    )
+    proposal = make_proposal(
+        proposal_id="bnb-1",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[other_trade],
+    )
+
+    result = await engine.run_cycle()
+
+    # ETH open trade does NOT block a BNB proposal.
+    assert result.proposals_accepted == 1
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_called_once()
 
 
 async def test_interruptible_sleep_wakes_on_stop(tmp_path: Path) -> None:

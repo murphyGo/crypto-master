@@ -91,6 +91,13 @@ class EngineConfig(BaseModel):
     altcoin_top_k: int = Field(default=3, ge=1)
     balance: Decimal = Decimal("10000")
     actor: str = "auto-engine"
+    # Phase 12.1 cross-cycle position cap. Prevents accumulation of
+    # multiple open positions on the same symbol across consecutive
+    # cycles (Phase 10.6's ``_dedup_by_symbol`` only de-dupes within
+    # a single cycle). Hard cap at the execution gate; proposal
+    # generation continues unchanged so the audit record is still
+    # written.
+    max_open_positions_per_symbol: int = Field(default=1, ge=1)
 
 
 # =============================================================================
@@ -378,6 +385,37 @@ class TradingEngine:
                 details=_proposal_summary(proposal),
                 cycle_id=cycle_id,
             )
+
+            # Phase 12.1: cross-cycle position cap. The composite
+            # gate has accepted this proposal, but we may already be
+            # at the per-symbol cap from previous cycles' open trades.
+            # Block execution here and record a second rejection
+            # reason on top of the existing composite-threshold one.
+            cap = self.config.max_open_positions_per_symbol
+            existing = sum(
+                1
+                for trade in self.trader.get_open_trades()
+                if trade.symbol == proposal.symbol
+            )
+            if existing >= cap:
+                reason = (
+                    f"symbol {proposal.symbol} cap {cap} reached "
+                    f"({existing} open)"
+                )
+                result.proposals_rejected += 1
+                self.activity_log.append(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Cap-rejected {proposal.symbol} {proposal.signal}",
+                    details={
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "open_count": existing,
+                        "cap": cap,
+                    },
+                    cycle_id=cycle_id,
+                )
+                return
+
             await self._execute(proposal, cycle_id, result)
         else:
             result.proposals_rejected += 1

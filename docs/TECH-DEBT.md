@@ -226,6 +226,33 @@ QA flagged that `scripts/lint.sh:6` uses `ruff check src tests --fix`. The `--fi
 - Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
 - QA verdict: 🟡 minor on Phase 11.1.
 
+### DEBT-010: Long+Short Same-Symbol Test Gap
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 12.1 |
+| **Component** | `tests/test_runtime_engine.py` |
+
+**Description:**
+Phase 12.1 shipped the cross-cycle position cap (`EngineConfig.max_open_positions_per_symbol`, default 1). Quant's review verbatim: the cap correctly blocks the long+short same-symbol case (cap counts trades regardless of side, which is the safe behaviour preventing accidental synthetic hedge), but the test suite does not explicitly cover that path.
+
+The 5 tests added in Phase 12.1 cover default value, env wiring, cap-hit rejection, cap-not-reached execution, and other-symbol-doesn't-block. The long+short same-symbol path is a separate invariant (cap counts both sides toward the same denominator) that the current tests do not pin down.
+
+**Impact:**
+- Implementation is correct — long+short on the same symbol both count toward the cap, which is the safe behaviour (prevents an accidental synthetic hedge from a long arriving while a short is still open, or vice versa).
+- Absence of an explicit test means a future refactor that splits the count by side could regress the protection without anything failing red. The cap would still pass its other tests but quietly let through the synthetic-hedge case.
+- Risk envelope is unaffected today; the gap is purely defensive against future regression.
+
+**Suggested Resolution:**
+- Add `test_cap_blocks_opposite_side_same_symbol` in a follow-up cycle. Setup: existing open long position on `BTCUSDT`; proposal arrives for short on `BTCUSDT` with cap=1. Assert: cap-hit rejection fires (composite-accept passed but cap blocks; `proposals_rejected` increments; `PROPOSAL_REJECTED` logged with the symbol-cap reason; no `trader.open_position` call).
+- Mirror the existing cap-hit test's shape; only difference is the side of the existing position vs the proposal's side.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-12.1-cross-cycle-position-cap.md`
+- Quant verdict: 🟡 ship with note on Phase 12.1.
+
 ---
 
 ## Resolved Debt Items
@@ -267,11 +294,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 7 |
+| Total Active | 8 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 7 |
+| Low | 8 |
 | Resolved (All Time) | 2 |
 
 ---
@@ -292,3 +319,4 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Added | DEBT-008 `src/main.py:220` lambda annotation (Low) — surfaced during Phase 11.1 |
 | 2026-04-28 | Added | DEBT-009 `scripts/lint.sh --fix` unsafe for CI (Low) — surfaced during Phase 11.1 |
 | 2026-04-28 | Resolved | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan — Phase 11.2 added per-call (symbol, tf) cache |
+| 2026-04-28 | Added | DEBT-010 Long+Short Same-Symbol Test Gap (Low) — surfaced during Phase 12.1 |

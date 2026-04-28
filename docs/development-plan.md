@@ -50,7 +50,7 @@
 | OHLCV Cache for Multi-Technique Scan | ✅ Complete | 11 |
 | Notification Push Backend | ✅ Complete | 11 |
 | ProposalHistory.purge_old Wiring | ✅ Complete | 11 |
-| Cross-Cycle Position Cap | ❌ Missing | 12 |
+| Cross-Cycle Position Cap | ✅ Complete | 12 |
 | Residual mypy Sweep | ❌ Missing | 12 |
 | LLM Strategy Timeout Handling | ❌ Missing | 12 |
 | Telegram Notification Backend | ❌ Missing | 12 |
@@ -1005,22 +1005,22 @@ is independent of Phase 10.6's per-cycle dedup which stays in place.
 risk/leverage/sizing — extending the existing contract; no new FR
 introduced).
 
-- [ ] Add `max_open_positions_per_symbol: int = 1` field to
+- [x] Add `max_open_positions_per_symbol: int = 1` field to
   `EngineConfig` — env-overridable as
   `ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL` via `Settings.engine_*` (10.2
   pattern).
-- [ ] In `TradingEngine._handle_proposal` (or earlier in `_scan`
+- [x] In `TradingEngine._handle_proposal` (or earlier in `_scan`
   filtering), check `trader.get_open_trades()` for any open position
   on the proposal's symbol; if count ≥ cap, log `proposal_rejected`
   with reason "symbol cap N reached" and skip execution.
-- [ ] Hard cap at the engine layer, NOT at the proposal-engine layer
+- [x] Hard cap at the engine layer, NOT at the proposal-engine layer
   — proposal generation continues unchanged; cap operates at the
   execution gate. Rationale: the proposal still gets recorded for
   audit; only execution is blocked.
-- [ ] Activity log records the cap rejection so the dashboard
+- [x] Activity log records the cap rejection so the dashboard
   timeline surfaces it (re-uses the existing `proposal_rejected`
   event shape).
-- [ ] Tests: extend `tests/test_runtime_engine.py` — proposal
+- [x] Tests: extend `tests/test_runtime_engine.py` — proposal
   accepted but symbol already has cap-reached open positions →
   execution is skipped, activity log records the cap rejection, no
   `trader.open_position` call.
@@ -1202,3 +1202,4 @@ existing); NFR-012 (live trading awareness redundancy).
 | 11.3 | 2026-04-28 | Phase 11.3 complete - Notification Push Backend (FR-015, NFR-012); `SlackNotifier` in `src/proposal/notification.py` posts to incoming webhook via `urllib.request.urlopen` + `asyncio.to_thread` (no new dep) implementing the existing `Notifier` protocol. `Settings.slack_webhook_url: Optional[str] = None` (non-breaking; notifier silent / not registered when unset). `src/main.py::build_engine` appends `SlackNotifier()` to the dispatcher's notifier list when URL set; logs presence not URL. Payload: `text` line summary `{symbol} {side} score={c:.2f} entry={p}` + 2 mrkdwn blocks (bolded summary + code-fenced detail w/ proposal_id, technique, SL, TP, qty, leverage, rr). `__repr__` redacts URL. `send` deliberately does NOT swallow `HTTPError` — dispatcher's existing try/except handles failure isolation per Phase 6.3 contract. `.env.example` + `docs/deployment.md` document `SLACK_WEBHOOK_URL` + incoming-webhook setup. 9 new tests across 2 test files (1087 → 1096) — incl. exact-string spec match, failure-isolation, build_engine both-branches, `__repr__` redaction. ruff clean; mypy zero new errors (14 mypy errors all pre-existing in untouched modules per 11.1 carry). No new debt. | Claude |
 | 11.4 | 2026-04-28 | Phase 11.4 complete - ProposalHistory.purge_old Wiring (NFR-008); `src/main.py::_purge_old_proposals` helper (extracted for testability) called from `run()` between `build_engine` and signal-handler installation; logs INFO only when records were archived (silent on empty so daily restarts don't generate noise). New `src/tools/purge_proposals.py` operator CLI with `argparse --retention-months` override; reads `Settings`; prints informative summary on both "purged N" and "nothing to purge" branches; exit 0 in both. New `src/tools/__init__.py` package marker (operator tooling that imports only project code lives under `src/tools/`; `scripts/` reserved for tools that talk to external services). `docs/deployment.md` got a new "Operator Tools" section. 8 new tests (1096 → 1104) — `TestPurgeOldProposalsHook` (4: forwarding / count / silent-on-empty `caplog` / build-engine→hook smoke against real `ProposalHistory`) + `tests/test_tools_purge_proposals.py` (4: Settings-default / flag override / end-to-end Jan-2024-archives-fresh-stays / empty-print). ruff clean; mypy zero new errors (DEBT-008 lambda error shifted line 232 → 271, same code). No new debt. | Claude |
 | 11.0 | 2026-04-28 | Phase 11 complete - all sub-tasks (11.1, 11.2, 11.3, 11.4) checked. Phase 11 cross-check: `docs/cross-checks/2026-04-28-phase-11-operational-hardening.md`. | Claude |
+| 12.1 | 2026-04-28 | Phase 12.1 complete - Cross-Cycle Position Cap (FR-006, FR-007, FR-008; REAL-MONEY risk closure); `EngineConfig.max_open_positions_per_symbol: int = Field(default=1, ge=1)` env-overridable as `ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL` via `Settings.engine_max_open_positions_per_symbol` (Phase 10.2 pattern). `TradingEngine._handle_proposal` checks `trader.get_open_trades()` filtered by symbol *after* the composite-accept gate; on count ≥ cap increments `proposals_rejected`, logs `PROPOSAL_REJECTED` with reason `"symbol X cap N reached (M open)"` + structured `cap` / `open_count` event details, skips `_execute`. Phase 10.6 within-cycle dedup untouched (orthogonal: within-cycle vs across-cycle). Backward-compatible: cap=1 = pre-12.1 effective behaviour. Closes the 2026-04-28 Fly redeploy real-money concern (two BNB shorts in 14 min — 4× cycle = 4× position concentration). 5 new tests in `tests/test_runtime_engine.py` (default value / env wiring / cap-hit rejection / cap-not-reached execution / other-symbol-doesn't-block). 1104 → 1109 tests. ruff clean; mypy zero new errors (14 pre-existing in entry-point chain land in 12.2). One test gap recorded as DEBT-010 (Low): long+short same-symbol — implementation correct (counts both sides, prevents synthetic hedge) but suite doesn't explicitly cover. | Claude |

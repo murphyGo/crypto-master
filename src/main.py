@@ -171,6 +171,9 @@ def build_engine(
         auto_approve_threshold=settings.engine_auto_approve_threshold,
         altcoin_symbols=settings.engine_symbols,
         balance=settings.engine_balance,
+        max_open_positions_per_symbol=(
+            settings.engine_max_open_positions_per_symbol
+        ),
     )
 
     strategies = load_all_strategies()

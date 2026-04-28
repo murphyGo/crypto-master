@@ -81,7 +81,8 @@ fly secrets set \
     ENGINE_CYCLE_INTERVAL=300                              \
     ENGINE_AUTO_APPROVE_THRESHOLD=1.0                      \
     ENGINE_SYMBOLS=ETH/USDT,SOL/USDT,BNB/USDT,ADA/USDT,AVAX/USDT \
-    ENGINE_BALANCE=10000
+    ENGINE_BALANCE=10000                                   \
+    ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL=1
 #
 #    - ENGINE_CYCLE_INTERVAL (int seconds, ge=10): time between cycles.
 #    - ENGINE_AUTO_APPROVE_THRESHOLD (float, ge=0.0): composite-score
@@ -91,6 +92,15 @@ fly secrets set \
 #    - ENGINE_BALANCE (Decimal): notional balance used for proposal
 #      sizing. Independent of PAPER_INITIAL_BALANCE (which the
 #      PaperTrader uses for its virtual wallet).
+#    - ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL (int, ge=1): HARD cap on
+#      open positions per symbol applied at the engine execution
+#      gate (Phase 12.1). Prevents accumulation of multiple positions
+#      on the same pair across cycles — Phase 10.6's per-cycle dedup
+#      doesn't catch the cross-cycle case. Default 1 is the
+#      recommended live-trading value; raise only for intentional
+#      pyramiding. Cap-rejected proposals are still recorded as
+#      PROPOSAL_REJECTED in the activity log with a
+#      "symbol <pair> cap <N> reached" reason.
 ```
 
 ## Deploy

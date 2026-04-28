@@ -145,6 +145,11 @@ class Settings(BaseSettings):
         ]
     )
     engine_balance: Decimal = Field(default=Decimal("10000"))
+    # Phase 12.1 cross-cycle position cap. Hard cap on open positions
+    # per symbol applied at the engine execution gate. Default 1
+    # matches pre-12.1 implicit behaviour for the per-cycle dedup;
+    # raise only if you want intentional pyramiding.
+    engine_max_open_positions_per_symbol: int = Field(default=1, ge=1)
 
     # Log Retention (Phase 10.4)
     # ``JsonlRotator`` keeps the active month + this many archive
