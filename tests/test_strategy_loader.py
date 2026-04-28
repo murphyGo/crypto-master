@@ -207,6 +207,59 @@ class TestPromptStrategy:
         # Settings default itself.
         cli_ctor.assert_called_once_with()
 
+    async def test_analyze_handles_neutral_with_none_prices(self) -> None:
+        """Hotfix: chasulang_ict_smc-style neutral signals carry None
+        for entry_price/stop_loss/take_profit. AnalysisResult's gt=0
+        validators would reject those, so the parser substitutes
+        a small placeholder. The engine drops neutral analyses
+        upstream so the placeholder is never read by pricing logic.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+        from unittest.mock import AsyncMock, patch
+
+        from src.models import OHLCV
+
+        info = TechniqueInfo(
+            name="chasulang_neutral",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+        )
+        strategy = PromptStrategy(
+            info=info,
+            prompt_content="Analyze {symbol} on {timeframe}: {ohlcv_data}",
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime.now(),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+            for _ in range(25)
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.analyze.return_value = {
+            "signal": "neutral",
+            "confidence": 0.42,
+            "entry_price": None,
+            "stop_loss": None,
+            "take_profit": None,
+            "reasoning": "no setup",
+        }
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client):
+            result = await strategy.analyze(ohlcv, "BTC/USDT")
+
+        assert result.signal == "neutral"
+        assert result.entry_price > 0  # placeholder, just needs to satisfy gt=0
+        assert result.stop_loss > 0
+        assert result.take_profit > 0
+
     def test_format_prompt_substitutes_known_placeholders(
         self, technique_info: TechniqueInfo
     ) -> None:

@@ -9,6 +9,7 @@ Related Requirements:
 - NFR-010: Analysis Technique Extensibility
 """
 
+import decimal
 import importlib.util
 import re
 from decimal import Decimal
@@ -243,17 +244,45 @@ class PromptStrategy(BaseStrategy):
                 strategy_name=self.name,
             ) from e
 
-        # Validate and convert response to AnalysisResult
+        # Validate and convert response to AnalysisResult. Neutral
+        # signals from chasulang_ict_smc-style templates carry None
+        # for the price fields (no actionable setup). AnalysisResult's
+        # entry_price/stop_loss/take_profit have gt=0 validators, so
+        # we substitute a small placeholder when the price is None for
+        # a neutral signal — the engine drops neutral analyses at
+        # ProposalEngine._build_proposal_for_strategy before any
+        # pricing logic touches them, so the placeholder is never used.
         try:
+            signal = response["signal"]
+            confidence = float(response["confidence"])
+            entry_raw = response.get("entry_price")
+            stop_raw = response.get("stop_loss")
+            tp_raw = response.get("take_profit")
+            placeholder = Decimal("0.00000001")
+            entry_price = (
+                placeholder
+                if entry_raw is None and signal == "neutral"
+                else Decimal(str(entry_raw))
+            )
+            stop_loss = (
+                placeholder
+                if stop_raw is None and signal == "neutral"
+                else Decimal(str(stop_raw))
+            )
+            take_profit = (
+                placeholder
+                if tp_raw is None and signal == "neutral"
+                else Decimal(str(tp_raw))
+            )
             return AnalysisResult(
-                signal=response["signal"],
-                confidence=float(response["confidence"]),
-                entry_price=Decimal(str(response["entry_price"])),
-                stop_loss=Decimal(str(response["stop_loss"])),
-                take_profit=Decimal(str(response["take_profit"])),
+                signal=signal,
+                confidence=confidence,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
                 reasoning=response.get("reasoning", ""),
             )
-        except (KeyError, ValueError, TypeError) as e:
+        except (KeyError, ValueError, TypeError, decimal.InvalidOperation) as e:
             raise StrategyExecutionError(
                 f"Invalid Claude response format: {e}. Response: {response}",
                 strategy_name=self.name,
