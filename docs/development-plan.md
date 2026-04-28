@@ -41,7 +41,7 @@
 | Multi-Timeframe Backtester | ✅ Complete | 9 |
 | Per-Timeframe RSI Baselines | ✅ Complete | 9 |
 | Live Trading Wiring | ✅ Complete | 10 |
-| EngineConfig Env Override | ❌ Missing | 10 |
+| EngineConfig Env Override | ✅ Complete | 10 |
 | Baseline Reference Numbers | ❌ Missing | 10 |
 | Log Retention Policy | ❌ Missing | 10 |
 | Volume-Aware Default Paths | ✅ Complete | 10 |
@@ -668,18 +668,18 @@ cross-check tracked this as a documented small follow-up.
 
 **Related Requirements**: NFR-004 (env-driven config); operational concern.
 
-- [ ] Add `engine_*` fields to `Settings` (`engine_cycle_interval`,
+- [x] Add `engine_*` fields to `Settings` (`engine_cycle_interval`,
   `engine_auto_approve_threshold`, `engine_symbols`,
   `engine_balance`).
-- [ ] `src/main.py` builds `EngineConfig` from `Settings`, not from
+- [x] `src/main.py` builds `EngineConfig` from `Settings`, not from
   literals.
-- [ ] `.env.example` documents each new env var with sensible
+- [x] `.env.example` documents each new env var with sensible
   defaults that match today's hardcoded values (so existing
   deployments don't change behaviour without an explicit env
   setting).
-- [ ] `docs/deployment.md` lists the new env vars in the Fly secrets
+- [x] `docs/deployment.md` lists the new env vars in the Fly secrets
   / config section.
-- [ ] Tests: settings-load tests for the new fields; smoke that env
+- [x] Tests: settings-load tests for the new fields; smoke that env
   override propagates through to `EngineConfig`.
 
 ### 10.3 Baseline Reference Numbers
@@ -917,3 +917,4 @@ proposals per symbol).
 | 10.1 | 2026-04-28 | Phase 10.1 complete - Live Trading Wiring (FR-009, FR-010, NFR-012); introduced `src/trading/base.py::Trader` Protocol; `PaperTrader` open/close converted to async; `LiveTrader` aligned to the protocol (close signature, get_open_trades, check_exit_conditions, SL/TP-skips-confirm); `TradingEngine.trader: Trader` (replaces `paper_trader`); `src/main.py::build_exchange` + `build_trader` dispatch on `Settings.trading_mode`; engine auto-confirmation shim for headless live; `docs/deployment.md` 9-step live checklist. 11 new tests + extensive test churn (~50 PaperTrader call sites converted to async). 1027 total passing. | Claude |
 | 10.5 | 2026-04-28 | Phase 10.5 complete - Volume-Aware Default Paths (NFR-008); replicated `PerformanceTracker` / `TradeHistoryTracker` `data_dir` pattern across `ActivityLog`, `AuditLog`, `FeedbackLoop`, `ProposalHistory`, `FileNotifier`, and `Portfolio` (latter already correct, comment added); each `__init__` now accepts a keyword-only `data_dir: Path \| None = None` and derives default storage from `Settings.data_dir` at construction time. Closes the Fly persistence-loss defect Cycle 1 diagnosed: relative `Path("data/...")` defaults resolved to ephemeral `/app/data/...` instead of the `/data` volume mount. 6 new "respects `Settings.data_dir`" tests (1027 → 1033). | Claude |
 | 10.6 | 2026-04-28 | Phase 10.6 complete - Multi-Technique Per-Symbol Scan (FR-005, FR-012); `ProposalEngine` now iterates every applicable technique per symbol via sibling `_select_all_techniques` / `_propose_all_for_symbol`; `_dedup_by_symbol` keeps the highest-composite winner per symbol (long+long and long+short conflicts both resolved by symbol-only key); `propose_altcoins` aggregation order is dedup-first-then-top-K to preserve FR-012 diversification; new `multi_technique_per_symbol: bool = True` flag on `ProposalEngineConfig` for backwards-compatible opt-out (legacy `_select_best_technique` kept as live code for op-emergency rollback). Closes the single-strategy lockout Cycle 1 diagnosed: only `bollinger_band_reversion` ever ran on Fly. 7 new tests (1033 → 1040). Quant design-phase review caught 2 🔴 blockers before code was written. | Claude |
+| 10.2 | 2026-04-28 | Phase 10.2 complete - EngineConfig Env Override (NFR-004); `Settings.engine_*` fields (`engine_cycle_interval`, `engine_auto_approve_threshold`, `engine_symbols`, `engine_balance`) drive `EngineConfig` in `build_engine`. Defaults bytewise-equal to the pre-10.2 hardcoded values so existing deployments are unchanged without an env setting. `engine_symbols` uses `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` for comma-separated env parsing (operationally natural over JSON literals). `build_engine` explicit-config-wins back-compat preserved. `.env.example` and `docs/deployment.md` updated. 12 new tests (1040 → 1052). 4 remaining `EngineConfig` fields (`monitor_interval_seconds`, `bitcoin_symbol`, `altcoin_top_k`, `actor`) deferred as DEBT-003 (Low). | Claude |

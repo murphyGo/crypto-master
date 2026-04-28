@@ -8,11 +8,12 @@ Related Requirements:
 - NFR-011: API Key Protection
 """
 
+from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class BinanceConfig(BaseSettings):
@@ -126,6 +127,25 @@ class Settings(BaseSettings):
     max_position_size_pct: float = Field(default=10.0, gt=0, le=100)
     default_stop_loss_pct: float = Field(default=2.0, gt=0, le=100)
 
+    # Trading Engine Tunables (Phase 10.2)
+    # Defaults match ``src.runtime.engine.EngineConfig`` so existing
+    # deployments don't change behaviour without an explicit env setting.
+    engine_cycle_interval: int = Field(default=300, ge=10)
+    engine_auto_approve_threshold: float = Field(default=1.0, ge=0.0)
+    # ``NoDecode`` prevents pydantic-settings from JSON-parsing the env
+    # string before the validator runs; without it,
+    # ``ENGINE_SYMBOLS=BTC/USDT,ETH/USDT`` raises a JSON decode error.
+    engine_symbols: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "ETH/USDT",
+            "SOL/USDT",
+            "BNB/USDT",
+            "ADA/USDT",
+            "AVAX/USDT",
+        ]
+    )
+    engine_balance: Decimal = Field(default=Decimal("10000"))
+
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)
@@ -135,6 +155,21 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("engine_symbols", mode="before")
+    @classmethod
+    def _parse_engine_symbols(cls, v: object) -> object:
+        """Parse ``ENGINE_SYMBOLS`` from a comma-separated env string.
+
+        Pydantic-settings hands env values in as strings; the engine
+        wants a ``list[str]``. Empty / blank entries are stripped so
+        ``"ETH/USDT, ,SOL/USDT"`` cleans up to two symbols.
+        Non-string inputs (e.g. a ``list`` set programmatically in
+        tests) pass through untouched.
+        """
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
 
     def validate_for_live_trading(self) -> None:
         """Validate that configuration is suitable for live trading.

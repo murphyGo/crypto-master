@@ -156,8 +156,20 @@ def build_engine(
     Splitting this out keeps ``main`` thin and makes it easy for an
     integration test or a one-shot ``python -c "..."`` to construct
     the engine without standing up an event loop.
+
+    When ``config`` is omitted, the engine tunables (cycle interval,
+    auto-approve threshold, altcoin symbol list, balance) are read
+    from ``Settings`` (Phase 10.2). Other ``EngineConfig`` fields
+    (``monitor_interval_seconds``, ``bitcoin_symbol``, ``altcoin_top_k``,
+    ``actor``) keep their ``EngineConfig`` defaults — they are not yet
+    env-overridable.
     """
-    config = config or EngineConfig()
+    config = config or EngineConfig(
+        cycle_interval_seconds=settings.engine_cycle_interval,
+        auto_approve_threshold=settings.engine_auto_approve_threshold,
+        altcoin_symbols=settings.engine_symbols,
+        balance=settings.engine_balance,
+    )
 
     strategies = load_all_strategies()
     perf = PerformanceTracker()

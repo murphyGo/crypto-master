@@ -73,12 +73,24 @@ fly secrets set \
     LOG_LEVEL=INFO                              \
     PAPER_INITIAL_BALANCE=10000
 
-# 4. (Optional but recommended) Override engine defaults via secrets
-#    or env. EngineConfig defaults are: cycle_interval_seconds=300,
-#    auto_approve_threshold=1.0, altcoin_top_k=3.
-#    These are not yet wired through Settings — they live on
-#    EngineConfig only — so changing them today means editing
-#    src/main.py. Track this as a follow-up.
+# 4. (Optional) Override engine tunables via secrets. As of Phase 10.2
+#    the four tunables below are env-driven through Settings; defaults
+#    match EngineConfig's pre-10.2 hardcoded values, so leaving them
+#    unset preserves existing behaviour.
+fly secrets set \
+    ENGINE_CYCLE_INTERVAL=300                              \
+    ENGINE_AUTO_APPROVE_THRESHOLD=1.0                      \
+    ENGINE_SYMBOLS=ETH/USDT,SOL/USDT,BNB/USDT,ADA/USDT,AVAX/USDT \
+    ENGINE_BALANCE=10000
+#
+#    - ENGINE_CYCLE_INTERVAL (int seconds, ge=10): time between cycles.
+#    - ENGINE_AUTO_APPROVE_THRESHOLD (float, ge=0.0): composite-score
+#      cutoff above which proposals are auto-accepted (and notified).
+#    - ENGINE_SYMBOLS (comma-separated list): altcoin symbols scanned
+#      each cycle. BTC/USDT is fixed separately as the bitcoin scan.
+#    - ENGINE_BALANCE (Decimal): notional balance used for proposal
+#      sizing. Independent of PAPER_INITIAL_BALANCE (which the
+#      PaperTrader uses for its virtual wallet).
 ```
 
 ## Deploy

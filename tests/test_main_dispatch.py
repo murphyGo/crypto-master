@@ -184,3 +184,80 @@ def test_build_engine_logs_trading_mode(tmp_path: Any) -> None:
         engine = build_engine(settings, exchange)
 
     assert isinstance(engine.trader, PaperTrader)
+
+
+# =============================================================================
+# Phase 10.2: env override propagates through build_engine -> EngineConfig
+# =============================================================================
+
+
+class TestBuildEngineEnvOverride:
+    """``build_engine`` must read its tunables from ``Settings`` so env
+    vars propagate through to the resolved ``EngineConfig`` (Phase 10.2)."""
+
+    def test_settings_overrides_propagate_to_engine_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Setting ``ENGINE_*`` env vars must surface on the engine's
+        ``EngineConfig`` after ``build_engine``."""
+        from src.config import Settings
+        from src.main import build_engine
+
+        monkeypatch.setenv("ENGINE_AUTO_APPROVE_THRESHOLD", "2.5")
+        monkeypatch.setenv("ENGINE_CYCLE_INTERVAL", "120")
+        monkeypatch.setenv("ENGINE_SYMBOLS", "BTC/USDT,ETH/USDT")
+        monkeypatch.setenv("ENGINE_BALANCE", "7500")
+
+        # Build Settings from env (no .env file shenanigans here — the
+        # test process inherits env we just set via monkeypatch).
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(trading_mode="paper", binance=bn)
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        assert engine.config.auto_approve_threshold == 2.5
+        assert engine.config.cycle_interval_seconds == 120
+        assert engine.config.altcoin_symbols == ["BTC/USDT", "ETH/USDT"]
+        assert engine.config.balance == Decimal("7500")
+
+    def test_explicit_config_argument_still_wins(self) -> None:
+        """``build_engine`` allows callers (tests / one-shots) to pass
+        their own ``EngineConfig``; that path must override Settings."""
+        from src.config import Settings
+        from src.main import build_engine
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(
+            trading_mode="paper",
+            binance=bn,
+            engine_auto_approve_threshold=0.5,
+        )
+        exchange = build_exchange(settings)
+        explicit = EngineConfig(auto_approve_threshold=3.0)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange, config=explicit)
+
+        assert engine.config.auto_approve_threshold == 3.0

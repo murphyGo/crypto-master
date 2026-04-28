@@ -9,6 +9,7 @@ Tests cover:
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
@@ -390,6 +391,76 @@ class TestSettings:
             assert settings.max_leverage == 20
             assert settings.binance.api_key == "binance_key"
             assert settings.binance.api_secret == "binance_secret"
+
+
+class TestEngineSettings:
+    """Tests for the Phase 10.2 ``engine_*`` env-overridable fields.
+
+    Defaults must match the hardcoded values in
+    ``src.runtime.engine.EngineConfig`` so existing deployments don't
+    change behaviour when the env vars are unset.
+    """
+
+    def test_engine_defaults_match_engine_config(self) -> None:
+        """Default values must match EngineConfig's defaults exactly."""
+        from src.runtime.engine import EngineConfig
+
+        settings = Settings()
+        ec = EngineConfig()
+
+        assert settings.engine_cycle_interval == ec.cycle_interval_seconds
+        assert settings.engine_auto_approve_threshold == ec.auto_approve_threshold
+        assert settings.engine_symbols == ec.altcoin_symbols
+        assert settings.engine_balance == ec.balance
+
+    def test_engine_cycle_interval_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"ENGINE_CYCLE_INTERVAL": "120"}):
+            assert Settings().engine_cycle_interval == 120
+
+    def test_engine_cycle_interval_minimum_enforced(self) -> None:
+        """Mirrors EngineConfig's ge=10 floor."""
+        with pytest.raises(ValidationError):
+            Settings(engine_cycle_interval=5)
+
+    def test_engine_auto_approve_threshold_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"ENGINE_AUTO_APPROVE_THRESHOLD": "2.5"}):
+            assert Settings().engine_auto_approve_threshold == 2.5
+
+    def test_engine_auto_approve_threshold_must_be_non_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(engine_auto_approve_threshold=-0.1)
+
+    def test_engine_symbols_parses_comma_separated_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ENGINE_SYMBOLS": "BTC/USDT,ETH/USDT,SOL/USDT"},
+        ):
+            assert Settings().engine_symbols == [
+                "BTC/USDT",
+                "ETH/USDT",
+                "SOL/USDT",
+            ]
+
+    def test_engine_symbols_strips_whitespace_and_blanks(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ENGINE_SYMBOLS": " ETH/USDT , ,SOL/USDT  "},
+        ):
+            assert Settings().engine_symbols == ["ETH/USDT", "SOL/USDT"]
+
+    def test_engine_symbols_accepts_list_directly(self) -> None:
+        """Programmatic list assignment (e.g. tests) still works."""
+        s = Settings(engine_symbols=["A/USDT", "B/USDT"])
+        assert s.engine_symbols == ["A/USDT", "B/USDT"]
+
+    def test_engine_balance_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"ENGINE_BALANCE": "5000.50"}):
+            assert Settings().engine_balance == Decimal("5000.50")
+
+    def test_engine_balance_default_is_decimal(self) -> None:
+        s = Settings()
+        assert isinstance(s.engine_balance, Decimal)
+        assert s.engine_balance == Decimal("10000")
 
 
 class TestSingleton:
