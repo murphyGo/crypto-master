@@ -9,7 +9,7 @@ import pytest
 from src.config import BybitConfig
 from src.exchange.base import ExchangeAPIError, ExchangeConnectionError, ExchangeError
 from src.exchange.bybit import BybitExchange
-from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
+from src.models import OHLCV, Order, OrderRequest, OrderStatus, Ticker
 
 
 @pytest.fixture

@@ -226,7 +226,7 @@ class PerformanceAnalyzer:
         if growth <= 0:
             # Ruined account; annualization is meaningless.
             return -100.0
-        return (growth ** (DAYS_PER_YEAR / days) - 1) * 100
+        return float((growth ** (DAYS_PER_YEAR / days) - 1) * 100)
 
     @staticmethod
     def _profit_factor(

@@ -12,7 +12,6 @@ from src.trading.profile_loader import (
 )
 from src.trading.profiles import TradingProfile
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================

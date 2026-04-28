@@ -6,8 +6,8 @@ Related Requirements:
 - NFR-010: Analysis Technique Extensibility
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from src.strategy.base import BaseStrategy, StrategyError, TechniqueInfo
 from src.strategy.loader import (

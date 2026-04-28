@@ -46,7 +46,7 @@
 | Log Retention Policy | ✅ Complete | 10 |
 | Volume-Aware Default Paths | ✅ Complete | 10 |
 | Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
-| Pre-Existing Lint/Type Sweep | ❌ Missing | 11 |
+| Pre-Existing Lint/Type Sweep | ✅ Complete | 11 |
 | OHLCV Cache for Multi-Technique Scan | ❌ Missing | 11 |
 | Notification Push Backend | ❌ Missing | 11 |
 | ProposalHistory.purge_old Wiring | ❌ Missing | 11 |
@@ -869,20 +869,20 @@ cycle that touches those modules. Tracked as DEBT-001 (Medium).
 **Related Requirements**: NFR-001 (code quality); operational concern
 — no new FR introduced.
 
-- [ ] Fix ruff errors in `src/ai/claude.py`, `src/strategy/loader.py`,
+- [x] Fix ruff errors in `src/ai/claude.py`, `src/strategy/loader.py`,
   `src/feedback/loop.py` (B904 raise-from), test files (F841 / F401
   unused), and any UP035 typing imports.
-- [ ] Fix mypy errors in `src/trading/live.py` (untyped `Order`
+- [x] Fix mypy errors in `src/trading/live.py` (untyped `Order`
   returns at lines 235 / 244 / 252 / 438 / 445), `src/ai/improver.py:280`
   (arg-type mismatch), `src/trading/paper.py`,
   `src/trading/profile_loader.py`, `src/backtest/analyzer.py`.
-- [ ] Move `pyproject.toml` ruff config from deprecated top-level
+- [x] Move `pyproject.toml` ruff config from deprecated top-level
   `select` / `ignore` / `isort` keys to `[tool.ruff.lint]` section.
-- [ ] Add `types-PyYAML` to dev extras in `pyproject.toml`.
-- [ ] Document the clean-baseline contract: `ruff check src tests &&
+- [x] Add `types-PyYAML` to dev extras in `pyproject.toml`.
+- [x] Document the clean-baseline contract: `ruff check src tests &&
   mypy src` should pass clean. Add a small `scripts/lint.sh` (or
   CONTRIBUTING note) so future cycles can gate on it.
-- [ ] Tests: existing test suite must remain green; this is a
+- [x] Tests: existing test suite must remain green; this is a
   refactor, not a feature — no new tests.
 
 ### 11.2 OHLCV Cache for Multi-Technique Scan
@@ -1053,4 +1053,5 @@ to retention); operational concern — no new FR introduced.
 | 10.2 | 2026-04-28 | Phase 10.2 complete - EngineConfig Env Override (NFR-004); `Settings.engine_*` fields (`engine_cycle_interval`, `engine_auto_approve_threshold`, `engine_symbols`, `engine_balance`) drive `EngineConfig` in `build_engine`. Defaults bytewise-equal to the pre-10.2 hardcoded values so existing deployments are unchanged without an env setting. `engine_symbols` uses `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` for comma-separated env parsing (operationally natural over JSON literals). `build_engine` explicit-config-wins back-compat preserved. `.env.example` and `docs/deployment.md` updated. 12 new tests (1040 → 1052). 4 remaining `EngineConfig` fields (`monitor_interval_seconds`, `bitcoin_symbol`, `altcoin_top_k`, `actor`) deferred as DEBT-003 (Low). | Claude |
 | 10.3 | 2026-04-28 | Phase 10.3 complete - Baseline Reference Numbers (FR-025 consumed; operator tooling); `scripts/backtest_baselines.py` (620 lines) operator script fetches Binance public OHLCV with pagination (>1500 candles needs reaching past `BaseExchange.get_ohlcv` contract via `BinanceExchange._client`), runs `Backtester.run_for_strategy` + `PerformanceAnalyzer` per baseline, persists `result.json` + `analysis.md` + `summary.json` under `data/backtest/baselines/<strategy>/`. Idempotent overwrite. `--no-update-doc` flag. Updates `docs/baselines.md` operator-instructions section + period labels; metric cells stay `_TBD_` until operator runs the script (no synthesised numbers). 6 new smoke tests (1052 → 1058). 1 mypy nit at lines 241/248 + `_client` reach-around recorded as DEBT-004 (Low). | Claude |
 | 10.4 | 2026-04-28 | Phase 10.4 complete - Log Retention Policy (NFR-008); new `src/runtime/jsonl_rotator.py` (`JsonlRotator`) wraps append-only JSONL with time-based monthly rotation (`<base>.YYYY-MM.jsonl`) + retention-bounded timestamp-ordered merged reads + corrupt-line tolerance + legacy un-rotated file read-as-oldest-archive (never written). `AuditLog` and `ActivityLog` compose the rotator (`self.path` preserved as `.jsonl`-form for back-compat; trailing-suffix stripped to derive rotator base). `ProposalHistory.purge_old(now, retention_months)` ships as operator-callable age-based archive into `<data_dir>/proposals/archive/<YYYY-MM>/` keyed on the proposal's own creation month — idempotent, no startup hook (deferred). `Settings.log_retention_months: int = 12` (`Field(ge=1)`) + `LOG_RETENTION_MONTHS` env var documented in `.env.example`. 25 new tests (1058 → 1083). No new debt. | Claude |
+| 11.1 | 2026-04-28 | Phase 11.1 complete - Pre-Existing Lint/Type Sweep (NFR-001; resolves DEBT-001); cleared all in-scope ruff + mypy errors (18 ruff → 0; 12 in-scope mypy → 0; total mypy 39 → 29 with remainder out-of-scope per spec). In-scope fixes: `src/ai/claude.py` (2 B904 with `from e`), `src/strategy/loader.py` (5 B904), `src/strategy/factory.py` (UP035 `Callable` from `collections.abc`), `src/ai/improver.py` (str-coerce `fm.get(...) or fallback` at parse-time), `src/trading/live.py` (`Order` import + return-type widening + `Literal["buy","sell"]` for closing_side), `src/trading/paper.py` (same Literal fix), `src/backtest/analyzer.py` (`float(...)` cast for no-any-return), 6 test files (F401/F841/I001 cleanup via `ruff --fix`). `pyproject.toml` ruff config migrated from deprecated top-level `select`/`ignore` to `[tool.ruff.lint]`. `types-PyYAML>=6.0` added to dev extras. New `scripts/lint.sh` (uses `--fix` — flagged by qa as unsafe for CI; recorded as DEBT-009). 1083 tests pass (no behaviour change, no new tests). Zero `# noqa` / `# type: ignore` added. Remaining 29 mypy errors clustered in 4 modules (binance / factory / dashboard / main lambda) recorded as DEBT-005 / 006 / 007 / 008. | Claude |
 | 10.0 | 2026-04-28 | Phase 10 complete - all sub-tasks (10.1, 10.2, 10.3, 10.4, 10.5, 10.6) checked. Phase 10 cross-check: `docs/cross-checks/2026-04-28-phase-10-operational-maturation.md`. | Claude |

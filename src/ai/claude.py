@@ -189,7 +189,7 @@ class ClaudeCLI:
             self._logger.debug("Claude CLI completed successfully")
             return stdout, stderr
 
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
             # Kill the process if it's still running
             if process is not None and process.returncode is None:
                 process.kill()
@@ -198,10 +198,12 @@ class ClaudeCLI:
             raise ClaudeTimeoutError(
                 f"Claude CLI timed out after {self.timeout} seconds",
                 timeout_seconds=self.timeout,
-            )
+            ) from e
 
-        except FileNotFoundError:
-            raise ClaudeNotFoundError(f"Claude CLI not found: '{self.claude_path}'")
+        except FileNotFoundError as e:
+            raise ClaudeNotFoundError(
+                f"Claude CLI not found: '{self.claude_path}'"
+            ) from e
 
     def _parse_response(self, raw_output: str) -> dict[str, Any]:
         """Parse Claude response to extract JSON.

@@ -2,14 +2,14 @@
 
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.config import BinanceConfig
 from src.exchange.base import ExchangeAPIError, ExchangeConnectionError, ExchangeError
 from src.exchange.binance import BinanceExchange
-from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
+from src.models import OHLCV, Order, OrderRequest, OrderStatus, Ticker
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.models import AnalysisResult, Position
+from src.models import AnalysisResult
 from src.trading.strategy import (
     InsufficientBalanceError,
     TradingError,

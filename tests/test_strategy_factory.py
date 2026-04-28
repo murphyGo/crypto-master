@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from src.strategy.base import BaseStrategy, StrategyError, TechniqueInfo
+from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.factory import (
     clear_strategy_cache,
     clear_strategy_registry,
@@ -16,7 +16,6 @@ from src.strategy.factory import (
     load_strategies_from_directory,
     register_strategy,
 )
-from src.strategy.loader import PromptStrategy
 
 
 @pytest.fixture(autouse=True)
@@ -150,8 +149,8 @@ class TestLoadStrategiesFromDirectory:
 
         (tmp_path / "test.md").write_text(md_content)
 
-        # First load
-        strategies1 = load_strategies_from_directory(tmp_path, force_reload=True)
+        # First load (populates cache)
+        load_strategies_from_directory(tmp_path, force_reload=True)
 
         # Delete file
         (tmp_path / "test.md").unlink()

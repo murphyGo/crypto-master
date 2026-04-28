@@ -1,7 +1,6 @@
 """Tests for the logging module."""
 
 import logging
-import os
 from pathlib import Path
 from unittest.mock import patch
 

@@ -18,10 +18,10 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from src.logger import get_logger
-from src.models import OrderRequest, OrderStatus, Position
+from src.models import Order, OrderRequest, OrderStatus, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.strategy import TradingError
 
@@ -419,7 +419,9 @@ class LiveTrader:
         Returns:
             Updated TradeHistory, or None if trade not found.
         """
-        closing_side = "sell" if position.side == "long" else "buy"
+        closing_side: Literal["buy", "sell"] = (
+            "sell" if position.side == "long" else "buy"
+        )
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,
@@ -450,7 +452,7 @@ class LiveTrader:
         self,
         order_request: OrderRequest,
         action: str,
-    ) -> object:
+    ) -> Order:
         """Submit an order to the exchange and validate the response.
 
         Args:

@@ -13,7 +13,7 @@ Related Requirements:
 import uuid
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
@@ -934,7 +934,9 @@ class PaperTrader:
         position = open_pos.position
 
         # Build closing order (opposite side)
-        closing_side = "sell" if position.side == "long" else "buy"
+        closing_side: Literal["buy", "sell"] = (
+            "sell" if position.side == "long" else "buy"
+        )
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,

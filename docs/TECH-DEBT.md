@@ -41,42 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-001: Pre-Existing Lint/Type Sweep
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 10.5 |
-| **Component** | Cross-cutting (src/ai, src/strategy, src/feedback, src/trading, tests/, project tooling) |
-
-**Description:**
-Phase 10.5's touch-and-verify discipline surfaced lint/type errors that pre-exist this cycle but had not been recorded as debt. Two groups:
-
-1. **18 pre-existing ruff errors:**
-   - `B904` raise-from in `src/ai/claude.py`, `src/strategy/loader.py`, `src/feedback/loop.py`
-   - `UP035` typing imports
-   - `F841` / `F401` in tests
-
-2. **24 pre-existing mypy errors:**
-   - `src/trading/live.py` untyped object returns at lines 235, 244, 252, 438, 445
-   - `src/ai/improver.py:280` arg-type
-   - `types-PyYAML` missing from dev dependencies
-
-**Impact:**
-- The errors do not block development today (each module's tests still pass).
-- They obscure new errors: future cycles that touch these files cannot rely on a "ruff/mypy clean" baseline as a gate signal — every cycle has to triage which errors are pre-existing vs newly introduced.
-- The mypy `live.py` cluster in particular is on the live trading path; tightening those return types would surface real type-narrowing opportunities.
-
-**Suggested Resolution:**
-- One focused sweep cycle: fix all 18 ruff errors and the 24 mypy errors in a single PR. No functional change; pure typing/lint hygiene.
-- Add `types-PyYAML` to `pyproject.toml`'s dev extras to drop the mypy import-untyped warning permanently.
-- Once clean, consider adding a CI gate on ruff + mypy so future regressions are blocked at PR time rather than recorded as debt.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-10.5-volume-aware-default-paths.md`
-- Dev report flagged these as suggested TECH-DEBT items; auditor judged groups 1 + 2 worth recording, group 3 (`DEFAULT_*_PATH` rename) skipped as not worth the noise.
-
 ### DEBT-002: OHLCV Per-Technique Refetch in Multi-Technique Scan
 
 | Field | Value |
@@ -164,6 +128,134 @@ Phase 10.3 shipped `scripts/backtest_baselines.py` as the operator tooling that 
 - Surfaced in: `docs/sessions/2026-04-28-phase-10.3-baseline-reference-numbers.md`
 - Predecessor: Phase 10.3 Baseline Reference Numbers (operator tooling).
 
+### DEBT-005: ccxt typing in `src/exchange/binance.py`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 11.1 |
+| **Component** | `src/exchange/binance.py` |
+
+**Description:**
+11 mypy errors in `src/exchange/binance.py` (mix of `attr-defined`, `valid-type`, and `no-any-return`) blocked on missing ccxt type stubs. ccxt does not ship `py.typed`, so attribute access on the client and type annotations referencing ccxt classes both fail mypy's checks.
+
+Dev's note (verbatim): "11 mypy errors (attr-defined / valid-type / no-any-return) blocked on missing ccxt type stubs. Recommended fix: hand-rolled Protocol covering the 8+ ccxt methods used."
+
+**Impact:**
+- The errors do not affect runtime — ccxt is correctly used and tests pass.
+- They prevent `mypy src/exchange/binance.py` from gating cleanly, weakening the post-11.1 baseline-clean contract for this one module.
+- Cosmetic but recurrent: every cycle touching `binance.py` has to triage these as pre-existing.
+
+**Suggested Resolution:**
+- Hand-rolled Protocol covering the 8+ ccxt methods actually used by `BinanceExchange` (`fetch_balance`, `fetch_ohlcv`, `create_order`, `fetch_order`, `cancel_order`, `fetch_open_orders`, `fetch_my_trades`, `set_sandbox_mode`, etc.). Type the `_client` attribute as the Protocol; mypy then resolves attribute access without ccxt stubs.
+- Alternative (cheaper): scoped `# type: ignore[attr-defined]` per call site. Phase 11.1 deliberately avoided this — Protocol is the cleaner fix.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
+- Out-of-scope per Phase 11.1 spec.
+
+### DEBT-006: `src/exchange/factory.py` shape drift
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 11.1 |
+| **Component** | `src/exchange/factory.py` |
+
+**Description:**
+3 mypy errors in `src/exchange/factory.py`:
+
+- Line 22 — untyped def.
+- Line 91 — config kwarg type mismatch.
+- Line 110 — return-value mismatch.
+
+Looks like genuine API-shape drift between the factory's signatures and the exchange constructors / config it composes, not a typing-hygiene nit.
+
+**Impact:**
+- Runtime behaviour appears correct (existing tests pass) but the type-system says the contracts no longer line up with the call sites. If true, a real bug is one refactor away.
+- Phase 11.1 deliberately did not touch these without a quant-trader-expert review — fixing the types blindly could mask a genuine API drift.
+
+**Suggested Resolution:**
+- Quant-trader-expert review of the three call sites first to determine whether the drift is a typing-hygiene gap or a real signature mismatch.
+- Then either tighten the factory's annotations to match the call sites (if hygiene), or update the call sites to match the constructors (if drift). Don't pick one without the review.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
+- Out-of-scope per Phase 11.1 spec.
+
+### DEBT-007: Dashboard Streamlit type errors
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 11.1 |
+| **Component** | `src/dashboard/{theme,app,pages/trading,pages/engine}.py` |
+
+**Description:**
+~13 mypy errors clustered across `src/dashboard/theme.py`, `src/dashboard/app.py`, `src/dashboard/pages/trading.py`, and `src/dashboard/pages/engine.py`. Mostly missing local annotations / casts on Streamlit / pandas-derived values where mypy cannot infer the narrowed type.
+
+**Impact:**
+- No runtime impact — Streamlit pages render correctly.
+- Bundling them into one mini-sweep cycle is cheaper than fixing them one-at-a-time across four phases.
+
+**Suggested Resolution:**
+- One focused mini-sweep cycle covering the four files. Add the missing annotations / casts in a single PR. Same shape as DEBT-001's resolution but scoped to the dashboard.
+- No functional change; pure typing hygiene.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
+- Out-of-scope per Phase 11.1 spec.
+
+### DEBT-008: `src/main.py:220` lambda annotation
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 11.1 |
+| **Component** | `src/main.py` |
+
+**Description:**
+Single mypy error at `src/main.py:220` — `Cannot infer type of lambda`.
+
+**Impact:**
+- Cosmetic. One line.
+
+**Suggested Resolution:**
+- One-line fix candidate: replace the lambda with a typed `def`, or annotate the lambda's parameter via an assigned `Callable` annotation.
+- Pick up in passing during the next cycle that touches `src/main.py`.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
+- Out-of-scope per Phase 11.1 spec.
+
+### DEBT-009: `scripts/lint.sh --fix` unsafe for CI
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 11.1 |
+| **Component** | `scripts/lint.sh` |
+
+**Description:**
+QA flagged that `scripts/lint.sh:6` uses `ruff check src tests --fix`. The `--fix` flag silently rewrites source on lintable regressions instead of reporting them — fine for local dev convenience, unsafe for a CI gate (a CI run would mutate the working tree and pass green when the source had drifted).
+
+**Impact:**
+- No runtime impact; the script is operator/dev-invoked today.
+- If the script is ever wired to CI as-is, regressions get auto-fixed in CI's checkout and never surface as failures, defeating the gate.
+
+**Suggested Resolution:**
+- Drop `--fix` for CI use, or split into two scripts: `lint.sh` (CI: report-only, no `--fix`) and `lint-fix.sh` (dev: with `--fix`).
+- Document the contract in the script header so the next operator knows which is which.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
+- QA verdict: 🟡 minor on Phase 11.1.
+
 ---
 
 ## Resolved Debt Items
@@ -181,7 +273,14 @@ Move resolved items here with resolution date and notes.
 | **Resolution** | [Brief description] |
 -->
 
-*No resolved items yet.*
+### DEBT-001: Pre-Existing Lint/Type Sweep ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 11.1 cleared all 18 ruff + 12 in-scope mypy errors; ruff config migrated to `[tool.ruff.lint]`; `types-PyYAML` added. |
 
 ---
 
@@ -189,12 +288,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 4 |
+| Total Active | 8 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
-| Low | 3 |
-| Resolved (All Time) | 0 |
+| Medium | 0 |
+| Low | 8 |
+| Resolved (All Time) | 1 |
 
 ---
 
@@ -207,3 +306,9 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Added | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan (Low) — surfaced during Phase 10.6 |
 | 2026-04-28 | Added | DEBT-003 EngineConfig Remaining Fields Not Env-Overridable (Low) — surfaced during Phase 10.2 |
 | 2026-04-28 | Added | DEBT-004 Baseline Backtest Script Follow-ups (Low) — surfaced during Phase 10.3 |
+| 2026-04-28 | Resolved | DEBT-001 Pre-Existing Lint/Type Sweep — Phase 11.1 cleared all in-scope ruff + mypy errors |
+| 2026-04-28 | Added | DEBT-005 ccxt typing in `src/exchange/binance.py` (Low) — surfaced during Phase 11.1 |
+| 2026-04-28 | Added | DEBT-006 `src/exchange/factory.py` shape drift (Low) — surfaced during Phase 11.1 |
+| 2026-04-28 | Added | DEBT-007 Dashboard Streamlit type errors (Low) — surfaced during Phase 11.1 |
+| 2026-04-28 | Added | DEBT-008 `src/main.py:220` lambda annotation (Low) — surfaced during Phase 11.1 |
+| 2026-04-28 | Added | DEBT-009 `scripts/lint.sh --fix` unsafe for CI (Low) — surfaced during Phase 11.1 |

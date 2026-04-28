@@ -272,18 +272,18 @@ class StrategyImprover:
             )
 
         fm = self._parse_frontmatter(content)
-        name = fm.get("name") or fallback_name
-        version = fm.get("version", "0.1.0")
-        description = fm.get("description", "")
-        hypothesis = fm.get("hypothesis", "")
+        name = str(fm.get("name") or fallback_name)
+        version = str(fm.get("version", "0.1.0"))
+        description = str(fm.get("description", ""))
+        hypothesis = str(fm.get("hypothesis", ""))
 
         suggested_filename = self._build_filename(name)
 
         return GeneratedTechnique(
-            name=str(name),
-            version=str(version),
-            description=str(description),
-            hypothesis=str(hypothesis),
+            name=name,
+            version=version,
+            description=description,
+            hypothesis=hypothesis,
             kind=kind,
             parent_technique=parent,
             content=content,

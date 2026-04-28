@@ -7,9 +7,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.models import (
+    OHLCV,
     AnalysisResult,
     Balance,
-    OHLCV,
     Order,
     OrderRequest,
     OrderStatus,
