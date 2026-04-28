@@ -9,7 +9,7 @@ Related Requirements:
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal, Protocol
 
 import ccxt.async_support as ccxt
 from ccxt.base.errors import (
@@ -33,8 +33,66 @@ from src.exchange.base import (
 from src.exchange.factory import register_exchange
 from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
 
-# Type alias for ccxt client
-CCXTClient = ccxt.binance | ccxt.binanceusdm
+
+class CCXTClient(Protocol):
+    """Structural subset of the ccxt async client we actually call.
+
+    DEBT-005: ccxt has no type stubs, so its async methods come back as
+    untyped. This Protocol covers exactly the calls ``BinanceExchange``
+    makes against ``ccxt.async_support.binance`` /
+    ``ccxt.async_support.binanceusdm`` so mypy can check our use without
+    pulling in ccxt's whole surface.
+    """
+
+    async def load_markets(self, reload: bool = ...) -> dict[str, Any]: ...
+    async def close(self) -> None: ...
+    async def fetch_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = ...,
+        since: int | None = ...,
+        limit: int | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> list[list[float]]: ...
+    async def fetch_ticker(
+        self, symbol: str, params: dict[str, Any] = ...
+    ) -> dict[str, Any]: ...
+    async def fetch_balance(self, params: dict[str, Any] = ...) -> dict[str, Any]: ...
+    async def create_market_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: float | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def create_limit_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        price: float,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def cancel_order(
+        self,
+        id: str,
+        symbol: str | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def fetch_order(
+        self,
+        id: str,
+        symbol: str | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def fetch_open_orders(
+        self,
+        symbol: str | None = ...,
+        since: int | None = ...,
+        limit: int | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> list[dict[str, Any]]: ...
 
 
 @register_exchange("binance")
@@ -78,7 +136,7 @@ class BinanceExchange(BaseExchange):
         """
         super().__init__(testnet=testnet)
         self.config = config
-        self._client: ccxt.binance | ccxt.binanceusdm | None = None
+        self._client: CCXTClient | None = None
 
     async def connect(self) -> None:
         """Initialize connection to Binance.

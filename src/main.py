@@ -171,9 +171,7 @@ def build_engine(
         auto_approve_threshold=settings.engine_auto_approve_threshold,
         altcoin_symbols=settings.engine_symbols,
         balance=settings.engine_balance,
-        max_open_positions_per_symbol=(
-            settings.engine_max_open_positions_per_symbol
-        ),
+        max_open_positions_per_symbol=(settings.engine_max_open_positions_per_symbol),
     )
 
     strategies = load_all_strategies()
@@ -271,7 +269,7 @@ async def run() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(
             sig,
-            lambda s=sig: asyncio.create_task(_signal_shutdown(engine, s)),
+            lambda s=sig: asyncio.create_task(_signal_shutdown(engine, s)),  # type: ignore[misc]
         )
 
     try:

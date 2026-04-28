@@ -11,14 +11,16 @@ Related Requirements:
 
 from __future__ import annotations
 
+from typing import Literal
+
 import streamlit as st
 
 APP_TITLE = "Crypto Master"
 APP_ICON = "📈"
 APP_TAGLINE = "Automated crypto trading with Claude-powered analysis"
 
-PAGE_LAYOUT = "wide"
-INITIAL_SIDEBAR_STATE = "expanded"
+PAGE_LAYOUT: Literal["centered", "wide"] = "wide"
+INITIAL_SIDEBAR_STATE: Literal["auto", "expanded", "collapsed"] = "expanded"
 
 
 def configure_page() -> None:

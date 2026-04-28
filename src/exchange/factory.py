@@ -7,7 +7,8 @@ Related Requirements:
 - NFR-009: Exchange Extensibility - Plugin architecture
 """
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 from src.config import get_settings
 from src.exchange.base import BaseExchange, ExchangeError
@@ -19,7 +20,9 @@ if TYPE_CHECKING:
 _exchange_registry: dict[str, type[BaseExchange]] = {}
 
 
-def register_exchange(name: str):
+def register_exchange(
+    name: str,
+) -> Callable[[type[BaseExchange]], type[BaseExchange]]:
     """Decorator to register an exchange implementation.
 
     Usage:
@@ -86,9 +89,16 @@ def create_exchange(
     # Determine testnet setting
     use_testnet = testnet if testnet is not None else config.testnet
 
-    # Create exchange instance
+    # Create exchange instance.
+    # ``BaseExchange.__init__`` only declares ``testnet``; concrete subclasses
+    # (BinanceExchange, BybitExchange) extend it with ``config``. The factory
+    # only ever constructs concrete subclasses, but the registry types its
+    # values as ``type[BaseExchange]`` so mypy can't see the extra param.
+    # cast(Any, ...) here is a typing escape hatch only; runtime is unchanged.
     exchange_class = _exchange_registry[name_lower]
-    return exchange_class(config=config, testnet=use_testnet)
+    return cast(
+        BaseExchange, cast(Any, exchange_class)(config=config, testnet=use_testnet)
+    )
 
 
 def _get_exchange_config(
@@ -103,7 +113,7 @@ def _get_exchange_config(
     Returns:
         Exchange config or None if not found
     """
-    config_map = {
+    config_map: dict[str, BinanceConfig | BybitConfig] = {
         "binance": settings.binance,
         "bybit": settings.bybit,
     }

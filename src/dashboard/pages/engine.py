@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 
 import pandas as pd
 import streamlit as st
@@ -384,23 +385,24 @@ def render(
     # ---- Summary cards ----
     st.subheader("Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Cycles", metrics["total_cycles"])
+    c1.metric("Cycles", cast(int, metrics["total_cycles"]))
     last_at = metrics["last_cycle_started_at"]
     c2.metric(
         "Last cycle",
         last_at.isoformat(timespec="seconds") if isinstance(last_at, datetime) else "—",
     )
-    c3.metric("Last status", metrics["last_cycle_status"] or "—")
+    last_status = metrics["last_cycle_status"]
+    c3.metric("Last status", cast(str, last_status) if last_status else "—")
     avg = metrics["avg_duration_seconds"]
     c4.metric(
         "Avg duration",
         f"{float(avg):.1f}s" if isinstance(avg, (int, float)) else "—",
     )
-    c5.metric("Errored cycles", metrics["errored_cycles"])
+    c5.metric("Errored cycles", cast(int, metrics["errored_cycles"]))
 
     c6, c7 = st.columns(2)
-    c6.metric("Positions opened (total)", metrics["positions_opened_total"])
-    c7.metric("Positions closed (total)", metrics["positions_closed_total"])
+    c6.metric("Positions opened (total)", cast(int, metrics["positions_opened_total"]))
+    c7.metric("Positions closed (total)", cast(int, metrics["positions_closed_total"]))
 
     # ---- Recent cycles table ----
     st.subheader("Recent Cycles")

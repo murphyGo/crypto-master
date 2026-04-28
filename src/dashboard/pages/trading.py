@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 import streamlit as st
@@ -260,17 +260,17 @@ def render(
     # ---- Summary cards ----
     st.subheader("Summary")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Open Positions", metrics["open_positions"])
-    c2.metric("Closed Trades", metrics["closed_trades"])
-    c3.metric("Win Rate", f"{float(metrics['win_rate']) * 100:.1f}%")
-    c4.metric("Realized P&L", f"{float(metrics['realized_pnl']):.2f}")
+    c1.metric("Open Positions", cast(int, metrics["open_positions"]))
+    c2.metric("Closed Trades", cast(int, metrics["closed_trades"]))
+    c3.metric("Win Rate", f"{cast(float, metrics['win_rate']) * 100:.1f}%")
+    c4.metric("Realized P&L", f"{cast(float, metrics['realized_pnl']):.2f}")
 
     if metrics["latest_snapshot_at"] is not None:
         latest_at = metrics["latest_snapshot_at"]
         assert isinstance(latest_at, datetime)
         st.caption(
-            f"Latest equity: {float(metrics['latest_equity']):.2f} | "
-            f"Unrealized P&L: {float(metrics['unrealized_pnl']):.2f} "
+            f"Latest equity: {cast(float, metrics['latest_equity']):.2f} | "
+            f"Unrealized P&L: {cast(float, metrics['unrealized_pnl']):.2f} "
             f"(snapshot {latest_at.isoformat(timespec='seconds')})"
         )
     else:

@@ -17,6 +17,7 @@ Related Requirements:
 from __future__ import annotations
 
 import streamlit as st
+from streamlit.navigation.page import StreamlitPage
 
 # ---------------------------------------------------------------------------
 # Pre-load every submodule the dashboard pages import.
@@ -103,7 +104,7 @@ def render_sidebar() -> None:
         st.divider()
 
 
-def build_navigation() -> st.navigation:  # type: ignore[name-defined]
+def build_navigation() -> StreamlitPage:
     """Construct the multi-page navigation.
 
     Returns a Streamlit ``Page`` runner. Pages are grouped under

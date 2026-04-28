@@ -98,110 +98,6 @@ Phase 10.3 shipped `scripts/backtest_baselines.py` as the operator tooling that 
 - Surfaced in: `docs/sessions/2026-04-28-phase-10.3-baseline-reference-numbers.md`
 - Predecessor: Phase 10.3 Baseline Reference Numbers (operator tooling).
 
-### DEBT-005: ccxt typing in `src/exchange/binance.py`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 11.1 |
-| **Component** | `src/exchange/binance.py` |
-
-**Description:**
-11 mypy errors in `src/exchange/binance.py` (mix of `attr-defined`, `valid-type`, and `no-any-return`) blocked on missing ccxt type stubs. ccxt does not ship `py.typed`, so attribute access on the client and type annotations referencing ccxt classes both fail mypy's checks.
-
-Dev's note (verbatim): "11 mypy errors (attr-defined / valid-type / no-any-return) blocked on missing ccxt type stubs. Recommended fix: hand-rolled Protocol covering the 8+ ccxt methods used."
-
-**Impact:**
-- The errors do not affect runtime — ccxt is correctly used and tests pass.
-- They prevent `mypy src/exchange/binance.py` from gating cleanly, weakening the post-11.1 baseline-clean contract for this one module.
-- Cosmetic but recurrent: every cycle touching `binance.py` has to triage these as pre-existing.
-
-**Suggested Resolution:**
-- Hand-rolled Protocol covering the 8+ ccxt methods actually used by `BinanceExchange` (`fetch_balance`, `fetch_ohlcv`, `create_order`, `fetch_order`, `cancel_order`, `fetch_open_orders`, `fetch_my_trades`, `set_sandbox_mode`, etc.). Type the `_client` attribute as the Protocol; mypy then resolves attribute access without ccxt stubs.
-- Alternative (cheaper): scoped `# type: ignore[attr-defined]` per call site. Phase 11.1 deliberately avoided this — Protocol is the cleaner fix.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
-- Out-of-scope per Phase 11.1 spec.
-
-### DEBT-006: `src/exchange/factory.py` shape drift
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 11.1 |
-| **Component** | `src/exchange/factory.py` |
-
-**Description:**
-3 mypy errors in `src/exchange/factory.py`:
-
-- Line 22 — untyped def.
-- Line 91 — config kwarg type mismatch.
-- Line 110 — return-value mismatch.
-
-Looks like genuine API-shape drift between the factory's signatures and the exchange constructors / config it composes, not a typing-hygiene nit.
-
-**Impact:**
-- Runtime behaviour appears correct (existing tests pass) but the type-system says the contracts no longer line up with the call sites. If true, a real bug is one refactor away.
-- Phase 11.1 deliberately did not touch these without a quant-trader-expert review — fixing the types blindly could mask a genuine API drift.
-
-**Suggested Resolution:**
-- Quant-trader-expert review of the three call sites first to determine whether the drift is a typing-hygiene gap or a real signature mismatch.
-- Then either tighten the factory's annotations to match the call sites (if hygiene), or update the call sites to match the constructors (if drift). Don't pick one without the review.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
-- Out-of-scope per Phase 11.1 spec.
-
-### DEBT-007: Dashboard Streamlit type errors
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 11.1 |
-| **Component** | `src/dashboard/{theme,app,pages/trading,pages/engine}.py` |
-
-**Description:**
-~13 mypy errors clustered across `src/dashboard/theme.py`, `src/dashboard/app.py`, `src/dashboard/pages/trading.py`, and `src/dashboard/pages/engine.py`. Mostly missing local annotations / casts on Streamlit / pandas-derived values where mypy cannot infer the narrowed type.
-
-**Impact:**
-- No runtime impact — Streamlit pages render correctly.
-- Bundling them into one mini-sweep cycle is cheaper than fixing them one-at-a-time across four phases.
-
-**Suggested Resolution:**
-- One focused mini-sweep cycle covering the four files. Add the missing annotations / casts in a single PR. Same shape as DEBT-001's resolution but scoped to the dashboard.
-- No functional change; pure typing hygiene.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
-- Out-of-scope per Phase 11.1 spec.
-
-### DEBT-008: `src/main.py:220` lambda annotation
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 11.1 |
-| **Component** | `src/main.py` |
-
-**Description:**
-Single mypy error at `src/main.py:220` — `Cannot infer type of lambda`.
-
-**Impact:**
-- Cosmetic. One line.
-
-**Suggested Resolution:**
-- One-line fix candidate: replace the lambda with a typed `def`, or annotate the lambda's parameter via an assigned `Callable` annotation.
-- Pick up in passing during the next cycle that touches `src/main.py`.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
-- Out-of-scope per Phase 11.1 spec.
-
 ### DEBT-009: `scripts/lint.sh --fix` unsafe for CI
 
 | Field | Value |
@@ -253,6 +149,30 @@ The 5 tests added in Phase 12.1 cover default value, env wiring, cap-hit rejecti
 - Surfaced in: `docs/sessions/2026-04-28-phase-12.1-cross-cycle-position-cap.md`
 - Quant verdict: 🟡 ship with note on Phase 12.1.
 
+### DEBT-011: Dashboard `dict[str, object]` casts
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Phase** | Surfaced during Phase 12.2 |
+| **Component** | `src/dashboard/pages/trading.py` (`build_summary_metrics`), consumers |
+
+**Description:**
+QA-flagged as a nice-to-have follow-up to Phase 12.2's Streamlit-cluster cleanup. `build_summary_metrics` returns `dict[str, object]`; consumers therefore need `cast(int, ...)` / `cast(float, ...)` at each access site to satisfy mypy. The casts are correct today but each one is a small lie the type system relies on.
+
+**Impact:**
+- No runtime impact — values are consistent shape; the casts simply re-state what the producer already knows.
+- Type-system polish: a `TypedDict` rewrite would let mypy infer the narrowed type at every access site without explicit casts. Reduces the surface area for "cast says int, code returns float" drift if `build_summary_metrics` ever changes shape.
+
+**Suggested Resolution:**
+- Replace the `dict[str, object]` return type with a `TypedDict` declaring the exact key→type mapping. Drop the consumer-side `cast(...)` calls; mypy infers types from the `TypedDict`.
+- Pure typing refactor; no functional change.
+
+**Related:**
+- Surfaced in: `docs/sessions/2026-04-28-phase-12.2-residual-mypy-sweep.md`
+- QA verdict: 🟢 ship with optional follow-up on Phase 12.2.
+
 ---
 
 ## Resolved Debt Items
@@ -288,18 +208,54 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 11.2 added per-call (symbol, tf) cache; verified 3-symbol × 4-technique example drops from 12 → 3 fetches. |
 
+### DEBT-005: ccxt typing in `src/exchange/binance.py` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 12.2 added `CCXTClient` Protocol covering 10 ccxt methods used (`load_markets`, `close`, `fetch_ohlcv`, `fetch_ticker`, `fetch_balance`, `create_market_order`, `create_limit_order`, `cancel_order`, `fetch_order`, `fetch_open_orders`); `_client` typed as `CCXTClient \| None`. mypy: 11 errors → 0. |
+
+### DEBT-006: `src/exchange/factory.py` shape drift ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 12.2 investigated — NOT a behavioural mismatch. Registry's `type[BaseExchange]` widens away subclass `__init__` params. Resolved with tightly-scoped `cast(Any, exchange_class)(...)` + comment explaining the typing gap. mypy: 3 errors → 0. |
+
+### DEBT-007: Dashboard Streamlit type errors ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 12.2 added `Literal` types for theme constants, `StreamlitPage` import for navigation, `cast(...)` on `st.metric` numeric values. mypy: 13 errors → 0. |
+
+### DEBT-008: `src/main.py` lambda annotation ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 12.2 added targeted `# type: ignore[misc]` (canonical case for asyncio signal-handler callback shape mismatch). mypy: 1 error → 0. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 8 |
+| Total Active | 5 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 8 |
-| Resolved (All Time) | 2 |
+| Low | 5 |
+| Resolved (All Time) | 6 |
 
 ---
 
@@ -320,3 +276,8 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Added | DEBT-009 `scripts/lint.sh --fix` unsafe for CI (Low) — surfaced during Phase 11.1 |
 | 2026-04-28 | Resolved | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan — Phase 11.2 added per-call (symbol, tf) cache |
 | 2026-04-28 | Added | DEBT-010 Long+Short Same-Symbol Test Gap (Low) — surfaced during Phase 12.1 |
+| 2026-04-28 | Resolved | DEBT-005 ccxt typing in `src/exchange/binance.py` — Phase 12.2 added `CCXTClient` Protocol (10 methods) |
+| 2026-04-28 | Resolved | DEBT-006 `src/exchange/factory.py` shape drift — Phase 12.2 confirmed typing-system gap (not behavioural); `cast(Any, ...)` + comment |
+| 2026-04-28 | Resolved | DEBT-007 Dashboard Streamlit type errors — Phase 12.2 `Literal` types + `StreamlitPage` + numeric casts |
+| 2026-04-28 | Resolved | DEBT-008 `src/main.py` lambda annotation — Phase 12.2 targeted `# type: ignore[misc]` |
+| 2026-04-28 | Added | DEBT-011 Dashboard `dict[str, object]` casts (Low) — surfaced during Phase 12.2 |
