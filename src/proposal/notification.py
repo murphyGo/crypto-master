@@ -28,6 +28,7 @@ import asyncio
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from collections.abc import Sequence
@@ -359,6 +360,122 @@ class SlackNotifier:
 
 
 # =============================================================================
+# Telegram backend (Phase 12.4)
+# =============================================================================
+
+
+def _build_telegram_text(notification: Notification) -> str:
+    """Build the Telegram ``text`` body for a notification.
+
+    Mirrors :func:`_build_slack_payload`'s summary + code-fenced detail
+    so the on-the-wire content of Slack and Telegram alerts stays in
+    sync — operators reading either backend get the exact same fields.
+    Telegram has no "blocks" concept, so we collapse both into one
+    Markdown string: a bolded headline followed by a triple-backtick
+    code block with the rationale-relevant fields. Markdown is enabled
+    via ``parse_mode=Markdown`` on the request.
+    """
+    proposal = notification.proposal
+    headline = (
+        f"*{proposal.symbol} {proposal.signal}* "
+        f"score={proposal.score.composite:.2f} "
+        f"entry={proposal.entry_price}"
+    )
+    detail = (
+        "```\n"
+        f"proposal_id: {proposal.proposal_id}\n"
+        f"technique: {proposal.technique_name}\n"
+        f"SL: {proposal.stop_loss}\n"
+        f"TP: {proposal.take_profit}\n"
+        f"qty: {proposal.quantity}\n"
+        f"leverage: {proposal.leverage}x\n"
+        f"rr: {proposal.risk_reward_ratio:.2f}\n"
+        "```"
+    )
+    return f"{headline}\n{detail}"
+
+
+class TelegramNotifier:
+    """POSTs notifications to the Telegram Bot API (Phase 12.4).
+
+    Both the bot token and the chat id are secrets — anyone with the
+    token can drive the bot, and the chat id reveals the destination
+    chat. ``__repr__`` masks both, and we never log either value.
+
+    The HTTP call uses ``urllib.request`` from the standard library
+    (zero extra dependency) wrapped in ``asyncio.to_thread`` so the
+    dispatcher's event loop is not blocked. Mirrors
+    :class:`SlackNotifier` from Phase 11.3.
+
+    Failure isolation is enforced by ``NotificationDispatcher``: if
+    Telegram returns 4xx/5xx or times out, ``send`` raises and the
+    dispatcher logs + continues to the next backend. We deliberately
+    do not catch internally so the dispatcher's existing isolation
+    contract is the single owner of "one bad backend can't silence
+    the others".
+    """
+
+    _API_BASE = "https://api.telegram.org"
+
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        *,
+        timeout: float = 5.0,
+    ) -> None:
+        """Initialize the Telegram notifier.
+
+        Args:
+            bot_token: Telegram Bot API token (from @BotFather). Treated
+                as a secret — never logged, never returned by
+                ``__repr__``.
+            chat_id: Destination chat id (numeric or ``@channel``).
+                Treated as a secret — masked in ``__repr__``.
+            timeout: Per-request timeout in seconds. Defaults to 5s so
+                a slow Telegram endpoint can't stall the cycle.
+        """
+        self._bot_token = bot_token
+        self.chat_id = chat_id
+        self.timeout = timeout
+        self.url = f"{self._API_BASE}/bot{bot_token}/sendMessage"
+
+    def __repr__(self) -> str:
+        # Mask the token AND chat id — only their presence is
+        # informative for logs. The chat id is sensitive on its own
+        # because it identifies the operator's destination channel.
+        return f"{type(self).__name__}(bot_token=<redacted>, chat_id=<redacted>)"
+
+    async def send(self, notification: Notification) -> None:
+        """POST the Telegram-formatted payload to the Bot API."""
+        text = _build_telegram_text(notification)
+        body = urllib.parse.urlencode(
+            {
+                "chat_id": self.chat_id,
+                "text": text,
+                "parse_mode": "Markdown",
+            }
+        ).encode("utf-8")
+        # Bind to locals so the worker thread captures stable refs.
+        url = self.url
+        timeout = self.timeout
+
+        def _post() -> None:
+            req = urllib.request.Request(url, data=body, method="POST")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                # Telegram returns 200 with a JSON ``{"ok": true, ...}``
+                # on success; non-2xx is raised by urlopen as HTTPError.
+                # Drain the body so the connection can be reused.
+                resp.read()
+
+        await asyncio.to_thread(_post)
+        logger.debug(
+            f"Telegram notification dispatched for "
+            f"proposal={notification.proposal.proposal_id}"
+        )
+
+
+# =============================================================================
 # Dispatcher
 # =============================================================================
 
@@ -451,5 +568,6 @@ __all__ = [
     "NotificationLevel",
     "Notifier",
     "SlackNotifier",
+    "TelegramNotifier",
     "build_default_message",
 ]

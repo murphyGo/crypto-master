@@ -306,6 +306,87 @@ class TestBuildEngineEnvOverride:
         notifiers = engine.notification_dispatcher._notifiers
         assert not any(isinstance(n, SlackNotifier) for n in notifiers)
 
+    def test_telegram_notifier_created_when_both_env_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Both ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` set →
+        dispatcher gains a TelegramNotifier (Phase 12.4)."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import TelegramNotifier
+
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456789:AAH-test-XYZ")
+        monkeypatch.setenv("TELEGRAM_CHAT_ID", "-1001234567890")
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(trading_mode="paper", binance=bn)
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        notifiers = engine.notification_dispatcher._notifiers
+        assert any(isinstance(n, TelegramNotifier) for n in notifiers)
+
+    def test_telegram_notifier_silent_when_either_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If either Telegram env var is unset the notifier must NOT be
+        added — partial config silently disables the backend."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import TelegramNotifier
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+
+        # Defend against env leakage between the three sub-cases by
+        # passing the field explicitly on each Settings construction.
+        scenarios: list[tuple[str | None, str | None]] = [
+            ("123456789:AAH-test-XYZ", None),  # token only
+            (None, "-1001234567890"),  # chat id only
+            (None, None),  # neither
+        ]
+
+        for token, chat_id in scenarios:
+            monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+            monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+
+            settings = Settings(
+                trading_mode="paper",
+                binance=bn,
+                telegram_bot_token=token,
+                telegram_chat_id=chat_id,
+            )
+            exchange = build_exchange(settings)
+
+            with patch(
+                "src.main.load_all_strategies", return_value={}
+            ), patch("src.main.PerformanceTracker"), patch(
+                "src.main.ProposalHistory"
+            ), patch("src.main.ActivityLog"):
+                engine = build_engine(settings, exchange)
+
+            notifiers = engine.notification_dispatcher._notifiers
+            assert not any(
+                isinstance(n, TelegramNotifier) for n in notifiers
+            ), f"TelegramNotifier should be silent for token={token!r}, chat_id={chat_id!r}"
+
     def test_explicit_config_argument_still_wins(self) -> None:
         """``build_engine`` allows callers (tests / one-shots) to pass
         their own ``EngineConfig``; that path must override Settings."""

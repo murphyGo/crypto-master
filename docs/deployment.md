@@ -240,11 +240,11 @@ deploy is real losses, not test-data garbage.
 
 4. **Notifications**. Set `NotificationDispatcher`'s `min_score`
    *higher than* the auto-approve threshold so every accepted live
-   proposal pages you. Console + File backends are always on; the
-   Slack push backend (Phase 11.3) is opt-in via
-   `SLACK_WEBHOOK_URL` (Telegram / email are future adds). The
-   dashboard's Engine page also surfaces every accepted proposal in
-   real time.
+   proposal pages you. Console + File backends are always on; two
+   push backends are opt-in (Phase 11.3, Phase 12.4): Slack via
+   `SLACK_WEBHOOK_URL`, and Telegram via the pair
+   `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. The dashboard's
+   Engine page also surfaces every accepted proposal in real time.
 
    **Slack setup (optional).** Create an incoming webhook at
    <https://api.slack.com/messaging/webhooks>: pick the workspace +
@@ -262,6 +262,32 @@ deploy is real losses, not test-data garbage.
    500) are logged and swallowed by the dispatcher's per-channel
    isolation so a flaky Slack endpoint cannot stall the cycle. Unset
    the secret to disable.
+
+   **Telegram setup (optional).** Create a bot through
+   [@BotFather](https://t.me/BotFather): `/newbot` → choose a name
+   and username → copy the token it prints
+   (`123456789:AAH...XYZ`). Then obtain the destination chat id:
+   send any message to the bot from the chat you want alerts in
+   (DM, group, or channel — for groups/channels add the bot first),
+   then read `message.chat.id` from
+   `https://api.telegram.org/bot<TOKEN>/getUpdates`. Push both into
+   Fly secrets:
+
+   ```bash
+   fly secrets set \
+       TELEGRAM_BOT_TOKEN=123456789:AAH...XYZ \
+       TELEGRAM_CHAT_ID=-1001234567890
+   ```
+
+   Both the token and the chat id are sensitive — the token
+   authenticates the bot (anyone who has it can drive it) and the
+   chat id reveals the alert destination. The runtime never logs
+   either value, and `__repr__` on the notifier masks both. Both
+   secrets must be set for the backend to register; with only one
+   set the dispatcher silently skips Telegram. HTTP failures
+   (timeout, 500) are logged and swallowed by the dispatcher's
+   per-channel isolation, same as Slack. Unset either secret to
+   disable.
 
 5. **Start small**. Send a small balance to the exchange (e.g.
    $100–$500) and watch the first day of live trades on the

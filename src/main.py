@@ -43,6 +43,7 @@ from src.proposal.notification import (
     NotificationDispatcher,
     Notifier,
     SlackNotifier,
+    TelegramNotifier,
 )
 from src.runtime.activity_log import ActivityLog
 from src.runtime.engine import EngineConfig, TradingEngine
@@ -191,15 +192,26 @@ def build_engine(
     interaction = ProposalInteraction(history=history)
     trader = build_trader(settings, exchange, config)
 
-    # Notifier list grows with optional push backends (Phase 11.3).
-    # Console + File are always-on. Slack is opt-in via
-    # ``SLACK_WEBHOOK_URL``; when unset, the notifier is not
-    # constructed at all so there is nothing to fail at runtime.
+    # Notifier list grows with optional push backends (Phase 11.3,
+    # 12.4). Console + File are always-on. Slack is opt-in via
+    # ``SLACK_WEBHOOK_URL``; Telegram is opt-in via the pair
+    # ``TELEGRAM_BOT_TOKEN`` + ``TELEGRAM_CHAT_ID`` (both required —
+    # the notifier is not constructed unless both are set, so a
+    # half-configured deploy does not fail at runtime).
     notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
     if settings.slack_webhook_url:
         notifiers.append(SlackNotifier(settings.slack_webhook_url))
         # Deliberately log presence only — never the URL itself.
         logger.info("Slack push notifier enabled.")
+    if settings.telegram_bot_token and settings.telegram_chat_id:
+        notifiers.append(
+            TelegramNotifier(
+                bot_token=settings.telegram_bot_token,
+                chat_id=settings.telegram_chat_id,
+            )
+        )
+        # Deliberately log presence only — never the token or chat id.
+        logger.info("Telegram push notifier enabled.")
     notifier = NotificationDispatcher(
         notifiers=notifiers,
         min_score=config.auto_approve_threshold,

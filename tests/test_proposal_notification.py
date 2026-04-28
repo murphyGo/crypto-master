@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import urllib.parse
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -19,7 +20,9 @@ from src.proposal.notification import (
     NotificationDispatcher,
     NotificationLevel,
     SlackNotifier,
+    TelegramNotifier,
     _build_slack_payload,
+    _build_telegram_text,
     build_default_message,
 )
 
@@ -556,4 +559,173 @@ def test_slack_notifier_uses_configured_timeout(
 ) -> None:
     """The constructor's timeout flows into the urllib call."""
     notifier = SlackNotifier(WEBHOOK_URL, timeout=2.5)
+    assert notifier.timeout == 2.5
+
+
+# =============================================================================
+# TelegramNotifier (Phase 12.4)
+# =============================================================================
+
+
+TELEGRAM_BOT_TOKEN = "123456789:AAH-secret-token-XYZ"
+TELEGRAM_CHAT_ID = "-1001234567890"
+
+
+def test_build_telegram_text_has_summary_and_detail() -> None:
+    """Telegram body collapses Slack's two blocks into one Markdown
+    string: a bolded headline and a code-fenced detail section."""
+    proposal = make_proposal(
+        symbol="ETH/USDT",
+        signal="long",
+        composite=1.5,
+    )
+    text = _build_telegram_text(make_notification(proposal=proposal))
+
+    # Bolded headline.
+    assert "*ETH/USDT long*" in text
+    assert "score=1.50" in text
+    assert "entry=50000" in text
+
+    # Code-fenced detail with the same fields as Slack.
+    assert "```" in text
+    assert f"proposal_id: {proposal.proposal_id}" in text
+    assert f"technique: {proposal.technique_name}" in text
+    assert f"SL: {proposal.stop_loss}" in text
+    assert f"TP: {proposal.take_profit}" in text
+    assert f"qty: {proposal.quantity}" in text
+    assert f"leverage: {proposal.leverage}x" in text
+    assert "rr: 3.00" in text
+
+
+def test_telegram_notifier_repr_masks_token() -> None:
+    """Bot token AND chat id are secrets — ``__repr__`` masks both."""
+    notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+
+    rendered = repr(notifier)
+
+    assert TELEGRAM_BOT_TOKEN not in rendered
+    assert TELEGRAM_CHAT_ID not in rendered
+    assert "redacted" in rendered.lower()
+
+
+async def test_telegram_notifier_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Notifying a proposal POSTs a form-encoded Telegram payload."""
+    notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    proposal = make_proposal(symbol="BTC/USDT", signal="short", composite=1.23)
+    notification = make_notification(proposal=proposal)
+
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok":true}'
+
+    def _fake_urlopen(req: object, timeout: float = 0) -> _FakeResponse:
+        captured["url"] = req.full_url  # type: ignore[attr-defined]
+        captured["data"] = req.data  # type: ignore[attr-defined]
+        captured["method"] = req.get_method()  # type: ignore[attr-defined]
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen", _fake_urlopen
+    )
+
+    await notifier.send(notification)
+
+    # URL has the bot/<TOKEN>/sendMessage path (matches Telegram Bot API).
+    assert captured["url"] == (
+        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    )
+    assert captured["method"] == "POST"
+
+    # Form-encoded body has chat_id, text (Markdown), parse_mode.
+    parsed = urllib.parse.parse_qs(captured["data"].decode("utf-8"))  # type: ignore[union-attr]
+    assert parsed["chat_id"] == [TELEGRAM_CHAT_ID]
+    assert parsed["parse_mode"] == ["Markdown"]
+    text = parsed["text"][0]
+    # Spec format: bolded headline + code-fenced detail.
+    assert "*BTC/USDT short*" in text
+    assert "score=1.23" in text
+    assert "entry=50000" in text
+    assert "```" in text
+    assert f"proposal_id: {proposal.proposal_id}" in text
+
+
+async def test_telegram_http_failure_does_not_crash_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 500 from Telegram must not silence other notifiers."""
+    import urllib.error
+
+    def _raise_500(*args: object, **kwargs: object) -> None:
+        raise urllib.error.HTTPError(
+            url=f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            code=500,
+            msg="Internal Server Error",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=None,
+        )
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen", _raise_500
+    )
+
+    telegram = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    good = RecordingNotifier()
+    dispatcher = NotificationDispatcher(notifiers=[telegram, good])
+
+    notification = await dispatcher.notify_proposal(make_proposal())
+
+    # Notification was constructed and the second backend still
+    # received it even though Telegram raised.
+    assert notification is not None
+    assert good.received == [notification]
+
+
+async def test_telegram_notifier_does_not_log_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The bot token and chat id must never appear in logs."""
+    import logging
+
+    class _FakeResponse:
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"ok":true}'
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen",
+        lambda *a, **kw: _FakeResponse(),
+    )
+
+    notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    with caplog.at_level(logging.DEBUG, logger="crypto_master.proposal.notification"):
+        await notifier.send(make_notification())
+
+    for record in caplog.records:
+        message = record.getMessage()
+        assert TELEGRAM_BOT_TOKEN not in message
+        assert TELEGRAM_CHAT_ID not in message
+
+
+def test_telegram_notifier_uses_configured_timeout() -> None:
+    """The constructor's timeout flows into the urllib call."""
+    notifier = TelegramNotifier(
+        TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, timeout=2.5
+    )
     assert notifier.timeout == 2.5

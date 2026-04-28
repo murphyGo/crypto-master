@@ -167,6 +167,18 @@ class Settings(BaseSettings):
     # https://api.slack.com/messaging/webhooks.
     slack_webhook_url: str | None = Field(default=None)
 
+    # Telegram Notification Backend (Phase 12.4)
+    # Bot token + chat id pair for the Telegram Bot API. Both must be
+    # set for the notifier to register; if either is missing the
+    # dispatcher silently skips the Telegram backend. The bot token is
+    # equivalent to a secret API key (anyone with it can drive the
+    # bot) and ``TELEGRAM_CHAT_ID`` reveals the destination chat — the
+    # application MUST NOT log either value. Create a bot via
+    # @BotFather and obtain the chat id from the bot's first update
+    # (https://api.telegram.org/bot<TOKEN>/getUpdates).
+    telegram_bot_token: str | None = Field(default=None)
+    telegram_chat_id: str | None = Field(default=None)
+
     # Claude CLI Timeout / Retry (Phase 12.3)
     # Base timeout for one ``claude -p`` invocation in seconds.
     # On timeout the wrapper retries up to ``claude_cli_max_retries``
