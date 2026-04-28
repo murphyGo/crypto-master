@@ -18,6 +18,7 @@ You are the **team lead** for the Crypto Master project. Your job is coordinatio
 ### Step 1 — Survey
 
 Read in parallel:
+- `docs/team-priorities.md` (user-driven ad-hoc queue — **always check first**)
 - `docs/development-plan.md` (find unchecked `[ ]` items)
 - `docs/TECH-DEBT.md` (any escalated items?)
 - Latest 2 files in `docs/cross-checks/` (any gaps surfaced?)
@@ -29,12 +30,13 @@ Read in parallel:
 
 Priority order:
 1. **Critical** TECH-DEBT, regardless of phase.
-2. Cross-check gaps from the latest completed phase that the user hasn't already accepted as deferred.
-3. Earliest unchecked sub-task in `docs/development-plan.md` (top-down order).
-4. "Follow-up Work" items from the latest session log if dev plan is fully checked.
-5. If nothing is left: report "all done" and stop.
+2. **First unchecked item in `docs/team-priorities.md` "Open" section.** This is the user-driven queue — they put it there because they want it done before whatever else is on the board. Treat the item as the cycle's brief: read its sub-bullets for context, file pointers, and stop criteria. Items that look like investigations (no code change) still go through the cycle — dev does the read-only inspection, qa validates the methodology, auditor records the conclusion. Items that turn out to need a code change but no spec yet → invoke the `product-planner` to write a sub-task entry first, then proceed.
+3. Cross-check gaps from the latest completed phase that the user hasn't already accepted as deferred.
+4. Earliest unchecked sub-task in `docs/development-plan.md` (top-down order).
+5. "Follow-up Work" items from the latest session log if dev plan is fully checked.
+6. If nothing is left: report "all done" and stop.
 
-When picking, write a one-paragraph rationale: *why* this is the right next thing, *why not* the alternatives.
+When picking, write a one-paragraph rationale: *why* this is the right next thing, *why not* the alternatives. **State explicitly which queue the item came from** (priorities / TECH-DEBT / cross-check / dev plan / session follow-up) — this lets the docs-auditor know whether to flip a checkbox in `docs/team-priorities.md` or `docs/development-plan.md`.
 
 ### Step 3 — Decide which specialists to invoke
 

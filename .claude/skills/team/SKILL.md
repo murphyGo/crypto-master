@@ -5,10 +5,22 @@ Spawns the autonomous Crypto Master agent team to advance the project by one sub
 ## Arguments
 
 - `$ARGUMENTS` — (optional)
-  - Empty → team-lead picks the next sub-task itself.
+  - Empty → team-lead picks the next sub-task itself, following its priority order: critical TECH-DEBT → `docs/team-priorities.md` open queue → cross-check gaps → dev plan → session follow-ups.
   - `phase N.M` → force the team onto a specific sub-task.
   - `from-tech-debt` → bias the lead toward escalated TECH-DEBT items first.
   - `cross-check N` → ask the auditor to run the cross-check for a completed phase.
+
+## Ad-hoc tasks (priority queue)
+
+For one-off requests that aren't in the dev plan ("verify why nothing's trading on Fly", "audit the auto-approve threshold against last week's data"), add a one-line item to **`docs/team-priorities.md`**. The team-lead picks the first unchecked item every cycle, processes it through the appropriate specialists, and the docs-auditor flips the box and moves it to the **Done** section with a one-line outcome.
+
+This is the seam that makes `/loop /team` actually useful for autonomous iteration:
+
+- Add a priority → next cycle handles it.
+- Priority queue empty → cycle falls back to the dev plan.
+- Add another priority mid-loop → it gets picked up on the next cycle, leapfrogging the dev plan.
+
+You don't have to edit the file by hand — just say "add this to team priorities: <X>" and the assistant will append it for you.
 
 ## Objective
 
@@ -47,17 +59,22 @@ The skill is mostly a launcher. The work is:
 ```
 /team
 ```
-→ team picks the next sub-task. Today (2026-04-28) that's Phase 10.2 EngineConfig Env Override.
+→ team picks the next sub-task. With `docs/team-priorities.md` open queue empty, today (2026-04-28) that's Phase 10.2 EngineConfig Env Override. With one queued, it processes the queued item first.
+
+```
+/loop /team
+```
+→ continuous iteration. Each cycle: priority queue → dev plan → cross-check → done. User can add a priority mid-loop and it leapfrogs the dev plan on the next cycle. Loop self-paces between cycles. Stops when a user-gate trigger fires (live credentials / mainnet money / phase-completion gap / qa 🔴) — surfaces the question and waits.
 
 ```
 /team phase 10.4
 ```
-→ team works on log retention.
+→ team works on log retention (forced sub-task overrides priority queue).
 
 ```
 /team from-tech-debt
 ```
-→ team prioritises escalated TECH-DEBT.
+→ team prioritises escalated TECH-DEBT (overrides priority queue).
 
 ```
 /team cross-check 9

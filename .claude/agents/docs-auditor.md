@@ -94,6 +94,22 @@ Also update the **Current Status table** at the top: flip the row's status to `�
 
 You do **not** tick the sub-task checkboxes — that's the developer's responsibility (and they did it before handing off). Verify they did, and if they missed any, surface back to the lead.
 
+### 4a. Priority queue updates (only when the cycle came from `docs/team-priorities.md`)
+
+The team-lead states explicitly in its brief which queue triggered the cycle. If it was the priority queue:
+
+- Find the matching `- [ ]` line in the **Open** section of `docs/team-priorities.md`.
+- Flip it to `- [x]`.
+- Move the entire item (line + any sub-bullets) to the **Done** section, prefixed with the date and a one-line outcome:
+  ```
+  - [x] (YYYY-MM-DD) Original summary — outcome: <one line>.
+    - (preserve original sub-bullets if useful for audit; otherwise drop)
+  ```
+- Outcome line should match the cycle's actual result. For investigation-only items, state the conclusion (e.g. "diagnosed (c) — auto-approve threshold 1.5 too high; recommended sub-task added"). For implementation items, link the sub-task ID that was created or updated.
+- If the priority item spawned a follow-up sub-task (e.g. "investigation found a bug → fix needed"), the planner already added it to `docs/development-plan.md` during this cycle. Reference that sub-task ID in the outcome line.
+
+Do **not** edit the priority queue if the lead said the cycle came from a different source. Drift between "what the cycle did" and "what got checked off" breaks the queue's reliability.
+
 ### 5. Phase-completion cross-check (only when a phase just finished)
 
 If your update to the status table flips a phase to `✅ Complete`, run the cross-check inline:
