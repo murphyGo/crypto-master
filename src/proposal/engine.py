@@ -590,6 +590,14 @@ class ProposalEngine:
         captures the *final* (post-retry) timeout the wrapper gave up
         at, which is the most informative number for an operator
         triaging "should I bump ``CLAUDE_CLI_TIMEOUT_SECONDS``?".
+
+        Phase 14.1: the event also carries ``attempt_number`` (1-indexed
+        attempt that raised) and ``final_timeout_seconds`` (alias of
+        ``timeout_seconds`` for clarity in the dashboard) so operators
+        can distinguish "first-attempt fail, no retry path firing"
+        from "every attempt timed out — bump the per-strategy override".
+        The original ``timeout_seconds`` key is preserved for
+        back-compat with downstream readers that already parse it.
         """
         logger.warning(
             f"Strategy {strategy.name} failed on {symbol}: {error}"
@@ -606,6 +614,8 @@ class ProposalEngine:
                 "strategy_version": strategy.version,
                 "symbol": symbol,
                 "timeout_seconds": error.timeout_seconds,
+                "attempt_number": error.attempt_number,
+                "final_timeout_seconds": error.timeout_seconds,
             },
         )
 

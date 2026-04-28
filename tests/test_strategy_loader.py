@@ -92,6 +92,121 @@ class TestPromptStrategy:
         assert result.signal == "long"
         assert result.confidence == 0.8
 
+    @pytest.mark.asyncio
+    async def test_analyze_passes_per_strategy_timeout_to_claude(self) -> None:
+        """Phase 14.1: ``info.claude_timeout_seconds`` overrides Settings.
+
+        When a strategy declares ``claude_timeout_seconds=240`` on its
+        ``TechniqueInfo`` (the chasulang case), ``PromptStrategy.analyze``
+        must instantiate ``ClaudeCLI(timeout=240.0)`` rather than letting
+        the wrapper resolve the default from
+        ``Settings.claude_cli_timeout_seconds``. The override is the
+        only difference between this strategy and a baseline like
+        ``rsi_4h`` that runs comfortably under 120s.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+        from unittest.mock import AsyncMock, patch
+
+        from src.models import OHLCV
+
+        info = TechniqueInfo(
+            name="slow_tech",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+            claude_timeout_seconds=240,
+        )
+        strategy = PromptStrategy(
+            info=info,
+            prompt_content="Analyze {symbol} on {timeframe}: {ohlcv_data}",
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime.now(),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+            for _ in range(25)
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.analyze.return_value = {
+            "signal": "long",
+            "confidence": 0.7,
+            "entry_price": 102,
+            "stop_loss": 95,
+            "take_profit": 110,
+            "reasoning": "ok",
+        }
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client) as cli_ctor:
+            await strategy.analyze(ohlcv, "BTC/USDT")
+
+        # The override must reach ``ClaudeCLI`` as ``timeout=240.0``.
+        # Coerced to ``float`` by the loader so subprocess timing
+        # accepts the value uniformly with the existing Settings path.
+        cli_ctor.assert_called_once_with(timeout=240.0)
+
+    @pytest.mark.asyncio
+    async def test_analyze_falls_back_to_settings_when_no_override(self) -> None:
+        """Phase 14.1: ``claude_timeout_seconds=None`` -> default ClaudeCLI.
+
+        Existing strategies (rsi_4h, etc.) must continue to inherit the
+        global ``Settings.claude_cli_timeout_seconds`` — the override is
+        opt-in. ``PromptStrategy.analyze`` should construct
+        ``ClaudeCLI()`` with no kwargs so the wrapper resolves the
+        default lazily.
+        """
+        from datetime import datetime
+        from decimal import Decimal
+        from unittest.mock import AsyncMock, patch
+
+        from src.models import OHLCV
+
+        info = TechniqueInfo(
+            name="default_tech",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+        )
+        assert info.claude_timeout_seconds is None  # baseline expectation
+        strategy = PromptStrategy(
+            info=info,
+            prompt_content="Analyze {symbol} on {timeframe}: {ohlcv_data}",
+        )
+        ohlcv = [
+            OHLCV(
+                timestamp=datetime.now(),
+                open=Decimal("100"),
+                high=Decimal("105"),
+                low=Decimal("95"),
+                close=Decimal("102"),
+                volume=Decimal("1000"),
+            )
+            for _ in range(25)
+        ]
+
+        mock_client = AsyncMock()
+        mock_client.analyze.return_value = {
+            "signal": "neutral",
+            "confidence": 0.5,
+            "entry_price": 100,
+            "stop_loss": 95,
+            "take_profit": 105,
+            "reasoning": "no edge",
+        }
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client) as cli_ctor:
+            await strategy.analyze(ohlcv, "BTC/USDT")
+
+        # No kwargs — the wrapper's ``__init__`` reads the env-driven
+        # Settings default itself.
+        cli_ctor.assert_called_once_with()
+
     def test_format_prompt_substitutes_known_placeholders(
         self, technique_info: TechniqueInfo
     ) -> None:

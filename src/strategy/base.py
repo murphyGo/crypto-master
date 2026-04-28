@@ -166,6 +166,19 @@ class TechniqueInfo(BaseModel):
     updated_at: datetime | None = Field(default=None)
     changelog: str | None = Field(default=None, description="Version change notes")
 
+    claude_timeout_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Phase 14.1: per-strategy override for the Claude CLI base "
+            "timeout. When ``None`` (default), ``PromptStrategy`` falls "
+            "back to ``Settings.claude_cli_timeout_seconds`` so existing "
+            "strategies are unaffected. Useful for prompt-heavy "
+            "strategies (e.g. multi-TF ICT/SMC analysis) that need a "
+            "longer leash than baselines like ``rsi_4h``."
+        ),
+    )
+
     model_config = {"frozen": True}
 
 

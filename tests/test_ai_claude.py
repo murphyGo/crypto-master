@@ -404,6 +404,46 @@ class TestClaudeCLIRetryOnTimeout:
         # Final attempt used 0.04 * 1.5 = 0.06s.
         assert exc_info.value.timeout_seconds == pytest.approx(0.06)
 
+    @pytest.mark.asyncio
+    async def test_timeout_error_carries_final_attempt_number(self) -> None:
+        """Phase 14.1: ``attempt_number`` reports the final 1-indexed attempt.
+
+        With ``max_retries=2`` (3 total attempts) and every attempt
+        timing out, the raised error must carry ``attempt_number=3``
+        — the final attempt's index. This is what the proposal engine
+        forwards into ``LLM_TIMEOUT.details.attempt_number`` so
+        operators can see "every retry exhausted" vs "first attempt
+        failed and no retry path".
+        """
+        processes = [self._make_slow_process() for _ in range(3)]
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=processes,
+            ):
+                client = ClaudeCLI(timeout=0.04, max_retries=2)
+                with pytest.raises(ClaudeTimeoutError) as exc_info:
+                    await client.analyze("test")
+
+        assert exc_info.value.attempt_number == 3
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_attempt_number_is_one_with_no_retry(self) -> None:
+        """Phase 14.1: ``max_retries=0`` -> ``attempt_number=1`` on raise."""
+        slow = self._make_slow_process()
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                return_value=slow,
+            ):
+                client = ClaudeCLI(timeout=0.04, max_retries=0)
+                with pytest.raises(ClaudeTimeoutError) as exc_info:
+                    await client.analyze("test")
+
+        assert exc_info.value.attempt_number == 1
+
 
 class TestJSONExtraction:
     """Tests for JSON extraction from markdown."""

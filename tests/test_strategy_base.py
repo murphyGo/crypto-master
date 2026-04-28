@@ -89,6 +89,42 @@ class TestTechniqueInfo:
         assert info.timeframes == ["1h", "4h", "1d"]
         assert info.updated_at is None
         assert info.changelog is None
+        # Phase 14.1: per-strategy Claude CLI timeout override defaults
+        # to ``None`` so existing strategies continue to inherit
+        # ``Settings.claude_cli_timeout_seconds`` unchanged.
+        assert info.claude_timeout_seconds is None
+
+    def test_claude_timeout_seconds_accepts_positive_int(self) -> None:
+        """Phase 14.1: per-strategy override accepts a positive integer.
+
+        Validates the field can carry the chasulang-style 240s override
+        without coercion drama. Negative / zero values are rejected by
+        the ``ge=1`` constraint.
+        """
+        info = TechniqueInfo(
+            name="slow_tech",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+            claude_timeout_seconds=240,
+        )
+        assert info.claude_timeout_seconds == 240
+
+    def test_claude_timeout_seconds_rejects_zero(self) -> None:
+        """Phase 14.1: ``claude_timeout_seconds`` must be >= 1 when set.
+
+        Zero is meaningless (instant timeout) and almost certainly a
+        config bug, so the schema rejects it at load time rather than
+        silently producing a strategy that can never succeed.
+        """
+        with pytest.raises(ValidationError):
+            TechniqueInfo(
+                name="test",
+                version="1.0.0",
+                description="Test",
+                technique_type="prompt",
+                claude_timeout_seconds=0,
+            )
 
     def test_technique_info_is_frozen(self) -> None:
         """Test TechniqueInfo is immutable."""

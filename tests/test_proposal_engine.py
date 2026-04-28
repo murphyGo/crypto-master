@@ -657,6 +657,50 @@ async def test_engine_logs_llm_timeout_event(tmp_path: Path) -> None:
     assert event.details["timeout_seconds"] == 180.0
 
 
+async def test_engine_llm_timeout_event_carries_attempt_metadata(
+    tmp_path: Path,
+) -> None:
+    """Phase 14.1: ``LLM_TIMEOUT`` payload exposes retry-path metadata.
+
+    Operators triaging "is the retry actually firing?" need to see
+    ``attempt_number`` (1 = no retry, 2+ = retry path) and
+    ``final_timeout_seconds`` (the timeout the *final* attempt gave up
+    at) without grepping subprocess WARN lines. The original
+    ``timeout_seconds`` key is preserved for back-compat with existing
+    dashboard readers.
+    """
+    from src.ai.exceptions import ClaudeTimeoutError
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    activity = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    strategy = make_strategy(
+        info=make_info("chasulang_ict_smc", symbols=["BTC/USDT"]),
+        analysis=ClaudeTimeoutError(
+            "timed out", timeout_seconds=360.0, attempt_number=2
+        ),
+    )
+    engine, _ = make_engine(
+        strategies={"chasulang_ict_smc": strategy},
+        activity_log=activity,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+    assert proposal is None
+
+    events = activity.filter(event_type=ActivityEventType.LLM_TIMEOUT)
+    assert len(events) == 1
+    details = events[0].details
+    # Phase 14.1 additions — attempt_number == 2 means the retry path
+    # fired and *both* attempts timed out (the final, longer-leash
+    # attempt being the one that surfaced the error).
+    assert details["attempt_number"] == 2
+    assert details["final_timeout_seconds"] == 360.0
+    # Back-compat: the legacy ``timeout_seconds`` key is still emitted
+    # so existing log readers / dashboards keep working.
+    assert details["timeout_seconds"] == 360.0
+
+
 async def test_engine_does_not_log_llm_timeout_for_other_strategy_errors(
     tmp_path: Path,
 ) -> None:

@@ -102,6 +102,23 @@ class TestClaudeTimeoutError:
         error = ClaudeTimeoutError("Took too long", timeout_seconds=60.0)
         assert str(error) == "Took too long"
 
+    def test_attempt_number_defaults_to_one(self) -> None:
+        """Phase 14.1: attempt_number defaults to 1 (no retry path).
+
+        Existing call sites that haven't migrated to pass
+        ``attempt_number`` keep working — the default matches the
+        single-shot semantics from Phase 12.3 launch.
+        """
+        error = ClaudeTimeoutError("timeout", timeout_seconds=120.0)
+        assert error.attempt_number == 1
+
+    def test_attempt_number_is_set(self) -> None:
+        """Phase 14.1: explicit attempt_number is preserved."""
+        error = ClaudeTimeoutError(
+            "timeout", timeout_seconds=180.0, attempt_number=2
+        )
+        assert error.attempt_number == 2
+
 
 class TestClaudeParseError:
     """Tests for ClaudeParseError."""

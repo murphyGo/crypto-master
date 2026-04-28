@@ -69,18 +69,33 @@ class ClaudeTimeoutError(ClaudeError, StrategyError):
     event) use ``isinstance(e, ClaudeTimeoutError)`` after the catch.
 
     Attributes:
-        timeout_seconds: The timeout duration that was exceeded.
+        timeout_seconds: The timeout duration that was exceeded
+            (the *final* attempt's timeout when retry-on-timeout is
+            in play).
+        attempt_number: 1-indexed attempt number that raised — Phase
+            14.1. ``1`` means the first attempt timed out and there
+            was no retry (or retries were disabled);
+            ``max_retries + 1`` means every attempt timed out.
     """
 
-    def __init__(self, message: str, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        message: str,
+        timeout_seconds: float,
+        attempt_number: int = 1,
+    ) -> None:
         """Initialize ClaudeTimeoutError.
 
         Args:
             message: Error description.
             timeout_seconds: The timeout duration that was exceeded.
+            attempt_number: 1-indexed attempt that raised. Phase 14.1
+                — surfaced in the ``LLM_TIMEOUT`` activity event so
+                operators can verify the retry path is actually firing.
         """
         super().__init__(message)
         self.timeout_seconds = timeout_seconds
+        self.attempt_number = attempt_number
 
 
 class ClaudeParseError(ClaudeError):

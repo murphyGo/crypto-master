@@ -215,9 +215,19 @@ class PromptStrategy(BaseStrategy):
             current_price=current_price,
         )
 
-        # Execute Claude CLI
+        # Execute Claude CLI. Phase 14.1: per-strategy timeout
+        # override — when ``info.claude_timeout_seconds`` is set, pass
+        # it to ``ClaudeCLI`` directly so prompt-heavy strategies
+        # (e.g. multi-TF ICT/SMC analysis) get a longer leash without
+        # forcing every other strategy onto the same global timeout.
+        # ``None`` (default) lets ``ClaudeCLI`` resolve from
+        # ``Settings.claude_cli_timeout_seconds`` as before.
+        timeout_override = self.info.claude_timeout_seconds
         try:
-            client = ClaudeCLI()
+            if timeout_override is not None:
+                client = ClaudeCLI(timeout=float(timeout_override))
+            else:
+                client = ClaudeCLI()
             response = await client.analyze(prompt)
         except ClaudeTimeoutError:
             # Phase 12.3: ClaudeTimeoutError is a StrategyError, so it

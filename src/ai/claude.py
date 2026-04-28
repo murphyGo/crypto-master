@@ -201,7 +201,9 @@ class ClaudeCLI:
         total_attempts = self.max_retries + 1
         for attempt in range(total_attempts):
             try:
-                return await self._execute_cli_once(prompt, timeout=timeout)
+                return await self._execute_cli_once(
+                    prompt, timeout=timeout, attempt_number=attempt + 1
+                )
             except ClaudeTimeoutError:
                 if attempt < self.max_retries:
                     next_timeout = timeout * TIMEOUT_BACKOFF_MULTIPLIER
@@ -213,13 +215,14 @@ class ClaudeCLI:
                     timeout = next_timeout
                     continue
                 # Final attempt: re-raise so the caller sees the
-                # ClaudeTimeoutError.
+                # ClaudeTimeoutError. The exception already carries the
+                # final attempt number from ``_execute_cli_once``.
                 raise
         # Unreachable — the loop either returns or raises.
         raise RuntimeError("unreachable: retry loop exited without resolution")
 
     async def _execute_cli_once(
-        self, prompt: str, *, timeout: float
+        self, prompt: str, *, timeout: float, attempt_number: int = 1
     ) -> tuple[str, str]:
         """Run one ``claude -p`` invocation with the supplied timeout.
 
@@ -230,6 +233,11 @@ class ClaudeCLI:
         Args:
             prompt: The prompt text to pass to Claude.
             timeout: Per-attempt timeout in seconds.
+            attempt_number: 1-indexed attempt number — Phase 14.1.
+                Stamped onto any raised :class:`ClaudeTimeoutError` so
+                the proposal engine can surface it in the
+                ``LLM_TIMEOUT`` activity event for retry-path
+                verification.
 
         Returns:
             Tuple of (stdout, stderr) from the process.
@@ -282,6 +290,7 @@ class ClaudeCLI:
             raise ClaudeTimeoutError(
                 f"Claude CLI timed out after {timeout} seconds",
                 timeout_seconds=timeout,
+                attempt_number=attempt_number,
             ) from e
 
         except FileNotFoundError as e:
