@@ -387,6 +387,41 @@ class TestBuildEngineEnvOverride:
                 isinstance(n, TelegramNotifier) for n in notifiers
             ), f"TelegramNotifier should be silent for token={token!r}, chat_id={chat_id!r}"
 
+    def test_build_engine_propagates_all_engine_env_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Phase 13.2 (DEBT-003): the 4 new ``ENGINE_*`` env vars also
+        propagate through ``build_engine`` onto ``EngineConfig``."""
+        from src.config import Settings
+        from src.main import build_engine
+
+        monkeypatch.setenv("ENGINE_MONITOR_INTERVAL", "90")
+        monkeypatch.setenv("ENGINE_BITCOIN_SYMBOL", "BTC/USD")
+        monkeypatch.setenv("ENGINE_ALTCOIN_TOP_K", "5")
+        monkeypatch.setenv("ENGINE_ACTOR", "fly-prod-1")
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(trading_mode="paper", binance=bn)
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        assert engine.config.monitor_interval_seconds == 90
+        assert engine.config.bitcoin_symbol == "BTC/USD"
+        assert engine.config.altcoin_top_k == 5
+        assert engine.config.actor == "fly-prod-1"
+
     def test_explicit_config_argument_still_wins(self) -> None:
         """``build_engine`` allows callers (tests / one-shots) to pass
         their own ``EngineConfig``; that path must override Settings."""

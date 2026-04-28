@@ -151,6 +151,24 @@ class Settings(BaseSettings):
     # raise only if you want intentional pyramiding.
     engine_max_open_positions_per_symbol: int = Field(default=1, ge=1)
 
+    # Phase 13.2 (DEBT-003): the remaining ``EngineConfig`` fields are
+    # also env-overridable. Defaults match
+    # ``src.runtime.engine.EngineConfig`` so existing deployments do
+    # not change behaviour without an explicit env setting.
+    # Seconds between SL/TP monitor polls of open positions inside
+    # one cycle. Minimum 10. Default 60.
+    engine_monitor_interval: int = Field(default=60, ge=10)
+    # Symbol used for the per-cycle Bitcoin proposal scan. Altcoin
+    # scans come from ``engine_symbols``. Default "BTC/USDT".
+    engine_bitcoin_symbol: str = Field(default="BTC/USDT")
+    # Top-K cap on altcoin proposals retained per cycle (proposal
+    # engine ranks by composite score, then truncates). Minimum 1.
+    # Default 3.
+    engine_altcoin_top_k: int = Field(default=3, ge=1)
+    # Actor name stamped onto auto-decided proposals + activity log
+    # events. Default "auto-engine".
+    engine_actor: str = Field(default="auto-engine")
+
     # Log Retention (Phase 10.4)
     # ``JsonlRotator`` keeps the active month + this many archive
     # months merged into ``read_all``. Older rotated files stay on

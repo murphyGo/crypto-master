@@ -41,35 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-003: EngineConfig Remaining Fields Not Env-Overridable
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 10.2 |
-| **Component** | `src/config.py` (`Settings`), `src/runtime/engine.py` (`EngineConfig`), `src/main.py` (`build_engine`) |
-
-**Description:**
-Phase 10.2 promoted four operationally-impactful `EngineConfig` fields to env vars (`engine_cycle_interval`, `engine_auto_approve_threshold`, `engine_symbols`, `engine_balance`). Four other `EngineConfig` fields remain hardcoded:
-
-- `monitor_interval_seconds` — how often the engine's monitor loop polls open positions for SL/TP hits.
-- `bitcoin_symbol` — the symbol used for `propose_bitcoin` (defaults to `"BTCUSDT"`).
-- `altcoin_top_k` — the K in `propose_altcoins`'s top-K return.
-- `actor` — the string recorded as the activity-log actor.
-
-**Impact:**
-- These are tunables operators rarely need to change. The judgement during 10.2 was that promoting them inflates the `Settings` surface for marginal gain.
-- If an operator does hit one of these four needs in production (e.g. wants to tune `altcoin_top_k` or rename the activity-log actor), they have to do a code edit + redeploy — the same pre-10.2 friction.
-
-**Suggested Resolution:**
-- Repeat the Phase 10.2 pattern for whichever of the four fields actually needs operator-tunability in practice. Don't ship all four speculatively; wait until at least one operator request lands.
-- The `engine_symbols` `NoDecode` + `field_validator(mode="before")` pattern is the template if a list field ever needs to be added.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-10.2-engineconfig-env-override.md`
-- Predecessor: Phase 10.2 EngineConfig Env Override (4 of 8 fields shipped).
-
 ### DEBT-004: Baseline Backtest Script Follow-ups
 
 | Field | Value |
@@ -196,18 +167,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 13.1 introduced per-page TypedDicts (`TradingSummaryMetrics`, `EngineSummaryMetrics`) replacing `dict[str, object]`; `cast()` calls dropped. |
 
+### DEBT-003: EngineConfig Remaining Fields Not Env-Overridable ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 13.2 added `engine_monitor_interval` / `engine_bitcoin_symbol` / `engine_altcoin_top_k` / `engine_actor` Settings fields with env override; `build_engine` wires all 4 to `EngineConfig`. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 2 |
-| Resolved (All Time) | 9 |
+| Low | 1 |
+| Resolved (All Time) | 10 |
 
 ---
 
@@ -236,3 +216,4 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Resolved | DEBT-009 `scripts/lint.sh --fix` unsafe for CI — Phase 13.1 split into CI-safe lint.sh (no `--fix`) + dev-only lint-fix.sh |
 | 2026-04-28 | Resolved | DEBT-010 Long+Short Same-Symbol Test Gap — Phase 13.1 added `test_cap_blocks_opposite_side_same_symbol` |
 | 2026-04-28 | Resolved | DEBT-011 Dashboard `dict[str, object]` casts — Phase 13.1 introduced per-page TypedDicts (TradingSummaryMetrics, EngineSummaryMetrics); `cast()` calls dropped |
+| 2026-04-28 | Resolved | DEBT-003 EngineConfig Remaining Fields Not Env-Overridable — Phase 13.2 added `engine_monitor_interval` / `engine_bitcoin_symbol` / `engine_altcoin_top_k` / `engine_actor` Settings fields; `build_engine` wires all 4 |

@@ -412,6 +412,11 @@ class TestEngineSettings:
         assert settings.engine_auto_approve_threshold == ec.auto_approve_threshold
         assert settings.engine_symbols == ec.altcoin_symbols
         assert settings.engine_balance == ec.balance
+        # Phase 13.2: remaining fields also default-match EngineConfig.
+        assert settings.engine_monitor_interval == ec.monitor_interval_seconds
+        assert settings.engine_bitcoin_symbol == ec.bitcoin_symbol
+        assert settings.engine_altcoin_top_k == ec.altcoin_top_k
+        assert settings.engine_actor == ec.actor
 
     def test_engine_cycle_interval_loads_from_env(self) -> None:
         with patch.dict(os.environ, {"ENGINE_CYCLE_INTERVAL": "120"}):
@@ -461,6 +466,42 @@ class TestEngineSettings:
         s = Settings()
         assert isinstance(s.engine_balance, Decimal)
         assert s.engine_balance == Decimal("10000")
+
+    # Phase 13.2 (DEBT-003): remaining EngineConfig fields env override
+    # ------------------------------------------------------------------
+
+    def test_engine_monitor_interval_default_and_env(self) -> None:
+        """Default 60s; ``ENGINE_MONITOR_INTERVAL=120`` overrides."""
+        assert Settings().engine_monitor_interval == 60
+        with patch.dict(os.environ, {"ENGINE_MONITOR_INTERVAL": "120"}):
+            assert Settings().engine_monitor_interval == 120
+
+    def test_engine_monitor_interval_minimum_enforced(self) -> None:
+        """Mirrors EngineConfig's ge=10 floor."""
+        with pytest.raises(ValidationError):
+            Settings(engine_monitor_interval=5)
+
+    def test_engine_bitcoin_symbol_default_and_env(self) -> None:
+        """Default ``BTC/USDT``; env override propagates."""
+        assert Settings().engine_bitcoin_symbol == "BTC/USDT"
+        with patch.dict(os.environ, {"ENGINE_BITCOIN_SYMBOL": "BTC/USD"}):
+            assert Settings().engine_bitcoin_symbol == "BTC/USD"
+
+    def test_engine_altcoin_top_k_default_and_env(self) -> None:
+        """Default 3; env override propagates; ``ge=1`` validator
+        rejects zero/negative."""
+        assert Settings().engine_altcoin_top_k == 3
+        with patch.dict(os.environ, {"ENGINE_ALTCOIN_TOP_K": "5"}):
+            assert Settings().engine_altcoin_top_k == 5
+        with patch.dict(os.environ, {"ENGINE_ALTCOIN_TOP_K": "0"}):
+            with pytest.raises(ValidationError):
+                Settings()
+
+    def test_engine_actor_default_and_env(self) -> None:
+        """Default ``auto-engine``; env override propagates."""
+        assert Settings().engine_actor == "auto-engine"
+        with patch.dict(os.environ, {"ENGINE_ACTOR": "fly-prod-1"}):
+            assert Settings().engine_actor == "fly-prod-1"
 
 
 class TestLogRetentionSettings:

@@ -73,8 +73,8 @@ fly secrets set \
     LOG_LEVEL=INFO                              \
     PAPER_INITIAL_BALANCE=10000
 
-# 4. (Optional) Override engine tunables via secrets. As of Phase 10.2
-#    the four tunables below are env-driven through Settings; defaults
+# 4. (Optional) Override engine tunables via secrets. As of Phase 13.2
+#    every EngineConfig field is env-driven through Settings; defaults
 #    match EngineConfig's pre-10.2 hardcoded values, so leaving them
 #    unset preserves existing behaviour.
 fly secrets set \
@@ -82,7 +82,11 @@ fly secrets set \
     ENGINE_AUTO_APPROVE_THRESHOLD=1.0                      \
     ENGINE_SYMBOLS=ETH/USDT,SOL/USDT,BNB/USDT,ADA/USDT,AVAX/USDT \
     ENGINE_BALANCE=10000                                   \
-    ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL=1
+    ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL=1                 \
+    ENGINE_MONITOR_INTERVAL=60                             \
+    ENGINE_BITCOIN_SYMBOL=BTC/USDT                         \
+    ENGINE_ALTCOIN_TOP_K=3                                 \
+    ENGINE_ACTOR=auto-engine
 #
 #    - ENGINE_CYCLE_INTERVAL (int seconds, ge=10): time between cycles.
 #    - ENGINE_AUTO_APPROVE_THRESHOLD (float, ge=0.0): composite-score
@@ -101,6 +105,15 @@ fly secrets set \
 #      pyramiding. Cap-rejected proposals are still recorded as
 #      PROPOSAL_REJECTED in the activity log with a
 #      "symbol <pair> cap <N> reached" reason.
+#    - ENGINE_MONITOR_INTERVAL (int seconds, ge=10): SL/TP monitor
+#      poll interval inside one cycle. Default 60.
+#    - ENGINE_BITCOIN_SYMBOL (str): symbol for the per-cycle Bitcoin
+#      scan. Default BTC/USDT.
+#    - ENGINE_ALTCOIN_TOP_K (int, ge=1): cap on altcoin proposals
+#      retained per cycle (composite-score ranked, then truncated).
+#      Default 3.
+#    - ENGINE_ACTOR (str): actor name stamped onto auto-decided
+#      proposals + activity log events. Default "auto-engine".
 ```
 
 ## Deploy

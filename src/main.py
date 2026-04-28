@@ -160,12 +160,11 @@ def build_engine(
     integration test or a one-shot ``python -c "..."`` to construct
     the engine without standing up an event loop.
 
-    When ``config`` is omitted, the engine tunables (cycle interval,
-    auto-approve threshold, altcoin symbol list, balance) are read
-    from ``Settings`` (Phase 10.2). Other ``EngineConfig`` fields
-    (``monitor_interval_seconds``, ``bitcoin_symbol``, ``altcoin_top_k``,
-    ``actor``) keep their ``EngineConfig`` defaults — they are not yet
-    env-overridable.
+    When ``config`` is omitted, all engine tunables are read from
+    ``Settings``: cycle interval, auto-approve threshold, altcoin
+    symbol list, balance, and per-symbol cap (Phase 10.2 / 12.1) plus
+    monitor interval, bitcoin symbol, altcoin top-K, and actor name
+    (Phase 13.2 / DEBT-003).
     """
     config = config or EngineConfig(
         cycle_interval_seconds=settings.engine_cycle_interval,
@@ -173,6 +172,10 @@ def build_engine(
         altcoin_symbols=settings.engine_symbols,
         balance=settings.engine_balance,
         max_open_positions_per_symbol=(settings.engine_max_open_positions_per_symbol),
+        monitor_interval_seconds=settings.engine_monitor_interval,
+        bitcoin_symbol=settings.engine_bitcoin_symbol,
+        altcoin_top_k=settings.engine_altcoin_top_k,
+        actor=settings.engine_actor,
     )
 
     strategies = load_all_strategies()
