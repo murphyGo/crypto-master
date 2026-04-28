@@ -588,6 +588,56 @@ async def test_cap_counts_only_matching_symbol(tmp_path: Path) -> None:
     mocks["trader"].open_position.assert_called_once()
 
 
+async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
+    """Cap counts trades regardless of side: long blocks a same-symbol short.
+
+    DEBT-010 (Phase 13.1): an existing BNB long must block a BNB short
+    proposal at cap=1. This prevents synthetic hedges (long + short on
+    one symbol slipping past the per-symbol cap on side mismatch).
+    """
+    existing_long = make_trade(
+        trade_id="t-bnb-long",
+        symbol="BNB/USDT",
+        side="long",
+    )
+    short_proposal = make_proposal(
+        proposal_id="bnb-short-1",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=short_proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[existing_long],
+    )
+
+    result = await engine.run_cycle()
+
+    # Composite gate accepted; cap layer rejected the opposite-side trade.
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+
+    # Activity log carries a PROPOSAL_REJECTED with the cap reason for BNB.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    rejection = rejections[0]
+    reason = rejection.details["reason"]
+    assert "BNB/USDT" in reason
+    assert "cap 1 reached" in reason
+    assert rejection.details["open_count"] == 1
+    assert rejection.details["cap"] == 1
+
+
 async def test_interruptible_sleep_wakes_on_stop(tmp_path: Path) -> None:
     """Direct test of the sleep helper: stop() shortcuts a long sleep."""
     engine, _ = build_engine(tmp_path=tmp_path)

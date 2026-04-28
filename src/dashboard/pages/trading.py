@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, cast
+from typing import Literal, TypedDict
 
 import pandas as pd
 import streamlit as st
@@ -37,6 +37,22 @@ logger = get_logger("crypto_master.dashboard.trading")
 
 DashboardMode = Literal["paper", "live"]
 DEFAULT_HISTORY_LIMIT = 25
+
+
+class TradingSummaryMetrics(TypedDict):
+    """Headline numbers for the Trading page summary cards (DEBT-011).
+
+    Typed return shape for ``build_summary_metrics`` so consumer
+    sites pick the right type at each access without ``cast(...)``.
+    """
+
+    open_positions: int
+    closed_trades: int
+    win_rate: float
+    realized_pnl: float
+    unrealized_pnl: float
+    latest_equity: float
+    latest_snapshot_at: datetime | None
 
 
 # =============================================================================
@@ -169,7 +185,7 @@ def build_equity_curve_dataframe(
 def build_summary_metrics(
     trades: list[TradeHistory],
     snapshots: list[AssetSnapshot],
-) -> dict[str, object]:
+) -> TradingSummaryMetrics:
     """Aggregate key headline numbers for the summary cards.
 
     Computed from on-disk state only — no live prices, no exchange
@@ -260,17 +276,16 @@ def render(
     # ---- Summary cards ----
     st.subheader("Summary")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Open Positions", cast(int, metrics["open_positions"]))
-    c2.metric("Closed Trades", cast(int, metrics["closed_trades"]))
-    c3.metric("Win Rate", f"{cast(float, metrics['win_rate']) * 100:.1f}%")
-    c4.metric("Realized P&L", f"{cast(float, metrics['realized_pnl']):.2f}")
+    c1.metric("Open Positions", metrics["open_positions"])
+    c2.metric("Closed Trades", metrics["closed_trades"])
+    c3.metric("Win Rate", f"{metrics['win_rate'] * 100:.1f}%")
+    c4.metric("Realized P&L", f"{metrics['realized_pnl']:.2f}")
 
-    if metrics["latest_snapshot_at"] is not None:
-        latest_at = metrics["latest_snapshot_at"]
-        assert isinstance(latest_at, datetime)
+    latest_at = metrics["latest_snapshot_at"]
+    if latest_at is not None:
         st.caption(
-            f"Latest equity: {cast(float, metrics['latest_equity']):.2f} | "
-            f"Unrealized P&L: {cast(float, metrics['unrealized_pnl']):.2f} "
+            f"Latest equity: {metrics['latest_equity']:.2f} | "
+            f"Unrealized P&L: {metrics['unrealized_pnl']:.2f} "
             f"(snapshot {latest_at.isoformat(timespec='seconds')})"
         )
     else:
@@ -312,6 +327,7 @@ def render(
 
 
 __all__ = [
+    "TradingSummaryMetrics",
     "build_equity_curve_dataframe",
     "build_open_positions_dataframe",
     "build_summary_metrics",

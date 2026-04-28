@@ -98,81 +98,6 @@ Phase 10.3 shipped `scripts/backtest_baselines.py` as the operator tooling that 
 - Surfaced in: `docs/sessions/2026-04-28-phase-10.3-baseline-reference-numbers.md`
 - Predecessor: Phase 10.3 Baseline Reference Numbers (operator tooling).
 
-### DEBT-009: `scripts/lint.sh --fix` unsafe for CI
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 11.1 |
-| **Component** | `scripts/lint.sh` |
-
-**Description:**
-QA flagged that `scripts/lint.sh:6` uses `ruff check src tests --fix`. The `--fix` flag silently rewrites source on lintable regressions instead of reporting them — fine for local dev convenience, unsafe for a CI gate (a CI run would mutate the working tree and pass green when the source had drifted).
-
-**Impact:**
-- No runtime impact; the script is operator/dev-invoked today.
-- If the script is ever wired to CI as-is, regressions get auto-fixed in CI's checkout and never surface as failures, defeating the gate.
-
-**Suggested Resolution:**
-- Drop `--fix` for CI use, or split into two scripts: `lint.sh` (CI: report-only, no `--fix`) and `lint-fix.sh` (dev: with `--fix`).
-- Document the contract in the script header so the next operator knows which is which.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-11.1-lint-type-sweep.md`
-- QA verdict: 🟡 minor on Phase 11.1.
-
-### DEBT-010: Long+Short Same-Symbol Test Gap
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 12.1 |
-| **Component** | `tests/test_runtime_engine.py` |
-
-**Description:**
-Phase 12.1 shipped the cross-cycle position cap (`EngineConfig.max_open_positions_per_symbol`, default 1). Quant's review verbatim: the cap correctly blocks the long+short same-symbol case (cap counts trades regardless of side, which is the safe behaviour preventing accidental synthetic hedge), but the test suite does not explicitly cover that path.
-
-The 5 tests added in Phase 12.1 cover default value, env wiring, cap-hit rejection, cap-not-reached execution, and other-symbol-doesn't-block. The long+short same-symbol path is a separate invariant (cap counts both sides toward the same denominator) that the current tests do not pin down.
-
-**Impact:**
-- Implementation is correct — long+short on the same symbol both count toward the cap, which is the safe behaviour (prevents an accidental synthetic hedge from a long arriving while a short is still open, or vice versa).
-- Absence of an explicit test means a future refactor that splits the count by side could regress the protection without anything failing red. The cap would still pass its other tests but quietly let through the synthetic-hedge case.
-- Risk envelope is unaffected today; the gap is purely defensive against future regression.
-
-**Suggested Resolution:**
-- Add `test_cap_blocks_opposite_side_same_symbol` in a follow-up cycle. Setup: existing open long position on `BTCUSDT`; proposal arrives for short on `BTCUSDT` with cap=1. Assert: cap-hit rejection fires (composite-accept passed but cap blocks; `proposals_rejected` increments; `PROPOSAL_REJECTED` logged with the symbol-cap reason; no `trader.open_position` call).
-- Mirror the existing cap-hit test's shape; only difference is the side of the existing position vs the proposal's side.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-12.1-cross-cycle-position-cap.md`
-- Quant verdict: 🟡 ship with note on Phase 12.1.
-
-### DEBT-011: Dashboard `dict[str, object]` casts
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-28 |
-| **Phase** | Surfaced during Phase 12.2 |
-| **Component** | `src/dashboard/pages/trading.py` (`build_summary_metrics`), consumers |
-
-**Description:**
-QA-flagged as a nice-to-have follow-up to Phase 12.2's Streamlit-cluster cleanup. `build_summary_metrics` returns `dict[str, object]`; consumers therefore need `cast(int, ...)` / `cast(float, ...)` at each access site to satisfy mypy. The casts are correct today but each one is a small lie the type system relies on.
-
-**Impact:**
-- No runtime impact — values are consistent shape; the casts simply re-state what the producer already knows.
-- Type-system polish: a `TypedDict` rewrite would let mypy infer the narrowed type at every access site without explicit casts. Reduces the surface area for "cast says int, code returns float" drift if `build_summary_metrics` ever changes shape.
-
-**Suggested Resolution:**
-- Replace the `dict[str, object]` return type with a `TypedDict` declaring the exact key→type mapping. Drop the consumer-side `cast(...)` calls; mypy infers types from the `TypedDict`.
-- Pure typing refactor; no functional change.
-
-**Related:**
-- Surfaced in: `docs/sessions/2026-04-28-phase-12.2-residual-mypy-sweep.md`
-- QA verdict: 🟢 ship with optional follow-up on Phase 12.2.
-
 ---
 
 ## Resolved Debt Items
@@ -244,18 +169,45 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 12.2 added targeted `# type: ignore[misc]` (canonical case for asyncio signal-handler callback shape mismatch). mypy: 1 error → 0. |
 
+### DEBT-009: `scripts/lint.sh --fix` unsafe for CI ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 13.1 split `scripts/lint.sh` into CI-safe (no `--fix`) + dev-only `scripts/lint-fix.sh`. |
+
+### DEBT-010: Long+Short Same-Symbol Test Gap ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 13.1 added `test_cap_blocks_opposite_side_same_symbol`; verifies long+short same-symbol cap path matches single-side cap behaviour. |
+
+### DEBT-011: Dashboard `dict[str, object]` casts ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-28 |
+| **Resolved** | 2026-04-28 |
+| **Resolution** | Phase 13.1 introduced per-page TypedDicts (`TradingSummaryMetrics`, `EngineSummaryMetrics`) replacing `dict[str, object]`; `cast()` calls dropped. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 5 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 5 |
-| Resolved (All Time) | 6 |
+| Low | 2 |
+| Resolved (All Time) | 9 |
 
 ---
 
@@ -281,3 +233,6 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Resolved | DEBT-007 Dashboard Streamlit type errors — Phase 12.2 `Literal` types + `StreamlitPage` + numeric casts |
 | 2026-04-28 | Resolved | DEBT-008 `src/main.py` lambda annotation — Phase 12.2 targeted `# type: ignore[misc]` |
 | 2026-04-28 | Added | DEBT-011 Dashboard `dict[str, object]` casts (Low) — surfaced during Phase 12.2 |
+| 2026-04-28 | Resolved | DEBT-009 `scripts/lint.sh --fix` unsafe for CI — Phase 13.1 split into CI-safe lint.sh (no `--fix`) + dev-only lint-fix.sh |
+| 2026-04-28 | Resolved | DEBT-010 Long+Short Same-Symbol Test Gap — Phase 13.1 added `test_cap_blocks_opposite_side_same_symbol` |
+| 2026-04-28 | Resolved | DEBT-011 Dashboard `dict[str, object]` casts — Phase 13.1 introduced per-page TypedDicts (TradingSummaryMetrics, EngineSummaryMetrics); `cast()` calls dropped |

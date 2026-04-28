@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import cast
+from typing import TypedDict
 
 import pandas as pd
 import streamlit as st
@@ -41,6 +41,22 @@ logger = get_logger("crypto_master.dashboard.engine")
 DEFAULT_TAIL_LIMIT = 300
 RECENT_CYCLES_LIMIT = 25
 DURATION_HISTOGRAM_LIMIT = 50
+
+
+class EngineSummaryMetrics(TypedDict):
+    """Headline numbers for the Engine page summary cards (DEBT-011).
+
+    Typed return shape for ``build_summary_metrics`` so consumer
+    sites pick the right type at each access without ``cast(...)``.
+    """
+
+    total_cycles: int
+    last_cycle_started_at: datetime | None
+    last_cycle_status: str | None
+    avg_duration_seconds: float | None
+    errored_cycles: int
+    positions_opened_total: int
+    positions_closed_total: int
 
 
 # =============================================================================
@@ -191,7 +207,7 @@ def _sort_key_newest_first(summary: CycleSummary) -> datetime:
 def build_summary_metrics(
     events: list[ActivityEvent],
     cycles: list[CycleSummary],
-) -> dict[str, object]:
+) -> EngineSummaryMetrics:
     """Roll up the summary cards.
 
     Returned dict keys:
@@ -385,24 +401,24 @@ def render(
     # ---- Summary cards ----
     st.subheader("Summary")
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Cycles", cast(int, metrics["total_cycles"]))
+    c1.metric("Cycles", metrics["total_cycles"])
     last_at = metrics["last_cycle_started_at"]
     c2.metric(
         "Last cycle",
-        last_at.isoformat(timespec="seconds") if isinstance(last_at, datetime) else "—",
+        last_at.isoformat(timespec="seconds") if last_at is not None else "—",
     )
     last_status = metrics["last_cycle_status"]
-    c3.metric("Last status", cast(str, last_status) if last_status else "—")
+    c3.metric("Last status", last_status if last_status else "—")
     avg = metrics["avg_duration_seconds"]
     c4.metric(
         "Avg duration",
-        f"{float(avg):.1f}s" if isinstance(avg, (int, float)) else "—",
+        f"{avg:.1f}s" if avg is not None else "—",
     )
-    c5.metric("Errored cycles", cast(int, metrics["errored_cycles"]))
+    c5.metric("Errored cycles", metrics["errored_cycles"])
 
     c6, c7 = st.columns(2)
-    c6.metric("Positions opened (total)", cast(int, metrics["positions_opened_total"]))
-    c7.metric("Positions closed (total)", cast(int, metrics["positions_closed_total"]))
+    c6.metric("Positions opened (total)", metrics["positions_opened_total"])
+    c7.metric("Positions closed (total)", metrics["positions_closed_total"])
 
     # ---- Recent cycles table ----
     st.subheader("Recent Cycles")
@@ -445,6 +461,7 @@ def render(
 
 __all__ = [
     "CycleSummary",
+    "EngineSummaryMetrics",
     "aggregate_cycles",
     "build_cycle_duration_dataframe",
     "build_cycles_dataframe",

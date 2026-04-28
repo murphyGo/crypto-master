@@ -54,7 +54,7 @@
 | Residual mypy Sweep | ✅ Complete | 12 |
 | LLM Strategy Timeout Handling | ✅ Complete | 12 |
 | Telegram Notification Backend | ✅ Complete | 12 |
-| Cleanup Batch (DEBT-009/010/011) | ❌ Missing | 13 |
+| Cleanup Batch (DEBT-009/010/011) | ✅ Complete | 13 |
 | EngineConfig Remaining-Fields Env Override | ❌ Missing | 13 |
 | BaseExchange.get_ohlcv `since` Parameter | ❌ Missing | 13 |
 | Email Notification Backend | ❌ Missing | 13 |
@@ -1146,20 +1146,20 @@ drops the casts cleanly.
 **Related Requirements**: NFR-001 (code quality + test coverage);
 operational concern — no new FR introduced.
 
-- [ ] DEBT-009: split `scripts/lint.sh` into `scripts/lint.sh`
+- [x] DEBT-009: split `scripts/lint.sh` into `scripts/lint.sh`
   (`ruff check src tests && mypy src` — no `--fix`; for CI /
   pre-commit) and `scripts/lint-fix.sh` (`ruff check src tests --fix
   && mypy src` — for dev convenience). Both executable. Update any
   docs that reference `scripts/lint.sh` to clarify which to use.
-- [ ] DEBT-010: add `test_cap_blocks_opposite_side_same_symbol` to
+- [x] DEBT-010: add `test_cap_blocks_opposite_side_same_symbol` to
   `tests/test_runtime_engine.py` — existing trade is long, new
   proposal is short same-symbol, cap=1; verify execution skipped +
   cap-rejection event recorded.
-- [ ] DEBT-011: define a `SummaryMetrics` `TypedDict` (in
+- [x] DEBT-011: define a `SummaryMetrics` `TypedDict` (in
   `src/dashboard/pages/{trading,engine}.py` or a shared
   `src/dashboard/_types.py`); update `build_summary_metrics` returns
   + consumer call sites; drop the `cast()` calls.
-- [ ] Tests: 13.1 only NEEDS the DEBT-010 test added; existing tests
+- [x] Tests: 13.1 only NEEDS the DEBT-010 test added; existing tests
   must remain green for the lint-script split + dashboard TypedDict
   refactor (refactor only, no behavioural change).
 
@@ -1352,3 +1352,4 @@ existing); NFR-012 (live trading awareness redundancy).
 | 12.3 | 2026-04-28 | Phase 12.3 complete - LLM Strategy Timeout Handling (FR-022; operational reliability — closes the 2026-04-28 Fly `chasulang_ict_smc` 120s-timeout silent-drop-out concern); retry-on-timeout with 1.5× backoff for the Claude CLI in `src/ai/claude.py` (120 → 180 → 270 escalation; retry only on `asyncio.TimeoutError` — verified via `test_non_timeout_errors_do_not_trigger_retry`, `mock_exec.call_count == 1`; per-attempt process cleanup, no zombie risk). `ClaudeTimeoutError` now multiply-inherits `ClaudeError + StrategyError` (MRO `[ClaudeTimeoutError, ClaudeError, StrategyError, Exception, ...]`) so the engine's existing `StrategyError` catch handles it without a new except block at every call site. `PromptStrategy.analyze` re-raises `ClaudeTimeoutError` UNWRAPPED (other `ClaudeError` subtypes still wrap into `StrategyError(...)` per pre-existing contract) so the engine emits `LLM_TIMEOUT` with original `timeout_seconds` payload intact — locked by `test_unwrap_propagation`. `Settings.claude_cli_timeout_seconds: int = Field(default=120, ge=10)` + `claude_cli_max_retries: int = Field(default=1, ge=0)` (0 = single shot). `ActivityEventType.LLM_TIMEOUT` added; `ProposalEngine` accepts optional `activity_log` (None default — backward-compat preserved) and emits `LLM_TIMEOUT` with `strategy_name`/`version`/`symbol`/`timeout_seconds` on final exhaustion. `build_engine` creates one `ActivityLog` and shares it between `ProposalEngine` and `TradingEngine`. 12 files modified (src/ai/claude.py, src/ai/exceptions.py, src/strategy/loader.py, src/proposal/engine.py, src/runtime/activity_log.py, src/config.py, src/main.py, .env.example, docs/development-plan.md, plus 3 test files). 1109 → 1119 tests (+10 — 6 retry tests + 3 LLM_TIMEOUT event tests + 1 unwrap-propagation test). ruff/mypy clean. No new debt. | Claude |
 | 12.4 | 2026-04-28 | Phase 12.4 complete - Telegram Notification Backend (FR-015, NFR-012; second push backend so live mode isn't single-channel — closes Phase 11 cross-check carry-forward); `TelegramNotifier` in `src/proposal/notification.py` POSTs form-encoded `chat_id` + `text` + `parse_mode=Markdown` to `https://api.telegram.org/bot<TOKEN>/sendMessage` via stdlib `urllib.request.urlopen` + `asyncio.to_thread` (zero new dep — mirrors Slack's Phase 11.3 pattern exactly). `Settings.telegram_bot_token: str \| None = Field(default=None)` + `telegram_chat_id: str \| None = Field(default=None)` (non-breaking; both required for activation). `src/main.py::build_engine` appends `TelegramNotifier(...)` to the dispatcher's notifier list when both env vars set; logs presence only. Activation gate `bool(token and chat_id)` — partial config (token-only, chat-id-only, neither) silent in all three (locked by `test_telegram_notifier_silent_when_either_missing`). Message format collapses Slack's two-block payload into one Markdown string (bolded headline + code-fenced detail) so on-the-wire content of Slack and Telegram alerts stays in sync. `__repr__` masks BOTH token AND chat id (chat id treated as a secret since it identifies the operator's destination channel — tighter contract than Slack's URL-only redaction). `send` does not catch `HTTPError` — dispatcher's existing per-channel failure-isolation contract (Phase 6.3) handles it. `.env.example` + `docs/deployment.md` document `TELEGRAM_BOT_TOKEN` (secret) + `TELEGRAM_CHAT_ID`. 8 files modified (src/proposal/notification.py, src/config.py, src/main.py, .env.example, docs/deployment.md, docs/development-plan.md, plus 2 test files). 1119 → 1127 tests (+8 — 6 in test_proposal_notification.py + 2 in test_main_dispatch.py). ruff/mypy clean. No new debt. | Claude |
 | 12.0 | 2026-04-28 | Phase 12 complete - all sub-tasks (12.1, 12.2, 12.3, 12.4) checked. Phase 12 cross-check: `docs/cross-checks/2026-04-28-phase-12-risk-hardening.md`. | Claude |
+| 13.1 | 2026-04-28 | Phase 13.1 complete - Cleanup Batch (NFR-001; resolves DEBT-009 / DEBT-010 / DEBT-011); DEBT-009 split `scripts/lint.sh` (no `--fix` — CI / pre-commit safe) + new `scripts/lint-fix.sh` (with `--fix` — dev convenience), both executable. DEBT-010 added `test_cap_blocks_opposite_side_same_symbol` to `tests/test_runtime_engine.py` (1 BNB long open + BNB short proposal at composite=2.0; cap=1 → positions_opened=0, no open_position call, PROPOSAL_REJECTED with BNB + "cap 1 reached") — pins the synthetic-hedge prevention invariant against future regression. DEBT-011 replaced `dict[str, object]` returns with per-page TypedDicts (`TradingSummaryMetrics` in `src/dashboard/pages/trading.py`, `EngineSummaryMetrics` in `src/dashboard/pages/engine.py`) since shapes differ; consumer-side `cast(...)` calls dropped at every access site; no leftover `from typing import cast` in either file. Refactor only — no behavioural change for DEBT-009 / DEBT-011; DEBT-010 adds the single new test. 5 files modified (scripts/lint.sh, scripts/lint-fix.sh, tests/test_runtime_engine.py, src/dashboard/pages/trading.py, src/dashboard/pages/engine.py) plus dev plan. 1127 → 1128 tests (+1 cap test). ruff/mypy clean (53 files). No new debt. | Claude |
