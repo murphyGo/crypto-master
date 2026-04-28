@@ -46,6 +46,10 @@
 | Log Retention Policy | ✅ Complete | 10 |
 | Volume-Aware Default Paths | ✅ Complete | 10 |
 | Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
+| Pre-Existing Lint/Type Sweep | ❌ Missing | 11 |
+| OHLCV Cache for Multi-Technique Scan | ❌ Missing | 11 |
+| Notification Push Backend | ❌ Missing | 11 |
+| ProposalHistory.purge_old Wiring | ❌ Missing | 11 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -841,6 +845,134 @@ proposals per symbol).
 
 ---
 
+## Phase 11: Operational Hardening + Observability
+
+**Goal**: Take the system from "operationally complete" to
+"observable and clean". Phase 10 wired live mode and closed the
+audit-trail / multi-technique / config gaps; Phase 11 hardens the
+codebase (lint/type sweep), reduces operational drift (OHLCV cache,
+`purge_old` wiring), and adds a paging backend for unattended live
+operation. No new framework abstractions — production hygiene + one
+new notifier.
+
+### 11.1 Pre-Existing Lint/Type Sweep
+
+**Background**: Phase 10's cycles surfaced 18 pre-existing ruff
+errors and 24 mypy errors across `src/ai/claude.py`,
+`src/strategy/loader.py`, `src/feedback/loop.py`, `src/trading/live.py`,
+`src/ai/improver.py`, `src/exchange/binance.py`, `src/trading/paper.py`,
+`src/trading/profile_loader.py`, `src/backtest/analyzer.py`, plus the
+`pyproject.toml` ruff-deprecation warning and missing `types-PyYAML`.
+None new since the project's start; they accumulate friction on every
+cycle that touches those modules. Tracked as DEBT-001 (Medium).
+
+**Related Requirements**: NFR-001 (code quality); operational concern
+— no new FR introduced.
+
+- [ ] Fix ruff errors in `src/ai/claude.py`, `src/strategy/loader.py`,
+  `src/feedback/loop.py` (B904 raise-from), test files (F841 / F401
+  unused), and any UP035 typing imports.
+- [ ] Fix mypy errors in `src/trading/live.py` (untyped `Order`
+  returns at lines 235 / 244 / 252 / 438 / 445), `src/ai/improver.py:280`
+  (arg-type mismatch), `src/trading/paper.py`,
+  `src/trading/profile_loader.py`, `src/backtest/analyzer.py`.
+- [ ] Move `pyproject.toml` ruff config from deprecated top-level
+  `select` / `ignore` / `isort` keys to `[tool.ruff.lint]` section.
+- [ ] Add `types-PyYAML` to dev extras in `pyproject.toml`.
+- [ ] Document the clean-baseline contract: `ruff check src tests &&
+  mypy src` should pass clean. Add a small `scripts/lint.sh` (or
+  CONTRIBUTING note) so future cycles can gate on it.
+- [ ] Tests: existing test suite must remain green; this is a
+  refactor, not a feature — no new tests.
+
+### 11.2 OHLCV Cache for Multi-Technique Scan
+
+**Background**: Phase 10.6's `_propose_all_for_symbol` re-fetches
+OHLCV per technique → N×M `get_ohlcv` calls per symbol per cycle
+(vs 1×M previously). Quant flagged temporal-drift risk (techniques
+seeing different candle T's mid-cycle) and rate-limit pressure at
+scale. Tracked as DEBT-002 (Low).
+
+**Related Requirements**: FR-005 (consumed); operational concern —
+no new FR introduced.
+
+- [ ] Add a per-call OHLCV cache keyed by `(symbol, timeframe)`
+  threaded through `_propose_all_for_symbol` and
+  `_build_proposal_for_strategy`. The simplest shape is a
+  `dict[(str, str), list[OHLCV]]` instantiated at the public entry
+  point.
+- [ ] Cache MUST be per-call, not per-engine — strategy decisions
+  need fresh data each cycle. Lifetime is exactly one
+  `propose_bitcoin` / `propose_altcoins` invocation.
+- [ ] Multi-TF strategies: keying by `(symbol, tf)` means each
+  timeframe is fetched at most once per call regardless of how many
+  strategies request it.
+- [ ] Tests: extend `tests/test_proposal_engine_multi_technique.py`
+  with a "fetch is called once per (symbol, tf) even when N
+  techniques request it" test (mock `exchange.get_ohlcv`, assert
+  call count).
+
+### 11.3 Notification Push Backend
+
+**Background**: Phase 10.1 carried this forward in its session log.
+Live mode runs unattended; current notifier backends are Console +
+File which page nobody. A push-style backend (Slack via webhook —
+simplest setup, no OAuth, easy operator-side mute/redirect) lets the
+operator know when a real-money trade fires. Telegram / email left
+as future sub-tasks.
+
+**Related Requirements**: FR-015 (Notification System — extending
+existing); NFR-012 (live trading awareness).
+
+- [ ] `src/proposal/notification.py` — add `SlackNotifier` class
+  implementing the existing `Notifier` protocol. Reads
+  `SLACK_WEBHOOK_URL` from `Settings` (add field; optional —
+  notifier is silent / disabled when not set).
+- [ ] Notification text: 1-line summary
+  (`{symbol} {side} score={composite:.2f} entry={price}`) + a
+  thread-style detail block (rationale / SL / TP) in Slack
+  code-fence formatting.
+- [ ] `src/main.py::build_engine` adds `SlackNotifier()` to the
+  dispatcher's notifier list when `Settings.slack_webhook_url` is
+  set.
+- [ ] `.env.example` and `docs/deployment.md` document
+  `SLACK_WEBHOOK_URL` (operator setup: incoming-webhook creation
+  steps).
+- [ ] Tests: mock the webhook POST; verify (a) notifier is created
+  and dispatches when env set, (b) notifier is silent / not
+  registered when env unset, (c) message format matches spec, (d)
+  HTTP failure does not crash the dispatch path (existing
+  per-channel failure isolation contract from Phase 6.3 preserved).
+
+### 11.4 ProposalHistory.purge_old Wiring
+
+**Background**: Phase 10.4 implemented
+`ProposalHistory.purge_old(now, retention_months)` but left it
+unwired — the method ships and is tested, but no runtime path
+invokes it. Long-running Fly deploys will accumulate proposal
+records indefinitely until something calls it. The 10.4 session log
+explicitly deferred the wiring to a separate sub-task.
+
+**Related Requirements**: NFR-008 (mode-separated storage extends
+to retention); operational concern — no new FR introduced.
+
+- [ ] `src/main.py::run` (or equivalent startup hook) calls
+  `ProposalHistory(...).purge_old(retention_months=settings.log_retention_months)`
+  once after `build_engine` returns and before `engine.run_forever()`
+  is awaited. Log the count of records purged at INFO level.
+- [ ] New `src/tools/__init__.py` + `src/tools/purge_proposals.py`
+  operator CLI: constructs `ProposalHistory()` from `Settings`,
+  calls `purge_old(...)`, prints a summary line. Invocable as
+  `python -m src.tools.purge_proposals`.
+- [ ] `docs/deployment.md` documents the CLI (operator manual
+  lever) and notes that the startup hook handles always-on cases.
+- [ ] Tests: smoke test for the startup hook (`build_engine`
+  followed by purge call doesn't crash; mock `ProposalHistory`); CLI
+  test (mock `ProposalHistory.purge_old`, assert it was called with
+  the retention value from `Settings`).
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -855,6 +987,7 @@ proposals per symbol).
 | Phase 8 | FR-009, FR-010, FR-013, FR-014, FR-015, FR-026 (production wiring of existing requirements; no new FR/NFR introduced) |
 | Phase 9 | FR-001, FR-002, FR-003 (extending the strategy framework's input contract; no new FR introduced) |
 | Phase 10 | FR-005, FR-009, FR-010, FR-012, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
+| Phase 11 | FR-005, FR-015, NFR-001, NFR-008, NFR-012 (operational hardening + observability — lint/type sweep, OHLCV cache, Slack notifier, `purge_old` wiring; no new FR/NFR introduced) |
 
 ---
 
