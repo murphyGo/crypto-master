@@ -50,6 +50,10 @@
 | OHLCV Cache for Multi-Technique Scan | ✅ Complete | 11 |
 | Notification Push Backend | ✅ Complete | 11 |
 | ProposalHistory.purge_old Wiring | ✅ Complete | 11 |
+| Cross-Cycle Position Cap | ❌ Missing | 12 |
+| Residual mypy Sweep | ❌ Missing | 12 |
+| LLM Strategy Timeout Handling | ❌ Missing | 12 |
+| Telegram Notification Backend | ❌ Missing | 12 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -973,6 +977,144 @@ to retention); operational concern — no new FR introduced.
 
 ---
 
+## Phase 12: Risk Hardening + Reliability
+
+**Goal**: Phase 11 closed the operational hardening agenda (lint,
+cache, push notifier, purge wiring). Phase 12 closes two real-money
+risks surfaced by live Fly monitoring (cross-cycle position
+accumulation; LLM-strategy timeouts that silently drop proposals),
+batches the residual lint/type debt that Phase 11.1 deferred to
+other modules, and adds a second push backend so live mode isn't
+single-channel.
+
+### 12.1 Cross-Cycle Position Cap
+
+**Background**: The Fly redeploy on 2026-04-28 produced two BNB short
+positions in 14 minutes (05:40:51 and 05:54:30) — the second cycle's
+proposal opened a second BNB position because Phase 10.6's per-cycle
+dedup only operates *within* a cycle, not *across* cycles. The
+`Trader` protocol has no `if symbol in self._open_positions` guard.
+Quant flagged this risk during Phase 10.6 design ("Option (b) cap at
+TradingEngine — defensible belt-and-braces, follow-up sub-task") but
+it was deferred. With the runtime now actively trading, deferring it
+any further is a real-money concern: 4× cycle = 4× position
+concentration on a single pair, 4× the intended `risk_percent`. This
+is independent of Phase 10.6's per-cycle dedup which stays in place.
+
+**Related Requirements**: FR-006, FR-007, FR-008 (Trading Strategy —
+risk/leverage/sizing — extending the existing contract; no new FR
+introduced).
+
+- [ ] Add `max_open_positions_per_symbol: int = 1` field to
+  `EngineConfig` — env-overridable as
+  `ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL` via `Settings.engine_*` (10.2
+  pattern).
+- [ ] In `TradingEngine._handle_proposal` (or earlier in `_scan`
+  filtering), check `trader.get_open_trades()` for any open position
+  on the proposal's symbol; if count ≥ cap, log `proposal_rejected`
+  with reason "symbol cap N reached" and skip execution.
+- [ ] Hard cap at the engine layer, NOT at the proposal-engine layer
+  — proposal generation continues unchanged; cap operates at the
+  execution gate. Rationale: the proposal still gets recorded for
+  audit; only execution is blocked.
+- [ ] Activity log records the cap rejection so the dashboard
+  timeline surfaces it (re-uses the existing `proposal_rejected`
+  event shape).
+- [ ] Tests: extend `tests/test_runtime_engine.py` — proposal
+  accepted but symbol already has cap-reached open positions →
+  execution is skipped, activity log records the cap rejection, no
+  `trader.open_position` call.
+
+### 12.2 Residual mypy Sweep
+
+**Background**: Phase 11.1 fixed the in-scope mypy errors (12 → 0)
+but logged 4 follow-up clusters as DEBT-005..008. With the type-clean
+baseline established, these can be tackled as a single mini-sweep
+cycle. DEBT-006 in particular needs quant review before fix lands —
+the factory shape drift looks like genuine API mismatch, not typing
+hygiene.
+
+**Related Requirements**: NFR-001 (code quality); operational concern
+— no new FR introduced.
+
+- [ ] DEBT-005: ccxt typing in `src/exchange/binance.py` (11
+  errors). Hand-rolled Protocol covering the 8+ ccxt methods used,
+  or runtime `cast(Any, ...)` if Protocol is too noisy — pick the
+  lower-friction path.
+- [ ] DEBT-006: `src/exchange/factory.py` shape drift (3 errors).
+  Genuine API mismatch — quant review before fix lands.
+- [ ] DEBT-007: Dashboard Streamlit type errors (~13 errors across
+  `src/dashboard/{theme,app,pages/trading,pages/engine}.py`). Local
+  annotations / casts.
+- [ ] DEBT-008: `src/main.py:271` lambda annotation (1 error).
+  One-line fix.
+- [ ] After: `mypy src` should be fully clean. Add a CI/local check
+  (pairs naturally with the DEBT-009 `scripts/lint.sh --fix` safety
+  fix if the operator wants both in one PR).
+- [ ] Tests: existing test suite must remain green; no new tests
+  (refactor, not a feature).
+
+### 12.3 LLM Strategy Timeout Handling
+
+**Background**: Live Fly monitoring on 2026-04-28 showed
+`chasulang_ict_smc` failing twice within 12 minutes with `Claude CLI
+timed out after 120.0 seconds`. The error is logged but the strategy
+silently drops out of that cycle's multi-technique scan — no
+fallback, no retry, no operational visibility beyond the log line.
+As LLM strategies multiply this becomes a reliability concern.
+
+**Related Requirements**: FR-022 (Technique Improvement Suggestion —
+extending existing Claude CLI integration); operational concern.
+
+- [ ] Add `claude_cli_timeout_seconds: int = Field(default=120)` to
+  `Settings` so operators can tune without redeploy.
+- [ ] Add `claude_cli_max_retries: int = Field(default=1)` — on
+  timeout, retry once with a longer timeout (e.g. 1.5×). After max
+  retries, fall back to a neutral signal cleanly so the strategy
+  doesn't kill the cycle.
+- [ ] `src/ai/claude.py` — wrap the existing `subprocess.run(...,
+  timeout=...)` call with the new retry logic. Log each attempt
+  explicitly.
+- [ ] Add an `ActivityEventType.LLM_TIMEOUT` event so the dashboard
+  can show LLM reliability over time.
+- [ ] Tests: mock subprocess to time out N times; verify retry
+  count, eventual neutral fallback, activity event recorded.
+
+### 12.4 Telegram Notification Backend
+
+**Background**: Phase 11.3 shipped Slack-via-webhook. Phase 10.1's
+"notification redundancy for live mode" follow-up listed Slack OR
+Telegram OR email as candidates — Slack was the first ship, Telegram
+is the second logical addition (also webhook-style, also no OAuth
+dance, easier setup than email infrastructure).
+
+**Related Requirements**: FR-015 (Proposal Notification — extending
+existing); NFR-012 (live trading awareness redundancy).
+
+- [ ] `src/proposal/notification.py` — `TelegramNotifier` class
+  implementing the existing `Notifier` protocol. Reads
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` from `Settings` (both
+  required for activation; if either missing, notifier is silent /
+  not registered).
+- [ ] Telegram Bot API URL:
+  `https://api.telegram.org/bot<TOKEN>/sendMessage` with
+  form-encoded `chat_id` + `text` (Markdown). Use stdlib
+  `urllib.request.urlopen` + `asyncio.to_thread` (matches Slack's
+  stdlib pattern from Phase 11.3 — zero new dep).
+- [ ] Message format: same proposal summary line + code-fenced
+  detail block as Slack — easier to maintain a single payload spec.
+- [ ] `src/main.py::build_engine` adds `TelegramNotifier(...)` to
+  the dispatcher's notifier list when both env vars set; logs
+  presence not values.
+- [ ] `.env.example` and `docs/deployment.md` document
+  `TELEGRAM_BOT_TOKEN` (secret) + `TELEGRAM_CHAT_ID`.
+- [ ] Tests: mock the HTTP POST; verify (a) created when both env
+  set, (b) silent when either missing, (c) message format matches
+  spec, (d) HTTP 5xx doesn't crash dispatch (existing per-channel
+  failure-isolation contract from Phase 6.3 preserved).
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -988,6 +1130,7 @@ to retention); operational concern — no new FR introduced.
 | Phase 9 | FR-001, FR-002, FR-003 (extending the strategy framework's input contract; no new FR introduced) |
 | Phase 10 | FR-005, FR-009, FR-010, FR-012, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
 | Phase 11 | FR-005, FR-015, NFR-001, NFR-008, NFR-012 (operational hardening + observability — lint/type sweep, OHLCV cache, Slack notifier, `purge_old` wiring; no new FR/NFR introduced) |
+| Phase 12 | FR-006, FR-007, FR-008, FR-015, FR-022, NFR-001, NFR-012 (risk hardening + reliability — cross-cycle position cap, residual mypy sweep, LLM timeout retry/fallback, Telegram notifier; no new FR/NFR introduced) |
 
 ---
 
