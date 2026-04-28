@@ -24,14 +24,17 @@ Related Requirements:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
+import urllib.error
+import urllib.request
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, TextIO, runtime_checkable
+from typing import Any, Protocol, TextIO, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -237,6 +240,125 @@ class FileNotifier:
 
 
 # =============================================================================
+# Slack backend (Phase 11.3)
+# =============================================================================
+
+
+def _build_slack_payload(notification: Notification) -> dict[str, Any]:
+    """Build the Slack incoming-webhook payload for a notification.
+
+    Two cooperating fields:
+
+    * ``text`` — fallback for clients that don't render Block Kit.
+      One-line summary matching the spec format
+      ``{symbol} {side} score={composite:.2f} entry={price}``.
+    * ``blocks`` — Block Kit summary section + a code-fenced detail
+      section listing the rationale-relevant fields (proposal id,
+      technique, SL/TP, qty, leverage, R/R). The code fence keeps
+      monospace alignment so operators glancing at Slack can read
+      prices vertically without rendering issues.
+    """
+    proposal = notification.proposal
+    summary = (
+        f"{proposal.symbol} {proposal.signal} "
+        f"score={proposal.score.composite:.2f} "
+        f"entry={proposal.entry_price}"
+    )
+    detail = (
+        "```\n"
+        f"proposal_id: {proposal.proposal_id}\n"
+        f"technique: {proposal.technique_name}\n"
+        f"SL: {proposal.stop_loss}\n"
+        f"TP: {proposal.take_profit}\n"
+        f"qty: {proposal.quantity}\n"
+        f"leverage: {proposal.leverage}x\n"
+        f"rr: {proposal.risk_reward_ratio:.2f}\n"
+        "```"
+    )
+    return {
+        "text": summary,
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*{proposal.symbol} {proposal.signal}* "
+                        f"score={proposal.score.composite:.2f} "
+                        f"entry={proposal.entry_price}"
+                    ),
+                },
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": detail},
+            },
+        ],
+    }
+
+
+class SlackNotifier:
+    """POSTs notifications to a Slack incoming webhook (Phase 11.3).
+
+    The webhook URL is a secret — it is never logged, and ``__repr__``
+    deliberately omits it. The HTTP call uses ``urllib.request`` from
+    the standard library (zero extra dependency) wrapped in
+    ``asyncio.to_thread`` so the dispatcher's event loop is not
+    blocked.
+
+    Failure isolation is enforced by ``NotificationDispatcher``: if
+    the webhook returns 4xx/5xx or times out, ``send`` raises and the
+    dispatcher logs + continues to the next backend. We deliberately
+    do not catch internally so the dispatcher's existing isolation
+    contract is the single owner of "one bad backend can't silence
+    the others".
+    """
+
+    def __init__(self, webhook_url: str, *, timeout: float = 5.0) -> None:
+        """Initialize the Slack notifier.
+
+        Args:
+            webhook_url: Slack incoming-webhook URL. Treated as a
+                secret — never logged, never returned by ``__repr__``.
+            timeout: Per-request timeout in seconds. Defaults to 5s
+                so a slow Slack endpoint can't stall the cycle.
+        """
+        self._webhook_url = webhook_url
+        self.timeout = timeout
+
+    def __repr__(self) -> str:
+        # Mask the URL — only its presence is informative for logs.
+        return f"{type(self).__name__}(webhook_url=<redacted>)"
+
+    async def send(self, notification: Notification) -> None:
+        """POST the Slack-formatted payload to the webhook."""
+        payload = _build_slack_payload(notification)
+        body = json.dumps(payload).encode("utf-8")
+        # Bind to a local so the worker thread captures stable refs.
+        url = self._webhook_url
+        timeout = self.timeout
+
+        def _post() -> None:
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                # Slack returns 200 with body "ok" on success; any
+                # non-2xx is raised by urlopen as HTTPError. Drain the
+                # body so the connection can be reused.
+                resp.read()
+
+        await asyncio.to_thread(_post)
+        logger.debug(
+            f"Slack notification dispatched for "
+            f"proposal={notification.proposal.proposal_id}"
+        )
+
+
+# =============================================================================
 # Dispatcher
 # =============================================================================
 
@@ -328,5 +450,6 @@ __all__ = [
     "NotificationDispatcher",
     "NotificationLevel",
     "Notifier",
+    "SlackNotifier",
     "build_default_message",
 ]

@@ -230,9 +230,28 @@ deploy is real losses, not test-data garbage.
 
 4. **Notifications**. Set `NotificationDispatcher`'s `min_score`
    *higher than* the auto-approve threshold so every accepted live
-   proposal pages you (Console + File backends today; Slack/Telegram
-   are a future add). The dashboard's Engine page also surfaces
-   every accepted proposal in real time.
+   proposal pages you. Console + File backends are always on; the
+   Slack push backend (Phase 11.3) is opt-in via
+   `SLACK_WEBHOOK_URL` (Telegram / email are future adds). The
+   dashboard's Engine page also surfaces every accepted proposal in
+   real time.
+
+   **Slack setup (optional).** Create an incoming webhook at
+   <https://api.slack.com/messaging/webhooks>: pick the workspace +
+   channel, hit **Add New Webhook to Workspace**, copy the URL it
+   prints (`https://hooks.slack.com/services/T.../B.../...`). Push
+   it into Fly secrets:
+
+   ```bash
+   fly secrets set SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+   ```
+
+   Treat the URL like an API key — anyone with it can post in your
+   channel. Rotate by deleting the webhook in Slack and creating a
+   new one. The runtime never logs the URL; HTTP failures (timeout,
+   500) are logged and swallowed by the dispatcher's per-channel
+   isolation so a flaky Slack endpoint cannot stall the cycle. Unset
+   the secret to disable.
 
 5. **Start small**. Send a small balance to the exchange (e.g.
    $100–$500) and watch the first day of live trades on the

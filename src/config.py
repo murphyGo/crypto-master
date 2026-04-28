@@ -154,6 +154,14 @@ class Settings(BaseSettings):
     # per proposal, age-based purge into ``proposals/archive/<YYYY-MM>/``).
     log_retention_months: int = Field(default=12, ge=1)
 
+    # Notification Push Backend (Phase 11.3)
+    # Slack incoming-webhook URL. When unset (default), no Slack
+    # notifier is registered and the dispatcher falls back to the
+    # Console + File backends only. The URL itself is a secret —
+    # the application MUST NOT log it. Generate one at
+    # https://api.slack.com/messaging/webhooks.
+    slack_webhook_url: str | None = Field(default=None)
+
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)

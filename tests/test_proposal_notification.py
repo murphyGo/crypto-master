@@ -1,8 +1,9 @@
-"""Tests for the notification subsystem (Phase 6.3)."""
+"""Tests for the notification subsystem (Phase 6.3, extended for 11.3)."""
 
 from __future__ import annotations
 
 import io
+import json
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,8 @@ from src.proposal.notification import (
     Notification,
     NotificationDispatcher,
     NotificationLevel,
+    SlackNotifier,
+    _build_slack_payload,
     build_default_message,
 )
 
@@ -375,3 +378,182 @@ def test_notification_created_at_default_recent() -> None:
     n = make_notification()
     delta = datetime.now() - n.created_at
     assert delta.total_seconds() < 5
+
+
+# =============================================================================
+# SlackNotifier (Phase 11.3)
+# =============================================================================
+
+
+WEBHOOK_URL = "https://hooks.slack.com/services/T00000/B00000/XXXXXXXXXX"
+
+
+def test_build_slack_payload_text_matches_spec() -> None:
+    """Payload ``text`` field is the one-line summary spec'd in 11.3."""
+    proposal = make_proposal(
+        symbol="BTC/USDT",
+        signal="short",
+        composite=1.234,
+    )
+    payload = _build_slack_payload(make_notification(proposal=proposal))
+
+    # Spec: ``{symbol} {side} score={composite:.2f} entry={price}``
+    assert payload["text"] == "BTC/USDT short score=1.23 entry=50000"
+
+
+def test_build_slack_payload_blocks_have_summary_and_detail() -> None:
+    proposal = make_proposal(
+        symbol="ETH/USDT",
+        signal="long",
+        composite=1.5,
+    )
+    payload = _build_slack_payload(make_notification(proposal=proposal))
+
+    blocks = payload["blocks"]
+    assert len(blocks) == 2
+    summary, detail = blocks
+
+    # Summary block — bolded headline.
+    assert summary["type"] == "section"
+    assert "*ETH/USDT long*" in summary["text"]["text"]
+    assert "score=1.50" in summary["text"]["text"]
+
+    # Detail block — code-fenced multi-line key/value.
+    assert detail["type"] == "section"
+    detail_text = detail["text"]["text"]
+    assert detail_text.startswith("```\n")
+    assert detail_text.endswith("```")
+    assert f"proposal_id: {proposal.proposal_id}" in detail_text
+    assert f"technique: {proposal.technique_name}" in detail_text
+    assert f"SL: {proposal.stop_loss}" in detail_text
+    assert f"TP: {proposal.take_profit}" in detail_text
+    assert f"qty: {proposal.quantity}" in detail_text
+    assert f"leverage: {proposal.leverage}x" in detail_text
+
+
+def test_slack_notifier_repr_redacts_url() -> None:
+    """Webhook URL is a secret — ``__repr__`` must mask it."""
+    notifier = SlackNotifier(WEBHOOK_URL)
+
+    rendered = repr(notifier)
+
+    assert WEBHOOK_URL not in rendered
+    assert "redacted" in rendered.lower()
+
+
+async def test_slack_notify_proposal_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Notifying a proposal POSTs a Slack-shaped JSON payload."""
+    notifier = SlackNotifier(WEBHOOK_URL)
+    proposal = make_proposal(symbol="BTC/USDT", signal="short", composite=1.23)
+    notification = make_notification(proposal=proposal)
+
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"ok"
+
+    def _fake_urlopen(req: object, timeout: float = 0) -> _FakeResponse:
+        # ``Request`` records URL and body for assertions.
+        captured["url"] = req.full_url  # type: ignore[attr-defined]
+        captured["data"] = req.data  # type: ignore[attr-defined]
+        captured["method"] = req.get_method()  # type: ignore[attr-defined]
+        captured["headers"] = dict(req.headers)  # type: ignore[attr-defined]
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen", _fake_urlopen
+    )
+
+    await notifier.send(notification)
+
+    assert captured["url"] == WEBHOOK_URL
+    assert captured["method"] == "POST"
+    # Headers are normalized — Content-type is the urllib-style key.
+    assert captured["headers"].get("Content-type") == "application/json"
+
+    payload = json.loads(captured["data"])  # type: ignore[arg-type]
+    # Spec format: ``{symbol} {side} score={composite:.2f} entry={price}``
+    assert payload["text"] == "BTC/USDT short score=1.23 entry=50000"
+    assert len(payload["blocks"]) == 2
+    # Summary + code-fence detail.
+    assert "*BTC/USDT short*" in payload["blocks"][0]["text"]["text"]
+    assert "```" in payload["blocks"][1]["text"]["text"]
+
+
+async def test_slack_http_failure_does_not_crash_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 500 from Slack must not silence other notifiers."""
+    import urllib.error
+
+    def _raise_500(*args: object, **kwargs: object) -> None:
+        raise urllib.error.HTTPError(
+            url=WEBHOOK_URL,
+            code=500,
+            msg="Internal Server Error",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=None,
+        )
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen", _raise_500
+    )
+
+    slack = SlackNotifier(WEBHOOK_URL)
+    good = RecordingNotifier()
+    dispatcher = NotificationDispatcher(notifiers=[slack, good])
+
+    notification = await dispatcher.notify_proposal(make_proposal())
+
+    # Notification was constructed and the second backend still
+    # received it even though Slack raised.
+    assert notification is not None
+    assert good.received == [notification]
+
+
+async def test_slack_notifier_does_not_log_webhook_url(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The webhook URL must never appear in logs (it's a secret)."""
+    import logging
+
+    class _FakeResponse:
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"ok"
+
+    monkeypatch.setattr(
+        "src.proposal.notification.urllib.request.urlopen",
+        lambda *a, **kw: _FakeResponse(),
+    )
+
+    notifier = SlackNotifier(WEBHOOK_URL)
+    with caplog.at_level(logging.DEBUG, logger="crypto_master.proposal.notification"):
+        await notifier.send(make_notification())
+
+    for record in caplog.records:
+        assert WEBHOOK_URL not in record.getMessage()
+
+
+def test_slack_notifier_uses_configured_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The constructor's timeout flows into the urllib call."""
+    notifier = SlackNotifier(WEBHOOK_URL, timeout=2.5)
+    assert notifier.timeout == 2.5

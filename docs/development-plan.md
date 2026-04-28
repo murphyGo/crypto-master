@@ -48,7 +48,7 @@
 | Multi-Technique Per-Symbol Scan | ✅ Complete | 10 |
 | Pre-Existing Lint/Type Sweep | ✅ Complete | 11 |
 | OHLCV Cache for Multi-Technique Scan | ✅ Complete | 11 |
-| Notification Push Backend | ❌ Missing | 11 |
+| Notification Push Backend | ✅ Complete | 11 |
 | ProposalHistory.purge_old Wiring | ❌ Missing | 11 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -924,21 +924,21 @@ as future sub-tasks.
 **Related Requirements**: FR-015 (Notification System — extending
 existing); NFR-012 (live trading awareness).
 
-- [ ] `src/proposal/notification.py` — add `SlackNotifier` class
+- [x] `src/proposal/notification.py` — add `SlackNotifier` class
   implementing the existing `Notifier` protocol. Reads
   `SLACK_WEBHOOK_URL` from `Settings` (add field; optional —
   notifier is silent / disabled when not set).
-- [ ] Notification text: 1-line summary
+- [x] Notification text: 1-line summary
   (`{symbol} {side} score={composite:.2f} entry={price}`) + a
   thread-style detail block (rationale / SL / TP) in Slack
   code-fence formatting.
-- [ ] `src/main.py::build_engine` adds `SlackNotifier()` to the
+- [x] `src/main.py::build_engine` adds `SlackNotifier()` to the
   dispatcher's notifier list when `Settings.slack_webhook_url` is
   set.
-- [ ] `.env.example` and `docs/deployment.md` document
+- [x] `.env.example` and `docs/deployment.md` document
   `SLACK_WEBHOOK_URL` (operator setup: incoming-webhook creation
   steps).
-- [ ] Tests: mock the webhook POST; verify (a) notifier is created
+- [x] Tests: mock the webhook POST; verify (a) notifier is created
   and dispatches when env set, (b) notifier is silent / not
   registered when env unset, (c) message format matches spec, (d)
   HTTP failure does not crash the dispatch path (existing
@@ -1056,3 +1056,4 @@ to retention); operational concern — no new FR introduced.
 | 11.1 | 2026-04-28 | Phase 11.1 complete - Pre-Existing Lint/Type Sweep (NFR-001; resolves DEBT-001); cleared all in-scope ruff + mypy errors (18 ruff → 0; 12 in-scope mypy → 0; total mypy 39 → 29 with remainder out-of-scope per spec). In-scope fixes: `src/ai/claude.py` (2 B904 with `from e`), `src/strategy/loader.py` (5 B904), `src/strategy/factory.py` (UP035 `Callable` from `collections.abc`), `src/ai/improver.py` (str-coerce `fm.get(...) or fallback` at parse-time), `src/trading/live.py` (`Order` import + return-type widening + `Literal["buy","sell"]` for closing_side), `src/trading/paper.py` (same Literal fix), `src/backtest/analyzer.py` (`float(...)` cast for no-any-return), 6 test files (F401/F841/I001 cleanup via `ruff --fix`). `pyproject.toml` ruff config migrated from deprecated top-level `select`/`ignore` to `[tool.ruff.lint]`. `types-PyYAML>=6.0` added to dev extras. New `scripts/lint.sh` (uses `--fix` — flagged by qa as unsafe for CI; recorded as DEBT-009). 1083 tests pass (no behaviour change, no new tests). Zero `# noqa` / `# type: ignore` added. Remaining 29 mypy errors clustered in 4 modules (binance / factory / dashboard / main lambda) recorded as DEBT-005 / 006 / 007 / 008. | Claude |
 | 11.2 | 2026-04-28 | Phase 11.2 complete - OHLCV Cache for Multi-Technique Scan (FR-005 consumed; resolves DEBT-002); per-call OHLCV cache keyed by `(symbol, tf)` threaded through `propose_bitcoin` / `propose_altcoins` → `_propose_for_symbol` / `_propose_all_for_symbol` → `_build_proposal_for_strategy` (Option A). Local dict per call, no module/class state. Both single-TF and multi-TF branches use it; legacy `_select_best_technique` path also threads cache for consistency (no per-path divergence). Fetch counts verified: 3 sym × 4 tech 12 → 3, multi-TF (2 strategies sharing 3 TFs) 6 → 3, sequential 2× `propose_bitcoin` 2 (no leak), legacy 3 sym × 1 tech 3 (no regression). 4 new tests in `tests/test_proposal_engine_multi_technique.py` (1083 → 1087). ruff clean; mypy zero new errors on `engine.py`. 23 existing `test_proposal_engine.py` tests pass unchanged. PEP 604 union syntax for type hints. No new debt. | Claude |
 | 10.0 | 2026-04-28 | Phase 10 complete - all sub-tasks (10.1, 10.2, 10.3, 10.4, 10.5, 10.6) checked. Phase 10 cross-check: `docs/cross-checks/2026-04-28-phase-10-operational-maturation.md`. | Claude |
+| 11.3 | 2026-04-28 | Phase 11.3 complete - Notification Push Backend (FR-015, NFR-012); `SlackNotifier` in `src/proposal/notification.py` posts to incoming webhook via `urllib.request.urlopen` + `asyncio.to_thread` (no new dep) implementing the existing `Notifier` protocol. `Settings.slack_webhook_url: Optional[str] = None` (non-breaking; notifier silent / not registered when unset). `src/main.py::build_engine` appends `SlackNotifier()` to the dispatcher's notifier list when URL set; logs presence not URL. Payload: `text` line summary `{symbol} {side} score={c:.2f} entry={p}` + 2 mrkdwn blocks (bolded summary + code-fenced detail w/ proposal_id, technique, SL, TP, qty, leverage, rr). `__repr__` redacts URL. `send` deliberately does NOT swallow `HTTPError` — dispatcher's existing try/except handles failure isolation per Phase 6.3 contract. `.env.example` + `docs/deployment.md` document `SLACK_WEBHOOK_URL` + incoming-webhook setup. 9 new tests across 2 test files (1087 → 1096) — incl. exact-string spec match, failure-isolation, build_engine both-branches, `__repr__` redaction. ruff clean; mypy zero new errors (14 mypy errors all pre-existing in untouched modules per 11.1 carry). No new debt. | Claude |

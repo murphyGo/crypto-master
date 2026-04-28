@@ -232,6 +232,75 @@ class TestBuildEngineEnvOverride:
         assert engine.config.altcoin_symbols == ["BTC/USDT", "ETH/USDT"]
         assert engine.config.balance == Decimal("7500")
 
+    def test_slack_notifier_created_when_env_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``SLACK_WEBHOOK_URL`` set → dispatcher gains a SlackNotifier (Phase 11.3)."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import SlackNotifier
+
+        monkeypatch.setenv(
+            "SLACK_WEBHOOK_URL",
+            "https://hooks.slack.com/services/T0/B0/XXX",
+        )
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(trading_mode="paper", binance=bn)
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        notifiers = engine.notification_dispatcher._notifiers
+        assert any(isinstance(n, SlackNotifier) for n in notifiers)
+
+    def test_slack_notifier_silent_when_env_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unset ``SLACK_WEBHOOK_URL`` → no SlackNotifier in dispatcher."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import SlackNotifier
+
+        monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        # Explicit ``slack_webhook_url=None`` defends against a stale
+        # value lingering in the test process's environment.
+        settings = Settings(
+            trading_mode="paper",
+            binance=bn,
+            slack_webhook_url=None,
+        )
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        notifiers = engine.notification_dispatcher._notifiers
+        assert not any(isinstance(n, SlackNotifier) for n in notifiers)
+
     def test_explicit_config_argument_still_wins(self) -> None:
         """``build_engine`` allows callers (tests / one-shots) to pass
         their own ``EngineConfig``; that path must override Settings."""

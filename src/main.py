@@ -41,6 +41,8 @@ from src.proposal.notification import (
     ConsoleNotifier,
     FileNotifier,
     NotificationDispatcher,
+    Notifier,
+    SlackNotifier,
 )
 from src.runtime.activity_log import ActivityLog
 from src.runtime.engine import EngineConfig, TradingEngine
@@ -181,8 +183,18 @@ def build_engine(
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
     trader = build_trader(settings, exchange, config)
+
+    # Notifier list grows with optional push backends (Phase 11.3).
+    # Console + File are always-on. Slack is opt-in via
+    # ``SLACK_WEBHOOK_URL``; when unset, the notifier is not
+    # constructed at all so there is nothing to fail at runtime.
+    notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
+    if settings.slack_webhook_url:
+        notifiers.append(SlackNotifier(settings.slack_webhook_url))
+        # Deliberately log presence only — never the URL itself.
+        logger.info("Slack push notifier enabled.")
     notifier = NotificationDispatcher(
-        notifiers=[ConsoleNotifier(), FileNotifier()],
+        notifiers=notifiers,
         min_score=config.auto_approve_threshold,
     )
     activity = ActivityLog()
