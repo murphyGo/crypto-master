@@ -40,9 +40,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.ai.exceptions import ClaudeTimeoutError
 from src.exchange.base import BaseExchange, ExchangeError
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult
+from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.trading.strategy import TradingStrategy, TradingValidationError
@@ -222,6 +224,7 @@ class ProposalEngine:
         performance_tracker: PerformanceTracker | None = None,
         trading_strategy: TradingStrategy | None = None,
         config: ProposalEngineConfig | None = None,
+        activity_log: ActivityLog | None = None,
     ) -> None:
         """Initialize the engine.
 
@@ -236,12 +239,19 @@ class ProposalEngine:
             trading_strategy: Position-sizing helper. Defaults to a
                 fresh ``TradingStrategy()`` with settings-derived config.
             config: Engine tunables. Defaults to ``ProposalEngineConfig()``.
+            activity_log: Optional activity log (Phase 12.3). When
+                supplied, the engine emits ``LLM_TIMEOUT`` events
+                whenever a strategy raises :class:`ClaudeTimeoutError`
+                so the dashboard can surface LLM reliability. Default
+                ``None`` keeps backward compatibility for tests and
+                callers that do not need activity logging.
         """
         self.exchange = exchange
         self.strategies = strategies
         self.performance_tracker = performance_tracker or PerformanceTracker()
         self.trading_strategy = trading_strategy or TradingStrategy()
         self.config = config or ProposalEngineConfig()
+        self.activity_log = activity_log
 
     # ------------------------------------------------------------------
     # Public API
@@ -511,7 +521,7 @@ class ProposalEngine:
                     current_price=current_price,
                 )
             except StrategyError as e:
-                logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
+                self._handle_strategy_error(e, strategy, symbol)
                 return None
         else:
             key = (symbol, timeframe)
@@ -527,7 +537,7 @@ class ProposalEngine:
             try:
                 analysis = await strategy.analyze(ohlcv, symbol, timeframe)
             except StrategyError as e:
-                logger.warning(f"Strategy {strategy.name} failed on {symbol}: {e}")
+                self._handle_strategy_error(e, strategy, symbol)
                 return None
 
         if analysis.signal == "neutral":
@@ -563,6 +573,40 @@ class ProposalEngine:
             risk_reward_ratio=rr,
             score=score,
             reasoning=analysis.reasoning,
+        )
+
+    def _handle_strategy_error(
+        self,
+        error: StrategyError,
+        strategy: BaseStrategy,
+        symbol: str,
+    ) -> None:
+        """Log a strategy failure and emit ``LLM_TIMEOUT`` for timeouts.
+
+        Phase 12.3: when ``error`` is a :class:`ClaudeTimeoutError` and
+        an :class:`ActivityLog` is wired in, this records one
+        ``LLM_TIMEOUT`` event so the dashboard can show LLM reliability
+        over time. The ``timeout_seconds`` attribute on the error
+        captures the *final* (post-retry) timeout the wrapper gave up
+        at, which is the most informative number for an operator
+        triaging "should I bump ``CLAUDE_CLI_TIMEOUT_SECONDS``?".
+        """
+        logger.warning(
+            f"Strategy {strategy.name} failed on {symbol}: {error}"
+        )
+        if not isinstance(error, ClaudeTimeoutError):
+            return
+        if self.activity_log is None:
+            return
+        self.activity_log.append(
+            ActivityEventType.LLM_TIMEOUT,
+            f"LLM timeout: {strategy.name} on {symbol}",
+            details={
+                "strategy_name": strategy.name,
+                "strategy_version": strategy.version,
+                "symbol": symbol,
+                "timeout_seconds": error.timeout_seconds,
+            },
         )
 
     def _select_best_technique(

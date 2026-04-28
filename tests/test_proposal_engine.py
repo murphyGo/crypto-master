@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -77,7 +78,7 @@ def make_analysis(
 
 def make_strategy(
     info: TechniqueInfo | None = None,
-    analysis: AnalysisResult | StrategyExecutionError | None = None,
+    analysis: AnalysisResult | Exception | None = None,
 ) -> BaseStrategy:
     """Build a mock BaseStrategy that returns ``analysis`` from analyze()."""
     info = info or make_info()
@@ -115,6 +116,7 @@ def make_engine(
     perf_records: dict[str, TechniquePerformance] | None = None,
     ohlcv: list[OHLCV] | Exception | None = None,
     config: ProposalEngineConfig | None = None,
+    activity_log: object | None = None,
 ) -> tuple[ProposalEngine, AsyncMock]:
     """Build a ProposalEngine with mocked exchange and tracker."""
     exchange = AsyncMock(spec=BaseExchange)
@@ -136,6 +138,7 @@ def make_engine(
         strategies=strategies or {},
         performance_tracker=tracker,
         config=config or ProposalEngineConfig(),
+        activity_log=activity_log,  # type: ignore[arg-type]
     )
     return engine, exchange
 
@@ -617,3 +620,75 @@ def test_score_clamps_confidence_above_one() -> None:
     score = engine._score(analysis, perf)
 
     assert score.confidence == 1.0
+
+
+# =============================================================================
+# Phase 12.3: LLM_TIMEOUT activity event
+# =============================================================================
+
+
+async def test_engine_logs_llm_timeout_event(tmp_path: Path) -> None:
+    """ClaudeTimeoutError on a strategy emits an LLM_TIMEOUT activity event."""
+    from src.ai.exceptions import ClaudeTimeoutError
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    activity = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    strategy = make_strategy(
+        info=make_info("slow_tech", symbols=["BTC/USDT"]),
+        analysis=ClaudeTimeoutError("timeout", timeout_seconds=180.0),
+    )
+    engine, _ = make_engine(
+        strategies={"slow_tech": strategy},
+        activity_log=activity,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    # Neutral fallback — timeout should not crash the cycle.
+    assert proposal is None
+
+    # Exactly one LLM_TIMEOUT event recorded with diagnostic details.
+    events = activity.filter(event_type=ActivityEventType.LLM_TIMEOUT)
+    assert len(events) == 1
+    event = events[0]
+    assert event.details["strategy_name"] == "slow_tech"
+    assert event.details["symbol"] == "BTC/USDT"
+    assert event.details["timeout_seconds"] == 180.0
+
+
+async def test_engine_does_not_log_llm_timeout_for_other_strategy_errors(
+    tmp_path: Path,
+) -> None:
+    """Non-timeout StrategyError must NOT emit LLM_TIMEOUT (false-positive guard)."""
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    activity = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    strategy = make_strategy(
+        analysis=StrategyExecutionError("blew up", strategy_name="tech_a"),
+    )
+    engine, _ = make_engine(
+        strategies={"tech_a": strategy},
+        activity_log=activity,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is None
+    events = activity.filter(event_type=ActivityEventType.LLM_TIMEOUT)
+    assert len(events) == 0
+
+
+async def test_engine_no_activity_log_means_no_crash_on_timeout() -> None:
+    """When activity_log is None, timeouts still fall back cleanly to None."""
+    from src.ai.exceptions import ClaudeTimeoutError
+
+    strategy = make_strategy(
+        analysis=ClaudeTimeoutError("timeout", timeout_seconds=120.0),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})  # activity_log=None
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is None

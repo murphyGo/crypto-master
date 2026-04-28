@@ -176,10 +176,16 @@ def build_engine(
 
     strategies = load_all_strategies()
     perf = PerformanceTracker()
+    # Phase 12.3: share one ActivityLog instance between the proposal
+    # engine (for ``LLM_TIMEOUT`` events) and the trading engine (for
+    # everything else) so the dashboard sees all events on the same
+    # rotated file.
+    activity = ActivityLog()
     proposal_engine = ProposalEngine(
         exchange=exchange,
         strategies=strategies,
         performance_tracker=perf,
+        activity_log=activity,
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
@@ -198,7 +204,6 @@ def build_engine(
         notifiers=notifiers,
         min_score=config.auto_approve_threshold,
     )
-    activity = ActivityLog()
 
     logger.info(
         f"Trading mode: {settings.trading_mode} "

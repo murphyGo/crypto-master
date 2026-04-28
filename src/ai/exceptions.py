@@ -4,6 +4,8 @@ Related Requirements:
 - NFR-002: Claude CLI Integration
 """
 
+from src.strategy.base import StrategyError
+
 
 class ClaudeError(Exception):
     """Base exception for Claude AI errors.
@@ -52,10 +54,19 @@ class ClaudeExecutionError(ClaudeError):
         self.stderr = stderr
 
 
-class ClaudeTimeoutError(ClaudeError):
+class ClaudeTimeoutError(ClaudeError, StrategyError):
     """Claude CLI execution timed out.
 
     Raised when Claude CLI does not respond within the timeout period.
+
+    Inherits from both :class:`ClaudeError` (so existing
+    ``except ClaudeError`` catches still work) and :class:`StrategyError`
+    (Phase 12.3) so the proposal engine's existing
+    ``except StrategyError`` clause in ``_build_proposal_for_strategy``
+    treats a timeout as a clean per-strategy skip — neutral fallback,
+    no cycle abort. Sites that need to distinguish a timeout from
+    other strategy failures (e.g. the activity log's ``LLM_TIMEOUT``
+    event) use ``isinstance(e, ClaudeTimeoutError)`` after the catch.
 
     Attributes:
         timeout_seconds: The timeout duration that was exceeded.

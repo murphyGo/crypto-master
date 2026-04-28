@@ -52,7 +52,7 @@
 | ProposalHistory.purge_old Wiring | ✅ Complete | 11 |
 | Cross-Cycle Position Cap | ✅ Complete | 12 |
 | Residual mypy Sweep | ✅ Complete | 12 |
-| LLM Strategy Timeout Handling | ❌ Missing | 12 |
+| LLM Strategy Timeout Handling | ✅ Complete | 12 |
 | Telegram Notification Backend | ❌ Missing | 12 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -1066,18 +1066,18 @@ As LLM strategies multiply this becomes a reliability concern.
 **Related Requirements**: FR-022 (Technique Improvement Suggestion —
 extending existing Claude CLI integration); operational concern.
 
-- [ ] Add `claude_cli_timeout_seconds: int = Field(default=120)` to
+- [x] Add `claude_cli_timeout_seconds: int = Field(default=120)` to
   `Settings` so operators can tune without redeploy.
-- [ ] Add `claude_cli_max_retries: int = Field(default=1)` — on
+- [x] Add `claude_cli_max_retries: int = Field(default=1)` — on
   timeout, retry once with a longer timeout (e.g. 1.5×). After max
   retries, fall back to a neutral signal cleanly so the strategy
   doesn't kill the cycle.
-- [ ] `src/ai/claude.py` — wrap the existing `subprocess.run(...,
+- [x] `src/ai/claude.py` — wrap the existing `subprocess.run(...,
   timeout=...)` call with the new retry logic. Log each attempt
   explicitly.
-- [ ] Add an `ActivityEventType.LLM_TIMEOUT` event so the dashboard
+- [x] Add an `ActivityEventType.LLM_TIMEOUT` event so the dashboard
   can show LLM reliability over time.
-- [ ] Tests: mock subprocess to time out N times; verify retry
+- [x] Tests: mock subprocess to time out N times; verify retry
   count, eventual neutral fallback, activity event recorded.
 
 ### 12.4 Telegram Notification Backend
@@ -1204,3 +1204,4 @@ existing); NFR-012 (live trading awareness redundancy).
 | 11.0 | 2026-04-28 | Phase 11 complete - all sub-tasks (11.1, 11.2, 11.3, 11.4) checked. Phase 11 cross-check: `docs/cross-checks/2026-04-28-phase-11-operational-hardening.md`. | Claude |
 | 12.1 | 2026-04-28 | Phase 12.1 complete - Cross-Cycle Position Cap (FR-006, FR-007, FR-008; REAL-MONEY risk closure); `EngineConfig.max_open_positions_per_symbol: int = Field(default=1, ge=1)` env-overridable as `ENGINE_MAX_OPEN_POSITIONS_PER_SYMBOL` via `Settings.engine_max_open_positions_per_symbol` (Phase 10.2 pattern). `TradingEngine._handle_proposal` checks `trader.get_open_trades()` filtered by symbol *after* the composite-accept gate; on count ≥ cap increments `proposals_rejected`, logs `PROPOSAL_REJECTED` with reason `"symbol X cap N reached (M open)"` + structured `cap` / `open_count` event details, skips `_execute`. Phase 10.6 within-cycle dedup untouched (orthogonal: within-cycle vs across-cycle). Backward-compatible: cap=1 = pre-12.1 effective behaviour. Closes the 2026-04-28 Fly redeploy real-money concern (two BNB shorts in 14 min — 4× cycle = 4× position concentration). 5 new tests in `tests/test_runtime_engine.py` (default value / env wiring / cap-hit rejection / cap-not-reached execution / other-symbol-doesn't-block). 1104 → 1109 tests. ruff clean; mypy zero new errors (14 pre-existing in entry-point chain land in 12.2). One test gap recorded as DEBT-010 (Low): long+short same-symbol — implementation correct (counts both sides, prevents synthetic hedge) but suite doesn't explicitly cover. | Claude |
 | 12.2 | 2026-04-28 | Phase 12.2 complete - Residual mypy Sweep (NFR-001; resolves DEBT-005 / 006 / 007 / 008); `mypy src` 29 errors → 0 across 53 source files. DEBT-005 (binance.py, 11 errors): hand-rolled `CCXTClient` Protocol covering the 10 ccxt methods used (`load_markets`, `close`, `fetch_ohlcv`, `fetch_ticker`, `fetch_balance`, `create_market_order`, `create_limit_order`, `cancel_order`, `fetch_order`, `fetch_open_orders`); `_client` typed `CCXTClient \| None`. DEBT-006 (factory.py, 3 errors): investigated — NOT a behavioural mismatch; registry's `type[BaseExchange]` widens away subclass `__init__` params; resolved with tightly-scoped `cast(Any, exchange_class)(...)` + comment explaining the typing gap (runtime preserves exact call shape). DEBT-007 (dashboard cluster, 13 errors across `theme.py`, `app.py`, `pages/trading.py`, `pages/engine.py`): `Literal` types for theme constants (verified against streamlit `commands/page_config.py`), `StreamlitPage` import for navigation, `cast(...)` on `st.metric` numeric values. DEBT-008 (main.py lambda, 1 error): targeted `# type: ignore[misc]` (canonical case for asyncio signal-handler callback shape mismatch). 1109 tests pass (no behaviour change, no new tests — refactor not a feature). 8 files modified. Public API preserved. QA-flagged follow-up (TypedDict for `build_summary_metrics` to drop consumer-side casts) recorded as DEBT-011 (Low). | Claude |
+| 12.3 | 2026-04-28 | Phase 12.3 complete - LLM Strategy Timeout Handling (FR-022; operational reliability — closes the 2026-04-28 Fly `chasulang_ict_smc` 120s-timeout silent-drop-out concern); retry-on-timeout with 1.5× backoff for the Claude CLI in `src/ai/claude.py` (120 → 180 → 270 escalation; retry only on `asyncio.TimeoutError` — verified via `test_non_timeout_errors_do_not_trigger_retry`, `mock_exec.call_count == 1`; per-attempt process cleanup, no zombie risk). `ClaudeTimeoutError` now multiply-inherits `ClaudeError + StrategyError` (MRO `[ClaudeTimeoutError, ClaudeError, StrategyError, Exception, ...]`) so the engine's existing `StrategyError` catch handles it without a new except block at every call site. `PromptStrategy.analyze` re-raises `ClaudeTimeoutError` UNWRAPPED (other `ClaudeError` subtypes still wrap into `StrategyError(...)` per pre-existing contract) so the engine emits `LLM_TIMEOUT` with original `timeout_seconds` payload intact — locked by `test_unwrap_propagation`. `Settings.claude_cli_timeout_seconds: int = Field(default=120, ge=10)` + `claude_cli_max_retries: int = Field(default=1, ge=0)` (0 = single shot). `ActivityEventType.LLM_TIMEOUT` added; `ProposalEngine` accepts optional `activity_log` (None default — backward-compat preserved) and emits `LLM_TIMEOUT` with `strategy_name`/`version`/`symbol`/`timeout_seconds` on final exhaustion. `build_engine` creates one `ActivityLog` and shares it between `ProposalEngine` and `TradingEngine`. 12 files modified (src/ai/claude.py, src/ai/exceptions.py, src/strategy/loader.py, src/proposal/engine.py, src/runtime/activity_log.py, src/config.py, src/main.py, .env.example, docs/development-plan.md, plus 3 test files). 1109 → 1119 tests (+10 — 6 retry tests + 3 LLM_TIMEOUT event tests + 1 unwrap-propagation test). ruff/mypy clean. No new debt. | Claude |

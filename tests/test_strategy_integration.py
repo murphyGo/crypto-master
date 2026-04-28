@@ -431,12 +431,41 @@ class TestPromptStrategyFormatting:
     async def test_analyze_raises_strategy_error_on_claude_failure(
         self, prompt_strategy: PromptStrategy, sample_ohlcv: list[OHLCV]
     ) -> None:
-        """Test that analyze raises StrategyExecutionError when Claude fails."""
+        """Test that analyze raises StrategyExecutionError when Claude fails.
+
+        Phase 12.3: ``ClaudeTimeoutError`` is now propagated unwrapped so
+        the proposal engine can distinguish a timeout from other strategy
+        failures (for ``LLM_TIMEOUT`` activity events). Other
+        ``ClaudeError`` subtypes (parse errors, execution errors) still
+        get wrapped in ``StrategyExecutionError`` as before.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from src.ai.exceptions import ClaudeParseError
+
+        # Need at least 20 candles
+        ohlcv = sample_ohlcv * 3  # 30 candles
+
+        mock_client = AsyncMock()
+        mock_client.analyze.side_effect = ClaudeParseError(
+            "Bad JSON", raw_output="not json"
+        )
+
+        with patch("src.ai.ClaudeCLI", return_value=mock_client):
+            with pytest.raises(StrategyExecutionError) as exc_info:
+                await prompt_strategy.analyze(ohlcv, "BTC/USDT", "4h")
+
+            assert "Claude analysis failed" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_analyze_propagates_claude_timeout_unwrapped(
+        self, prompt_strategy: PromptStrategy, sample_ohlcv: list[OHLCV]
+    ) -> None:
+        """Phase 12.3: timeouts propagate unwrapped so the engine sees the type."""
         from unittest.mock import AsyncMock, patch
 
         from src.ai.exceptions import ClaudeTimeoutError
 
-        # Need at least 20 candles
         ohlcv = sample_ohlcv * 3  # 30 candles
 
         mock_client = AsyncMock()
@@ -445,7 +474,7 @@ class TestPromptStrategyFormatting:
         )
 
         with patch("src.ai.ClaudeCLI", return_value=mock_client):
-            with pytest.raises(StrategyExecutionError) as exc_info:
+            with pytest.raises(ClaudeTimeoutError) as exc_info:
                 await prompt_strategy.analyze(ohlcv, "BTC/USDT", "4h")
 
-            assert "Claude analysis failed" in str(exc_info.value)
+            assert exc_info.value.timeout_seconds == 120.0

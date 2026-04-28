@@ -77,6 +77,14 @@ class ActivityEventType(str, Enum):
     POSITION_CLOSED = "position_closed"
     MONITOR_ERRORED = "monitor_errored"
 
+    # LLM reliability (Phase 12.3)
+    # Emitted by :class:`~src.proposal.engine.ProposalEngine` whenever a
+    # strategy raises ``ClaudeTimeoutError`` (after the wrapper has
+    # exhausted its retries). The engine logs one event per
+    # exhausted-retries timeout so the dashboard can show LLM
+    # reliability over time.
+    LLM_TIMEOUT = "llm_timeout"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

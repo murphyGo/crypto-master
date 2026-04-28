@@ -201,6 +201,7 @@ class PromptStrategy(BaseStrategy):
             StrategyExecutionError: If Claude analysis fails.
         """
         from src.ai import ClaudeCLI, ClaudeError
+        from src.ai.exceptions import ClaudeTimeoutError
 
         # Validate input
         self.validate_input(ohlcv)
@@ -218,6 +219,14 @@ class PromptStrategy(BaseStrategy):
         try:
             client = ClaudeCLI()
             response = await client.analyze(prompt)
+        except ClaudeTimeoutError:
+            # Phase 12.3: ClaudeTimeoutError is a StrategyError, so it
+            # propagates uncaught through the proposal engine's
+            # existing ``except StrategyError`` clause as a clean
+            # neutral-fallback. Wrapping it in StrategyExecutionError
+            # would erase the type and prevent the engine from logging
+            # an LLM_TIMEOUT activity event.
+            raise
         except ClaudeError as e:
             raise StrategyExecutionError(
                 f"Claude analysis failed: {e}",

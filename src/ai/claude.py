@@ -25,6 +25,16 @@ from src.logger import get_logger
 # Default timeout for Claude CLI execution (2 minutes)
 DEFAULT_TIMEOUT_SECONDS = 120.0
 
+# Phase 12.3: Default number of retries on subprocess timeout. ``0``
+# means no retry (single-shot timeout). Each retry multiplies the
+# timeout by :data:`TIMEOUT_BACKOFF_MULTIPLIER`.
+DEFAULT_MAX_RETRIES = 1
+
+# Multiplier applied to the timeout on each retry attempt. With the
+# default 120s base and 1 retry, the schedule is 120s → 180s. With 2
+# retries it is 120s → 180s → 270s.
+TIMEOUT_BACKOFF_MULTIPLIER = 1.5
+
 # Pattern to extract JSON from markdown code blocks
 JSON_BLOCK_PATTERN = re.compile(
     r"```(?:json)?\s*\n?(.*?)\n?```",
@@ -52,17 +62,40 @@ class ClaudeCLI:
 
     def __init__(
         self,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        timeout: float | None = None,
         claude_path: str = "claude",
+        max_retries: int | None = None,
     ) -> None:
         """Initialize ClaudeCLI.
 
         Args:
-            timeout: Timeout in seconds for CLI execution.
+            timeout: Base timeout in seconds for one CLI invocation.
+                When ``None`` (default), reads from
+                ``Settings.claude_cli_timeout_seconds`` so operators can
+                tune via env without redeploy. Tests can pin a value
+                explicitly to keep them fast.
             claude_path: Path to claude executable or command name.
+            max_retries: Maximum number of retries on
+                :class:`asyncio.TimeoutError`. ``0`` means no retry
+                (single-shot timeout). Each retry multiplies the
+                timeout by ``TIMEOUT_BACKOFF_MULTIPLIER`` (1.5x). When
+                ``None`` (default), reads from
+                ``Settings.claude_cli_max_retries``.
         """
+        # Resolve defaults from Settings lazily so import-time env
+        # changes are honoured. Explicit args win for tests.
+        if timeout is None or max_retries is None:
+            from src.config import get_settings
+
+            settings = get_settings()
+            if timeout is None:
+                timeout = float(settings.claude_cli_timeout_seconds)
+            if max_retries is None:
+                max_retries = settings.claude_cli_max_retries
+
         self.timeout = timeout
         self.claude_path = claude_path
+        self.max_retries = max_retries
         self._logger = get_logger("crypto_master.ai.claude")
 
     def is_available(self) -> bool:
@@ -142,7 +175,16 @@ class ClaudeCLI:
         return text
 
     async def _execute_cli(self, prompt: str) -> tuple[str, str]:
-        """Execute claude -p command.
+        """Execute claude -p command with retry-on-timeout (Phase 12.3).
+
+        On :class:`asyncio.TimeoutError` the wrapper retries up to
+        ``self.max_retries`` times, multiplying the per-attempt
+        timeout by :data:`TIMEOUT_BACKOFF_MULTIPLIER` (1.5x) each
+        retry — e.g. with ``timeout=120`` and ``max_retries=2`` the
+        schedule is 120s → 180s → 270s. Only timeouts trigger a
+        retry; ``ClaudeExecutionError`` (non-zero exit) and
+        ``ClaudeNotFoundError`` raise immediately so genuine failures
+        surface fast.
 
         Args:
             prompt: The prompt text to pass to Claude.
@@ -152,7 +194,49 @@ class ClaudeCLI:
 
         Raises:
             ClaudeNotFoundError: If claude executable not found.
-            ClaudeTimeoutError: If execution exceeds timeout.
+            ClaudeTimeoutError: If every attempt times out.
+            ClaudeExecutionError: If CLI returns non-zero exit code.
+        """
+        timeout = self.timeout
+        total_attempts = self.max_retries + 1
+        for attempt in range(total_attempts):
+            try:
+                return await self._execute_cli_once(prompt, timeout=timeout)
+            except ClaudeTimeoutError:
+                if attempt < self.max_retries:
+                    next_timeout = timeout * TIMEOUT_BACKOFF_MULTIPLIER
+                    self._logger.warning(
+                        f"Claude CLI timeout (attempt {attempt + 1}/"
+                        f"{total_attempts}, timeout={timeout}s); retrying "
+                        f"with timeout={next_timeout}s"
+                    )
+                    timeout = next_timeout
+                    continue
+                # Final attempt: re-raise so the caller sees the
+                # ClaudeTimeoutError.
+                raise
+        # Unreachable — the loop either returns or raises.
+        raise RuntimeError("unreachable: retry loop exited without resolution")
+
+    async def _execute_cli_once(
+        self, prompt: str, *, timeout: float
+    ) -> tuple[str, str]:
+        """Run one ``claude -p`` invocation with the supplied timeout.
+
+        Split out from :meth:`_execute_cli` (Phase 12.3) so the retry
+        loop can call it with an escalating timeout per attempt
+        without re-implementing subprocess teardown for each.
+
+        Args:
+            prompt: The prompt text to pass to Claude.
+            timeout: Per-attempt timeout in seconds.
+
+        Returns:
+            Tuple of (stdout, stderr) from the process.
+
+        Raises:
+            ClaudeNotFoundError: If claude executable not found.
+            ClaudeTimeoutError: If this single attempt times out.
             ClaudeExecutionError: If CLI returns non-zero exit code.
         """
         process = None
@@ -169,7 +253,7 @@ class ClaudeCLI:
             # Wait for completion with timeout
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
                 process.communicate(),
-                timeout=self.timeout,
+                timeout=timeout,
             )
 
             stdout = stdout_bytes.decode("utf-8", errors="replace")
@@ -196,8 +280,8 @@ class ClaudeCLI:
                 await process.wait()
 
             raise ClaudeTimeoutError(
-                f"Claude CLI timed out after {self.timeout} seconds",
-                timeout_seconds=self.timeout,
+                f"Claude CLI timed out after {timeout} seconds",
+                timeout_seconds=timeout,
             ) from e
 
         except FileNotFoundError as e:

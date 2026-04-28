@@ -167,6 +167,21 @@ class Settings(BaseSettings):
     # https://api.slack.com/messaging/webhooks.
     slack_webhook_url: str | None = Field(default=None)
 
+    # Claude CLI Timeout / Retry (Phase 12.3)
+    # Base timeout for one ``claude -p`` invocation in seconds.
+    # On timeout the wrapper retries up to ``claude_cli_max_retries``
+    # times, multiplying the timeout by 1.5x each retry (e.g.
+    # 120s → 180s → 270s). After the final timeout the wrapper raises
+    # ``ClaudeTimeoutError`` and the proposal engine falls back to
+    # neutral (no proposal) for that strategy. Minimum 10s to keep the
+    # subprocess from being killed before it can even start.
+    claude_cli_timeout_seconds: int = Field(default=120, ge=10)
+    # Maximum number of retries on timeout. ``0`` means no retry — the
+    # wrapper times out exactly once and propagates. Default 1 (one
+    # retry) matches the most common operational case where Claude
+    # Code occasionally hits a slow path on first call.
+    claude_cli_max_retries: int = Field(default=1, ge=0)
+
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)

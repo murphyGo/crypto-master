@@ -150,7 +150,7 @@ class TestClaudeCLIAnalyze:
 
     @pytest.mark.asyncio
     async def test_timeout(self) -> None:
-        """Test ClaudeTimeoutError when process times out."""
+        """Test ClaudeTimeoutError when process times out (no retry)."""
 
         async def slow_communicate() -> tuple[bytes, bytes]:
             await asyncio.sleep(10)
@@ -164,7 +164,9 @@ class TestClaudeCLIAnalyze:
 
         with patch("shutil.which", return_value="/usr/bin/claude"):
             with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-                client = ClaudeCLI(timeout=0.1)
+                # Phase 12.3: pin max_retries=0 so this single-attempt
+                # test stays single-attempt (the default is 1).
+                client = ClaudeCLI(timeout=0.1, max_retries=0)
 
                 with pytest.raises(ClaudeTimeoutError) as exc_info:
                     await client.analyze("test prompt")
@@ -250,6 +252,157 @@ class TestClaudeCLIAnalyze:
                 result = await client.analyze("test prompt")
 
         assert result["reasoning"] == "Strong trend 📈"
+
+
+class TestClaudeCLIRetryOnTimeout:
+    """Phase 12.3: retry-on-timeout with 1.5x backoff."""
+
+    def _make_slow_process(self) -> AsyncMock:
+        """Build a mock subprocess whose ``communicate`` never returns
+        within the test's ``timeout``, so ``asyncio.wait_for`` raises
+        ``TimeoutError`` deterministically."""
+
+        async def slow_communicate() -> tuple[bytes, bytes]:
+            await asyncio.sleep(10)
+            return (b"", b"")
+
+        process = AsyncMock()
+        process.returncode = None
+        process.communicate = slow_communicate
+        process.kill = MagicMock()
+        process.wait = AsyncMock()
+        return process
+
+    def _make_success_process(self, payload: dict[str, object]) -> AsyncMock:
+        """Build a mock subprocess that returns ``payload`` as JSON."""
+        process = AsyncMock()
+        process.returncode = 0
+        process.communicate = AsyncMock(
+            return_value=(json.dumps(payload).encode(), b"")
+        )
+        process.kill = MagicMock()
+        process.wait = AsyncMock()
+        return process
+
+    @pytest.mark.asyncio
+    async def test_subprocess_retries_on_timeout(self) -> None:
+        """Timeout twice, succeed on third attempt — return result, call count = 3."""
+        slow1 = self._make_slow_process()
+        slow2 = self._make_slow_process()
+        success_payload = {"signal": "long", "confidence": 0.8}
+        success = self._make_success_process(success_payload)
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=[slow1, slow2, success],
+            ) as mock_exec:
+                client = ClaudeCLI(timeout=0.05, max_retries=2)
+                result = await client.analyze("test")
+
+        assert result == success_payload
+        assert mock_exec.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_subprocess_raises_after_max_retries(self) -> None:
+        """Always-timeout: ClaudeTimeoutError after max_retries+1 calls."""
+        processes = [self._make_slow_process() for _ in range(3)]
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=processes,
+            ) as mock_exec:
+                client = ClaudeCLI(timeout=0.05, max_retries=2)
+
+                with pytest.raises(ClaudeTimeoutError):
+                    await client.analyze("test")
+
+        assert mock_exec.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_timeout_escalates_each_retry(self) -> None:
+        """The per-attempt timeout multiplies by 1.5x each retry."""
+        captured_timeouts: list[float] = []
+        original_wait_for = asyncio.wait_for
+
+        async def capture_wait_for(awaitable: object, timeout: float) -> object:
+            captured_timeouts.append(timeout)
+            return await original_wait_for(awaitable, timeout=timeout)
+
+        processes = [self._make_slow_process() for _ in range(3)]
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=processes,
+            ):
+                with patch("asyncio.wait_for", side_effect=capture_wait_for):
+                    client = ClaudeCLI(timeout=0.04, max_retries=2)
+                    with pytest.raises(ClaudeTimeoutError):
+                        await client.analyze("test")
+
+        assert len(captured_timeouts) == 3
+        # 0.04 -> 0.06 -> 0.09 (1.5x backoff)
+        assert captured_timeouts[0] == pytest.approx(0.04)
+        assert captured_timeouts[1] == pytest.approx(0.06)
+        assert captured_timeouts[2] == pytest.approx(0.09)
+
+    @pytest.mark.asyncio
+    async def test_max_retries_zero_means_no_retry(self) -> None:
+        """max_retries=0 -> exactly one subprocess call, then ClaudeTimeoutError."""
+        slow = self._make_slow_process()
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                return_value=slow,
+            ) as mock_exec:
+                client = ClaudeCLI(timeout=0.05, max_retries=0)
+
+                with pytest.raises(ClaudeTimeoutError):
+                    await client.analyze("test")
+
+        assert mock_exec.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_non_timeout_errors_do_not_trigger_retry(self) -> None:
+        """ClaudeExecutionError must NOT be retried — bail immediately."""
+        process = AsyncMock()
+        process.returncode = 1
+        process.communicate = AsyncMock(return_value=(b"", b"server error"))
+        process.kill = MagicMock()
+        process.wait = AsyncMock()
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                return_value=process,
+            ) as mock_exec:
+                client = ClaudeCLI(timeout=0.05, max_retries=2)
+
+                with pytest.raises(ClaudeExecutionError):
+                    await client.analyze("test")
+
+        # No retry — execution errors are not transient.
+        assert mock_exec.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_timeout_error_carries_final_timeout(self) -> None:
+        """The raised ClaudeTimeoutError reports the final escalated timeout."""
+        processes = [self._make_slow_process() for _ in range(2)]
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch(
+                "asyncio.create_subprocess_exec",
+                side_effect=processes,
+            ):
+                client = ClaudeCLI(timeout=0.04, max_retries=1)
+                with pytest.raises(ClaudeTimeoutError) as exc_info:
+                    await client.analyze("test")
+
+        # Final attempt used 0.04 * 1.5 = 0.06s.
+        assert exc_info.value.timeout_seconds == pytest.approx(0.06)
 
 
 class TestJSONExtraction:
