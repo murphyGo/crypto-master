@@ -35,12 +35,16 @@ from typing import Protocol, TextIO, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
 
 logger = get_logger("crypto_master.proposal.notification")
 
 
+# Relative-path marker; the live default is derived from
+# ``Settings.data_dir`` at construction time so the notification log
+# survives container recycles on managed hosts (Phase 10.5).
 DEFAULT_NOTIFICATION_LOG = Path("data/notifications/proposals.jsonl")
 
 
@@ -171,15 +175,29 @@ class FileNotifier:
     don't corrupt earlier entries.
     """
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        *,
+        data_dir: Path | None = None,
+    ) -> None:
         """Initialize the file notifier.
 
         Args:
-            path: Where to append. Defaults to
-                ``data/notifications/proposals.jsonl``. Tests should
-                supply ``tmp_path / "notifications.jsonl"``.
+            path: Where to append. When supplied, this explicit path
+                wins (tests should supply
+                ``tmp_path / "notifications.jsonl"``).
+            data_dir: Optional override for the notification data
+                root. When ``path`` is not given, the file notifier
+                defaults to ``<data_dir>/notifications/proposals.jsonl``.
+                ``data_dir`` itself defaults to ``Settings().data_dir``
+                so the log lands on the persistent volume (Phase 10.5).
         """
-        self.path = path or DEFAULT_NOTIFICATION_LOG
+        if path is not None:
+            self.path = path
+        else:
+            base = data_dir if data_dir is not None else get_settings().data_dir
+            self.path = base / "notifications" / "proposals.jsonl"
 
     async def send(self, notification: Notification) -> None:
         """Append one notification as a JSON line."""

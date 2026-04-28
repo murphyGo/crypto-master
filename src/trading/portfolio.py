@@ -32,6 +32,9 @@ logger = get_logger("crypto_master.trading.portfolio")
 
 Mode = Literal["backtest", "paper", "live"]
 
+# Relative-path marker for documentation only; the constructor derives
+# the live default from ``Settings.data_dir`` so snapshots survive
+# container recycles on managed hosts (Phase 10.5).
 DEFAULT_PORTFOLIO_DIR = Path("data/portfolio")
 
 

@@ -30,11 +30,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.config import get_settings
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.feedback.audit")
 
 
+# Relative path used as a fallback marker; the real default is computed
+# from ``Settings.data_dir`` at construction time so the audit trail
+# survives container recycles on managed hosts (Phase 10.5).
 DEFAULT_AUDIT_PATH = Path("data/audit/feedback.jsonl")
 
 
@@ -99,16 +103,30 @@ class AuditLog:
         history = log.read_all()
     """
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        *,
+        data_dir: Path | None = None,
+    ) -> None:
         """Initialize the audit log.
 
         Args:
-            path: Where to read from / append to. Defaults to
-                ``data/audit/feedback.jsonl``. Tests should supply
+            path: Where to read from / append to. When supplied, this
+                explicit path wins (tests should supply
                 ``tmp_path / "audit.jsonl"`` to avoid touching the
-                real data directory.
+                real data directory).
+            data_dir: Optional override for the audit data root.
+                When ``path`` is not given, the audit log defaults to
+                ``<data_dir>/audit/feedback.jsonl``. ``data_dir``
+                itself defaults to ``Settings().data_dir`` so the
+                trail lands on the persistent volume (Phase 10.5).
         """
-        self.path = path or DEFAULT_AUDIT_PATH
+        if path is not None:
+            self.path = path
+        else:
+            base = data_dir if data_dir is not None else get_settings().data_dir
+            self.path = base / "audit" / "feedback.jsonl"
 
     def append(self, event: AuditEvent) -> None:
         """Append one event to the log.

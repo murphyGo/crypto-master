@@ -20,6 +20,7 @@ from src.backtest.validator import (
     RobustnessGate,
     RobustnessReport,
 )
+from src.config import reload_settings
 from src.feedback.audit import AuditEventType, AuditLog
 from src.feedback.loop import (
     FeedbackLoop,
@@ -510,6 +511,29 @@ def test_load_state_missing_raises(tmp_path: Path) -> None:
     loop, _, _ = make_loop(tmp_path, gate_passed=True)
     with pytest.raises(FeedbackLoopError, match="No saved state"):
         loop.load_state("does-not-exist")
+
+
+def test_constructor_respects_settings_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default state_dir is rooted under Settings.data_dir (Phase 10.5)."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    reload_settings()
+    try:
+        loop = FeedbackLoop(
+            improver=AsyncMock(spec=StrategyImprover),
+            backtester=AsyncMock(spec=Backtester),
+            analyzer=MagicMock(spec=PerformanceAnalyzer),
+            gate=AsyncMock(spec=RobustnessGate),
+            audit_log=AuditLog(path=tmp_path / "audit.jsonl"),
+        )
+    finally:
+        monkeypatch.delenv("DATA_DIR", raising=False)
+        reload_settings()
+
+    assert loop.state_dir == tmp_path / "feedback" / "state"
+    assert tmp_path in loop.state_dir.parents
 
 
 @pytest.mark.asyncio

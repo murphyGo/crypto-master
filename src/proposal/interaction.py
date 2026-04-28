@@ -33,12 +33,16 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
 
 logger = get_logger("crypto_master.proposal.interaction")
 
 
+# Relative-path marker; the live default is derived from
+# ``Settings.data_dir`` at construction time so proposal history
+# survives container recycles on managed hosts (Phase 10.5).
 DEFAULT_HISTORY_DIR = Path("data/proposals")
 _REASONING_PREVIEW_CHARS = 280
 
@@ -223,10 +227,15 @@ class ProposalHistory:
         """Initialize the history.
 
         Args:
-            data_dir: Directory to read/write under. Defaults to
-                ``data/proposals/``.
+            data_dir: Directory to read/write under. When omitted,
+                defaults to ``<Settings.data_dir>/proposals`` so the
+                history lands on the persistent volume operations has
+                mounted (Phase 10.5).
         """
-        self.data_dir = data_dir or DEFAULT_HISTORY_DIR
+        if data_dir is not None:
+            self.data_dir = data_dir
+        else:
+            self.data_dir = get_settings().data_dir / "proposals"
 
     def save(self, record: ProposalRecord) -> None:
         """Persist a record, overwriting any earlier snapshot."""

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from src.config import reload_settings
 from src.runtime.activity_log import (
     ActivityEvent,
     ActivityEventType,
@@ -15,6 +16,24 @@ from src.runtime.activity_log import (
 # =============================================================================
 # Append + read round-trip
 # =============================================================================
+
+
+def test_constructor_respects_settings_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default activity path is rooted under Settings.data_dir (Phase 10.5)."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    reload_settings()
+    try:
+        log = ActivityLog()
+    finally:
+        # Reset the module-level singleton so other tests aren't affected.
+        monkeypatch.delenv("DATA_DIR", raising=False)
+        reload_settings()
+
+    assert log.path == tmp_path / "runtime" / "activity.jsonl"
+    assert tmp_path in log.path.parents
 
 
 def test_append_creates_parent_directory(tmp_path: Path) -> None:

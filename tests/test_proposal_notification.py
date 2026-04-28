@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from src.config import reload_settings
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.notification import (
     ConsoleNotifier,
@@ -166,6 +167,23 @@ async def test_console_notifier_default_stream_is_stdout(
 # =============================================================================
 # FileNotifier
 # =============================================================================
+
+
+def test_file_notifier_constructor_respects_settings_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default notification path is rooted under Settings.data_dir (Phase 10.5)."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    reload_settings()
+    try:
+        notifier = FileNotifier()
+    finally:
+        monkeypatch.delenv("DATA_DIR", raising=False)
+        reload_settings()
+
+    assert notifier.path == tmp_path / "notifications" / "proposals.jsonl"
+    assert tmp_path in notifier.path.parents
 
 
 async def test_file_notifier_appends_jsonl(tmp_path: Path) -> None:

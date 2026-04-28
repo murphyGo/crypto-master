@@ -44,7 +44,7 @@
 | EngineConfig Env Override | ❌ Missing | 10 |
 | Baseline Reference Numbers | ❌ Missing | 10 |
 | Log Retention Policy | ❌ Missing | 10 |
-| Volume-Aware Default Paths | ❌ Missing | 10 |
+| Volume-Aware Default Paths | ✅ Complete | 10 |
 | Multi-Technique Per-Symbol Scan | ❌ Missing | 10 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
@@ -751,20 +751,20 @@ to provide.
 **Related Requirements**: NFR-008 (mode-separated storage extends to
 retention); operational concern — no new FR introduced.
 
-- [ ] Route `src/runtime/activity_log.py`'s default activity path
+- [x] Route `src/runtime/activity_log.py`'s default activity path
   through `Settings.data_dir` (replicate the
   `PerformanceTracker.__init__` pattern: read `data_dir` from
   settings, build the JSONL path under it).
-- [ ] Same fix in `src/feedback/audit.py` (`data/audit/feedback.jsonl`).
-- [ ] Same fix in `src/feedback/loop.py` (loop state directory
+- [x] Same fix in `src/feedback/audit.py` (`data/audit/feedback.jsonl`).
+- [x] Same fix in `src/feedback/loop.py` (loop state directory
   `data/feedback/state/`).
-- [ ] Same fix in `src/proposal/interaction.py` (`data/proposals/`
+- [x] Same fix in `src/proposal/interaction.py` (`data/proposals/`
   history directory).
-- [ ] Same fix in `src/proposal/notification.py` (file-notifier
+- [x] Same fix in `src/proposal/notification.py` (file-notifier
   JSONL path).
-- [ ] Same fix in `src/trading/portfolio.py` (`data/portfolio/`
+- [x] Same fix in `src/trading/portfolio.py` (`data/portfolio/`
   history directory).
-- [ ] Tests: each component's existing test file gains a "respects
+- [x] Tests: each component's existing test file gains a "respects
   `data_dir` override" case using `tmp_path` — assert the default
   path is rooted under the configured `data_dir`, not the literal
   string `data/...`.
@@ -888,3 +888,4 @@ proposals per symbol).
 | 9.4 | 2026-04-27 | Phase 9.4 complete - Per-Timeframe RSI Baselines (FR-001/002/003/004); strategies/rsi_4h.py + rsi_15m.py reuse RSIMeanReversionStrategy with locked timeframes; rsi.py renamed `rsi_mean_reversion` → `rsi_universal` for symmetry; 6 new tests + docs/baselines.md updated. Closes the user's original "4시간봉 RSI / 15분봉 RSI" request. | Claude |
 | 10.0 | 2026-04-27 | Phase 10 added to plan - Operational Maturation; 10.1 Live Trading Wiring, 10.2 EngineConfig Env Override, 10.3 Baseline Reference Numbers, 10.4 Log Retention Policy. Closes accumulated operational gaps from prior-phase session logs. | Claude |
 | 10.1 | 2026-04-28 | Phase 10.1 complete - Live Trading Wiring (FR-009, FR-010, NFR-012); introduced `src/trading/base.py::Trader` Protocol; `PaperTrader` open/close converted to async; `LiveTrader` aligned to the protocol (close signature, get_open_trades, check_exit_conditions, SL/TP-skips-confirm); `TradingEngine.trader: Trader` (replaces `paper_trader`); `src/main.py::build_exchange` + `build_trader` dispatch on `Settings.trading_mode`; engine auto-confirmation shim for headless live; `docs/deployment.md` 9-step live checklist. 11 new tests + extensive test churn (~50 PaperTrader call sites converted to async). 1027 total passing. | Claude |
+| 10.5 | 2026-04-28 | Phase 10.5 complete - Volume-Aware Default Paths (NFR-008); replicated `PerformanceTracker` / `TradeHistoryTracker` `data_dir` pattern across `ActivityLog`, `AuditLog`, `FeedbackLoop`, `ProposalHistory`, `FileNotifier`, and `Portfolio` (latter already correct, comment added); each `__init__` now accepts a keyword-only `data_dir: Path \| None = None` and derives default storage from `Settings.data_dir` at construction time. Closes the Fly persistence-loss defect Cycle 1 diagnosed: relative `Path("data/...")` defaults resolved to ephemeral `/app/data/...` instead of the `/data` volume mount. 6 new "respects `Settings.data_dir`" tests (1027 → 1033). | Claude |

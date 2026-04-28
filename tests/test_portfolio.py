@@ -6,12 +6,30 @@ from pathlib import Path
 
 import pytest
 
+from src.config import reload_settings
 from src.strategy.performance import TradeHistoryTracker
 from src.trading.portfolio import (
     AssetSnapshot,
     Portfolio,
     PortfolioTracker,
 )
+
+
+def test_portfolio_tracker_respects_settings_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default portfolio dir is rooted under Settings.data_dir (Phase 10.5)."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    reload_settings()
+    try:
+        tracker = PortfolioTracker()
+    finally:
+        monkeypatch.delenv("DATA_DIR", raising=False)
+        reload_settings()
+
+    assert tracker.data_dir == tmp_path / "portfolio"
+    assert tmp_path in tracker.data_dir.parents
 
 
 # =============================================================================

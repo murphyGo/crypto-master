@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from src.config import reload_settings
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
@@ -241,6 +242,23 @@ async def test_default_decision_prompt_rejects_without_reason(
 # =============================================================================
 # ProposalHistory
 # =============================================================================
+
+
+def test_history_constructor_respects_settings_data_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default history dir is rooted under Settings.data_dir (Phase 10.5)."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    reload_settings()
+    try:
+        history = ProposalHistory()
+    finally:
+        monkeypatch.delenv("DATA_DIR", raising=False)
+        reload_settings()
+
+    assert history.data_dir == tmp_path / "proposals"
+    assert tmp_path in history.data_dir.parents
 
 
 def test_history_save_load_round_trip(tmp_path: Path) -> None:

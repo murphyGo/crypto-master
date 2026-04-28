@@ -26,11 +26,15 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.config import get_settings
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.runtime.activity_log")
 
 
+# Relative path used as a fallback marker; the real default is computed
+# from ``Settings.data_dir`` at construction time so the file lands on
+# whichever volume operations has mounted (Phase 10.5).
 DEFAULT_ACTIVITY_PATH = Path("data/runtime/activity.jsonl")
 
 
@@ -112,15 +116,30 @@ class ActivityLog:
         events = log.tail(50)
     """
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        *,
+        data_dir: Path | None = None,
+    ) -> None:
         """Initialize the log.
 
         Args:
-            path: Where to read from / append to. Defaults to
-                ``data/runtime/activity.jsonl``. Tests should pass
-                ``tmp_path / "activity.jsonl"``.
+            path: Where to read from / append to. When supplied, this
+                explicit path wins (tests should pass
+                ``tmp_path / "activity.jsonl"``).
+            data_dir: Optional override for the runtime data root.
+                When ``path`` is not given, the activity log defaults
+                to ``<data_dir>/runtime/activity.jsonl``. ``data_dir``
+                itself defaults to ``Settings().data_dir`` so the
+                file lands on the persistent volume operations has
+                mounted (Phase 10.5 — fly.toml mounts ``/data``).
         """
-        self.path = path or DEFAULT_ACTIVITY_PATH
+        if path is not None:
+            self.path = path
+        else:
+            base = data_dir if data_dir is not None else get_settings().data_dir
+            self.path = base / "runtime" / "activity.jsonl"
 
     def append(
         self,

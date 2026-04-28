@@ -47,6 +47,7 @@ from src.backtest.validator import (
     RobustnessReport,
     StrategyFactory,
 )
+from src.config import get_settings
 from src.feedback.audit import AuditEvent, AuditEventType, AuditLog
 from src.logger import get_logger
 from src.models import OHLCV
@@ -60,6 +61,9 @@ logger = get_logger("crypto_master.feedback.loop")
 
 DEFAULT_EXPERIMENTAL_DIR = Path("strategies/experimental")
 DEFAULT_ACTIVE_DIR = Path("strategies")
+# Relative-path marker; the live default is derived from
+# ``Settings.data_dir`` at construction time so candidate state survives
+# container recycles on managed hosts (Phase 10.5).
 DEFAULT_STATE_DIR = Path("data/feedback/state")
 
 
@@ -150,6 +154,8 @@ class FeedbackLoop:
         experimental_dir: Path | None = None,
         active_dir: Path | None = None,
         state_dir: Path | None = None,
+        *,
+        data_dir: Path | None = None,
     ) -> None:
         """Initialize the loop.
 
@@ -162,12 +168,19 @@ class FeedbackLoop:
                 metrics to the ``BACKTESTED`` audit event.
             gate: ``RobustnessGate`` used to decide promotion eligibility.
             audit_log: Where to write event history. Defaults to a
-                fresh ``AuditLog()`` (i.e. ``data/audit/feedback.jsonl``).
+                fresh ``AuditLog()`` rooted under ``Settings.data_dir``.
             experimental_dir: Where candidates are saved before
                 approval. Defaults to ``strategies/experimental``.
             active_dir: Where candidates are moved on approval. Defaults
                 to ``strategies/`` (matches existing layout).
             state_dir: Where ``CandidateRecord`` snapshots are persisted.
+                When omitted, defaults to
+                ``<data_dir>/feedback/state``.
+            data_dir: Optional override for the loop data root. Used
+                only to derive ``state_dir`` when no explicit
+                ``state_dir`` is supplied. Defaults to
+                ``Settings().data_dir`` so state lands on the
+                persistent volume operations has mounted (Phase 10.5).
         """
         self.improver = improver
         self.backtester = backtester
@@ -176,7 +189,11 @@ class FeedbackLoop:
         self.audit_log = audit_log or AuditLog()
         self.experimental_dir = experimental_dir or DEFAULT_EXPERIMENTAL_DIR
         self.active_dir = active_dir or DEFAULT_ACTIVE_DIR
-        self.state_dir = state_dir or DEFAULT_STATE_DIR
+        if state_dir is not None:
+            self.state_dir = state_dir
+        else:
+            base = data_dir if data_dir is not None else get_settings().data_dir
+            self.state_dir = base / "feedback" / "state"
 
     # ------------------------------------------------------------------
     # Generation entry points (each runs the full cycle)
