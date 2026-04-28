@@ -7,6 +7,7 @@ import json
 import urllib.parse
 from datetime import datetime
 from decimal import Decimal
+from email.message import EmailMessage
 from pathlib import Path
 
 import pytest
@@ -15,12 +16,15 @@ from src.config import reload_settings
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.notification import (
     ConsoleNotifier,
+    EmailNotifier,
     FileNotifier,
     Notification,
     NotificationDispatcher,
     NotificationLevel,
     SlackNotifier,
     TelegramNotifier,
+    _build_email_body,
+    _build_email_subject,
     _build_slack_payload,
     _build_telegram_text,
     build_default_message,
@@ -729,3 +733,228 @@ def test_telegram_notifier_uses_configured_timeout() -> None:
         TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, timeout=2.5
     )
     assert notifier.timeout == 2.5
+
+
+# =============================================================================
+# EmailNotifier (Phase 13.4)
+# =============================================================================
+
+
+EMAIL_SMTP_HOST = "smtp.example.com"
+EMAIL_SMTP_PORT = 587
+EMAIL_SMTP_USER = "bot@example.com"
+EMAIL_SMTP_PASSWORD = "super-secret-app-password"
+EMAIL_FROM = "Crypto Master <bot@example.com>"
+EMAIL_TO = "alerts@example.com"
+
+
+class _FakeSMTP:
+    """Stand-in for ``smtplib.SMTP`` that records every method call.
+
+    Mirrors the relevant subset of the real client (context-manager
+    plus ``starttls`` / ``login`` / ``send_message``) so the tests can
+    assert handshake order without speaking to a real server.
+    """
+
+    instances: list[_FakeSMTP] = []
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+    ) -> None:
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.starttls_called = False
+        self.login_args: tuple[str, str] | None = None
+        self.sent_messages: list[EmailMessage] = []
+        self.quit_called = False
+        type(self).instances.append(self)
+
+    def __enter__(self) -> _FakeSMTP:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.quit_called = True
+        return None
+
+    def starttls(self) -> None:
+        self.starttls_called = True
+
+    def login(self, user: str, password: str) -> None:
+        self.login_args = (user, password)
+
+    def send_message(self, msg: EmailMessage) -> None:
+        self.sent_messages.append(msg)
+
+
+def _make_email_notifier() -> EmailNotifier:
+    return EmailNotifier(
+        host=EMAIL_SMTP_HOST,
+        port=EMAIL_SMTP_PORT,
+        user=EMAIL_SMTP_USER,
+        password=EMAIL_SMTP_PASSWORD,
+        from_addr=EMAIL_FROM,
+        to_addr=EMAIL_TO,
+    )
+
+
+def test_build_email_subject_matches_spec() -> None:
+    """Subject is ``Crypto Master: {symbol} {side} score={c:.2f}``."""
+    proposal = make_proposal(symbol="BTC/USDT", signal="short", composite=1.234)
+
+    subject = _build_email_subject(make_notification(proposal=proposal))
+
+    assert subject == "Crypto Master: BTC/USDT short score=1.23"
+
+
+def test_build_email_body_matches_telegram_text() -> None:
+    """Email body reuses the Telegram Markdown content verbatim."""
+    proposal = make_proposal(symbol="ETH/USDT", signal="long", composite=1.5)
+    notification = make_notification(proposal=proposal)
+
+    assert _build_email_body(notification) == _build_telegram_text(notification)
+
+
+async def test_email_notifier_subject_and_body_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Notifying a proposal sends an SMTP message with the spec'd
+    subject + body and the configured From/To headers."""
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    notifier = _make_email_notifier()
+    proposal = make_proposal(symbol="BTC/USDT", signal="short", composite=1.23)
+    notification = make_notification(proposal=proposal)
+
+    await notifier.send(notification)
+
+    assert len(_FakeSMTP.instances) == 1
+    fake = _FakeSMTP.instances[0]
+    assert fake.host == EMAIL_SMTP_HOST
+    assert fake.port == EMAIL_SMTP_PORT
+    assert len(fake.sent_messages) == 1
+
+    msg = fake.sent_messages[0]
+    assert msg["Subject"] == "Crypto Master: BTC/USDT short score=1.23"
+    assert msg["From"] == EMAIL_FROM
+    assert msg["To"] == EMAIL_TO
+    body = msg.get_content()
+    assert "*BTC/USDT short*" in body
+    assert "score=1.23" in body
+    assert "entry=50000" in body
+    assert "```" in body
+    assert f"proposal_id: {proposal.proposal_id}" in body
+
+
+def test_email_notifier_repr_masks_password() -> None:
+    """Password is a secret — ``__repr__`` must mask it."""
+    notifier = _make_email_notifier()
+
+    rendered = repr(notifier)
+
+    assert EMAIL_SMTP_PASSWORD not in rendered
+    assert "redacted" in rendered.lower()
+    # Host / user / from / to are operationally useful for log triage,
+    # so they remain visible. Only the password is masked.
+    assert EMAIL_SMTP_HOST in rendered
+    assert EMAIL_SMTP_USER in rendered
+
+
+async def test_email_notifier_uses_starttls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """STARTTLS handshake must be called before login (Phase 13.4 spec)."""
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    notifier = _make_email_notifier()
+    await notifier.send(make_notification())
+
+    assert len(_FakeSMTP.instances) == 1
+    fake = _FakeSMTP.instances[0]
+    assert fake.starttls_called is True
+
+
+async def test_email_notifier_login_called(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SMTP authentication is required for our typical providers."""
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    notifier = _make_email_notifier()
+    await notifier.send(make_notification())
+
+    assert len(_FakeSMTP.instances) == 1
+    fake = _FakeSMTP.instances[0]
+    assert fake.login_args == (EMAIL_SMTP_USER, EMAIL_SMTP_PASSWORD)
+
+
+async def test_email_smtp_failure_does_not_crash_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An SMTP-side error must not silence other notifiers."""
+    import smtplib as _smtplib_real
+
+    def _raising_smtp(*args: object, **kwargs: object) -> _FakeSMTP:
+        raise _smtplib_real.SMTPException("connection refused")
+
+    monkeypatch.setattr(
+        "src.proposal.notification.smtplib.SMTP", _raising_smtp
+    )
+
+    email_notifier = _make_email_notifier()
+    good = RecordingNotifier()
+    dispatcher = NotificationDispatcher(notifiers=[email_notifier, good])
+
+    notification = await dispatcher.notify_proposal(make_proposal())
+
+    # Notification was constructed and the second backend still
+    # received it even though SMTP raised.
+    assert notification is not None
+    assert good.received == [notification]
+
+
+async def test_email_notifier_does_not_log_password(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The SMTP password must never appear in logs (it's a secret)."""
+    import logging
+
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    notifier = _make_email_notifier()
+    with caplog.at_level(logging.DEBUG, logger="crypto_master.proposal.notification"):
+        await notifier.send(make_notification())
+
+    for record in caplog.records:
+        assert EMAIL_SMTP_PASSWORD not in record.getMessage()
+
+
+async def test_email_notifier_uses_configured_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The constructor's timeout flows into the smtplib call."""
+    _FakeSMTP.instances = []
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
+
+    notifier = EmailNotifier(
+        host=EMAIL_SMTP_HOST,
+        port=EMAIL_SMTP_PORT,
+        user=EMAIL_SMTP_USER,
+        password=EMAIL_SMTP_PASSWORD,
+        from_addr=EMAIL_FROM,
+        to_addr=EMAIL_TO,
+        timeout=3.5,
+    )
+
+    await notifier.send(make_notification())
+
+    assert len(_FakeSMTP.instances) == 1
+    assert _FakeSMTP.instances[0].timeout == 3.5

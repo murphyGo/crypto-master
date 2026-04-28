@@ -197,6 +197,22 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = Field(default=None)
     telegram_chat_id: str | None = Field(default=None)
 
+    # Email Notification Backend (Phase 13.4)
+    # SMTP settings for the email notifier. ALL six fields below must
+    # be set for the backend to register; if any is missing the
+    # dispatcher silently skips email and falls back to the other
+    # backends (matches Slack/Telegram opt-in pattern). The password is
+    # a secret — the application MUST NOT log it. STARTTLS is the
+    # default (port 587). For an SMTP-over-SSL provider, use the
+    # provider's documented SSL port (typically 465) and accept that
+    # only STARTTLS is implemented today.
+    email_smtp_host: str | None = Field(default=None)
+    email_smtp_port: int = Field(default=587, ge=1, le=65535)
+    email_smtp_user: str | None = Field(default=None)
+    email_smtp_password: str | None = Field(default=None)
+    email_from: str | None = Field(default=None)
+    email_to: str | None = Field(default=None)
+
     # Claude CLI Timeout / Retry (Phase 12.3)
     # Base timeout for one ``claude -p`` invocation in seconds.
     # On timeout the wrapper retries up to ``claude_cli_max_retries``

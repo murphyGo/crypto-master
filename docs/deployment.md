@@ -253,11 +253,14 @@ deploy is real losses, not test-data garbage.
 
 4. **Notifications**. Set `NotificationDispatcher`'s `min_score`
    *higher than* the auto-approve threshold so every accepted live
-   proposal pages you. Console + File backends are always on; two
-   push backends are opt-in (Phase 11.3, Phase 12.4): Slack via
-   `SLACK_WEBHOOK_URL`, and Telegram via the pair
-   `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. The dashboard's
-   Engine page also surfaces every accepted proposal in real time.
+   proposal pages you. Console + File backends are always on; three
+   push backends are opt-in (Phase 11.3, Phase 12.4, Phase 13.4):
+   Slack via `SLACK_WEBHOOK_URL`, Telegram via the pair
+   `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, and Email via the SMTP
+   sextet (`EMAIL_SMTP_HOST` / `EMAIL_SMTP_PORT` / `EMAIL_SMTP_USER`
+   / `EMAIL_SMTP_PASSWORD` / `EMAIL_FROM` / `EMAIL_TO`). The
+   dashboard's Engine page also surfaces every accepted proposal in
+   real time.
 
    **Slack setup (optional).** Create an incoming webhook at
    <https://api.slack.com/messaging/webhooks>: pick the workspace +
@@ -301,6 +304,32 @@ deploy is real losses, not test-data garbage.
    (timeout, 500) are logged and swallowed by the dispatcher's
    per-channel isolation, same as Slack. Unset either secret to
    disable.
+
+   **Email setup (optional).** Pick an SMTP provider you already use
+   (Gmail with an App Password, Mailgun, SendGrid, your company's
+   relay — anything that speaks STARTTLS on port 587). Then push the
+   six secrets:
+
+   ```bash
+   fly secrets set \
+       EMAIL_SMTP_HOST=smtp.gmail.com \
+       EMAIL_SMTP_PORT=587 \
+       EMAIL_SMTP_USER=you@gmail.com \
+       EMAIL_SMTP_PASSWORD=your_app_password_here \
+       'EMAIL_FROM=Crypto Master <you@gmail.com>' \
+       EMAIL_TO=alerts@example.com
+   ```
+
+   The password is the only secret here, but treat all six as
+   sensitive — knowing the relay + sender lets an attacker spoof
+   alerts. The runtime never logs the password and `__repr__` on the
+   notifier masks it. ALL six fields must be set for the backend to
+   register; with any field missing the dispatcher silently skips
+   email. STARTTLS is the default (port 587); SMTP-over-SSL providers
+   should use the documented SSL port. SMTP failures (connection
+   refused, auth rejected, 5xx) are logged and swallowed by the
+   dispatcher's per-channel isolation, same as Slack and Telegram.
+   Unset any field to disable.
 
 5. **Start small**. Send a small balance to the exchange (e.g.
    $100–$500) and watch the first day of live trades on the

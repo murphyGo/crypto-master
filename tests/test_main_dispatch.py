@@ -387,6 +387,106 @@ class TestBuildEngineEnvOverride:
                 isinstance(n, TelegramNotifier) for n in notifiers
             ), f"TelegramNotifier should be silent for token={token!r}, chat_id={chat_id!r}"
 
+    def test_email_notifier_created_when_all_env_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """All five Email string env vars set → dispatcher gains an
+        EmailNotifier (Phase 13.4). The port has a default of 587 so
+        only the five string fields drive registration."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import EmailNotifier
+
+        monkeypatch.setenv("EMAIL_SMTP_HOST", "smtp.example.com")
+        monkeypatch.setenv("EMAIL_SMTP_USER", "bot@example.com")
+        monkeypatch.setenv("EMAIL_SMTP_PASSWORD", "app-password")
+        monkeypatch.setenv("EMAIL_FROM", "Crypto Master <bot@example.com>")
+        monkeypatch.setenv("EMAIL_TO", "alerts@example.com")
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(trading_mode="paper", binance=bn)
+        exchange = build_exchange(settings)
+
+        with patch(
+            "src.main.load_all_strategies", return_value={}
+        ), patch("src.main.PerformanceTracker"), patch(
+            "src.main.ProposalHistory"
+        ), patch("src.main.ActivityLog"):
+            engine = build_engine(settings, exchange)
+
+        notifiers = engine.notification_dispatcher._notifiers
+        assert any(isinstance(n, EmailNotifier) for n in notifiers)
+
+    def test_email_notifier_silent_when_any_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If any of the five Email string fields is unset the notifier
+        must NOT be added — partial config silently disables the
+        backend, matching the Slack / Telegram opt-in pattern."""
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import EmailNotifier
+
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+
+        full = {
+            "email_smtp_host": "smtp.example.com",
+            "email_smtp_user": "bot@example.com",
+            "email_smtp_password": "app-password",
+            "email_from": "Crypto Master <bot@example.com>",
+            "email_to": "alerts@example.com",
+        }
+        # One scenario per missing field, plus the all-missing baseline.
+        scenarios: list[dict[str, str | None]] = [
+            {**full, "email_smtp_host": None},
+            {**full, "email_smtp_user": None},
+            {**full, "email_smtp_password": None},
+            {**full, "email_from": None},
+            {**full, "email_to": None},
+            dict.fromkeys(full, None),
+        ]
+
+        for scenario in scenarios:
+            for env_name in (
+                "EMAIL_SMTP_HOST",
+                "EMAIL_SMTP_USER",
+                "EMAIL_SMTP_PASSWORD",
+                "EMAIL_FROM",
+                "EMAIL_TO",
+            ):
+                monkeypatch.delenv(env_name, raising=False)
+
+            settings = Settings(
+                trading_mode="paper",
+                binance=bn,
+                **scenario,  # type: ignore[arg-type]
+            )
+            exchange = build_exchange(settings)
+
+            with patch(
+                "src.main.load_all_strategies", return_value={}
+            ), patch("src.main.PerformanceTracker"), patch(
+                "src.main.ProposalHistory"
+            ), patch("src.main.ActivityLog"):
+                engine = build_engine(settings, exchange)
+
+            notifiers = engine.notification_dispatcher._notifiers
+            assert not any(
+                isinstance(n, EmailNotifier) for n in notifiers
+            ), f"EmailNotifier should be silent for scenario={scenario!r}"
+
     def test_build_engine_propagates_all_engine_env_overrides(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

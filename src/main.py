@@ -39,6 +39,7 @@ from src.proposal.engine import ProposalEngine
 from src.proposal.interaction import ProposalHistory, ProposalInteraction
 from src.proposal.notification import (
     ConsoleNotifier,
+    EmailNotifier,
     FileNotifier,
     NotificationDispatcher,
     Notifier,
@@ -196,11 +197,13 @@ def build_engine(
     trader = build_trader(settings, exchange, config)
 
     # Notifier list grows with optional push backends (Phase 11.3,
-    # 12.4). Console + File are always-on. Slack is opt-in via
+    # 12.4, 13.4). Console + File are always-on. Slack is opt-in via
     # ``SLACK_WEBHOOK_URL``; Telegram is opt-in via the pair
     # ``TELEGRAM_BOT_TOKEN`` + ``TELEGRAM_CHAT_ID`` (both required —
     # the notifier is not constructed unless both are set, so a
-    # half-configured deploy does not fail at runtime).
+    # half-configured deploy does not fail at runtime); Email is
+    # opt-in via the SMTP quintet (host/user/password/from/to — port
+    # has a default of 587 for STARTTLS).
     notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
     if settings.slack_webhook_url:
         notifiers.append(SlackNotifier(settings.slack_webhook_url))
@@ -215,6 +218,35 @@ def build_engine(
         )
         # Deliberately log presence only — never the token or chat id.
         logger.info("Telegram push notifier enabled.")
+    if all(
+        [
+            settings.email_smtp_host,
+            settings.email_smtp_user,
+            settings.email_smtp_password,
+            settings.email_from,
+            settings.email_to,
+        ]
+    ):
+        # All five string fields are present — the type checker can't
+        # see that ``all([...])`` narrows them, so assert non-None for
+        # mypy. ``email_smtp_port`` has a non-optional default (587).
+        assert settings.email_smtp_host is not None
+        assert settings.email_smtp_user is not None
+        assert settings.email_smtp_password is not None
+        assert settings.email_from is not None
+        assert settings.email_to is not None
+        notifiers.append(
+            EmailNotifier(
+                host=settings.email_smtp_host,
+                port=settings.email_smtp_port,
+                user=settings.email_smtp_user,
+                password=settings.email_smtp_password,
+                from_addr=settings.email_from,
+                to_addr=settings.email_to,
+            )
+        )
+        # Deliberately log presence only — never the password.
+        logger.info("Email push notifier enabled.")
     notifier = NotificationDispatcher(
         notifiers=notifiers,
         min_score=config.auto_approve_threshold,

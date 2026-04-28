@@ -57,7 +57,7 @@
 | Cleanup Batch (DEBT-009/010/011) | ✅ Complete | 13 |
 | EngineConfig Remaining-Fields Env Override | ✅ Complete | 13 |
 | BaseExchange.get_ohlcv `since` Parameter | ✅ Complete | 13 |
-| Email Notification Backend | ❌ Missing | 13 |
+| Email Notification Backend | ✅ Complete | 13 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1232,26 +1232,26 @@ when chat APIs are up, and vice versa).
 **Related Requirements**: FR-015 (Proposal Notification — extending
 existing); NFR-012 (live trading awareness redundancy).
 
-- [ ] `src/proposal/notification.py` — `EmailNotifier` class
+- [x] `src/proposal/notification.py` — `EmailNotifier` class
   implementing the existing `Notifier` protocol. Reads SMTP config
   from `Settings`: `email_smtp_host`, `email_smtp_port`,
   `email_smtp_user`, `email_smtp_password`, `email_from`,
   `email_to`. All 6 required for activation; partial config silent
   (matches Slack/Telegram pattern).
-- [ ] Use stdlib `smtplib.SMTP` + `email.message.EmailMessage` wrapped
+- [x] Use stdlib `smtplib.SMTP` + `email.message.EmailMessage` wrapped
   in `asyncio.to_thread` (zero new dep — matches Slack/Telegram). Subject:
   `"Crypto Master: {symbol} {side} score={c:.2f}"`; body: same
   Markdown content as Telegram (works in any client; plain-text
   fallback included).
-- [ ] STARTTLS by default; SMTP_SSL as alternative (config option).
+- [x] STARTTLS by default; SMTP_SSL as alternative (config option).
   Set socket timeout to 10s. `__repr__` masks password — never log
   credentials.
-- [ ] `src/main.py::build_engine` appends `EmailNotifier(...)` to the
+- [x] `src/main.py::build_engine` appends `EmailNotifier(...)` to the
   dispatcher's notifier list when ALL 6 fields set; logs presence
   not values.
-- [ ] `.env.example` and `docs/deployment.md` document the 6 SMTP
+- [x] `.env.example` and `docs/deployment.md` document the 6 SMTP
   env vars.
-- [ ] Tests: mock `smtplib.SMTP`; verify (a) created when all 6 env
+- [x] Tests: mock `smtplib.SMTP`; verify (a) created when all 6 env
   set, (b) silent when any missing, (c) message format (subject +
   body) matches spec, (d) STARTTLS handshake called, (e) SMTP error
   doesn't crash dispatch (existing per-channel failure-isolation
@@ -1355,3 +1355,5 @@ existing); NFR-012 (live trading awareness redundancy).
 | 13.1 | 2026-04-28 | Phase 13.1 complete - Cleanup Batch (NFR-001; resolves DEBT-009 / DEBT-010 / DEBT-011); DEBT-009 split `scripts/lint.sh` (no `--fix` — CI / pre-commit safe) + new `scripts/lint-fix.sh` (with `--fix` — dev convenience), both executable. DEBT-010 added `test_cap_blocks_opposite_side_same_symbol` to `tests/test_runtime_engine.py` (1 BNB long open + BNB short proposal at composite=2.0; cap=1 → positions_opened=0, no open_position call, PROPOSAL_REJECTED with BNB + "cap 1 reached") — pins the synthetic-hedge prevention invariant against future regression. DEBT-011 replaced `dict[str, object]` returns with per-page TypedDicts (`TradingSummaryMetrics` in `src/dashboard/pages/trading.py`, `EngineSummaryMetrics` in `src/dashboard/pages/engine.py`) since shapes differ; consumer-side `cast(...)` calls dropped at every access site; no leftover `from typing import cast` in either file. Refactor only — no behavioural change for DEBT-009 / DEBT-011; DEBT-010 adds the single new test. 5 files modified (scripts/lint.sh, scripts/lint-fix.sh, tests/test_runtime_engine.py, src/dashboard/pages/trading.py, src/dashboard/pages/engine.py) plus dev plan. 1127 → 1128 tests (+1 cap test). ruff/mypy clean (53 files). No new debt. | Claude |
 | 13.2 | 2026-04-28 | Phase 13.2 complete - EngineConfig Remaining-Fields Env Override (NFR-004; resolves DEBT-003); third application of the Phase 10.2 pattern (10.2 first, 12.1 second). 4 new `Settings.engine_*` fields in `src/config.py` — `engine_monitor_interval: int = Field(default=60, ge=10)` (env `ENGINE_MONITOR_INTERVAL`), `engine_bitcoin_symbol: str = Field(default="BTC/USDT")` (env `ENGINE_BITCOIN_SYMBOL`), `engine_altcoin_top_k: int = Field(default=3, ge=1)` (env `ENGINE_ALTCOIN_TOP_K`), `engine_actor: str = Field(default="auto-engine")` (env `ENGINE_ACTOR`). `ge=` validators mirror `EngineConfig`'s own floors so env input gets the same validation as direct construction. `src/main.py::build_engine` constructs `EngineConfig(...)` with the 4 new fields alongside the existing 4 (10.2 explicit-config-wins back-compat preserved); docstring rewritten to drop the "not yet env-overridable" note. Defaults bytewise-match `EngineConfig` so existing deployments are unchanged without an env setting; parity locked by `test_settings_defaults_match_engine_config`. `.env.example` + `docs/deployment.md` document every new env var with operator-facing prose. Tests: 4 new methods in `tests/test_config.py::TestEngineSettings` (default + env override + `ge=` validators where applicable), 4 new parity assertions in the existing default-match test, 1 new end-to-end smoke test in `tests/test_main_dispatch.py` (`test_build_engine_propagates_all_engine_env_overrides`). 7 files modified (src/config.py, src/main.py, .env.example, docs/deployment.md, tests/test_config.py, tests/test_main_dispatch.py, plus dev plan). 1128 → 1134 tests (+6). ruff/mypy clean (53 files). No new debt. | Claude |
 | 13.3 | 2026-04-28 | Phase 13.3 complete - BaseExchange.get_ohlcv `since` Parameter (FR-020 extended; resolves DEBT-004); `BaseExchange.get_ohlcv` ABC now declares `since: int | None = None` (timestamp ms, inclusive on start; None = pre-13.3 most-recent-page semantics). `BinanceExchange.get_ohlcv` and `BybitExchange.get_ohlcv` forward `since` to `ccxt.fetch_ohlcv(since=...)`; both adapters preserve default behaviour bytewise — locked by `test_get_ohlcv_defaults_since_to_none` for each. `scripts/backtest_baselines.py::fetch_ohlcv_window` switched from `exchange._client.fetch_ohlcv(...)` to `exchange.get_ohlcv(..., since=...)` end-to-end; the `_client` reach-around block + the `RuntimeError` it gated + the local `Decimal` import + the bottom-of-function raw-row → `OHLCV` reconstructor are all deleted (real adapter already returns `OHLCV`). The "deliberately reach past the BaseExchange contract" comment removed. `MockExchange` (`tests/test_exchange_base.py`) and `_FakeBinanceExchange` (`tests/test_scripts_backtest_baselines.py`) grew the new `since` parameter for ABC parity; the latter absorbs the pagination-cursor logic that previously lived in the deleted `_FakeCCXTClient`. 9 files modified (src/exchange/base.py, src/exchange/binance.py, src/exchange/bybit.py, scripts/backtest_baselines.py, tests/test_exchange_base.py, tests/test_exchange_binance.py, tests/test_exchange_bybit.py, tests/test_scripts_backtest_baselines.py, plus dev plan). 1134 → 1138 tests (+4 — 2 per adapter: default-None forwarding + explicit-since forwarding). ruff/mypy clean (53 files). No new debt. | Claude |
+| 13.4 | 2026-04-28 | Phase 13.4 complete - Email Notification Backend (FR-015, NFR-012; third push backend so live-mode notification redundancy spans webhook + chat + SMTP failure modes). `EmailNotifier` in `src/proposal/notification.py` uses stdlib `smtplib.SMTP` + `email.message.EmailMessage` wrapped in `asyncio.to_thread` (zero new dep — mirrors Slack/Telegram pattern); STARTTLS-only handshake (port 587 default), SMTP_SSL deferred as DEBT-012 (Low). Subject format: `"Crypto Master: {symbol} {side} score={c:.2f}"`. Body reuses `_build_telegram_text` via thin `_build_email_body` helper so all three push backends carry identical content (locked by `test_build_email_body_matches_telegram_text`). 6 SMTP `Settings` fields in `src/config.py`: `email_smtp_host` / `email_smtp_user` / `email_smtp_password` / `email_from` / `email_to` (all `str \| None`, default None) + `email_smtp_port: int = Field(default=587, ge=1, le=65535)`; activation gate is the 5 string fields (port has default so it can't fail `all([...])` — note dev-plan-text "all 6" is loose vs the 5-string code gate; code is correct). `EmailNotifier.__repr__` masks password unconditionally; host/user/from/to remain visible (operationally useful for log triage, not secrets in the same sense). `send` does NOT swallow `smtplib` errors — Phase 6.3 dispatcher's per-channel failure-isolation contract is the single owner. `src/main.py::build_engine` appends `EmailNotifier(...)` when 5 string fields set; logs presence only. `.env.example` + `docs/deployment.md` document the SMTP quintet. Configurable `timeout: float = 10.0` so a slow server can't stall the cycle. 8 files modified (src/proposal/notification.py, src/config.py, src/main.py, .env.example, docs/deployment.md, docs/development-plan.md, plus 2 test files). 1138 → 1149 tests (+11 — 9 in test_proposal_notification.py: subject format / body parity / end-to-end via `_FakeSMTP` / repr masks password / STARTTLS called / login called / SMTP error doesn't crash dispatch / password not in logs / configured timeout reaches `smtplib.SMTP`; 2 in test_main_dispatch.py: created when env set + silent across 6 partial scenarios). ruff/mypy clean (53 files). One new debt: DEBT-012 SMTP_SSL alternative (Low). | Claude |
+| 13.0 | 2026-04-28 | Phase 13 complete - all sub-tasks (13.1, 13.2, 13.3, 13.4) checked. Phase 13 cross-check: `docs/cross-checks/2026-04-28-phase-13-cleanup-polish.md`. | Claude |

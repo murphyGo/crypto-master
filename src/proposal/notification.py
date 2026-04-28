@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import smtplib
 import sys
 import urllib.error
 import urllib.parse
@@ -33,6 +34,7 @@ import urllib.request
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
+from email.message import EmailMessage
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol, TextIO, runtime_checkable
@@ -476,6 +478,134 @@ class TelegramNotifier:
 
 
 # =============================================================================
+# Email backend (Phase 13.4)
+# =============================================================================
+
+
+def _build_email_subject(notification: Notification) -> str:
+    """Build the email subject line for a notification.
+
+    Spec format (Phase 13.4): ``Crypto Master: {symbol} {side} score={c:.2f}``.
+    Kept short on purpose so it renders cleanly in mail-client preview
+    panes; the full proposal detail lives in the body.
+    """
+    proposal = notification.proposal
+    return (
+        f"Crypto Master: {proposal.symbol} {proposal.signal} "
+        f"score={proposal.score.composite:.2f}"
+    )
+
+
+def _build_email_body(notification: Notification) -> str:
+    """Build the email body for a notification.
+
+    Reuses :func:`_build_telegram_text` so Slack / Telegram / email all
+    carry the exact same fields — operators reading any backend get
+    identical content. The Markdown bold + triple-backtick fence
+    renders fine in Markdown-aware clients (Apple Mail, modern Gmail
+    web with Markdown plugins) and degrades to plain text everywhere
+    else, which is acceptable: the headline still reads cleanly even
+    without bold formatting, and the code-fenced detail block still
+    aligns vertically because it's plain ASCII.
+    """
+    return _build_telegram_text(notification)
+
+
+class EmailNotifier:
+    """Sends notifications via SMTP (Phase 13.4).
+
+    Uses stdlib :mod:`smtplib` + :class:`email.message.EmailMessage`
+    (zero new dependency) wrapped in :func:`asyncio.to_thread` so the
+    dispatcher's event loop is not blocked. STARTTLS is the default;
+    the SMTP password is a secret — never logged, masked in
+    ``__repr__``.
+
+    Failure isolation is enforced by ``NotificationDispatcher``: if
+    the SMTP server is unreachable, refuses authentication, or rejects
+    the message, ``send`` raises and the dispatcher logs + continues
+    to the next backend. We deliberately do not catch internally so
+    the dispatcher's existing isolation contract is the single owner
+    of "one bad backend can't silence the others".
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        from_addr: str,
+        to_addr: str,
+        *,
+        timeout: float = 10.0,
+    ) -> None:
+        """Initialize the email notifier.
+
+        Args:
+            host: SMTP server hostname (e.g. ``smtp.gmail.com``).
+            port: SMTP server port. Default 587 = STARTTLS.
+            user: SMTP auth username (typically the From address).
+            password: SMTP auth password (or app password). Treated as
+                a secret — never logged, masked in ``__repr__``.
+            from_addr: ``From`` header value. May include a display
+                name, e.g. ``"Crypto Master <bot@example.com>"``.
+            to_addr: ``To`` header value (single recipient or comma-
+                separated list per RFC 5322).
+            timeout: Per-request timeout in seconds. Defaults to 10s
+                so a slow SMTP server can't stall the cycle.
+        """
+        self._host = host
+        self._port = port
+        self._user = user
+        self._password = password
+        self._from = from_addr
+        self._to = to_addr
+        self._timeout = timeout
+
+    def __repr__(self) -> str:
+        # Mask the password — only its presence is informative for
+        # logs. Host / user / from / to are not secrets in the same
+        # sense (they're operationally useful for log triage), but the
+        # password unconditionally must be hidden.
+        return (
+            f"{type(self).__name__}("
+            f"host={self._host}, port={self._port}, "
+            f"user={self._user}, password=<redacted>, "
+            f"from={self._from}, to={self._to})"
+        )
+
+    async def send(self, notification: Notification) -> None:
+        """Build and send the SMTP message for a notification."""
+        subject = _build_email_subject(notification)
+        body = _build_email_body(notification)
+
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = self._from
+        msg["To"] = self._to
+        msg.set_content(body)
+
+        # Bind to locals so the worker thread captures stable refs.
+        host = self._host
+        port = self._port
+        user = self._user
+        password = self._password
+        timeout = self._timeout
+
+        def _send() -> None:
+            with smtplib.SMTP(host, port, timeout=timeout) as smtp:
+                smtp.starttls()
+                smtp.login(user, password)
+                smtp.send_message(msg)
+
+        await asyncio.to_thread(_send)
+        logger.debug(
+            f"Email notification dispatched for "
+            f"proposal={notification.proposal.proposal_id}"
+        )
+
+
+# =============================================================================
 # Dispatcher
 # =============================================================================
 
@@ -562,6 +692,7 @@ class NotificationDispatcher:
 __all__ = [
     "ConsoleNotifier",
     "DEFAULT_NOTIFICATION_LOG",
+    "EmailNotifier",
     "FileNotifier",
     "Notification",
     "NotificationDispatcher",
