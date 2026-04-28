@@ -54,6 +54,10 @@
 | Residual mypy Sweep | ✅ Complete | 12 |
 | LLM Strategy Timeout Handling | ✅ Complete | 12 |
 | Telegram Notification Backend | ✅ Complete | 12 |
+| Cleanup Batch (DEBT-009/010/011) | ❌ Missing | 13 |
+| EngineConfig Remaining-Fields Env Override | ❌ Missing | 13 |
+| BaseExchange.get_ohlcv `since` Parameter | ❌ Missing | 13 |
+| Email Notification Backend | ❌ Missing | 13 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1115,6 +1119,146 @@ existing); NFR-012 (live trading awareness redundancy).
 
 ---
 
+## Phase 13: Cleanup + Operational Polish
+
+**Goal**: Phase 13 closes the carry-forward TECH-DEBT items
+(DEBT-003, 004, 009, 010, 011), extends the engine env-override
+surface to the remaining `EngineConfig` fields, generalises the
+exchange OHLCV fetch with a `since` parameter (unblocking 10.3's
+pagination reach-around), and adds an email notification backend for
+redundancy. Pure cleanup + small ops improvements — no new
+architectural directions.
+
+### 13.1 Cleanup Batch (DEBT-009/010/011)
+
+**Background**: Three small cleanup items accumulated across Phases
+11 and 12. DEBT-009 (Low): `scripts/lint.sh` uses `ruff check src
+tests --fix` which silently rewrites source on lintable regressions
+— unsafe for CI gates. DEBT-010 (Low): Phase 12.1's cross-cycle
+position cap correctly blocks the long+short same-symbol case (cap
+counts trades regardless of side, preventing synthetic hedge), but
+the test suite doesn't explicitly cover that path. DEBT-011 (Low):
+Phase 12.2 left `dict[str, object]` returns in `build_summary_metrics`
+(`src/dashboard/pages/{trading,engine}.py`) forcing
+`cast(int|float|str, ...)` at consumer sites — a `TypedDict` rewrite
+drops the casts cleanly.
+
+**Related Requirements**: NFR-001 (code quality + test coverage);
+operational concern — no new FR introduced.
+
+- [ ] DEBT-009: split `scripts/lint.sh` into `scripts/lint.sh`
+  (`ruff check src tests && mypy src` — no `--fix`; for CI /
+  pre-commit) and `scripts/lint-fix.sh` (`ruff check src tests --fix
+  && mypy src` — for dev convenience). Both executable. Update any
+  docs that reference `scripts/lint.sh` to clarify which to use.
+- [ ] DEBT-010: add `test_cap_blocks_opposite_side_same_symbol` to
+  `tests/test_runtime_engine.py` — existing trade is long, new
+  proposal is short same-symbol, cap=1; verify execution skipped +
+  cap-rejection event recorded.
+- [ ] DEBT-011: define a `SummaryMetrics` `TypedDict` (in
+  `src/dashboard/pages/{trading,engine}.py` or a shared
+  `src/dashboard/_types.py`); update `build_summary_metrics` returns
+  + consumer call sites; drop the `cast()` calls.
+- [ ] Tests: 13.1 only NEEDS the DEBT-010 test added; existing tests
+  must remain green for the lint-script split + dashboard TypedDict
+  refactor (refactor only, no behavioural change).
+
+### 13.2 EngineConfig Remaining-Fields Env Override
+
+**Background**: Phase 10.2 wired 4 `EngineConfig` fields
+(`cycle_interval`, `auto_approve_threshold`, `symbols`, `balance`)
+through `Settings`. The remaining 4 fields are still hardcoded in
+`EngineConfig` defaults: `monitor_interval_seconds`,
+`bitcoin_symbol`, `altcoin_top_k`, `actor`. Tracked as DEBT-003
+(Low). Now that real operators run the system on Fly, the
+rare-but-real cases for tuning these without a redeploy justify the
+small extension.
+
+**Related Requirements**: NFR-004 (env-driven config); operational
+concern — no new FR introduced.
+
+- [ ] Add 4 fields to `Settings` in `src/config.py`:
+  `engine_monitor_interval: int = Field(default=60, ge=10)` (env
+  `ENGINE_MONITOR_INTERVAL`), `engine_bitcoin_symbol: str =
+  Field(default="BTC/USDT")` (env `ENGINE_BITCOIN_SYMBOL`),
+  `engine_altcoin_top_k: int = Field(default=3, ge=1)` (env
+  `ENGINE_ALTCOIN_TOP_K`), `engine_actor: str =
+  Field(default="auto-engine")` (env `ENGINE_ACTOR`).
+- [ ] `src/main.py::build_engine` passes all 4 through to
+  `EngineConfig(...)` (10.2 explicit-config-wins back-compat
+  preserved).
+- [ ] Defaults bytewise-equal to the pre-13.2 hardcoded values so
+  existing deployments are unchanged without an env setting.
+- [ ] `.env.example` and `docs/deployment.md` document the 4 new env
+  vars.
+- [ ] Tests: extend `tests/test_config.py::TestEngineSettings` with
+  default-value + env-override tests for each (4 new tests); extend
+  `tests/test_main_dispatch.py` with one smoke test verifying env
+  propagates to `EngineConfig`.
+
+### 13.3 BaseExchange.get_ohlcv with `since` Parameter
+
+**Background**: `scripts/backtest_baselines.py` (Phase 10.3) needs
+`since` to paginate past the 1500-candle ccxt cap, but
+`BaseExchange.get_ohlcv` doesn't expose it — the script reaches into
+`BinanceExchange._client` to access ccxt's `since` arg directly.
+Tracked as DEBT-004 (Low). Now that there's a real consumer, the
+abstraction should grow the parameter so the reach-around can go
+away.
+
+**Related Requirements**: FR-020 (Historical Chart Data Query —
+extending the existing contract; no new FR introduced).
+
+- [ ] Extend `BaseExchange.get_ohlcv` abstract signature to include
+  `since: int | None = None` (timestamp in ms). Update docstring.
+- [ ] Update `BinanceExchange.get_ohlcv` and `BybitExchange.get_ohlcv`
+  to forward `since` to ccxt. Default behaviour (no `since`)
+  unchanged.
+- [ ] Update `scripts/backtest_baselines.py` to use the public API
+  instead of the `_client` reach-around. Drop the inline comment
+  about the reach-around.
+- [ ] Tests: add `since`-parameter tests for both Binance and Bybit
+  (mock ccxt, verify `since` is forwarded); existing OHLCV tests
+  must remain green.
+
+### 13.4 Email Notification Backend
+
+**Background**: Phase 11.3 shipped Slack and Phase 12.4 shipped
+Telegram. Phase 10.1's "notification redundancy for live mode"
+follow-up listed Slack/Telegram/email as candidates — email is the
+third logical addition with a different failure mode (SMTP can fail
+when chat APIs are up, and vice versa).
+
+**Related Requirements**: FR-015 (Proposal Notification — extending
+existing); NFR-012 (live trading awareness redundancy).
+
+- [ ] `src/proposal/notification.py` — `EmailNotifier` class
+  implementing the existing `Notifier` protocol. Reads SMTP config
+  from `Settings`: `email_smtp_host`, `email_smtp_port`,
+  `email_smtp_user`, `email_smtp_password`, `email_from`,
+  `email_to`. All 6 required for activation; partial config silent
+  (matches Slack/Telegram pattern).
+- [ ] Use stdlib `smtplib.SMTP` + `email.message.EmailMessage` wrapped
+  in `asyncio.to_thread` (zero new dep — matches Slack/Telegram). Subject:
+  `"Crypto Master: {symbol} {side} score={c:.2f}"`; body: same
+  Markdown content as Telegram (works in any client; plain-text
+  fallback included).
+- [ ] STARTTLS by default; SMTP_SSL as alternative (config option).
+  Set socket timeout to 10s. `__repr__` masks password — never log
+  credentials.
+- [ ] `src/main.py::build_engine` appends `EmailNotifier(...)` to the
+  dispatcher's notifier list when ALL 6 fields set; logs presence
+  not values.
+- [ ] `.env.example` and `docs/deployment.md` document the 6 SMTP
+  env vars.
+- [ ] Tests: mock `smtplib.SMTP`; verify (a) created when all 6 env
+  set, (b) silent when any missing, (c) message format (subject +
+  body) matches spec, (d) STARTTLS handshake called, (e) SMTP error
+  doesn't crash dispatch (existing per-channel failure-isolation
+  contract from Phase 6.3 preserved).
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1131,6 +1275,7 @@ existing); NFR-012 (live trading awareness redundancy).
 | Phase 10 | FR-005, FR-009, FR-010, FR-012, FR-025, NFR-004, NFR-008, NFR-012 (production wiring + operator tooling for previously-shipped requirements; no new FR/NFR introduced) |
 | Phase 11 | FR-005, FR-015, NFR-001, NFR-008, NFR-012 (operational hardening + observability — lint/type sweep, OHLCV cache, Slack notifier, `purge_old` wiring; no new FR/NFR introduced) |
 | Phase 12 | FR-006, FR-007, FR-008, FR-015, FR-022, NFR-001, NFR-012 (risk hardening + reliability — cross-cycle position cap, residual mypy sweep, LLM timeout retry/fallback, Telegram notifier; no new FR/NFR introduced) |
+| Phase 13 | FR-015, FR-020, NFR-001, NFR-004, NFR-012 (cleanup + operational polish — DEBT-009/010/011 batch, EngineConfig remaining-fields env override, `BaseExchange.get_ohlcv` `since` param, email notifier; no new FR/NFR introduced) |
 
 ---
 
