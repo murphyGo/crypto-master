@@ -22,7 +22,12 @@ import pytest
 from src.config import BinanceConfig, BybitConfig, Settings
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
-from src.main import _engine_auto_confirmation, build_exchange, build_trader
+from src.main import (
+    _engine_auto_confirmation,
+    _purge_old_proposals,
+    build_exchange,
+    build_trader,
+)
 from src.runtime.engine import EngineConfig
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
@@ -330,3 +335,124 @@ class TestBuildEngineEnvOverride:
             engine = build_engine(settings, exchange, config=explicit)
 
         assert engine.config.auto_approve_threshold == 3.0
+
+
+# =============================================================================
+# Phase 11.4: ProposalHistory.purge_old startup hook
+# =============================================================================
+
+
+class TestPurgeOldProposalsHook:
+    """The startup hook archives stale proposals once per process boot
+    and stays quiet when there's nothing to do."""
+
+    def test_calls_purge_old_with_retention_from_settings(self) -> None:
+        """The helper forwards ``retention_months`` from ``Settings``
+        to ``ProposalHistory.purge_old`` verbatim."""
+        from unittest.mock import MagicMock
+
+        history = MagicMock()
+        history.purge_old.return_value = []
+
+        purged = _purge_old_proposals(history, retention_months=12)
+
+        history.purge_old.assert_called_once_with(retention_months=12)
+        assert purged == 0
+
+    def test_returns_count_of_archived_records(self) -> None:
+        """The helper returns ``len(archived)`` so callers can log it."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        history = MagicMock()
+        history.purge_old.return_value = [
+            Path("a.json"),
+            Path("b.json"),
+            Path("c.json"),
+        ]
+
+        purged = _purge_old_proposals(history, retention_months=6)
+
+        assert purged == 3
+
+    def test_logs_info_only_when_records_were_purged(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No log line on the empty path — long-running deploys would
+        otherwise emit a noisy "0 records" line every startup.
+
+        ``get_logger`` disables propagation so the default ``caplog``
+        handler (attached to root) misses these records — wire
+        ``caplog.handler`` onto the named logger for the duration of
+        the assertion (same pattern as ``test_ai_claude.py``).
+        """
+        import logging
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        history = MagicMock()
+        target_logger = logging.getLogger("crypto_master.main")
+        target_logger.addHandler(caplog.handler)
+        target_logger.setLevel(logging.INFO)
+        try:
+            history.purge_old.return_value = []
+            _purge_old_proposals(history, retention_months=12)
+            assert not any(
+                "Purged" in record.getMessage()
+                and "proposal" in record.getMessage()
+                for record in caplog.records
+            )
+
+            history.purge_old.return_value = [Path("old.json")]
+            caplog.clear()
+            _purge_old_proposals(history, retention_months=12)
+            assert any(
+                "Purged 1 proposal record" in record.getMessage()
+                for record in caplog.records
+            )
+        finally:
+            target_logger.removeHandler(caplog.handler)
+
+    def test_build_engine_followed_by_purge_does_not_crash(
+        self, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Smoke: ``build_engine`` then ``_purge_old_proposals`` runs
+        cleanly against a real (empty) ``ProposalHistory`` rooted at a
+        ``tmp_path``."""
+        from src.main import build_engine
+        from src.proposal.interaction import ProposalHistory
+
+        monkeypatch.setenv("DATA_DIR", str(tmp_path))
+        from src.config import reload_settings
+
+        reload_settings()
+        try:
+            settings = Settings(
+                trading_mode="paper",
+                binance=BinanceConfig(
+                    api_key="",
+                    api_secret="",
+                    testnet_api_key="testnet-bn-key",
+                    testnet_api_secret="testnet-bn-secret",
+                    testnet=False,
+                ),
+                data_dir=tmp_path,
+            )
+            exchange = build_exchange(settings)
+
+            with patch(
+                "src.main.load_all_strategies", return_value={}
+            ), patch("src.main.PerformanceTracker"), patch(
+                "src.main.ActivityLog"
+            ):
+                build_engine(settings, exchange)
+
+            # Hook runs cleanly when the proposals dir does not yet exist.
+            history = ProposalHistory(data_dir=tmp_path / "proposals")
+            count = _purge_old_proposals(
+                history, retention_months=settings.log_retention_months
+            )
+            assert count == 0
+        finally:
+            monkeypatch.delenv("DATA_DIR", raising=False)
+            reload_settings()

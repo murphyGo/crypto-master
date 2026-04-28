@@ -287,6 +287,40 @@ deploy is real losses, not test-data garbage.
    away — but **does not auto-close any open live positions**.
    Manually close them on the exchange first if needed.
 
+## Operator tools
+
+### Proposal-history retention
+
+Long-running deploys accumulate one JSON file per generated proposal
+under `data/proposals/`. `Settings.log_retention_months` (default
+`12`) controls how long a record stays at the top level before it is
+moved to `data/proposals/archive/<YYYY-MM>/`.
+
+**Always-on path** (Phase 11.4): `src/main.py::run` invokes
+`ProposalHistory.purge_old(retention_months=...)` once per process
+boot, before the engine starts cycling. No operator action required.
+The runtime logs a single INFO line when records were archived; the
+"nothing to purge" case is silent so daily restarts don't generate
+noise.
+
+**Manual lever**: the same purge is exposed as a CLI for ad-hoc
+windows that differ from the configured retention (e.g. tighter
+cleanup before a disk-pressure event):
+
+```bash
+# Use the configured retention window:
+python -m src.tools.purge_proposals
+
+# One-off override:
+python -m src.tools.purge_proposals --retention-months 6
+```
+
+The command is idempotent — re-running with the same retention is a
+no-op because archived files live under a subdirectory the top-level
+glob skips. Output is a single summary line in either direction
+("Purged N proposal record(s) older than X months." or "No proposal
+records older than X months; nothing to purge.").
+
 ## Risks to keep in mind
 
 1. **`fly deploy` redeploys both processes simultaneously.** A bad

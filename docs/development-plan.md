@@ -49,7 +49,7 @@
 | Pre-Existing Lint/Type Sweep | ✅ Complete | 11 |
 | OHLCV Cache for Multi-Technique Scan | ✅ Complete | 11 |
 | Notification Push Backend | ✅ Complete | 11 |
-| ProposalHistory.purge_old Wiring | ❌ Missing | 11 |
+| ProposalHistory.purge_old Wiring | ✅ Complete | 11 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -956,17 +956,17 @@ explicitly deferred the wiring to a separate sub-task.
 **Related Requirements**: NFR-008 (mode-separated storage extends
 to retention); operational concern — no new FR introduced.
 
-- [ ] `src/main.py::run` (or equivalent startup hook) calls
+- [x] `src/main.py::run` (or equivalent startup hook) calls
   `ProposalHistory(...).purge_old(retention_months=settings.log_retention_months)`
   once after `build_engine` returns and before `engine.run_forever()`
   is awaited. Log the count of records purged at INFO level.
-- [ ] New `src/tools/__init__.py` + `src/tools/purge_proposals.py`
+- [x] New `src/tools/__init__.py` + `src/tools/purge_proposals.py`
   operator CLI: constructs `ProposalHistory()` from `Settings`,
   calls `purge_old(...)`, prints a summary line. Invocable as
   `python -m src.tools.purge_proposals`.
-- [ ] `docs/deployment.md` documents the CLI (operator manual
+- [x] `docs/deployment.md` documents the CLI (operator manual
   lever) and notes that the startup hook handles always-on cases.
-- [ ] Tests: smoke test for the startup hook (`build_engine`
+- [x] Tests: smoke test for the startup hook (`build_engine`
   followed by purge call doesn't crash; mock `ProposalHistory`); CLI
   test (mock `ProposalHistory.purge_old`, assert it was called with
   the retention value from `Settings`).
@@ -1057,3 +1057,5 @@ to retention); operational concern — no new FR introduced.
 | 11.2 | 2026-04-28 | Phase 11.2 complete - OHLCV Cache for Multi-Technique Scan (FR-005 consumed; resolves DEBT-002); per-call OHLCV cache keyed by `(symbol, tf)` threaded through `propose_bitcoin` / `propose_altcoins` → `_propose_for_symbol` / `_propose_all_for_symbol` → `_build_proposal_for_strategy` (Option A). Local dict per call, no module/class state. Both single-TF and multi-TF branches use it; legacy `_select_best_technique` path also threads cache for consistency (no per-path divergence). Fetch counts verified: 3 sym × 4 tech 12 → 3, multi-TF (2 strategies sharing 3 TFs) 6 → 3, sequential 2× `propose_bitcoin` 2 (no leak), legacy 3 sym × 1 tech 3 (no regression). 4 new tests in `tests/test_proposal_engine_multi_technique.py` (1083 → 1087). ruff clean; mypy zero new errors on `engine.py`. 23 existing `test_proposal_engine.py` tests pass unchanged. PEP 604 union syntax for type hints. No new debt. | Claude |
 | 10.0 | 2026-04-28 | Phase 10 complete - all sub-tasks (10.1, 10.2, 10.3, 10.4, 10.5, 10.6) checked. Phase 10 cross-check: `docs/cross-checks/2026-04-28-phase-10-operational-maturation.md`. | Claude |
 | 11.3 | 2026-04-28 | Phase 11.3 complete - Notification Push Backend (FR-015, NFR-012); `SlackNotifier` in `src/proposal/notification.py` posts to incoming webhook via `urllib.request.urlopen` + `asyncio.to_thread` (no new dep) implementing the existing `Notifier` protocol. `Settings.slack_webhook_url: Optional[str] = None` (non-breaking; notifier silent / not registered when unset). `src/main.py::build_engine` appends `SlackNotifier()` to the dispatcher's notifier list when URL set; logs presence not URL. Payload: `text` line summary `{symbol} {side} score={c:.2f} entry={p}` + 2 mrkdwn blocks (bolded summary + code-fenced detail w/ proposal_id, technique, SL, TP, qty, leverage, rr). `__repr__` redacts URL. `send` deliberately does NOT swallow `HTTPError` — dispatcher's existing try/except handles failure isolation per Phase 6.3 contract. `.env.example` + `docs/deployment.md` document `SLACK_WEBHOOK_URL` + incoming-webhook setup. 9 new tests across 2 test files (1087 → 1096) — incl. exact-string spec match, failure-isolation, build_engine both-branches, `__repr__` redaction. ruff clean; mypy zero new errors (14 mypy errors all pre-existing in untouched modules per 11.1 carry). No new debt. | Claude |
+| 11.4 | 2026-04-28 | Phase 11.4 complete - ProposalHistory.purge_old Wiring (NFR-008); `src/main.py::_purge_old_proposals` helper (extracted for testability) called from `run()` between `build_engine` and signal-handler installation; logs INFO only when records were archived (silent on empty so daily restarts don't generate noise). New `src/tools/purge_proposals.py` operator CLI with `argparse --retention-months` override; reads `Settings`; prints informative summary on both "purged N" and "nothing to purge" branches; exit 0 in both. New `src/tools/__init__.py` package marker (operator tooling that imports only project code lives under `src/tools/`; `scripts/` reserved for tools that talk to external services). `docs/deployment.md` got a new "Operator Tools" section. 8 new tests (1096 → 1104) — `TestPurgeOldProposalsHook` (4: forwarding / count / silent-on-empty `caplog` / build-engine→hook smoke against real `ProposalHistory`) + `tests/test_tools_purge_proposals.py` (4: Settings-default / flag override / end-to-end Jan-2024-archives-fresh-stays / empty-print). ruff clean; mypy zero new errors (DEBT-008 lambda error shifted line 232 → 271, same code). No new debt. | Claude |
+| 11.0 | 2026-04-28 | Phase 11 complete - all sub-tasks (11.1, 11.2, 11.3, 11.4) checked. Phase 11 cross-check: `docs/cross-checks/2026-04-28-phase-11-operational-hardening.md`. | Claude |

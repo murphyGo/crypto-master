@@ -217,6 +217,39 @@ def build_engine(
     )
 
 
+def _purge_old_proposals(history: ProposalHistory, retention_months: int) -> int:
+    """Archive proposal records older than ``retention_months``.
+
+    Phase 11.4 startup hook. Called once per process boot from
+    :func:`run`, before the engine starts cycling. Reuses
+    :meth:`ProposalHistory.purge_old` (Phase 10.4) so the on-disk
+    layout stays the same as the operator CLI in
+    ``src.tools.purge_proposals``.
+
+    The "0 records" case is intentionally silent — long-running deploys
+    purge once early and then have nothing to do for the rest of the
+    retention window, so logging on the empty path would be noise.
+
+    Args:
+        history: ``ProposalHistory`` to purge. The caller passes the
+            same instance the engine wires into its dispatcher so the
+            two views of ``data/proposals/`` agree.
+        retention_months: Window in months. Records older than this
+            move to ``<data_dir>/archive/<YYYY-MM>/``.
+
+    Returns:
+        The number of records archived this call (``0`` when nothing
+        was old enough).
+    """
+    archived = history.purge_old(retention_months=retention_months)
+    if archived:
+        logger.info(
+            f"Purged {len(archived)} proposal record(s) older than "
+            f"{retention_months} months"
+        )
+    return len(archived)
+
+
 async def run() -> None:
     """Build everything and run the engine forever (until SIGTERM/SIGINT)."""
     settings = get_settings()
@@ -224,6 +257,12 @@ async def run() -> None:
     await exchange.connect()
 
     engine = build_engine(settings, exchange)
+
+    # Phase 11.4: archive proposal records older than retention before
+    # the engine starts cycling. Constructs a second ``ProposalHistory``
+    # view of the same on-disk dir as the one wired into ``build_engine``;
+    # both resolve to ``Settings.data_dir / "proposals"`` (Phase 10.5).
+    _purge_old_proposals(ProposalHistory(), settings.log_retention_months)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
