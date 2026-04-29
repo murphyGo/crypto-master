@@ -650,3 +650,66 @@ async def test_interruptible_sleep_wakes_on_stop(tmp_path: Path) -> None:
     stop_task = asyncio.create_task(signal_stop_soon())
 
     await asyncio.wait_for(asyncio.gather(sleep_task, stop_task), timeout=2.0)
+
+
+# =============================================================================
+# Portfolio snapshot recording (Phase 17.2)
+# =============================================================================
+
+
+async def test_portfolio_snapshot_recorded_each_cycle(tmp_path: Path) -> None:
+    """Engine writes an AssetSnapshot at the end of every cycle when wired."""
+    from src.trading.portfolio import PortfolioTracker
+
+    engine, mocks = build_engine(tmp_path=tmp_path)
+
+    portfolio_tracker = PortfolioTracker(data_dir=tmp_path / "portfolio")
+    engine.portfolio_tracker = portfolio_tracker
+    engine.mode = "paper"
+    engine.quote_currency = "USDT"
+
+    mocks["trader"].get_balances = AsyncMock(
+        return_value={"USDT": Decimal("9876.54")}
+    )
+
+    await engine.run_cycle()
+
+    snapshots = portfolio_tracker.load_snapshots("paper")
+    assert len(snapshots) == 1
+    snap = snapshots[0]
+    assert snap.balances["USDT"] == Decimal("9876.54")
+    assert snap.quote_currency == "USDT"
+
+
+async def test_portfolio_snapshot_skipped_when_tracker_absent(
+    tmp_path: Path,
+) -> None:
+    """No tracker wired -> no balance fetch attempted -> cycle still completes."""
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    # No portfolio_tracker assignment — defaults to None.
+    mocks["trader"].get_balances = AsyncMock()
+
+    await engine.run_cycle()
+
+    mocks["trader"].get_balances.assert_not_called()
+
+
+async def test_portfolio_snapshot_balance_failure_does_not_break_cycle(
+    tmp_path: Path,
+) -> None:
+    """A flaky balance fetch is logged and swallowed."""
+    from src.trading.portfolio import PortfolioTracker
+
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    portfolio_tracker = PortfolioTracker(data_dir=tmp_path / "portfolio")
+    engine.portfolio_tracker = portfolio_tracker
+
+    mocks["trader"].get_balances = AsyncMock(
+        side_effect=ExchangeAPIError("rate limited")
+    )
+
+    # Cycle must complete even though the snapshot couldn't be recorded.
+    result = await engine.run_cycle()
+
+    assert result is not None
+    assert portfolio_tracker.load_snapshots("paper") == []

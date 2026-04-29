@@ -53,6 +53,7 @@ from src.strategy.performance import PerformanceTracker
 from src.trading.base import Trader
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
+from src.trading.portfolio import PortfolioTracker
 
 logger = get_logger("crypto_master.main")
 
@@ -262,6 +263,8 @@ def build_engine(
         f"testnet={getattr(exchange, 'testnet', '?')})"
     )
 
+    portfolio_tracker = PortfolioTracker()
+
     return TradingEngine(
         exchange=exchange,
         proposal_engine=proposal_engine,
@@ -271,6 +274,9 @@ def build_engine(
         notification_dispatcher=notifier,
         activity_log=activity,
         config=config,
+        portfolio_tracker=portfolio_tracker,
+        mode=settings.trading_mode,
+        quote_currency="USDT",
     )
 
 

@@ -493,6 +493,17 @@ class LiveTrader:
         """
         return self._trade_tracker.get_open_trades(mode="live")
 
+    async def get_balances(self) -> dict[str, Decimal]:
+        """Query the exchange for all balances and return totals per currency.
+
+        Used by the engine's portfolio-snapshot recorder so the
+        dashboard's Trading page can show current equity. Network
+        failures propagate to the caller — the engine wraps the call
+        in a guard so a flaky exchange query doesn't break the cycle.
+        """
+        balances = await self._exchange.get_balance()
+        return {b.currency: b.total for b in balances}
+
     def get_trade(self, trade_id: str) -> TradeHistory | None:
         """Get a trade by ID.
 

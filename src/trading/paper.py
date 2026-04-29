@@ -367,6 +367,14 @@ class PaperTrader:
             for currency, balance in self._balances.items()
         }
 
+    async def get_balances(self) -> dict[str, Decimal]:
+        """Return per-currency total balances for the snapshot recorder.
+
+        The paper ledger is in-memory so the ``async`` here is purely
+        protocol conformance — there is no I/O.
+        """
+        return {currency: balance.total for currency, balance in self._balances.items()}
+
     def get_balance(self, currency: str) -> PaperBalance | None:
         """Get balance for a currency.
 

@@ -64,6 +64,7 @@ class TradingSummaryMetrics(TypedDict):
     unrealized_pnl: float
     latest_equity: float
     latest_snapshot_at: datetime | None
+    quote_currency: str
     proposals_rejected_threshold_count: int
 
 
@@ -239,10 +240,12 @@ def build_summary_metrics(
         latest_equity = float(latest.total_equity)
         latest_unrealized = float(latest.unrealized_pnl)
         latest_at: datetime | None = latest.timestamp
+        latest_quote = latest.quote_currency
     else:
         latest_equity = 0.0
         latest_unrealized = 0.0
         latest_at = None
+        latest_quote = "USDT"
 
     threshold_rejection_count = _count_threshold_rejections(
         proposal_history if proposal_history is not None else ProposalHistory()
@@ -256,6 +259,7 @@ def build_summary_metrics(
         "unrealized_pnl": latest_unrealized,
         "latest_equity": latest_equity,
         "latest_snapshot_at": latest_at,
+        "quote_currency": latest_quote,
         "proposals_rejected_threshold_count": threshold_rejection_count,
     }
 
@@ -331,23 +335,33 @@ def render(
 
     # ---- Summary cards ----
     st.subheader("Summary")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Open Positions", metrics["open_positions"])
-    c2.metric("Closed Trades", metrics["closed_trades"])
-    c3.metric("Win Rate", f"{metrics['win_rate'] * 100:.1f}%")
-    c4.metric("Realized P&L", f"{metrics['realized_pnl']:.2f}")
-
     latest_at = metrics["latest_snapshot_at"]
+    equity_value = metrics["latest_equity"]
+    unrealized = metrics["unrealized_pnl"]
+    equity_label = (
+        f"{equity_value:.2f} {metrics['quote_currency']}"
+        if latest_at is not None
+        else "—"
+    )
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(
+        "Current Equity",
+        equity_label,
+        delta=(f"{unrealized:+.2f} unrealized" if latest_at is not None else None),
+    )
+    c2.metric("Open Positions", metrics["open_positions"])
+    c3.metric("Closed Trades", metrics["closed_trades"])
+    c4.metric("Win Rate", f"{metrics['win_rate'] * 100:.1f}%")
+    c5.metric("Realized P&L", f"{metrics['realized_pnl']:.2f}")
+
     if latest_at is not None:
-        st.caption(
-            f"Latest equity: {metrics['latest_equity']:.2f} | "
-            f"Unrealized P&L: {metrics['unrealized_pnl']:.2f} "
-            f"(snapshot {latest_at.isoformat(timespec='seconds')})"
-        )
+        st.caption(f"Snapshot {latest_at.isoformat(timespec='seconds')}")
     else:
         st.caption(
             "No portfolio snapshots recorded yet for this mode. "
-            "The trader components record snapshots automatically as trades execute."
+            "The trading engine records one at the end of every cycle once "
+            "wired with `PortfolioTracker`."
         )
 
     # ---- Active positions ----

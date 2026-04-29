@@ -92,5 +92,15 @@ class Trader(Protocol):
         """
         ...
 
+    async def get_balances(self) -> dict[str, Decimal]:
+        """Return current per-currency total balances.
+
+        Used by the engine's portfolio-snapshot recorder so the
+        dashboard's Trading page can display the current equity. The
+        paper path reads its in-memory ledger; the live path queries
+        the exchange (network I/O — hence async).
+        """
+        ...
+
 
 __all__ = ["Trader"]

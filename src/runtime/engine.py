@@ -59,6 +59,7 @@ from src.strategy.performance import TradeHistory
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
     from src.trading.base import Trader
+    from src.trading.portfolio import Mode, PortfolioTracker
 
 logger = get_logger("crypto_master.runtime.engine")
 
@@ -150,6 +151,9 @@ class TradingEngine:
         notification_dispatcher: NotificationDispatcher,
         activity_log: ActivityLog,
         config: EngineConfig | None = None,
+        portfolio_tracker: PortfolioTracker | None = None,
+        mode: Mode = "paper",
+        quote_currency: str = "USDT",
     ) -> None:
         """Initialize the engine.
 
@@ -171,6 +175,18 @@ class TradingEngine:
                 proposals.
             activity_log: Where to record cycle / proposal / trade events.
             config: Tunables. Defaults to ``EngineConfig()``.
+            portfolio_tracker: Optional snapshot recorder. When set,
+                the engine records an ``AssetSnapshot`` at the end of
+                every cycle so the dashboard's Trading page can show
+                current equity. ``None`` (default) keeps tests and
+                anyone who builds the engine ad-hoc unaffected.
+            mode: ``"paper"`` or ``"live"`` — passed through to the
+                snapshot recorder. The trader implementation already
+                knows which mode it is, but the protocol intentionally
+                hides that, so the engine takes the mode label as a
+                separate argument.
+            quote_currency: Currency used to denominate equity in the
+                recorded snapshots. Defaults to ``"USDT"``.
         """
         self.exchange = exchange
         self.proposal_engine = proposal_engine
@@ -179,6 +195,9 @@ class TradingEngine:
         self.notification_dispatcher = notification_dispatcher
         self.activity_log = activity_log
         self.config = config or EngineConfig()
+        self.portfolio_tracker = portfolio_tracker
+        self.mode = mode
+        self.quote_currency = quote_currency
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
@@ -252,6 +271,8 @@ class TradingEngine:
             await self._handle_proposal(proposal, cycle_id, result)
 
         await self._monitor(cycle_id, result)
+
+        await self._record_portfolio_snapshot(cycle_id)
 
         self.activity_log.append(
             ActivityEventType.CYCLE_COMPLETED,
@@ -520,6 +541,52 @@ class TradingEngine:
             details={"open_count": len(open_trades), "closed": closed_count},
             cycle_id=cycle_id,
         )
+
+    async def _record_portfolio_snapshot(self, cycle_id: str) -> None:
+        """Capture balances + open-position marks into ``AssetSnapshot``.
+
+        Called at the end of every cycle when ``portfolio_tracker`` is
+        wired. Errors (balance fetch network failures, ticker fetches,
+        disk write hiccups) are swallowed and logged so the cycle
+        finishes cleanly — a missed snapshot is recoverable; a crashed
+        cycle is not.
+        """
+        if self.portfolio_tracker is None:
+            return
+
+        try:
+            balances = await self.trader.get_balances()
+        except Exception as e:  # pragma: no cover - defensive
+            self.activity_log.append(
+                ActivityEventType.MONITOR_ERRORED,
+                f"Snapshot balance fetch failed: {e}",
+                details={"error": str(e), "phase": "balances"},
+                cycle_id=cycle_id,
+            )
+            return
+
+        current_prices: dict[str, Decimal] = {}
+        for trade in self.trader.get_open_trades():
+            try:
+                ticker = await self.exchange.get_ticker(trade.symbol)
+            except Exception:
+                continue
+            current_prices[trade.symbol] = ticker.price
+
+        try:
+            self.portfolio_tracker.record_snapshot(
+                mode=self.mode,
+                quote_currency=self.quote_currency,
+                balances=balances,
+                current_prices=current_prices,
+            )
+        except Exception as e:  # pragma: no cover - defensive
+            self.activity_log.append(
+                ActivityEventType.MONITOR_ERRORED,
+                f"Snapshot persist failed: {e}",
+                details={"error": str(e), "phase": "persist"},
+                cycle_id=cycle_id,
+            )
 
     def _record_closed_trade(
         self,

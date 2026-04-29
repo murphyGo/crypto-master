@@ -531,5 +531,8 @@ render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph)
     assert not at.exception, [str(e) for e in at.exception]
     titles = [t.value for t in at.title]
     assert any("Trading" in t for t in titles), titles
-    captions = " ".join(c.value for c in at.caption)
-    assert "10100" in captions or "Latest equity" in captions, captions
+    metric_blob = " ".join(
+        f"{m.label} {m.value}" for m in at.metric  # type: ignore[attr-defined]
+    )
+    assert "Current Equity" in metric_blob, metric_blob
+    assert "10100" in metric_blob, metric_blob
