@@ -40,12 +40,22 @@ def make_claude_mock(
 def make_improver(
     tmp_path: Path,
     response: str | Exception = "```markdown\n---\nname: test\n---\nbody\n```",
+    catalog_path: Path | None = None,
 ) -> tuple[StrategyImprover, AsyncMock]:
-    """Build a StrategyImprover with a mocked ClaudeCLI."""
+    """Build a StrategyImprover with a mocked ClaudeCLI.
+
+    By default the improver is pointed at a non-existent catalog file
+    under ``tmp_path``, so prompt-content assertions in unrelated tests
+    aren't affected by accidental catalog injection from cwd.
+    """
     claude = make_claude_mock(response)
+    effective_catalog = (
+        catalog_path if catalog_path is not None else tmp_path / "no_catalog.md"
+    )
     improver = StrategyImprover(
         claude=claude,
         experimental_dir=tmp_path / "strategies" / "experimental",
+        catalog_path=effective_catalog,
     )
     return improver, claude
 
@@ -495,3 +505,119 @@ class TestErrorPropagation:
         )
         with pytest.raises(ClaudeExecutionError):
             await improver.generate_idea()
+
+
+# =============================================================================
+# Catalog injection (priority matrix integration)
+# =============================================================================
+
+
+CATALOG_MARKER = "RANK_1_CATALOG_TECHNIQUE_42"
+SAMPLE_CATALOG = (
+    "# Strategy Priority Matrix\n\n"
+    "| rank | technique | composite |\n"
+    "|---|---|---|\n"
+    f"| 1 | {CATALOG_MARKER} | 20 |\n"
+    "| 2 | Donchian System 2 | 19 |\n"
+)
+
+
+def _write_catalog(tmp_path: Path, content: str = SAMPLE_CATALOG) -> Path:
+    catalog = tmp_path / "00-priority-matrix.md"
+    catalog.write_text(content, encoding="utf-8")
+    return catalog
+
+
+class TestCatalogInjection:
+    """The reference catalog should reach the new_idea prompt when the
+    file exists, and be silently omitted otherwise. The user_idea and
+    improvement prompts are intentionally untouched: user_idea is
+    structured around the user's described idea (the catalog would
+    redirect Claude away from the user's intent), and improvement
+    (FR-022) is a focused failure-mode analysis on one specific
+    technique."""
+
+    @pytest.mark.asyncio
+    async def test_catalog_injected_in_new_idea(self, tmp_path: Path) -> None:
+        catalog = _write_catalog(tmp_path)
+        improver, claude = make_improver(
+            tmp_path, GOOD_RESPONSE, catalog_path=catalog
+        )
+        await improver.generate_idea(context="anything")
+        prompt = claude.complete.await_args.args[0]
+        assert CATALOG_MARKER in prompt
+        assert "Reference Catalog" in prompt
+
+    @pytest.mark.asyncio
+    async def test_catalog_not_in_user_idea_prompt(
+        self, tmp_path: Path
+    ) -> None:
+        """User-idea is anchored on the user's text; injecting the
+        catalog would push Claude toward catalog entries instead of
+        the user's intent. Regression guard."""
+        catalog = _write_catalog(tmp_path)
+        improver, claude = make_improver(
+            tmp_path, GOOD_RESPONSE, catalog_path=catalog
+        )
+        await improver.generate_from_user_idea("scalp BTC")
+        prompt = claude.complete.await_args.args[0]
+        assert CATALOG_MARKER not in prompt
+        assert "Reference Catalog" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_catalog_absent_graceful(self, tmp_path: Path) -> None:
+        """Missing catalog file → empty section, prompt still works."""
+        improver, claude = make_improver(
+            tmp_path,
+            GOOD_RESPONSE,
+            catalog_path=tmp_path / "does_not_exist.md",
+        )
+        await improver.generate_idea()
+        prompt = claude.complete.await_args.args[0]
+        assert "Reference Catalog" not in prompt
+        assert CATALOG_MARKER not in prompt
+
+    @pytest.mark.asyncio
+    async def test_catalog_not_in_improvement_prompt(
+        self, tmp_path: Path
+    ) -> None:
+        """Improvement is targeted at one technique; the catalog menu
+        would be off-topic and waste the prompt budget."""
+        catalog = _write_catalog(tmp_path)
+        improver, claude = make_improver(
+            tmp_path, GOOD_RESPONSE, catalog_path=catalog
+        )
+        await improver.suggest_improvement(
+            technique=sample_technique(),
+            original_source="ORIGINAL_SOURCE_MARKER",
+            performance=sample_performance(),
+            records=sample_records(),
+        )
+        prompt = claude.complete.await_args.args[0]
+        assert CATALOG_MARKER not in prompt
+        assert "Reference Catalog" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_catalog_cached_on_repeated_calls(
+        self, tmp_path: Path
+    ) -> None:
+        """The catalog file is read at most once per improver instance."""
+        catalog = _write_catalog(tmp_path)
+        improver, claude = make_improver(
+            tmp_path, GOOD_RESPONSE, catalog_path=catalog
+        )
+        await improver.generate_idea()
+        # Mutate the file on disk; cache should still serve old content.
+        catalog.write_text("MUTATED_CONTENT", encoding="utf-8")
+        await improver.generate_idea()
+        second_prompt = claude.complete.await_args.args[0]
+        assert CATALOG_MARKER in second_prompt
+        assert "MUTATED_CONTENT" not in second_prompt
+
+    def test_default_catalog_path_constant(self) -> None:
+        """The default path matches the repo's matrix location."""
+        from src.ai.improver import DEFAULT_CATALOG_PATH
+
+        assert DEFAULT_CATALOG_PATH == Path(
+            "docs/research/strategies/00-priority-matrix.md"
+        )

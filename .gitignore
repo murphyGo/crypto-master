@@ -36,6 +36,10 @@ htmlcov/
 # Runtime data (logs, trades, backtests, performance, audit, feedback state)
 data/
 
+# Dry-run output from scripts/auto_research_candidates.py — these
+# files are generated for prompt-validation only and never gated.
+strategies/experimental/dry_runs/
+
 # Distribution
 dist/
 build/

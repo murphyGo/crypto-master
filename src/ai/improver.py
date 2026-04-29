@@ -33,6 +33,7 @@ logger = get_logger("crypto_master.ai.improver")
 
 
 DEFAULT_EXPERIMENTAL_DIR = Path("strategies/experimental")
+DEFAULT_CATALOG_PATH = Path("docs/research/strategies/00-priority-matrix.md")
 
 # Matches a fenced code block whose info string is ``markdown`` /
 # ``md`` / empty. Captures the body.
@@ -115,6 +116,7 @@ class StrategyImprover:
         self,
         claude: ClaudeCLI | None = None,
         experimental_dir: Path | None = None,
+        catalog_path: Path | None = None,
     ) -> None:
         """Initialize the improver.
 
@@ -123,9 +125,19 @@ class StrategyImprover:
                 tests). Defaults to a fresh ``ClaudeCLI()``.
             experimental_dir: Directory where generated techniques are
                 written. Defaults to ``strategies/experimental/``.
+            catalog_path: Path to the strategy priority matrix
+                (synthesis of researched techniques). Injected into the
+                ``new_idea`` and ``user_idea`` prompts so Claude can
+                draw from a curated, scored menu rather than inventing
+                from scratch. Optional — if the file is missing, the
+                improver still works, the prompts just omit the
+                catalog. Defaults to
+                ``docs/research/strategies/00-priority-matrix.md``.
         """
         self.claude = claude or ClaudeCLI()
         self.experimental_dir = experimental_dir or DEFAULT_EXPERIMENTAL_DIR
+        self.catalog_path = catalog_path or DEFAULT_CATALOG_PATH
+        self._catalog_cache: str | None = None
 
     # ------------------------------------------------------------------
     # Public flows
@@ -333,6 +345,50 @@ class StrategyImprover:
     # Prompt builders
     # ------------------------------------------------------------------
 
+    def _load_catalog(self) -> str:
+        """Load the strategy priority matrix for prompt injection.
+
+        Returns the file content, or an empty string if the file is
+        absent (the catalog is optional). The result is cached on the
+        instance — the file is read at most once per improver
+        lifetime.
+        """
+        if self._catalog_cache is not None:
+            return self._catalog_cache
+        if not self.catalog_path.exists():
+            logger.info(
+                f"Strategy catalog not found at {self.catalog_path}; "
+                "proceeding without it."
+            )
+            self._catalog_cache = ""
+            return ""
+        self._catalog_cache = self.catalog_path.read_text(encoding="utf-8")
+        return self._catalog_cache
+
+    def _catalog_section(self) -> str:
+        """Wrap the catalog in framing text for prompt injection.
+
+        Returns the empty string when the catalog file is absent so the
+        caller can concatenate unconditionally.
+        """
+        catalog = self._load_catalog()
+        if not catalog:
+            return ""
+        return (
+            "\n## Reference Catalog (researched technique menu)\n"
+            "The following matrix synthesizes ~146 trading techniques "
+            "from 6 research documents (ICT/SMC, classic patterns, "
+            "breakout/range, mean-reversion, trend indicators, "
+            "crypto-native). Each technique is scored on automation-"
+            "fit, reliability, crypto-fit, and combo-potential. Use it "
+            "as a menu — pick from it, recombine entries, or invent "
+            "something not listed. If you propose a technique already "
+            "in the catalog, name it explicitly and cite its rank/"
+            "category. The constraints above (especially the AVOID "
+            "list and falsifiable hypothesis requirement) still apply.\n\n"
+            f"{catalog}\n\n"
+        )
+
     @staticmethod
     def _output_format_instructions() -> str:
         """Boilerplate telling Claude how to format its reply."""
@@ -473,11 +529,20 @@ class StrategyImprover:
             "section, naming the data source. Do not silently assume "
             "it is available.\n\n"
             f"{context_line}"
+            + self._catalog_section()
             + self._output_format_instructions()
         )
 
     def _build_user_idea_prompt(self, user_idea: str) -> str:
-        """Construct the user-idea prompt (FR-024)."""
+        """Construct the user-idea prompt (FR-024).
+
+        Deliberately omits the strategy catalog: the user has already
+        described the idea they want built, and Claude's job is to
+        extract THEIR hypothesis and structure THEIR technique — not
+        redirect the prompt onto the closest catalog entry. The
+        new-idea flow is the only place catalog injection makes sense
+        (broadens the search space when no idea is supplied).
+        """
         return (
             "You are a quantitative trading strategy engineer. "
             "A user has proposed the following idea:\n\n"
@@ -532,5 +597,6 @@ __all__ = [
     "GeneratedTechniqueError",
     "GeneratedTechnique",
     "DEFAULT_EXPERIMENTAL_DIR",
+    "DEFAULT_CATALOG_PATH",
     "ClaudeParseError",
 ]

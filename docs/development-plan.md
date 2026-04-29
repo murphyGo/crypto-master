@@ -62,6 +62,7 @@
 | SMTP_SSL Alternative | ✅ Complete | 14 |
 | Diagnostic Clarity | ✅ Complete | 15 |
 | chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
+| Auto-Research Operator Workflow + Catalog-Aware Improver | ❌ Missing | 17 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1473,6 +1474,184 @@ extending), NFR-001 (operational reliability).
 
 ---
 
+## Phase 17: Strategy-Evolution Operator Workflow
+
+**Goal**: Phase 5.5 shipped `FeedbackLoop` (orchestrator) +
+`StrategyImprover` (Claude-driven idea generation) + `RobustnessGate`
+(OOS / walk-forward / regime / sensitivity), and Phase 9.3 threaded
+multi-timeframe data through the loop end-to-end. The components are
+unit-tested but never invoked at runtime — `src/main.py` only has a
+FR-026 placeholder comment, and `/app/data/feedback/state/` +
+`/app/data/audit/` are empty on Fly. Phase 17 closes the
+**operator-driven** path first: a manual `python -m
+scripts.auto_research_candidates` invocation that turns Top-N
+OHLCV-only picks from `docs/research/strategies/00-priority-matrix.md`
+into `AWAITING_APPROVAL` candidate records, leaving promotion to the
+operator per CON-003. Nightly auto-execution wiring is deferred to a
+later phase.
+
+### 17.1 Auto-Research Operator Workflow + Catalog-Aware Improver
+
+**Background**: The strategy-evolution stack
+(`StrategyImprover` → `Backtester` → `PerformanceAnalyzer` →
+`RobustnessGate` → `FeedbackLoop._run_cycle` → `CandidateRecord`) has
+shipped and is tested in isolation, but no caller has ever exercised
+the full chain on Fly — `data/feedback/state/` and `data/audit/` are
+empty in production, and `src/main.py` only carries a FR-026 comment.
+At the same time the operator built a research catalog under
+`docs/research/strategies/` (priority matrix + 9 technique briefs)
+that the current `StrategyImprover._build_new_idea_prompt` doesn't
+see, so Claude regenerates from-scratch ideas every time instead of
+picking from the curated OHLCV-only first-wave list. Two surgical
+changes close both gaps without introducing scheduling or
+auto-promotion: (a) inject the catalog (priority matrix + per-strategy
+docs) into the `generate_idea` / `generate_from_user_idea` prompts so
+Claude has the full taxonomy in context, and (b) ship
+`scripts/auto_research_candidates.py` — an operator entry point that
+reads the priority matrix, picks Top-N OHLCV-only entries, and runs
+each through `improver.generate_idea` → `FeedbackLoop._run_cycle()`,
+landing every robustness-gate-passing result in `AWAITING_APPROVAL`
+for explicit operator approval (CON-003). Nightly scheduling and
+`main.py` wiring are deferred to a follow-up sub-task — operator
+control comes first.
+
+**Related Requirements**: FR-023 (New Technique Idea Generation),
+FR-026 (Automated Feedback Loop), FR-034 (Robustness Validation Gate),
+CON-003 (User Approval Required — no auto-promotion); operator
+tooling on top of existing components, no new FR/NFR introduced.
+
+**In Scope**:
+- `scripts/auto_research_candidates.py` operator entry point
+  (`python -m scripts.auto_research_candidates`).
+- Catalog-aware `StrategyImprover`: new-idea + user-idea prompts read
+  `docs/research/strategies/00-priority-matrix.md` and the per-strategy
+  briefs and inject them into the prompt; improvement prompts
+  (`generate_improvement`) deliberately do NOT receive the catalog
+  (failure-mode analysis stays focused on the existing strategy's
+  trace, not the wider taxonomy).
+- Fail-soft when the catalog file is missing — improver logs a warning
+  and continues with the pre-17.1 prompt, so the path stays usable in
+  environments that don't ship the catalog.
+- Robustness-gate-passing candidates land in `AWAITING_APPROVAL`;
+  failing ones land in `DISCARDED`; errored picks land in `ERRORED`.
+  An error on one pick does NOT abort the batch — every pick gets its
+  own try/except.
+- `--picks N` (default 5; matrix's first-wave OHLCV picks) and
+  `--dry-run` flags. Dry-run generates the experimental strategy file
+  but skips backtest + robustness gate.
+- Run snapshot persisted to `data/research_runs/run_{ts}.json` with
+  per-pick status, candidate id, and final state.
+- State + audit files (`data/feedback/state/*.json`,
+  `data/audit/*.jsonl`) are written end-to-end through the existing
+  `FeedbackLoop` machinery — no new persistence code in 17.1.
+- Operator-facing summary printed to stdout after the batch (counts +
+  per-pick status line).
+- README / module-level docstring telling the operator how to invoke,
+  what the flags do, and where the output files land.
+
+**Out of Scope**:
+- Nightly scheduling / cron / `main.py` wiring (deferred to a later
+  sub-task — explicitly out so this stays a single `/dev-crypto`
+  cycle).
+- Auto-promotion: every passing candidate stops at
+  `AWAITING_APPROVAL`; the operator runs `FeedbackLoop.approve()`
+  separately. No new approval-flow logic in 17.1.
+- Dashboard changes (the existing Phase 7.4 feedback page already
+  renders `AWAITING_APPROVAL` records).
+- Funding-rate / open-interest / on-chain data wiring — the matrix's
+  first-wave picks are OHLCV-only by design; non-OHLCV data sources
+  belong to a later phase.
+
+- [x] `scripts/auto_research_candidates.py` — argparse entry point
+  with `--picks N` (default 5) and `--dry-run` flags. Reads
+  `docs/research/strategies/00-priority-matrix.md`, parses the
+  first-wave OHLCV-only picks, and dispatches each through the
+  improver + feedback loop. Module docstring documents invocation,
+  flags, output locations, and the FR mapping (FR-023 / FR-026 /
+  FR-034 / CON-003).
+- [x] `src/ai/improver.py::StrategyImprover.__init__` accepts
+  `catalog_path: Path | None = None` (defaults to
+  `docs/research/strategies/`); add a private `_load_catalog` helper
+  that reads the priority matrix + per-strategy briefs, caches the
+  joined string on the instance, and fail-softs (logs WARNING +
+  returns empty string) when the path is missing.
+- [x] `_build_new_idea_prompt` injects the cached catalog content
+  under a clearly-labelled section (`## Reference Catalog`).
+  `_build_user_idea_prompt` deliberately omits the catalog (the user
+  has already described their idea — injecting the catalog would
+  redirect Claude away from the user's intent). `_build_improvement_prompt`
+  is left untouched — improvement is a focused failure-mode analysis,
+  not a fresh-idea exercise. (Deviation from spec wording per
+  quant-trader-expert review Issue 4.)
+- [x] Dispatch loop in the script: for each pick, call
+  `improver.generate_idea(context=<pick description>)` to land the
+  new template in `strategies/experimental/`, then
+  `FeedbackLoop._run_cycle(strategy_path, ohlcv, ...)` to run
+  backtest → robustness gate → state persistence. One pick failing
+  raises an exception caught at the per-pick boundary and recorded as
+  `ERRORED` in the run snapshot — the batch continues.
+- [x] After the batch, persist a JSON run snapshot to
+  `data/research_runs/run_{YYYYMMDD-HHMMSS}.json` containing the
+  picks list, per-pick `{slug, status, candidate_id, error?}`
+  records, and a totals summary. `data/research_runs/` is created on
+  first invocation.
+- [x] Print an operator-facing summary to stdout: total picks,
+  counts by status (`AWAITING_APPROVAL` / `DISCARDED` / `ERRORED`),
+  and a per-pick line showing the slug + final state, so the operator
+  can immediately spot which candidates need review without opening
+  the JSON. Each row is followed by an indented continuation line
+  carrying ``decision_reason`` + ``robustness_summary`` so a
+  DISCARDED pick's *why* is visible without opening the JSON.
+- [x] `--dry-run` short-circuits before the feedback-loop call:
+  generates the experimental strategy file under
+  ``strategies/experimental/dry_runs/`` (so it never mixes with real
+  gated candidates), prints the planned-pick list, but does NOT run
+  the backtest / robustness gate / state persistence. Useful for
+  validating catalog parsing + prompt output against `claude -p`
+  without paying the backtest cost.
+- [x] Tests:
+  - `tests/test_ai_improver.py` — extend with three catalog-injection
+    cases: (a) catalog content appears in `_build_new_idea_prompt`
+    output, (b) catalog content appears in
+    `_build_user_idea_prompt` output, (c) catalog content does NOT
+    appear in `_build_improvement_prompt` output (regression guard
+    that improvement stays focused). One additional case for the
+    fail-soft branch: missing `catalog_path` produces a WARNING log
+    + empty string, prompts still build successfully.
+  - `tests/test_scripts_auto_research_candidates.py` — full mocked
+    Binance + Claude CLI coverage. Cases: (a) end-to-end happy path
+    with N=2 picks, both reaching `AWAITING_APPROVAL`, run snapshot
+    written + stdout summary correct; (b) `--dry-run` generates
+    strategy files but skips `_run_cycle`; (c) one pick raises,
+    other completes — batch does NOT abort, errored pick recorded
+    in snapshot; (d) priority-matrix file missing — script exits
+    with a clear error message (no half-baked run); (e) candidate
+    state file written under `data/feedback/state/` for the
+    happy-path candidate (ties the loop's persistence into the
+    test); (f) audit log appended to `data/audit/` (one event per
+    pick at minimum).
+
+**Verification Criteria**:
+- All 4 currently-uncommitted files (`scripts/auto_research_candidates.py`,
+  `tests/test_scripts_auto_research_candidates.py`, `src/ai/improver.py`,
+  `tests/test_ai_improver.py`) are committed alongside any new files
+  this sub-task adds.
+- Test count delta: ~+5 to +8 net new tests (1170 → ~1175–1178).
+- `scripts/lint.sh` passes (ruff + mypy clean across 53 source files,
+  unchanged file count expected — `scripts/` is not in the mypy scope
+  so the new script's typing is best-effort).
+- One operator-driven Fly run produces ≥1 `CandidateRecord` under
+  `/data/feedback/state/` and ≥1 audit entry under `/data/audit/`.
+  **This is an operator action, not a code task** — flagged here as a
+  follow-up to be checked off after the sub-task ships, not a
+  blocker for `/dev-crypto` completion.
+- No ADR — see `src/ai/improver.py` and `src/feedback/loop.py` for
+  the canonical loop semantics. 17.1 wires existing components into
+  an operator script and extends one prompt; no new architectural
+  seam.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1493,6 +1672,7 @@ extending), NFR-001 (operational reliability).
 | Phase 14 | FR-015, FR-022, NFR-001 (production reliability — chasulang per-strategy Claude CLI timeout override + retry observability, SMTP_SSL alternative for `EmailNotifier`; no new FR/NFR introduced) |
 | Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
 | Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
+| Phase 17 | FR-023, FR-026, FR-034, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL`; no new FR/NFR introduced) |
 
 ---
 
