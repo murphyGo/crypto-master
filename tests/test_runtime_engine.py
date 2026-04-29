@@ -694,6 +694,76 @@ async def test_portfolio_snapshot_skipped_when_tracker_absent(
     mocks["trader"].get_balances.assert_not_called()
 
 
+async def test_close_writes_performance_record_for_dashboard(
+    tmp_path: Path,
+) -> None:
+    """When a position closes, a PerformanceRecord lands in data/performance/.
+
+    The Analysis Techniques dashboard reads from this directory to
+    aggregate per-technique win rate / total P&L; without this wiring
+    the page shows zeros for every metric.
+    """
+    from src.proposal.interaction import ProposalRecord
+    from src.strategy.performance import (
+        PerformanceTracker,
+        TradeOutcome,
+    )
+
+    tracker = PerformanceTracker(data_dir=tmp_path / "performance")
+
+    # Open trade primed with TP-hit prices so monitor closes it.
+    open_trade = make_trade(
+        trade_id="t-close-1",
+        entry="50000",
+        exit_price="50000",
+        pnl_percent=2.0,
+        status="open",
+    )
+
+    pre_proposal = make_proposal(proposal_id="p-close-1", composite=1.6)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[open_trade],
+        ticker_price=Decimal("51500"),  # at the TP
+    )
+    # Inject the same tracker the proposal engine should be using for
+    # the dashboard read path.
+    mocks["proposal_engine"].performance_tracker = tracker
+
+    mocks["history"].save(
+        ProposalRecord(
+            proposal=pre_proposal,
+            decision=ProposalDecision.ACCEPTED,
+            trade_id="t-close-1",
+        )
+    )
+
+    # Close path: stub so check_exit_conditions reports TP, close returns
+    # a populated TradeHistory.
+    closed_trade = make_trade(
+        trade_id="t-close-1",
+        entry="50000",
+        exit_price="51500",
+        pnl_percent=3.0,
+        status="closed",
+    )
+    closed_trade.close_reason = "take_profit"
+    closed_trade.exit_time = datetime(2026, 4, 27, 13, 0, 0)
+    mocks["trader"].check_exit_conditions.return_value = (True, "take_profit")
+    mocks["trader"].close_position.return_value = closed_trade
+
+    await engine.run_cycle()
+
+    records = tracker.load_records(pre_proposal.technique_name)
+    assert len(records) == 1
+    rec = records[0]
+    assert rec.trade_id == "t-close-1"
+    assert rec.outcome == TradeOutcome.WIN
+    assert rec.pnl_percent == 3.0
+    assert rec.symbol == pre_proposal.symbol
+    assert rec.signal == pre_proposal.signal
+
+
 async def test_portfolio_snapshot_balance_failure_does_not_break_cycle(
     tmp_path: Path,
 ) -> None:

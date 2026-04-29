@@ -51,10 +51,15 @@ from src.proposal.interaction import (
     ProposalDecisionInput,
     ProposalHistory,
     ProposalInteraction,
+    ProposalRecord,
 )
 from src.proposal.notification import NotificationDispatcher
 from src.runtime.activity_log import ActivityEventType, ActivityLog
-from src.strategy.performance import TradeHistory
+from src.strategy.performance import (
+    PerformanceRecord,
+    TradeHistory,
+    TradeOutcome,
+)
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -595,7 +600,10 @@ class TradingEngine:
         cycle_id: str,
     ) -> None:
         """Log a closed trade and write realized P&L back to its proposal."""
-        proposal_id = self._find_proposal_for_trade(trade.id)
+        proposal_record = self._find_proposal_record_for_trade(trade.id)
+        proposal_id = (
+            proposal_record.proposal.proposal_id if proposal_record else None
+        )
         pnl_percent = trade.pnl_percent if trade.pnl_percent is not None else 0.0
         if proposal_id is not None:
             self.proposal_history.attach_outcome(
@@ -603,6 +611,9 @@ class TradingEngine:
                 trade_id=trade.id,
                 pnl_percent=pnl_percent,
             )
+
+        if proposal_record is not None:
+            self._save_performance_record(proposal_record, trade, reason)
 
         self.activity_log.append(
             ActivityEventType.POSITION_CLOSED,
@@ -621,8 +632,76 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
 
-    def _find_proposal_for_trade(self, trade_id: str) -> str | None:
-        """Look up which ProposalRecord owns a given trade id.
+    def _save_performance_record(
+        self,
+        proposal_record: ProposalRecord,
+        trade: TradeHistory,
+        reason: str,
+    ) -> None:
+        """Write a closed-trade PerformanceRecord so the dashboard sees it.
+
+        The proposal carries the technique/timeframe/signal/prices that
+        were ranked at proposal time; the trade carries the realised
+        outcome. Combine them into a single row under
+        ``data/performance/<technique>/`` so the Analysis Techniques
+        dashboard's per-technique aggregates (win rate, avg P&L, total
+        P&L) actually move.
+
+        Failures are logged and swallowed — a missed performance row
+        is recoverable; a crashed cycle is not.
+        """
+        tracker = getattr(self.proposal_engine, "performance_tracker", None)
+        if tracker is None:
+            return
+
+        proposal = proposal_record.proposal
+        outcome = self._classify_close_reason(reason)
+        try:
+            record = PerformanceRecord(
+                technique_name=proposal.technique_name,
+                technique_version=proposal.technique_version,
+                symbol=proposal.symbol,
+                timeframe=proposal.timeframe,
+                signal=proposal.signal,
+                entry_price=proposal.entry_price,
+                stop_loss=proposal.stop_loss,
+                take_profit=proposal.take_profit,
+                confidence=proposal.score.confidence,
+                analysis_timestamp=proposal.created_at,
+                outcome=outcome,
+                exit_price=trade.exit_price,
+                exit_timestamp=trade.exit_time,
+                pnl_percent=trade.pnl_percent,
+                quantity=trade.entry_quantity,
+                leverage=trade.leverage,
+                fees=trade.fees,
+                actual_entry_price=trade.entry_price,
+                actual_exit_price=trade.exit_price,
+                mode=trade.mode,
+                trade_id=trade.id,
+                profile_name=proposal.profile_name,
+            )
+            tracker.save_record(record)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to persist performance record for trade %s: %s",
+                trade.id,
+                e,
+            )
+
+    @staticmethod
+    def _classify_close_reason(reason: str) -> TradeOutcome:
+        """Map an engine close reason onto a ``TradeOutcome`` enum value."""
+        if reason == "take_profit":
+            return TradeOutcome.WIN
+        if reason == "stop_loss":
+            return TradeOutcome.LOSS
+        return TradeOutcome.BREAKEVEN
+
+    def _find_proposal_record_for_trade(
+        self, trade_id: str
+    ) -> ProposalRecord | None:
+        """Look up the full ``ProposalRecord`` that owns a given trade id.
 
         ``ProposalHistory`` stores ``trade_id`` on every record; we
         scan ``list_all`` and return the first match. With realistic
@@ -631,7 +710,7 @@ class TradingEngine:
         """
         for record in self.proposal_history.list_all():
             if record.trade_id == trade_id:
-                return record.proposal.proposal_id
+                return record
         return None
 
     async def _auto_decide(
