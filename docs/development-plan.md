@@ -66,11 +66,15 @@
 | Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker | ✅ Complete | 17 |
 | Code-Type Steering for Deterministic Catalog Picks | ❌ Missing | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
+| Trade-Quality Diagnostic | ❌ Missing | 18 |
 | Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
 | Sub-Account Engine Integration | ❌ Missing | 19 |
 | Multi-Paper-Account Support + YAML Config + Dashboard | ❌ Missing | 19 |
 | Multi-Credential Live Mode | ❌ Missing | 19 |
 | Strategy-Combination A/B Backtest Harness | ❌ Missing | 19 |
+| PnL Convention Single Source — Leverage No Double-Apply | ✅ Complete | 20 |
+| Backtest / Portfolio Leverage Math Alignment | ❌ Missing | 20 |
+| Phase 5.4+ Baseline Re-computation | ❌ Missing | 20 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1974,6 +1978,77 @@ boundary; same code path runs live).
   emitted; (d) `exchange.get_ticker` raises → fill proceeds as
   before, WARN logged with `stale_quote_check_failed`.
 
+### 18.2 Trade-Quality Diagnostic
+
+**Background**: The same 2026-04-30 production review of
+`/data/trades/paper/trades.json` that surfaced Phase 18.1 also
+surfaced the broader trade-quality picture: 1W/8L, -78.50 USDT,
+EV -8.73/trade, 11% win rate across `simple_trend_analysis` and
+`bollinger_band_reversion`. Phase 18.1 closed the smoking-gun
+stale-quote fill class but does not explain why the surviving
+fills are still net-negative. Before any code change to SL
+distance, R:R, composite-gate threshold, or strategy-specific
+gating, the team needs a measurement pass on the closed-trade
+ledger to attribute losses to specific causes — slippage
+calibration, SL/RR appropriateness, accepted-vs-rejected EV
+gap, per-strategy concentration. Editing engine knobs without
+this attribution risks chasing the wrong defect; the
+methodology is locked in `docs/research/trade-quality-design-
+2026-05-01.md` (this cycle's design pass) so the analysis
+itself can run next cycle as a pure read-only research task.
+
+**Related Requirements**: FR-005 (Analysis Technique Performance
+Tracking — extending the per-strategy live-EV view from the
+performance store into a cross-strategy diagnostic), FR-021
+(Technique Performance Analysis — extending the existing report
+generation contract into a one-off forensic), FR-025
+(Backtesting Execution — §4.5 hypothetical EV walk for rejected
+proposals reuses the backtest fill semantics), NFR-001 (Python
+3.10+ tooling for the analysis script — extending the existing
+contract; no new FR/NFR introduced).
+
+- [ ] Pull `/data/trades/paper/trades.json` and `/data/proposals/
+  *.json` from the Fly volume per `docs/research/trade-quality-
+  design-2026-05-01.md` §2.1 and §2.2; cross-link every closed
+  trade to its `ProposalRecord` via `proposal_id` and surface
+  any orphans.
+- [ ] Compute the §3 per-trade table for all 9 closed trades
+  (columns: `trade_id`, `symbol`, `strategy`, `side`,
+  `latency_seconds`, `realised_drift_bps`, `sl_distance_bps`,
+  `tp_distance_bps`, `rr_ratio`, `exit_reason`, `pnl_realised`,
+  `r_multiple`, `regime_tag`) using the formulae in §5 verbatim.
+- [ ] Emit the §4.1 per-strategy EV table with `live_ev_usdt` vs
+  `baseline_ev_usdt` delta against `data/backtest/baselines/
+  <strategy>/summary.json` (Phase 10.3 numbers); annotate every
+  aggregate with `(n=N)` and the §9 sample-size caveats.
+- [ ] Emit §4.2 per-regime, §4.3 per-exit-reason, §4.4 latency-
+  vs-adverse-drift scatter (PNG to `docs/research/figures/
+  2026-05-01-latency-drift.png` linked inline, or ASCII), §4.5
+  rejected-vs-accepted EV gap with hypothetical-outcome walk,
+  and §4.6 50-bps recalibration empirical drift CDF
+  (augmenting the truncated post-18.1 tail with rejected-by-
+  slippage drift values per §4.6 caveat).
+- [ ] Land the analysis as `docs/research/trade-quality-2026-05-
+  01.md` following the §6 output skeleton; include the §6.1
+  ETH `5d51cba3` worked example as the first row of §1 per-
+  trade table.
+- [ ] Apply the §7 decision rules and write a single explicit
+  recommendation in §9 of the output doc — one of: §7.1
+  (tighten tolerance → Phase 18.3 trigger), §7.2 (composite-
+  gate inversion → top-priority escalation), §7.3 (strategy-
+  specific gate / removal), §7.4 (no clear signal — return to
+  dev plan); cite the numerical trigger threshold met.
+- [ ] Update `docs/baselines.md` with a cross-reference pointer
+  to the new analysis doc for each strategy touched (per the
+  design's §10 cross-check item); if the regime-tertile
+  convention from §3.1 is novel, document it in `docs/baselines.
+  md` and add a one-line `docs/TECH-DEBT.md` entry for any
+  newly-surfaced gap surfaced during the analysis.
+- [ ] Write unit tests — N/A for a research-only sub-task; no
+  `src/` or `tests/` changes are produced. The §10 cross-check
+  list in the design doc is the verification gate in lieu of
+  unit tests; the analyst ticks every box before publishing.
+
 ---
 
 ## Phase 19: Sub-Account / Capital Segmentation
@@ -2352,7 +2427,7 @@ account).
 | Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
 | Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
 | Phase 17 | FR-022, FR-023, FR-025, FR-026, FR-034, NFR-001, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL` (17.1); runtime JSON contract + backtest circuit breaker resolving DEBT-019's 9-hour hang on prompt-type generations (17.2); code-type steering for deterministic catalog picks (17.3); no new FR/NFR introduced) |
-| Phase 18 | FR-008, FR-013, NFR-012 (live-trading quality — stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; extending the fill boundary, no new FR/NFR introduced) |
+| Phase 18 | FR-005, FR-008, FR-013, FR-021, FR-025, NFR-001, NFR-012 (live-trading quality — 18.1 stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; 18.2 trade-quality diagnostic measurement pass over the closed-trade ledger to attribute losses before any further engine-knob edit; extending the fill boundary + performance-tracking + analysis-report contracts, no new FR/NFR introduced) |
 | Phase 19 | FR-036, FR-037, FR-038, FR-005, FR-009, FR-013, FR-025, FR-027, FR-034, NFR-003, NFR-007, NFR-008, NFR-011, NFR-012 (sub-account / capital segmentation — N independent capital pools per mode, multi-credential live, strategy-combination A/B backtests; introduces FR-036 / FR-037 / FR-038) |
 
 ---
@@ -2450,3 +2525,6 @@ account).
 | 17.3 | 2026-04-30 | Phase 17.3 added — Code-Type Steering for Deterministic Catalog Picks (FR-023, FR-025, NFR-001; resolves DEBT-019 Option B as the long-term cleanup behind 17.2's unblock). Adds an explicit steering flag on `Pick` (recommended over fragile keyword heuristics) so deterministic catalog picks (Donchian, Supertrend, Z-score, Larry Williams, NR7, Connors RSI(2), BB %B+RSI, Golden Cross) generate as Python `BaseStrategy` subclasses mirroring `strategies/{rsi,bollinger_bands,ma_crossover}.py`, eliminating the per-bar Claude call from the hot path entirely. Phase 17.1 catalog injection retained on the new branch so Claude still sees the taxonomy when picking implementation choices. Acceptance: `--picks 5` produces 5 loadable Python strategy files that run end-to-end through `Backtester` + `RobustnessGate` with zero per-bar Claude calls. | product-planner |
 | 17.2 | 2026-04-30 | Phase 17.2 complete - Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker (FR-022, FR-023, FR-025, NFR-001; DEBT-019 Resolved, DEBT-020 Resolved same-cycle, DEBT-021/022/023 Added). Items 1–6 + 8 of the 8-item spec ticked; item 7 (operator acceptance run against the surviving `donchian_turtle_system_2_20260430_002157.md` artefact) deliberately left `[ ]` as the post-cycle operator action. **Implementation (senior-developer):** `src/ai/improver.py::_new_idea_output_contract()` injection in `_build_new_idea_prompt` only (user-idea + improvement prompts deliberately untouched per Phase 17.1 Issue-4 deviation, pinned by 2 regression-guard tests); `src/backtest/engine.py` gains `BacktestAbortedError(reason, candle_index)` + per-bar `asyncio.wait_for` + consecutive-failure counter on both `Backtester.run` (single-TF) and `_run_multi_timeframe`; `BacktestAbortedError` exported from `src/backtest/__init__.py` and propagates to `LoopStatus.ERRORED` via the existing `FeedbackLoop._run_cycle` exception handler. `BacktestConfig` gains `per_bar_timeout: float = 600.0` (post-DEBT-020 bump from initial 60.0 — see below) and `max_parse_failures: int = 5`; `Settings.engine_backtest_per_bar_timeout` + `engine_backtest_max_parse_failures` mirror the defaults with env overrides. **Implementation refinement:** `StrategyValidationError` (a `StrategyError` subclass meaning "data not ready") caught separately and skipped without incrementing the breaker counter, so `rsi_universal`'s `period * 3 = 42` warmup floor against the engine's default `warmup_candles = 20` doesn't trip the breaker — surfaced as DEBT-021 (Medium) for the long-term `BaseStrategy.minimum_candles` contract fix. Genuine contract failures (`ClaudeParseError`, `StrategyExecutionError`, `StrategyLoadError`, `asyncio.TimeoutError`) still count. **Same-cycle DEBT-020 fix:** `BacktestConfig.per_bar_timeout` default raised `60.0 → 600.0` (chasulang's actual 480s `claude_timeout_seconds` per-`analyze()` ceiling + 120s headroom) — caught by quant-trader-expert review before any chasulang backtest ran; `Settings.engine_backtest_per_bar_timeout` + `.env.example` operator prose + `TestBacktestEngineSettings::test_per_bar_timeout_default_and_env` parity test all updated to match. **While-in-there:** `scripts/auto_research_candidates.py` gains `connect()` / `disconnect()` lifecycle around `BinanceExchange` with `owns_exchange` ownership flag and `try/finally`; this fix landed during the original DEBT-019 hung-Phase-B debugging session when the script first errored "Not connected. Call connect() first." — behaviorally correct, well-tested (12/12 in `tests/test_scripts_auto_research_candidates.py` still pass), recorded in the session log without spawning a separate DEBT entry. **Tests:** `tests/test_ai_improver.py` gains 3 new `TestNewIdeaOutputContract` cases; `tests/test_backtest_engine.py` gains 3 new `TestPerBarCircuitBreaker` cases; `tests/test_config.py` gains 5 new `TestBacktestEngineSettings` cases. 1198 → 1209 (+11 net new — same after DEBT-020 fix). ruff/mypy clean. **QA verdict:** 🟡 Ship with note (qa-reviewer). **Quant verdict:** Ship with follow-ups (3 deferred TECH-DEBT items: DEBT-021 Medium / DEBT-022 Low / DEBT-023 Low — none blocking, all surfaced for future-cycle pickup). No ADR — extends an existing prompt method + adds a circuit-breaker block inside an existing seam (`Backtester.run`); no new architectural component. Phase 17.3 stays `❌ Missing`; Phase 17 is NOT sealed (cross-check deferred until 17.3 lands). | docs-auditor |
 | erratum | 2026-04-30 | Phase 17.2 spec at `docs/development-plan.md:1750–1754` rationale ("`240s` under Phase 14.1's strategy override is multi-bar amortised") is **stale** and was the source of the DEBT-020 regression vector. Actual values: `strategies/chasulang_ict_smc.md:10` sets `claude_timeout_seconds: 480` (not 240); `src/strategy/loader.py:226–232` applies the override **per `analyze()` call**, NOT amortised across bars (every per-bar invocation gets the full 480s ceiling). The 60s default that flowed from this rationale was 8× smaller than chasulang's actual per-bar leash. Resolved at the code level by DEBT-020's same-cycle 60→600 bump; the spec text remains as written because senior-developer's scope rule is "planner owns spec text". Planner correction needed: rewrite lines 1750–1754 to reference 480s + per-call (not amortised) + the 600s post-fix default. | docs-auditor |
+| 20.1 | 2026-05-01 | Phase 20.1 sealed — PnL Convention Single Source — Leverage No Double-Apply (FR-006, FR-025, NFR-001; DEBT-024 Resolved). New `src/utils/__init__.py` + `src/utils/trading_math.py` with `pnl_for_trade(entry, exit, qty, side) -> Decimal` helper (leverage NOT a parameter — qty already reflects the levered notional from `calculate_position_size`; making leverage a parameter would invite a future caller to reintroduce the bug). Routed every PnL site through the helper: `src/backtest/engine.py::_close_trade` (~lines 948-960) dropped `* leverage`, `src/trading/portfolio.py::calculate_unrealized_pnl` dropped `* leverage`, `src/trading/paper.py::close_position` (already correct shape) routed for symmetry. **Scope extension absorbed during quant-trader-expert review** (originally scheduled for Phase 20.2's territory): `src/strategy/performance.py::TradeHistory.calculate_pnl` (lines ~797-839) — both branches dropped `* self.leverage` from `pnl`, and `pnl_pct` reformulated as leverage-neutral (`(exit - entry) / entry` for longs, sign-inverted for shorts) since the persistence-layer was the highest-risk surface 20.2 was going to touch. `BacktestTrade.pnl` field docstring tightened by lead at handoff (lines ~174-176) to name the new convention. New tests: `tests/test_utils_trading_math.py` (11 module-level cases pinning both signs + edges); `tests/test_backtest_engine.py::TestPnLConventionAlignment` (4 cases — long/short numeric equality between backtester and paper-trader on fixed (entry, exit, qty, leverage) fixture + 2 originals); `tests/test_strategy_performance.py::TestTradeHistoryTracker::test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 persistence-layer parity cases). Cascaded test assertion updates: `tests/test_paper_trading.py` (8 across 7 methods), `tests/test_portfolio.py` (5 methods), `tests/test_strategy_performance.py` (3 `calculate_pnl` methods) — purely mechanical fixture corrections to the new correct numbers. 1226 total passing; ruff/mypy clean. **Note on DEBT-024 line-number staleness**: the original DEBT-024 description pointed at `src/backtest/engine.py:783-794` for the leverage site, but by the time the fix shipped the actual site had moved to `_close_trade` ~lines 948-960; recorded in the Resolved entry's note for future audit-trail readers. QA verdict: 🟢 Ship. Quant verdict: 🟢 Ship. No new debt. No ADR — extracts a math helper into a single-source-of-truth module; public contracts of `Backtester` / `Portfolio` / `PaperTrader` / `TradeHistory` unchanged (same signatures, same return types, same persistence shapes — only the numeric output shifts to the correct convention). 6/6 sub-task checkboxes verified ticked in dev's working-tree diff. Session log: `docs/sessions/2026-05-01-phase-20.1-pnl-helper-unification.md`. | docs-auditor |
+| 20.2 | 2026-05-01 | Phase 20.2 scope reconciliation — Phase 20.1's scope extension into `src/strategy/performance.py::TradeHistory.calculate_pnl` (both branches + `pnl_pct` leverage-neutral reformulation) absorbed the highest-risk persistence-layer surface originally scoped for 20.2. Phase 20.2 is **NOT redundant**; remaining work (still `[ ]`): (a) `grep -rn "leverage" src/backtest/ src/trading/ src/strategy/` audit — confirm no other `* leverage` site exists outside the four already-routed callers (likely zero hits, but verification is the point); (b) field-docstring sweep beyond 20.1's tightening — `Portfolio.unrealized_pnl` field + `TradeHistory` `pnl` / `pnl_pct` field docstrings naming the leverage-neutral convention so future contributors don't reintroduce the bug; (c) `src/dashboard/pages/trading.py` Current-Equity card prose verification (no caption rewording expected; smoke check). Phase 20.3 baseline re-computation remains `[ ]` and is the closure for DEBT-029 (Medium, downstream of DEBT-024). **Planner action surfaced**: a linter cycle removed the Phase 19 / 20 / 21 / 22 / 23 / 24 sub-task definition blocks from this file (Phase 20.1 / 20.2 / 20.3 sub-task bullets, Phase 21 timezone hardening, Phase 22 atomic-JSON, Phase 23 AIDLC backfill, Phase 24 robustness polish — all the "what does each sub-task ship" prose). The Current Status table rows for these phases survived the prune and the change-history rows (including the original Phase 20 / 21 / 22 / 23 / 24 plan-add rows) remain as the historical record, but the spec text is gone. Reinstating the spec text is planner territory; flagged here as the next planner cycle's hygiene item before the next implementation cycle picks up Phase 20.2 / 20.3 or Phase 19. | docs-auditor |
+| 18.2 | 2026-05-01 | Phase 18.2 spec added — Trade-Quality Diagnostic (FR-005, FR-021, FR-025, NFR-001; no new FR/NFR). Measurement-before-code-change pass over the 2026-04-30 closed-trade ledger (1W/8L, EV -8.73/trade, 11% WR) to attribute losses across slippage calibration, SL/RR appropriateness, accepted-vs-rejected EV gap, and per-strategy concentration before any further engine-knob edit; methodology locked in `docs/research/trade-quality-design-2026-05-01.md`, output lands next cycle as `docs/research/trade-quality-2026-05-01.md`. | product-planner |
