@@ -730,8 +730,14 @@ class TradeHistory(BaseModel):
         exit_order_id: Exchange order ID for exit.
         leverage: Leverage multiplier used.
         fees: Total trading fees incurred.
-        pnl: Absolute profit/loss amount.
-        pnl_percent: Profit/loss as percentage.
+        pnl: Absolute profit/loss amount, net of fees. Computed via
+            :func:`src.utils.trading_math.pnl_for_trade` against the
+            already-levered ``entry_quantity``; ``leverage`` is *not*
+            re-multiplied at PnL time (DEBT-024 / Phase 20.1).
+        pnl_percent: Profit/loss as percentage of entry notional —
+            i.e. the unleveraged price-move return. Leverage does
+            not scale a price move and is not multiplied in here
+            either (DEBT-024 / Phase 20.1).
         status: Trade status (open/closed/cancelled).
         close_reason: Reason for closing (take_profit/stop_loss/manual).
     """

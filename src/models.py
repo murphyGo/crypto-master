@@ -155,6 +155,12 @@ class Position(BaseModel):
     def calculate_pnl(self, current_price: Decimal) -> Decimal:
         """Calculate unrealized PnL at a given price.
 
+        Matches the canonical convention pinned by
+        :func:`src.utils.trading_math.pnl_for_trade`: ``quantity``
+        already reflects the levered notional from
+        :meth:`TradingStrategy.calculate_position_size`, so leverage
+        is *not* re-multiplied here (DEBT-024 / Phase 20.1).
+
         Args:
             current_price: Current market price.
 

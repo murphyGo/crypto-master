@@ -61,7 +61,11 @@ class AssetSnapshot(BaseModel):
         realized_pnl: Cumulative realized P&L up to ``timestamp``
             (sum of closed-trade P&L in this mode).
         unrealized_pnl: Unrealized P&L of open positions at the
-            snapshot's reference prices.
+            snapshot's reference prices. Computed against the
+            already-levered position notional via
+            :func:`src.utils.trading_math.pnl_for_trade`; do not
+            re-multiply by ``leverage`` downstream (DEBT-024 /
+            Phase 20.1).
     """
 
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -118,6 +122,10 @@ class Portfolio(BaseModel):
         balances: Currency -> total amount held.
         realized_pnl: Cumulative realized P&L from closed trades.
         unrealized_pnl: P&L of open positions at current prices.
+            Computed against the already-levered position notional
+            via :func:`src.utils.trading_math.pnl_for_trade`; do not
+            re-multiply by ``leverage`` downstream (DEBT-024 /
+            Phase 20.1).
         open_positions_count: Number of open trades in this mode.
         closed_trades_count: Number of closed trades in this mode.
     """
@@ -355,9 +363,7 @@ class PortfolioTracker:
             with open(snapshots_path, encoding="utf-8") as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
-            logger.error(
-                f"Failed to load snapshots from {snapshots_path}: {e}"
-            )
+            logger.error(f"Failed to load snapshots from {snapshots_path}: {e}")
             return []
 
         snapshots = [AssetSnapshot(**item) for item in data]
@@ -372,9 +378,7 @@ class PortfolioTracker:
 
         return snapshots
 
-    def _save_snapshots(
-        self, mode: Mode, snapshots: list[AssetSnapshot]
-    ) -> None:
+    def _save_snapshots(self, mode: Mode, snapshots: list[AssetSnapshot]) -> None:
         """Write snapshots to the mode's storage file."""
         snapshots_path = self._get_snapshots_path(mode)
         data = [self._snapshot_to_dict(s) for s in snapshots]
