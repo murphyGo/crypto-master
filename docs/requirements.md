@@ -78,6 +78,14 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | FR-034 | Robustness Validation Gate | Before a strategy can be promoted from `experimental/` to `active`, it must pass a robustness gate consisting of: out-of-sample (OOS) split, walk-forward windows, regime split, and (when parameter grid available) parameter sensitivity. SKIPPED gates are surfaced; FAILED gates block promotion. | High |
 | FR-035 | Failure-Mode Improvement | Improvement prompts must require a structural failure analysis (root-cause enumeration) before proposing changes, and cap the number of new conditions added per revision to discourage overfitting. | High |
 
+### 2.5b Sub-Account / Capital Segmentation
+
+| ID | Requirement | Description | Priority |
+|----|-------------|-------------|----------|
+| FR-036 | Sub-Account Capital Isolation | The system must support N independent capital pools ("sub-accounts") within a single mode (paper or live). Each sub-account owns its own balance, open positions, trade history, equity curve, and per-symbol cap. A drawdown in one sub-account must not reduce the available balance of another. A single `default` sub-account is always materialised so legacy single-seed deployments work unchanged. | High |
+| FR-037 | Multi-Exchange-Account Support | The system must support multiple distinct exchange credential sets (e.g. `binance_main`, `binance_alt`, `bybit_main`) and bind each sub-account to one credential set. In live mode, each sub-account's `LiveTrader` operates exclusively against its bound credentials. Missing credentials for an enabled live sub-account is a startup-time failure, not a silent degrade. | High |
+| FR-038 | Strategy-Combination A/B Backtesting | The backtester must be able to run multiple sub-accounts in lockstep over the same OHLCV stream — each sub-account holds a different strategy whitelist or risk-override profile — and emit a comparative report (per-sub-account equity curve, MDD, Sharpe, hit rate). This makes "Strategy Set A vs. Set B with controlled capital" a first-class experiment, not a manual orchestration. | Medium |
+
 ### 2.6 UI Dashboard
 
 | ID | Requirement | Description | Priority |
@@ -166,6 +174,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | Altcoin Trading User Proposal | FR-012, FR-013 |
 | Exchange Support (Binance, Bybit, Tapbit) | FR-016, FR-017, FR-018, FR-019 |
 | Feedback Loop (Technique Improvement, Backtesting) | FR-021 ~ FR-027 |
+| Sub-Account / Capital Segmentation | FR-036, FR-037, FR-038 |
 | Claude AI Agent | NFR-002 |
 | UI Dashboard | FR-028 ~ FR-032, NFR-003 |
 | Credentials (.env) | NFR-004, NFR-011 |
@@ -177,3 +186,4 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | 2026-04-05 | Initial creation | Claude |
+| 1.1 | 2026-04-30 | Added FR-036 / FR-037 / FR-038 — Sub-Account / Capital Segmentation requirements (drives Phase 19) | Claude |

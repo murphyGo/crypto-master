@@ -64,6 +64,11 @@
 | chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
 | Auto-Research Operator Workflow + Catalog-Aware Improver | ✅ Complete | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
+| Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
+| Sub-Account Engine Integration | ❌ Missing | 19 |
+| Multi-Paper-Account Support + YAML Config + Dashboard | ❌ Missing | 19 |
+| Multi-Credential Live Mode | ❌ Missing | 19 |
+| Strategy-Combination A/B Backtest Harness | ❌ Missing | 19 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1759,6 +1764,361 @@ boundary; same code path runs live).
 
 ---
 
+## Phase 19: Sub-Account / Capital Segmentation
+
+**Goal**: Decompose the single-`Trader` / single-seed runtime into N
+independent capital pools ("sub-accounts"). Today every strategy
+shares one USDT balance — `src/main.py::build_trader` constructs one
+`PaperTrader(initial_balance={"USDT": Decimal(paper_initial_balance)})`
+and `TradingEngine` holds one `self.trader`, so a drawdown in
+`bollinger_band_reversion` directly starves `chasulang_ict_smc` of
+capital. The same constraint blocks four operationally important
+scenarios: (a) per-strategy seed isolation, (b) running multiple
+exchange-credential sets in parallel (e.g. `binance_main` for futures
+and `binance_alt` for spot altcoins), (c) controlled-capital A/B
+testing of strategy combinations against the same OHLCV stream, and
+(d) per-bucket risk overrides ("1% risk on the experimental bucket,
+0.3% on main"). Phase 19 is split into five sub-tasks staged from
+foundation outward — every step preserves a working `default`
+sub-account materialised from existing `Settings.paper_initial_balance`
+so legacy single-seed deployments operate unchanged at every commit
+on the way through. See `DESIGN.md` §9 for the full architecture.
+
+### 19.1 Sub-Account Foundation (Entity + Registry + Default Migration)
+
+**Background**: The architectural seam this phase introduces only
+becomes valuable once engine, persistence, and dashboard wire through
+it (19.2 / 19.3). Landing it as a free-standing first sub-task
+without consumers keeps the diff reviewable and lets a single test
+suite pin the legacy-single-seed compatibility invariant before any
+behaviour-touching code follows. The foundation is: a `SubAccount`
+Pydantic model, a `SubAccountRegistry` that today holds exactly one
+synthesised `default` entry derived from `Settings`, and a one-shot
+on-disk migration that renames `data/{trades,portfolio,performance,
+proposals}/{mode}/...` into `.../default/...` guarded by a marker file
+so the rename is idempotent across restarts. No `Trader`, no engine,
+no dashboard touched in 19.1 — the registry hands out the same
+`PaperTrader` instance `build_trader` already builds today, just
+addressed by `id="default"`.
+
+**Related Requirements**: FR-036 (Sub-Account Capital Isolation —
+introducing the entity that will eventually own a balance pool;
+single-account materialisation is the back-compat floor).
+
+- [ ] `src/trading/sub_account.py` — new module. `SubAccount` Pydantic
+  model with fields per `DESIGN.md §9.2` (`id` / `name` / `mode` /
+  `exchange_ref` / `initial_balance` / `strategy_filter` /
+  `risk_overrides` / `enabled`); `RiskOverrides` sub-model with
+  optional `risk_percent` / `max_open_positions_total` /
+  `max_open_positions_per_symbol` / `leverage_cap`. Validators:
+  `id` matches `^[a-z][a-z0-9_]*$` (filesystem-safe), `enabled and
+  mode == "live"` requires non-null `exchange_ref`,
+  `initial_balance` keys are upper-case currency codes. Frozen model
+  (`model_config = ConfigDict(frozen=True)`) so registry consumers
+  can't mutate behind the registry's back.
+- [ ] `src/trading/sub_account_registry.py` — `SubAccountRegistry`
+  class. `__init__` accepts `settings: Settings`, `trader: Trader`,
+  `config_path: Path | None = None` (default
+  `Path("config/sub_accounts.yaml")`). When config file is absent
+  (the 19.1 default — YAML support is 19.3 territory), materialises
+  one `SubAccount(id="default", name="Default Account",
+  mode=settings.trading_mode, exchange_ref="default", initial_balance=
+  {"USDT": Decimal(str(settings.paper_initial_balance))},
+  strategy_filter=None, risk_overrides=RiskOverrides(),
+  enabled=True)`. Methods: `list_active()`, `get(id)` (raises
+  `SubAccountNotFoundError`), `get_trader(id)` (returns the single
+  shared `Trader` in 19.1 — registry stores the wiring seam now,
+  19.2 lights it up), `filter_strategies(id, available)` (returns
+  `available` unchanged when `strategy_filter is None`).
+- [ ] `src/trading/sub_account_migration.py` — `migrate_legacy_paths(
+  data_dir: Path) -> dict[str, int]` helper. Idempotent rename of
+  `data/trades/{mode}/trades.json` → `data/trades/{mode}/default/
+  trades.json` across `mode in {paper, live, backtest}`; same shape
+  for `portfolio/{mode}/snapshots.json` and `proposals/{date}_{
+  symbol}.json` (proposals top-level → `proposals/default/...`).
+  Performance subtree (`performance/{technique}/...`) deferred to
+  19.2 because the new layout adds a sub-account level above the
+  technique. Marker file `data_dir/.subaccounts_migrated_v19_1`
+  written on first success; presence short-circuits subsequent
+  invocations. Returns count-per-component dict for operator log.
+- [ ] `src/main.py::run` — call `migrate_legacy_paths(settings.data_dir)`
+  before `build_engine` (mirrors Phase 11.4's
+  `_purge_old_proposals` placement). Log INFO with the rename count
+  only when non-zero (silent on already-migrated to avoid restart
+  noise). Build the registry after `build_trader` returns; pass to
+  `build_engine` (registry currently unused inside the engine — the
+  parameter is added now so 19.2 doesn't churn `build_engine`'s
+  signature).
+- [ ] `tests/test_trading_sub_account.py` — model field validation
+  (id regex / live-requires-exchange-ref / currency-code casing /
+  frozen behaviour); 6 tests.
+- [ ] `tests/test_trading_sub_account_registry.py` — default
+  materialisation reads `Settings.paper_initial_balance` /
+  `Settings.trading_mode`; `list_active`, `get`, `get_trader`,
+  `filter_strategies(None)` and `filter_strategies(["rsi_4h"])`
+  paths; missing-id raises `SubAccountNotFoundError`; 7 tests.
+- [ ] `tests/test_trading_sub_account_migration.py` — rename-and-
+  marker on fresh dir; idempotent re-run (marker present, no work);
+  no source files (empty mode dir, no marker written but no error);
+  partial pre-existing (one mode already migrated, others not) —
+  marker absent → finishes the rest. 5 tests.
+- [ ] `tests/test_main_dispatch.py` — extend with a smoke test
+  asserting `run` calls `migrate_legacy_paths` once and constructs
+  a registry. 2 tests.
+
+### 19.2 Sub-Account Engine Integration
+
+**Background**: 19.1 lands the seam; 19.2 is where the runtime starts
+flowing through it. Every proposal, trade, performance record, and
+portfolio snapshot grows a `sub_account_id` field; `TradingEngine`
+fans out per active sub-account; persistence paths take the
+sub-account in their key. The cross-cycle position cap (Phase 12.1)
+becomes per-sub-account by virtue of each sub-account having its own
+`Trader`; the symbol-cap text reads "symbol X cap N reached on
+sub-account default (M open)". The 19.1 registry still holds one
+`default` sub-account in 19.2 — the multi-sub-account parsing arrives
+in 19.3. So the entire 19.2 diff is observable as "one sub-account in
+flight, all paths now namespace-scoped, behaviour bytewise unchanged
+for the operator".
+
+**Related Requirements**: FR-036 (Capital Isolation — engine plumbing
+that enforces it), FR-005 (Performance Tracking — extends the
+per-technique record to per-(sub-account, technique)), NFR-007 /
+NFR-008 (Trade History / Asset-PnL History — storage layout
+extension).
+
+- [ ] `src/proposal/proposal.py` — `Proposal.sub_account_id: str`
+  field (default `"default"` for back-compat through serialised
+  histories). `ProposalRecord` mirrors.
+- [ ] `src/strategy/performance.py` — `PerformanceRecord.sub_account_id:
+  str` field; `TechniquePerformance` keyed by `(sub_account_id,
+  technique_name)`; `PerformanceTracker` constructor accepts
+  `sub_account_id` and writes under
+  `data/performance/{sub_account_id}/{technique_name}/`.
+- [ ] `src/strategy/performance.py::TradeHistory` — `sub_account_id:
+  str` field; `TradeHistoryTracker` writes under
+  `data/trades/{mode}/{sub_account_id}/trades.json`.
+- [ ] `src/trading/portfolio.py` — `PortfolioTracker` writes under
+  `data/portfolio/{mode}/{sub_account_id}/snapshots.json`; existing
+  `record_snapshot` / `get_equity_curve` accept `sub_account_id`.
+- [ ] `src/runtime/engine.py::TradingEngine` — `__init__` takes
+  `registry: SubAccountRegistry` (replaces `trader`). `cycle()`
+  iterates `registry.list_active()`; for each sub-account, calls
+  `proposal_engine.propose_*` with the registry-filtered strategies
+  and the sub-account's balance; routes results through
+  `registry.get_trader(sub.id)`. Every proposal is stamped with
+  `sub_account_id` before persistence. `_handle_proposal`'s symbol
+  cap check uses the sub-account's trader's `get_open_trades()`
+  (naturally scoped) and the sub-account's
+  `risk_overrides.max_open_positions_per_symbol or
+  config.max_open_positions_per_symbol`. Log lines + activity
+  events gain `sub_account_id` in their structured payload.
+- [ ] `src/proposal/engine.py::ProposalEngine` — accepts
+  `strategies` and `risk_percent` overrides per call (already the
+  shape, but verify `propose_bitcoin` / `propose_altcoins` thread
+  the new strategy list correctly through `_propose_all_for_symbol`
+  / `_select_all_techniques`). No structural change expected; pin
+  with new tests.
+- [ ] `src/main.py::build_engine` — wires `registry` instead of
+  `trader` directly; back-compat-preserving overload with `trader`
+  removed (single-sub-account default does what the old wiring did,
+  via the registry).
+- [ ] `src/dashboard/pages/trading.py` / `pages/engine.py` — read
+  performance + portfolio from the new
+  `{sub_account_id}` paths; default sub-account selector filter set
+  to `default` so today's view is preserved. Multi-account selector
+  shipped in 19.3.
+- [ ] One-shot performance-tree migration: extend
+  `migrate_legacy_paths` (19.1) with the `performance/{technique}`
+  → `performance/default/{technique}` rename now that the new
+  layout is live. Same marker-file pattern, but a separate marker
+  (`.performance_migrated_v19_2`) so a 19.1-completed deployment
+  picks up the 19.2 rename on the next boot.
+- [ ] Tests: `tests/test_runtime_engine.py` — sub-account fan-out
+  (one default sub-account: behaviour bytewise unchanged); cap
+  rejection log includes `sub_account_id=default`; per-sub-account
+  trader isolation (fake registry with two stub sub-accounts to
+  pin the routing seam even though 19.3 hasn't lit it up yet).
+  `tests/test_strategy_performance.py` — record routing under
+  `{sub_account_id}/{technique_name}`. `tests/test_trading_portfolio.py`
+  — snapshot routing. ~20 net new tests.
+
+### 19.3 Multi-Paper-Account Support + YAML Config + Dashboard
+
+**Background**: 19.2 leaves the registry capable of holding N
+sub-accounts, but the only producer is the single-default
+materialiser. 19.3 turns on the multi-account producer: a YAML
+config file at `config/sub_accounts.yaml` parsed into N
+`SubAccount` entries; the dashboard surfaces per-sub-account equity
+curves and a selector. Strategy whitelisting is now end-to-end
+operative — a sub-account with `strategy_filter: [chasulang_ict_smc,
+rsi_4h]` will see only those two strategies' proposals, while a
+sibling sub-account with `null` keeps the all-strategies behaviour.
+Live mode is deliberately NOT enabled for multi-account in 19.3 —
+the multi-credentials machinery comes in 19.4 and gates live
+expansion. Multiple paper sub-accounts become operative immediately;
+multiple live sub-accounts are explicitly rejected at registry-load
+time.
+
+**Related Requirements**: FR-036 (Capital Isolation — multi-paper
+becomes the first observable manifestation), FR-038 (Strategy-
+Combination — paper-mode runtime support; backtest harness in 19.5),
+FR-013 (User Accept/Reject — auto-approval threshold can now be
+overridden per sub-account), NFR-003 (Streamlit UI — dashboard
+surface).
+
+- [ ] `config/sub_accounts.yaml.example` — operator-facing template
+  with three commented examples (1) `default` paper-mode all-
+  strategies, (2) `btc_only` paper-mode `strategy_filter` =
+  [chasulang_ict_smc, rsi_4h], (3) `experimental` paper-mode with
+  tighter `risk_overrides.risk_percent: 0.5` and
+  `max_open_positions_total: 1`.
+- [ ] `src/trading/sub_account_registry.py` — when YAML present,
+  parse + validate every entry through the Pydantic model; on parse
+  failure raise `SubAccountConfigError` at startup (silent fallback
+  would leak risk). Reject `mode: live` for any sub-account whose
+  `id != "default"` with a `Phase 19.4 not landed` error message
+  pointing at the planned migration. Reject duplicate `id`s,
+  reject conflicting `exchange_ref` references that don't resolve
+  to a credential set.
+- [ ] `src/dashboard/pages/trading.py` — sub-account selector at
+  top (`st.selectbox` with `default` first; "Aggregate" option
+  sums across all active). Equity-curve panel switches data source
+  by selection. Active-positions and recent-trades tables filter
+  by selection. Aggregate path renders side-by-side comparative
+  view of equity curves (one trace per sub-account).
+- [ ] `src/dashboard/pages/engine.py` — per-sub-account cycle
+  metrics card; aggregate row sums the totals.
+- [ ] `src/proposal/notification.py` — every notifier's payload
+  gets `sub_account_id` in the headline + structured detail
+  (Slack `text`, Telegram body, email subject suffix `[<id>]`).
+  Per-sub-account routing override (e.g. `experimental` →
+  `slack_webhook_url_experimental`) deferred as a 19.x follow-up
+  (capture as DEBT-XXX in seal).
+- [ ] `scripts/auto_research_candidates.py` — `--sub-account` flag
+  defaults to `default`; resulting `CandidateRecord` carries the
+  sub-account into `loop.propose_new`.
+- [ ] Tests: parser happy path (3 sub-accounts), live-on-non-
+  default rejected, duplicate-id rejected, exchange-ref-unresolved
+  rejected, dashboard selector smoke (AppTest), notifier payload
+  carries `sub_account_id`. ~15 net new tests.
+
+### 19.4 Multi-Credential Live Mode
+
+**Background**: 19.3 explicitly walls off multi-account live. 19.4
+opens it. The blocker is credentials: each sub-account's `LiveTrader`
+has to operate against its own API key set, and the current
+`Settings.binance` / `Settings.bybit` shape only carries one of each.
+The fix is a flat enumerated dict — `Settings.exchange_credentials:
+dict[str, ExchangeConfig]` keyed by `exchange_ref` (e.g.
+`binance_main`, `binance_alt`) — populated from env vars following
+`EXCHANGE_<REF>_API_KEY` / `EXCHANGE_<REF>_API_SECRET` /
+`EXCHANGE_<REF>_TESTNET`. Existing single-creds env vars
+(`BINANCE_API_KEY`, `BYBIT_API_KEY`) are honoured as
+`exchange_credentials["binance_main"]` / `["bybit_main"]` aliases so
+existing deployments work unchanged. A live sub-account whose
+`exchange_ref` doesn't resolve is a startup failure, not a silent
+degrade — the cost of a wrong-credential live trade is not
+recoverable.
+
+**Related Requirements**: FR-037 (Multi-Exchange-Account Support —
+the central deliverable), FR-009 (Live Trading Mode — extending the
+fill boundary to multi-cred), NFR-011 (API Key Protection — every
+ref's secrets stay in env), NFR-012 (Live Trading Confirmation — the
+auto-approval threshold gate is now per-sub-account).
+
+- [ ] `src/config.py::Settings` — new `exchange_credentials:
+  dict[str, ExchangeConfig]` field. Pydantic `model_validator(mode=
+  "after")` parses env vars matching `EXCHANGE_<REF>_*` and merges
+  with legacy `binance` / `bybit` aliases under canonical keys
+  `binance_main` / `bybit_main`. Conflict (legacy + explicit
+  `EXCHANGE_BINANCE_MAIN_*`) is a validation error.
+- [ ] `src/trading/sub_account_registry.py` — `get_trader(id)` for
+  live sub-accounts constructs / caches a `LiveTrader` per
+  `exchange_ref` lazily. Missing credentials at registry-load time
+  for any `enabled and mode == "live"` sub-account raises
+  `MissingExchangeCredentialsError` (does NOT silently demote to
+  paper; does NOT defer to first-use error — fail loud at boot).
+- [ ] `src/main.py::build_trader` — split into `build_traders(
+  registry, settings) -> dict[str, Trader]` returning per-sub-account
+  traders; the registry owns the dict.
+- [ ] `src/runtime/engine.py` — auto-approval threshold gate
+  (`EngineConfig.auto_approve_threshold`) gains an optional
+  per-sub-account override sourced from the sub-account's risk
+  profile. Phase 18.1 stale-quote sanity gate is per-sub-account
+  (each `LiveTrader` fetches the ticker via its own exchange
+  client; hands back to engine through the same path).
+- [ ] `.env.example` — document the `EXCHANGE_<REF>_*` schema with
+  a worked two-account example. `docs/deployment.md` gains a
+  "Multi-Account Live" section with the operator checklist
+  (separate API keys, separate IP whitelisting, separate
+  margin-mode configuration on the exchange dashboard).
+- [ ] Tests: env-parsing happy path (2 credential sets), legacy
+  `BINANCE_API_KEY` aliasing, conflict rejection, missing-creds-
+  for-live-sub-account rejected at load time, per-sub-account
+  `LiveTrader` isolation (fake exchange creds, assert each trader
+  uses its own). Phase 18.1 sanity-gate routing per sub-account.
+  ~18 net new tests.
+
+### 19.5 Strategy-Combination A/B Backtest Harness
+
+**Background**: With per-sub-account everything in flight (19.1–
+19.4), strategy-combination A/B testing is the natural payoff. A
+single backtest run can drive N sub-accounts in lockstep over the
+same OHLCV stream and emit a comparative report. Today's backtester
+(`src/backtest/`) is single-strategy; 19.5 adds a thin orchestration
+layer that pre-loads the OHLCV window once, then per-tick fans out
+to each sub-account's whitelisted strategies, each consuming its
+own risk overrides and balance, and accumulates per-sub-account
+trade ledgers. Output is `MultiAccountReport` with per-sub-account
+equity curve + `PerformanceAnalyzer` summary + pairwise correlation
+of returns. The robustness gate (Phase 5.4) is reused per
+sub-account; the gate's pass/fail bubbles up to the report.
+
+**Related Requirements**: FR-038 (Strategy-Combination A/B
+Backtesting — the central deliverable), FR-025 (Backtesting
+Execution — extends the engine to multi-account), FR-027
+(Technique Adoption — improver/feedback can now operate on the
+report), FR-034 (Robustness Validation Gate — reused per sub-
+account).
+
+- [ ] `src/backtest/harness.py` — `BacktestHarness.run_sub_accounts(
+  sub_accounts: list[SubAccount], ohlcv_by_symbol_tf: dict[...],
+  strategies: dict[str, BaseStrategy]) ->
+  MultiAccountReport`. Pre-loads the OHLCV window once;
+  per-bar dispatch fans out per sub-account; each sub-account's
+  trade ledger accumulates independently. Risk overrides and
+  initial-balance per sub-account are honoured.
+- [ ] `src/backtest/multi_account_report.py` — `MultiAccountReport`
+  Pydantic model: `per_sub_account: dict[str, PerformanceSummary]`,
+  `equity_curves: dict[str, list[tuple[datetime, Decimal]]]`,
+  `pairwise_correlation: dict[tuple[str, str], float]`,
+  `merged_trade_ledger: list[TradeHistory]` (each carrying its
+  `sub_account_id`).
+- [ ] `scripts/backtest_combinations.py` — operator entry point
+  `python -m scripts.backtest_combinations
+  --config config/combinations/<name>.yaml --window 90d`. YAML
+  schema is a list of sub-accounts (same shape as Phase 19.3's
+  `config/sub_accounts.yaml`). Output: `data/backtest/
+  combinations/<run_id>/{report.json, equity_curves.png,
+  trades.csv}`.
+- [ ] `src/dashboard/pages/strategies.py` — link to the latest
+  combinations run (if `data/backtest/combinations/` non-empty);
+  side-by-side equity-curve viewer.
+- [ ] Robustness-gate routing: extend `RobustnessGate` to accept
+  a list of sub-accounts when called via the harness; report
+  per-sub-account verdicts in the multi-account summary.
+- [ ] Tests: 2-sub-account lockstep harness over a 90-day synthetic
+  window — sub-A whitelists `[rsi_4h]`, sub-B whitelists
+  `[chasulang_ict_smc]`, equal initial balance, assert per-sub-
+  account ledger + equity curve are independent and the merged
+  ledger preserves sub-account attribution. Pairwise-correlation
+  computation. Robustness-gate-per-sub-account routing.
+  Operator-script smoke (YAML parse → harness call → report
+  serialisation). ~22 net new tests.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1781,6 +2141,7 @@ boundary; same code path runs live).
 | Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
 | Phase 17 | FR-023, FR-026, FR-034, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL`; no new FR/NFR introduced) |
 | Phase 18 | FR-008, FR-013, NFR-012 (live-trading quality — stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; extending the fill boundary, no new FR/NFR introduced) |
+| Phase 19 | FR-036, FR-037, FR-038, FR-005, FR-009, FR-013, FR-025, FR-027, FR-034, NFR-003, NFR-007, NFR-008, NFR-011, NFR-012 (sub-account / capital segmentation — N independent capital pools per mode, multi-credential live, strategy-combination A/B backtests; introduces FR-036 / FR-037 / FR-038) |
 
 ---
 
@@ -1872,3 +2233,4 @@ boundary; same code path runs live).
 | 17.0 | 2026-04-29 | Phase 17 complete - all sub-tasks (17.1) checked. Phase 17 cross-check: `docs/cross-checks/2026-04-29-phase-17-strategy-evolution-operator.md`. | Claude |
 | 18.1 | 2026-04-30 | Phase 18.1 added - Stale-Quote Sanity Gate at Proposal Fill (FR-008, FR-013, NFR-012); driven by 2026-04-30 production review of `/data/trades/paper/trades.json` (1W/8L, EV -8.73/trade) — proposal `6ef8c07e...` filled 3 min 13 sec stale at `entry=2323` then closed `0.48s` later at `2300` because live had already crossed `SL=2305`. | product-planner |
 | 18.1 | 2026-04-30 | Phase 18.1 sealed — stale-quote sanity gate shipped, full suite 1198 pass. Sanity gate inserted between auto-approval and `trader.open_position` in `src/runtime/engine.py::_execute` via new `_stale_quote_gate` helper; past-SL check (side-dispatched off `proposal.signal`) + symmetric slippage check (`abs(live - entry)/entry > tolerance`); rejection rewrites `ProposalRecord` to `REJECTED` (load + `model_copy` + save) + emits activity event with `proposal_entry` / `proposal_stop_loss` / `live_price` / `drift_bps`; ticker fetch failure → fall through to fill, log WARN `stale_quote_check_failed`. New `EngineConfig.fill_slippage_tolerance: Decimal = Decimal("0.005")` (50 bps, `Field(ge=0)`) and `EngineConfig.reject_if_past_stop_loss: bool = True`; env overrides `ENGINE_FILL_SLIPPAGE_TOLERANCE` + `ENGINE_REJECT_IF_PAST_STOP_LOSS` via `Settings.engine_*` (Phase 10.2 / 13.2 pattern); `build_engine` wires alongside existing eight fields. Two pre-existing tests (`test_proposal_executes_when_cap_not_reached`, `test_cap_counts_only_matching_symbol`) had inverted-SL fixtures for short proposals that the new gate exposed; dev fixed both fixtures in same diff. 7 files in working-tree diff (not yet committed): src/runtime/engine.py, src/config.py, src/main.py, .env.example, tests/test_runtime_engine.py, tests/test_config.py, docs/development-plan.md. 1193 → 1198 tests (+5 net new in `test_runtime_engine.py`, total 23 → 28). ruff/mypy clean. Quant validated 50-bps default against 1H BTC/ETH expected drift over a 4-min latency window (~26 bps ≈ 2σ at 50 bps); confirmed smoking-gun ETH case caught with 49 bps headroom; flagged `bollinger_band_reversion` will see visible rejection-rate uptick (intended behaviour, not regression). QA verdict: 🟡 Ship with note — four observations recorded as DEBT-015 (Medium — rejection-path semantic divergence vs Phase 12.1) / DEBT-016 (Low — simultaneous-counters contract undocumented) / DEBT-017 (Low / cosmetic — `entry_price` + `proposal_entry` redundancy in event payload) / DEBT-018 (Low — rejection tests don't assert `proposals_accepted == 1`). One operator action standing: Fly redeploy + 24h log monitoring for first `stale_quote_past_sl` / `slippage_exceeds_tolerance` rejection. No ADR — guard inserted into existing seam, `Trader` Protocol unchanged. | docs-auditor |
+| 19.x | 2026-04-30 | Phase 19 added — Sub-Account / Capital Segmentation (FR-036, FR-037, FR-038 introduced). Five sub-tasks: 19.1 Foundation (entity + registry + default-account migration, single-default registry preserves single-seed back-compat); 19.2 Engine Integration (every proposal / trade / performance record / portfolio snapshot scoped by `sub_account_id`, persistence paths gain a sub-account level, cap rejection logs include the id, single-default still in flight); 19.3 Multi-Paper-Account + YAML + Dashboard (`config/sub_accounts.yaml` parsed into N entries, dashboard surfaces per-sub-account equity curves + selector, multi-paper operative, multi-live walled off until 19.4); 19.4 Multi-Credential Live Mode (`Settings.exchange_credentials: dict[str, ExchangeConfig]` with `EXCHANGE_<REF>_*` env schema + legacy `BINANCE_API_KEY` / `BYBIT_API_KEY` aliasing, missing creds for live sub-account fail loud at boot, per-sub-account `LiveTrader` cached, Phase 18.1 stale-quote gate routes per sub-account); 19.5 Strategy-Combination A/B Backtest Harness (`BacktestHarness.run_sub_accounts`, `MultiAccountReport` with per-sub-account equity / PerformanceSummary / pairwise correlation / merged trade ledger, `scripts/backtest_combinations.py` operator entry, robustness gate routes per sub-account). Driven by user request 2026-04-30: "전략별로 시드를 분리하거나, 여러 조합의 전략을 테스트하기 위해서는 서브 계정 개념이 필요할듯". Architecture documented in `DESIGN.md §9`. | Claude |
