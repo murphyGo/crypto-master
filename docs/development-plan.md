@@ -76,7 +76,7 @@
 | Strategy-Combination A/B Backtest Harness | ❌ Missing | 19 |
 | PnL Convention Single Source — Leverage No Double-Apply | ✅ Complete | 20 |
 | Backtest / Portfolio Leverage Math Alignment | ✅ Complete | 20 |
-| Phase 5.4+ Baseline Re-computation | ❌ Missing | 20 |
+| Phase 5.4+ Baseline Re-computation | ⏸ Deferred (Phase 25) | 20 [^p20-3] |
 | UTC-Aware Timestamp Helper + Adapter Migration | ❌ Missing | 21 |
 | `JsonlRotator` UTC Month Boundary | ❌ Missing | 21 |
 | Stale-Quote Payload Timestamp Coherence | ❌ Missing | 21 |
@@ -85,8 +85,11 @@
 | AIDLC Hygiene Backfill (sessions / cross-checks / drift) | ❌ Missing | 23 |
 | Phase 17.2 / 17.3 Numbering Reconciliation | ❌ Missing | 23 |
 | Strategy Robustness Polish (intra-trade MDD / MA-SL / OOS guard / cold-start) | ❌ Missing | 24 |
+| Snapshot-Pinned Reproducible Baselines | ❌ Missing | 25 |
 
-**Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
+**Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing | ⏸ Deferred
+
+[^p20-3]: Phase 20.3 reframed 2026-05-01 — `scripts/backtest_baselines.py` calls live Binance with no snapshot mode (non-deterministic, operator-only), `data/backtest/baselines/` directory absent, `docs/baselines.md` operator table all `_TBD_`. The "operator-artefact regeneration" framing (DEBT-029) was vacuous — no inflated artefacts had ever been persisted; the math fix (DEBT-024) closed at the code level by 20.1 + 20.2. Snapshot-pinned reproducibility re-scoped to Phase 25 (closes new DEBT-043). DEBT-029 closed as **Reframed**.
 
 ---
 
@@ -2580,32 +2583,41 @@ existing requirements; no new FR/NFR introduced).
   post-fix (no caption rewording expected; mostly a smoke check).
 - [x] Write unit tests.
 
-### 20.3 Phase 5.4+ Baseline Re-computation
+### 20.3 Phase 5.4+ Baseline Re-computation — DEFERRED (mis-framed; see DEBT-043)
 
-**Background**: DEBT-029 (Medium) — once 20.1 / 20.2 land, every
-persisted baseline figure (`data/backtest/baselines/{rsi_4h,
-rsi_15m,bollinger_band_reversion,ma_crossover}/{result.json,
-analysis.md,summary.json}`) carries the inflated PnL and must be
-regenerated. `docs/baselines.md` reproduces these in the operator
-table; `docs/development-plan.md` change-history quotes
-absolute-magnitude figures from the same source. Phase 20.3 is
-the mechanical re-run.
+**Status**: ⏸ Deferred 2026-05-01. Senior-developer surfaced three
+hard blockers that invalidate the "mechanical re-run" framing:
 
-**Related Requirements**: FR-025 (Backtesting Execution —
-operator-facing artefact regeneration). Extending existing
-requirements; no new FR/NFR introduced.
+1. **`scripts/backtest_baselines.py` calls live Binance mainnet**
+   (no snapshot mode; module docstring lines 26-30 explicitly says
+   so). A re-run today produces non-deterministic output that drifts
+   day-to-day with whatever the live OHLCV looks like. Not suitable
+   for an autonomous cycle and not idempotent across operators.
+2. **No pre-DEBT-024 baseline JSONs exist on disk.**
+   `data/backtest/baselines/` is gitignored and absent on this
+   checkout; `docs/baselines.md` operator table is `_TBD_` for every
+   metric (lines 124-136). There is no inflated-figure artefact to
+   restate, so DEBT-029's "operator-facing artefact regeneration"
+   has zero current operator impact — the bug existed in the math,
+   not in any persisted operator surface.
+3. **Spec lists 4 baselines; script ships 5** (`rsi_universal` is
+   in `BASELINES` at lines 108-149 but absent from the original
+   sub-task brief).
 
-- [ ] Run `python -m scripts.backtest_baselines` for each of the
-  4 baseline strategies; overwrite the per-strategy
-  `result.json` / `analysis.md` / `summary.json`.
-- [ ] Refresh the operator table in `docs/baselines.md` with the
-  corrected PnL / MDD-in-USDT figures.
-- [ ] Add a single-line change-history row in
-  `docs/development-plan.md` noting the baselines were
-  re-baselined post-DEBT-024 — figures restated, gate verdicts
-  unchanged.
-- [ ] Write unit tests (smoke that the regenerator script still
-  runs end-to-end; no new behavioural test surface).
+**Reframing**: the work that *does* need to happen is not a
+"re-compute" but a first-time, snapshot-pinned, reproducible
+baseline run. That is real design work (snapshot dataset format,
+gitignore exception, freshness policy, `--snapshot` flag, cross-
+operator determinism), not a mechanical re-run, and is split out
+into **Phase 25: Snapshot-Pinned Reproducible Baselines** (see
+DEBT-043 for the underlying reproducibility debt).
+
+DEBT-029 is closed by reframing — the "post-leverage-fix figures
+need restating" assumption was wrong because the figures were
+never persisted in the first place. The math fix landed in 20.1 +
+20.2 and is verified by the alignment + regression-guard tests.
+
+**Related Requirements**: FR-025. No FR/NFR change.
 
 ---
 
@@ -2942,6 +2954,106 @@ existing requirements; no new FR/NFR introduced.
 
 ---
 
+## Phase 25: Snapshot-Pinned Reproducible Baselines
+
+**Goal**: Replace the live-Binance dependence in
+`scripts/backtest_baselines.py` with a snapshot-pinned dataset
+so baselines are reproducible across operators / days. Closes
+DEBT-043 (the reproducibility debt re-scoped out of DEBT-029
+when Phase 20.3 was deferred — see Phase 20.3's footnote).
+Once the snapshot-pinned regenerator ships, run the baselines
+for the first time post-DEBT-024 fix (the 20.1 + 20.2 math
+cleanup) and populate `docs/baselines.md`'s operator table,
+which has stayed `_TBD_` since the file was created.
+
+The script today calls live Binance mainnet with no snapshot
+mode (module docstring lines 26-30; live-exchange construction
+lines 511-518), so a re-run produces non-deterministic output
+that drifts day-to-day with whatever the live OHLCV looks
+like. That's not suitable for reproducible operator artefacts
+or autonomous cycles. The fix is a snapshot-pinned dataset
+(CSV check-in or fixture format), a `--snapshot <path>` CLI
+flag, a freshness policy for refreshing the snapshot, and a
+gitignore exception for the snapshot files.
+
+### 25.1 Snapshot Dataset + Format
+
+**Background**: Pick the snapshot format (CSV, parquet, JSONL),
+decide what gets persisted (per-symbol per-timeframe OHLCV +
+fetch metadata: source URL, fetch timestamp, candle count),
+gitignore exception path, freshness policy (e.g. "snapshot is
+valid for 90 days; refresh requires operator opt-in"). Land
+the empty-directory + format spec + format-validation tests
+before the script changes touch any production code.
+
+**Related Requirements**: FR-025 (extending; no new FR/NFR).
+
+- [ ] Snapshot directory layout under `data/backtest/snapshots/`
+  with per-(symbol, timeframe) subdirectories.
+- [ ] Snapshot file format spec (header schema, OHLCV row
+  schema, fetch-metadata sidecar).
+- [ ] `.gitignore` exception so snapshot files are committed
+  (the whole point is reproducibility — they must travel with
+  the repo).
+- [ ] Freshness policy documented (refresh cadence + opt-in
+  refresh command).
+- [ ] Format-validation test on a synthetic snapshot fixture.
+- [ ] Write unit tests.
+
+### 25.2 CLI `--snapshot` Flag + Script Changes
+
+**Background**: Add the `--snapshot <path>` flag to
+`scripts/backtest_baselines.py`; route the OHLCV fetch through
+the snapshot loader instead of `BinanceExchange.get_ohlcv`
+when the flag is set; keep the live-fetch path as the
+explicit "refresh snapshot" mode behind a separate
+`--refresh-snapshot` flag that writes to the snapshot
+directory and is operator-gated.
+
+**Related Requirements**: FR-025 (extending; no new FR/NFR).
+
+- [ ] `scripts/backtest_baselines.py` — `--snapshot` flag
+  parses snapshot path; default snapshot path under
+  `data/backtest/snapshots/baselines/`.
+- [ ] Snapshot loader replaces the live OHLCV fetch when
+  `--snapshot` is set; freshness check fails loud if the
+  snapshot's fetch timestamp is older than the policy's
+  ceiling.
+- [ ] `--refresh-snapshot` flag writes a fresh snapshot from
+  live (operator-gated; the only path that touches mainnet).
+- [ ] Cross-operator determinism test: same snapshot → same
+  baseline numbers byte-for-byte.
+- [ ] Reconcile the spec-vs-script baseline-list drift (spec
+  said 4, script ships 5 — `rsi_universal` extra). Either
+  fold `rsi_universal` into the documented set or drop it
+  from `BASELINES`; document the decision.
+- [ ] Write unit tests.
+
+### 25.3 First Run + Populate `docs/baselines.md`
+
+**Background**: With the snapshot-pinned regenerator in place,
+run the baselines for the first time post-DEBT-024 fix
+(20.1 + 20.2 math cleanup) and populate `docs/baselines.md`'s
+operator table, which has stayed `_TBD_` since the file was
+created. This is the operator-facing closure of the
+reproducibility story.
+
+**Related Requirements**: FR-025 (extending; no new FR/NFR).
+
+- [ ] Run `python -m scripts.backtest_baselines --snapshot
+  data/backtest/snapshots/baselines/` for each baseline.
+- [ ] Persist `result.json` / `analysis.md` / `summary.json`
+  per baseline under `data/backtest/baselines/`.
+- [ ] Populate `docs/baselines.md`'s operator table (replace
+  every `_TBD_` with the snapshot-pinned figure).
+- [ ] Add a single-line change-history row in
+  `docs/development-plan.md` noting the figures were
+  computed first-time post-DEBT-024 fix from the
+  snapshot-pinned dataset.
+- [ ] Write unit tests.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -2970,6 +3082,7 @@ existing requirements; no new FR/NFR introduced.
 | Phase 22 | FR-010, NFR-006, NFR-007, NFR-008 (persistence atomicity — `atomic_write_text` helper across `TradeHistoryTracker` / `PortfolioTracker` / `ProposalHistory` / Phase 18.1 stale-quote rewrite (resolves DEBT-028); paper-trader liquidation visibility — `LIQUIDATED` activity event + negative-equity record (resolves DEBT-027); no new FR/NFR introduced) |
 | Phase 23 | NFR-001 (AIDLC hygiene backfill — sessions for shipped 17.2 / 17.3, Phase 15 cross-check, `CLAUDE.md` tree, `DESIGN.md` ClaudeClient → ClaudeCLI rename, Phase 17.2 / 17.3 numbering reconciliation; resolves DEBT-037; no new FR/NFR introduced) |
 | Phase 24 | FR-005, FR-008, FR-013, FR-025, NFR-001 (strategy robustness polish — intra-trade MDD (DEBT-030), MA-crossover SL window (DEBT-031), OOS gate IS-sample-size guard (DEBT-032), stale-quote ticker freshness threshold (DEBT-033), cold-start minimum-sample guard (DEBT-034); no new FR/NFR introduced) |
+| Phase 25 | FR-025 (snapshot-pinned reproducible baselines — replace live-Binance dependence in `scripts/backtest_baselines.py` with a snapshot-pinned dataset so baselines are reproducible across operators / days; closes DEBT-043; first run post-DEBT-024 fix populates `docs/baselines.md` operator table; extends FR-025, no new FR/NFR introduced) |
 
 ---
 
@@ -3069,4 +3182,6 @@ existing requirements; no new FR/NFR introduced.
 | 20.1 | 2026-05-01 | Phase 20.1 sealed — PnL Convention Single Source — Leverage No Double-Apply (FR-006, FR-025, NFR-001; DEBT-024 Resolved). New `src/utils/__init__.py` + `src/utils/trading_math.py` with `pnl_for_trade(entry, exit, qty, side) -> Decimal` helper (leverage NOT a parameter — qty already reflects the levered notional from `calculate_position_size`; making leverage a parameter would invite a future caller to reintroduce the bug). Routed every PnL site through the helper: `src/backtest/engine.py::_close_trade` (~lines 948-960) dropped `* leverage`, `src/trading/portfolio.py::calculate_unrealized_pnl` dropped `* leverage`, `src/trading/paper.py::close_position` (already correct shape) routed for symmetry. **Scope extension absorbed during quant-trader-expert review** (originally scheduled for Phase 20.2's territory): `src/strategy/performance.py::TradeHistory.calculate_pnl` (lines ~797-839) — both branches dropped `* self.leverage` from `pnl`, and `pnl_pct` reformulated as leverage-neutral (`(exit - entry) / entry` for longs, sign-inverted for shorts) since the persistence-layer was the highest-risk surface 20.2 was going to touch. `BacktestTrade.pnl` field docstring tightened by lead at handoff (lines ~174-176) to name the new convention. New tests: `tests/test_utils_trading_math.py` (11 module-level cases pinning both signs + edges); `tests/test_backtest_engine.py::TestPnLConventionAlignment` (4 cases — long/short numeric equality between backtester and paper-trader on fixed (entry, exit, qty, leverage) fixture + 2 originals); `tests/test_strategy_performance.py::TestTradeHistoryTracker::test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 persistence-layer parity cases). Cascaded test assertion updates: `tests/test_paper_trading.py` (8 across 7 methods), `tests/test_portfolio.py` (5 methods), `tests/test_strategy_performance.py` (3 `calculate_pnl` methods) — purely mechanical fixture corrections to the new correct numbers. 1226 total passing; ruff/mypy clean. **Note on DEBT-024 line-number staleness**: the original DEBT-024 description pointed at `src/backtest/engine.py:783-794` for the leverage site, but by the time the fix shipped the actual site had moved to `_close_trade` ~lines 948-960; recorded in the Resolved entry's note for future audit-trail readers. QA verdict: 🟢 Ship. Quant verdict: 🟢 Ship. No new debt. No ADR — extracts a math helper into a single-source-of-truth module; public contracts of `Backtester` / `Portfolio` / `PaperTrader` / `TradeHistory` unchanged (same signatures, same return types, same persistence shapes — only the numeric output shifts to the correct convention). 6/6 sub-task checkboxes verified ticked in dev's working-tree diff. Session log: `docs/sessions/2026-05-01-phase-20.1-pnl-helper-unification.md`. | docs-auditor |
 | 20.2 | 2026-05-01 | Phase 20.2 scope reconciliation — Phase 20.1's scope extension into `src/strategy/performance.py::TradeHistory.calculate_pnl` (both branches + `pnl_pct` leverage-neutral reformulation) absorbed the highest-risk persistence-layer surface originally scoped for 20.2. Phase 20.2 is **NOT redundant**; remaining work (still `[ ]`): (a) `grep -rn "leverage" src/backtest/ src/trading/ src/strategy/` audit — confirm no other `* leverage` site exists outside the four already-routed callers (likely zero hits, but verification is the point); (b) field-docstring sweep beyond 20.1's tightening — `Portfolio.unrealized_pnl` field + `TradeHistory` `pnl` / `pnl_pct` field docstrings naming the leverage-neutral convention so future contributors don't reintroduce the bug; (c) `src/dashboard/pages/trading.py` Current-Equity card prose verification (no caption rewording expected; smoke check). Phase 20.3 baseline re-computation remains `[ ]` and is the closure for DEBT-029 (Medium, downstream of DEBT-024). **Planner action surfaced**: a linter cycle removed the Phase 19 / 20 / 21 / 22 / 23 / 24 sub-task definition blocks from this file (Phase 20.1 / 20.2 / 20.3 sub-task bullets, Phase 21 timezone hardening, Phase 22 atomic-JSON, Phase 23 AIDLC backfill, Phase 24 robustness polish — all the "what does each sub-task ship" prose). The Current Status table rows for these phases survived the prune and the change-history rows (including the original Phase 20 / 21 / 22 / 23 / 24 plan-add rows) remain as the historical record, but the spec text is gone. Reinstating the spec text is planner territory; flagged here as the next planner cycle's hygiene item before the next implementation cycle picks up Phase 20.2 / 20.3 or Phase 19. | docs-auditor |
 | 18.2 | 2026-05-01 | Phase 18.2 spec added — Trade-Quality Diagnostic (FR-005, FR-021, FR-025, NFR-001; no new FR/NFR). Measurement-before-code-change pass over the 2026-04-30 closed-trade ledger (1W/8L, EV -8.73/trade, 11% WR) to attribute losses across slippage calibration, SL/RR appropriateness, accepted-vs-rejected EV gap, and per-strategy concentration before any further engine-knob edit; methodology locked in `docs/research/trade-quality-design-2026-05-01.md`, output lands next cycle as `docs/research/trade-quality-2026-05-01.md`. | product-planner |
+| 20.3 | 2026-05-01 | Phase 20.3 deferred / DEBT-029 reframed → DEBT-043 registered + Phase 25 split-out (FR-025; no FR/NFR change). Senior-developer surfaced three blockers that invalidated 20.3's "mechanical re-run" framing: (1) `scripts/backtest_baselines.py` calls live Binance mainnet with no snapshot mode (module docstring lines 26-30, live-exchange construction lines 511-518) — non-deterministic, operator-only, not idempotent across operators / days; (2) `data/backtest/baselines/` directory absent on this checkout (gitignored), `docs/baselines.md` operator table all `_TBD_` (lines 124-136) — no inflated artefact had ever been persisted, so DEBT-029's "operator-facing artefact regeneration" was vacuous (operator impact = 0); (3) spec listed 4 baselines but script ships 5 (`rsi_universal` extra in `BASELINES` lines 108-149). The math fix (DEBT-024) closed at the code level by 20.1 (math) + 20.2 (discipline lock); what remained was reproducible-baseline design work, not "re-compute". DEBT-029 closed as **Reframed** (the "post-leverage-fix figures need restating" assumption was wrong — figures were never persisted in the first place). New DEBT-043 (Medium) registered for the underlying reproducibility debt: live-Binance regenerator with no snapshot mode, owned by Phase 25. Phase 20.3 status flipped `❌ Missing → ⏸ Deferred (Phase 25)` with footnote pointing at Phase 25 / DEBT-043. Phase 25 (Snapshot-Pinned Reproducible Baselines) registered with three sub-tasks: 25.1 snapshot dataset + format (CSV / parquet / JSONL pick + gitignore exception + freshness policy + format-validation test), 25.2 CLI `--snapshot` flag + script changes (snapshot loader path + `--refresh-snapshot` operator-gated mainnet path + cross-operator determinism test + spec-vs-script baseline-list reconciliation for the `rsi_universal` drift), 25.3 first run + populate `docs/baselines.md` (operator table replaces every `_TBD_` with snapshot-pinned figure + change-history row noting first-time-post-DEBT-024-fix). Requirements Mapping table row added for Phase 25 (FR-025 extending; no new FR/NFR). No code change this cycle. Session log: `docs/sessions/2026-05-01-phase-20.3-deferred-and-phase-25-registered.md`. | docs-auditor |
+| 20.0 | 2026-05-01 | Phase 20 sealed (20.1 ✅, 20.2 ✅, 20.3 deferred to Phase 25) — DEBT-024 fully closed at the code level (math by 20.1, discipline by 20.2); reproducibility re-scoped to Phase 25 / DEBT-043. Trading-math correctness sweep complete; 1231 tests passing. | docs-auditor |
 | 20.2 | 2026-05-01 | Phase 20.2 sealed 2026-05-01 — leverage math sweep + docstring convention pinned + regression guard test added; pytest 1231; DEBT-024 fully closed. (FR-006, FR-025, NFR-001; DEBT-024 follow-up — discipline lock on top of 20.1's math fix). Grep audit across `src/backtest/`, `src/trading/`, `src/strategy/`: 8-row classification (4 margin / position-sizing sites kept where `* leverage` is the correct shape; 4 PnL sites confirmed already routed through `pnl_for_trade(...)` per 20.1) — no missed `* leverage` anywhere on the PnL surface. Convention docstrings added on `src/trading/portfolio.py::AssetSnapshot.unrealized_pnl` + `Portfolio.unrealized_pnl` field listings, `src/strategy/performance.py::TradeHistory.pnl` + `pnl_percent` field listings, and `src/models.py::Position.calculate_pnl` method — each names the leverage-neutral convention and points at `pnl_for_trade` ("PnL is computed against leveraged notional via `pnl_for_trade`; do not re-multiply by `leverage` downstream"). New regression-guard test `tests/test_leverage_pnl_no_double_apply.py` (5 tests: 4 file scans flagging any `pnl.*\* *leverage` or `\* *self\.leverage` reintroduction outside the allow-listed margin sites, plus 1 self-test of the guard regex). Module docstring acknowledges the indirect-aliasing limitation (regex catches direct `* leverage` reintroduction, not arbitrary aliasing — defence-in-depth alongside Phase 20.1's `TestPnLConventionAlignment` numeric parity, not a sole gate) per quant-trader-expert ship-with-note. Two cosmetic single-line collapses in `src/trading/portfolio.py` (lines 366, 381) crept in via black during the docstring edit pass — harmless reformats, no behaviour change, flagged in session log per QA-reviewer ship-with-note. 1226 → 1231 tests (+5). pytest / ruff / mypy / black clean. No new debt; no ADR (discipline lock + docstring sweep + regex test, no new contracts). 5/5 sub-task checkboxes verified ticked. QA verdict: 🟡 Ship-with-note (cosmetic reformats; addressed). Quant verdict: 🟡 Ship-with-note (regression-guard alias gap; addressed via module docstring). Both notes resolved. Phase 20 still open (2/3 — 20.3 baseline re-computation pending; closes DEBT-029 and seals Phase 20). DEBT-024 fully closed (math by 20.1, discipline by 20.2). Session log: `docs/sessions/2026-05-01-phase-20.2-leverage-math-alignment.md`. | docs-auditor |

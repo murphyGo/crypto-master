@@ -598,45 +598,6 @@ asserts the destination file is either fully old or fully new
 - `src/trading/portfolio.py` (snapshot writer)
 - `src/proposal/history.py` (record writer)
 
-### DEBT-029: Phase 5.4+ baseline figures need re-computation post-leverage fix
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 5.4 onward (origin); surfaced 2026-04-30 |
-| **Component** | `data/backtest/baselines/` + `docs/baselines.md` + `docs/development-plan.md` change-history |
-
-**Description:**
-DEBT-024's leverage double-application means every persisted
-baseline figure in `data/backtest/baselines/{rsi_4h,rsi_15m,
-bollinger_band_reversion,ma_crossover}/{result.json,analysis.md,
-summary.json}` carries an inflated PnL / equity / MDD-in-USDT.
-`docs/baselines.md` reproduces these in the operator-facing table.
-Sharpe and hit rate are unaffected (scale-invariant); the affected
-columns are all dollar-denominated.
-
-**Impact:**
-Operator-facing reporting: the published baseline numbers misstate
-absolute returns by ~5–10×. Once DEBT-024 lands, the artefacts
-must be regenerated or the documentation will silently disagree
-with the corrected backtester. Comparing live results against
-baseline becomes confusing if not re-aligned.
-
-**Suggested Resolution:**
-Land DEBT-024 first; then run
-`python -m scripts.backtest_baselines` for each baseline strategy;
-overwrite the per-strategy `result.json` / `analysis.md` /
-`summary.json`; refresh `docs/baselines.md` operator table; add a
-single-line change-history row in `docs/development-plan.md`
-noting the figures were re-baselined. Mechanical work after
-DEBT-024 lands.
-
-**Related:**
-- DEBT-024 (parent — leverage double-application)
-- `scripts/backtest_baselines.py` (the regeneration entry point)
-- `docs/baselines.md`
-
 ### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only
 
 | Field | Value |
@@ -1087,6 +1048,82 @@ the chosen one only.
 
 ---
 
+### DEBT-043: Baseline regenerator is non-deterministic — live Binance, no snapshot mode
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 5.4 onward (origin); surfaced 2026-05-01 during Phase 20.3 deferral |
+| **Component** | `scripts/backtest_baselines.py:26-30` (module docstring), `:511-518` (live exchange construction) |
+
+**Description:**
+`scripts/backtest_baselines.py` constructs a live `BinanceExchange`
+against mainnet and pulls real OHLCV every run. The module
+docstring (lines 26-30) states this explicitly. There is no
+snapshot mode, no `--snapshot` flag, and no fixture path —
+`python -m scripts.backtest_baselines` makes real network calls
+on every invocation. Output drifts day-to-day with whatever the
+live OHLCV looks like at fetch time; cross-operator and
+cross-day reproducibility is broken by construction. The script
+also ships 5 baselines (`rsi_universal` extra) where the
+original Phase 20.3 spec assumed 4, which suggests at least one
+silent drift between spec and code.
+
+This was originally tracked as the "operator-artefact
+regeneration" half of DEBT-029, but Phase 20.3's deferral
+surfaced that DEBT-029's framing was vacuous: no baseline
+artefacts had ever been persisted (`data/backtest/baselines/`
+is gitignored and absent on this checkout; `docs/baselines.md`
+operator table is `_TBD_` for every metric). The actual debt
+is reproducibility, not regeneration — the baselines need to
+be runnable deterministically across operators / days as a
+prerequisite for ever publishing operator-facing figures.
+
+**Impact:**
+- Operator-facing baseline table cannot be populated
+  reproducibly until this is fixed; `docs/baselines.md` stays
+  `_TBD_` indefinitely.
+- Autonomous cycles cannot run the regenerator without
+  introducing day-to-day drift in the persisted artefacts.
+- "Compare live performance against baseline" workflows are
+  blocked because the baseline itself is a moving target.
+
+**Suggested Resolution:**
+Phase 25 (Snapshot-Pinned Reproducible Baselines):
+- 25.1: snapshot dataset format (CSV / parquet / JSONL pick),
+  per-(symbol, timeframe) directory layout under
+  `data/backtest/snapshots/`, fetch-metadata sidecar (source
+  URL, fetch timestamp, candle count), `.gitignore` exception
+  so snapshots travel with the repo, freshness policy
+  (refresh cadence + opt-in refresh command).
+- 25.2: `--snapshot <path>` CLI flag routes OHLCV fetch
+  through the snapshot loader; `--refresh-snapshot` flag is
+  the only path that touches mainnet, operator-gated; cross-
+  operator determinism test pins same-snapshot → same-output
+  byte-for-byte; reconcile spec-vs-script baseline-list drift
+  for `rsi_universal` (fold in or drop, document the call).
+- 25.3: first run post-DEBT-024 fix populates
+  `docs/baselines.md` operator table; change-history row
+  notes the first-time computation.
+
+**Related:**
+- DEBT-029 (predecessor — closed as **Reframed** 2026-05-01;
+  the "operator-artefact regeneration" framing was vacuous,
+  reproducibility is the actual debt)
+- DEBT-024 (parent math fix — closed 2026-05-01 by Phase 20.1
+  + 20.2; baselines run first-time post-fix in 25.3)
+- Phase 20.3 deferral (`docs/development-plan.md` Phase 20.3
+  block — DEFERRED status with footnote)
+- Phase 25 (`docs/development-plan.md` Phase 25 — owns the
+  resolution)
+- `scripts/backtest_baselines.py:26-30` (module docstring),
+  `:108-149` (`BASELINES` table — `rsi_universal` drift),
+  `:511-518` (live exchange construction)
+- `docs/baselines.md` (operator table waiting on 25.3)
+
+---
+
 ### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
 
 | Field | Value |
@@ -1271,6 +1308,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-30 |
 | **Resolution** | Same-cycle one-line bump caught by Phase 17.2 quant-trader-expert review before any chasulang backtest ran: `BacktestConfig.per_bar_timeout` default raised `60.0` → `600.0` (chasulang's actual 480s `claude_timeout_seconds` per-`analyze()` ceiling + 120s headroom). `Settings.engine_backtest_per_bar_timeout` default + `.env.example` operator prose + `TestBacktestEngineSettings::test_per_bar_timeout_default_and_env` parity test all updated to match. The dev-plan rationale at lines 1750–1754 referencing "240s" + "multi-bar amortised" is stale (actual: 480s, per-call) and superseded by this resolution; flagged as planner correction needed. Forward-pointer for cleaner long-term shape: `Backtester.__init__` could peek at `strategy.info.claude_timeout_seconds` and use `max(default, strategy_timeout + headroom)` so the breaker self-adjusts to whatever the loaded strategy declares — out of scope for the one-line bump, tracked under DEBT-019's broader circuit-breaker-hardening umbrella. |
 
+### DEBT-029: Phase 5.4+ baseline figures need re-computation post-leverage fix ✅ (Reframed)
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 (**Reframed**, not implemented) |
+| **Resolution** | Phase 20.3 deferral surfaced that DEBT-029's "operator-facing artefact regeneration" framing was vacuous: `data/backtest/baselines/` directory is absent on this checkout (gitignored), `docs/baselines.md` operator table is `_TBD_` for every metric (lines 124-136), and no inflated baseline figures had ever been persisted. The bug existed in the math (DEBT-024), not in any persisted operator surface — operator impact of the regeneration assumption was therefore 0. The math fix (DEBT-024) closed at the code level by Phase 20.1 (`pnl_for_trade` helper + four PnL sites routed through it) and Phase 20.2 (grep audit, convention docstrings, regression-guard test); cross-ledger numeric parity locked by `TestPnLConventionAlignment` (4 cases) and persistence parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). What remains is reproducible baseline design work, not "re-compute" — `scripts/backtest_baselines.py` calls live Binance mainnet with no snapshot mode, so a re-run produces non-deterministic output that drifts day-to-day. That reproducibility debt is reassigned to new **DEBT-043** (Medium, owned by Phase 25: Snapshot-Pinned Reproducible Baselines). DEBT-029 itself closes as **Reframed** because the original problem statement was wrong; the math-correctness side is fully addressed by the chain DEBT-024 → 20.1 + 20.2, and the reproducibility side is now tracked under DEBT-043 with its own suggested resolution shape (snapshot dataset + `--snapshot` flag + freshness policy + first-time `docs/baselines.md` population). |
+
 ### DEBT-024: Leverage applied twice in backtester / portfolio PnL math ✅
 
 | Field | Value |
@@ -1291,7 +1337,7 @@ Move resolved items here with resolution date and notes.
 | High | 1 |
 | Medium | 7 |
 | Low | 19 |
-| Resolved (All Time) | 15 |
+| Resolved (All Time) | 16 |
 
 ---
 
@@ -1357,3 +1403,5 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Added | DEBT-041 `RuntimeEngine` accesses `ProposalInteraction._decision_callback` privately (Low) — surfaced during 3-agent comprehensive audit |
 | 2026-04-30 | Added | DEBT-042 `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted (Low) — surfaced during 3-agent comprehensive audit |
 | 2026-05-01 | Resolved | DEBT-024 Leverage applied twice in backtester / portfolio PnL math — Phase 20.1 extracted `pnl_for_trade(entry, exit, qty, side)` into new `src/utils/trading_math.py` (leverage NOT a parameter) and routed `_close_trade` / `Portfolio.calculate_unrealized_pnl` / `PaperTrader.close_position` (symmetry) through it; scope extension absorbed `TradeHistory.calculate_pnl` (both branches drop `* leverage` from `pnl`; `pnl_pct` reformulated leverage-neutral). Cross-ledger parity locked by `TestPnLConventionAlignment` (4 cases) + persistence parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). Note: the DEBT-024 description's line-number references (`engine.py:783-794`) were stale — the actual leverage site had moved to `_close_trade` ~lines 948-960. DEBT-029 (Phase 5.4+ baseline re-computation) remains downstream-open until Phase 20.3 lands |
+| 2026-05-01 | Resolved | DEBT-029 Phase 5.4+ baseline figures need re-computation post-leverage fix — closed as **Reframed** during Phase 20.3 deferral. The "operator-facing artefact regeneration" framing was vacuous: `data/backtest/baselines/` directory absent on this checkout, `docs/baselines.md` operator table all `_TBD_`, no inflated figures had ever been persisted (operator impact = 0). Math side fully closed by chain DEBT-024 → 20.1 + 20.2; reproducibility side reassigned to new DEBT-043 (Medium, owned by Phase 25) |
+| 2026-05-01 | Added | DEBT-043 Baseline regenerator is non-deterministic — live Binance, no snapshot mode (Medium) — surfaced during Phase 20.3 deferral; `scripts/backtest_baselines.py:26-30` (docstring) + `:511-518` (live exchange construction) make real network calls every run, output drifts day-to-day, cross-operator / cross-day reproducibility broken; owned by Phase 25 (snapshot dataset + `--snapshot` flag + freshness policy + first-time `docs/baselines.md` population) |
