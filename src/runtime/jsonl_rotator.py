@@ -44,7 +44,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -86,9 +86,7 @@ class JsonlRotator:
                 archives are still on disk but ignored. Defaults to 12.
         """
         if retention_months < 1:
-            raise ValueError(
-                f"retention_months must be >= 1, got {retention_months}"
-            )
+            raise ValueError(f"retention_months must be >= 1, got {retention_months}")
         self.base_path = base_path
         self.retention_months = retention_months
 
@@ -207,10 +205,14 @@ class JsonlRotator:
                 merged.append((ts, seq, record))
                 seq += 1
         # Records with no parseable timestamp sort to the end.
+        # DEBT-025: ``_coerce_timestamp`` returns UTC-aware values, so
+        # the fallback used when ``triple[0] is None`` must also be
+        # UTC-aware to avoid aware-vs-naive comparison errors.
+        _SENTINEL_MAX = datetime.max.replace(tzinfo=timezone.utc)
         merged.sort(
             key=lambda triple: (
                 triple[0] is None,
-                triple[0] or datetime.max,
+                triple[0] or _SENTINEL_MAX,
                 triple[1],
             )
         )
@@ -229,9 +231,7 @@ class JsonlRotator:
                 try:
                     yield json.loads(stripped)
                 except json.JSONDecodeError as e:
-                    logger.warning(
-                        f"Skipping malformed line {lineno} in {path}: {e}"
-                    )
+                    logger.warning(f"Skipping malformed line {lineno} in {path}: {e}")
 
 
 def _coerce_timestamp(value: Any) -> datetime | None:
@@ -241,18 +241,30 @@ def _coerce_timestamp(value: Any) -> datetime | None:
     with ``default=str`` does the same for ``datetime``. Both shapes
     are handled. Anything else returns ``None`` so the record falls to
     the end of the merged stream.
+
+    DEBT-025 (Phase 21.1): always returns a UTC-aware ``datetime`` so
+    the sort key in ``read_all`` doesn't mix aware-vs-naive values
+    (which raises ``TypeError`` in Python). Naive inputs (legacy
+    records, ``date`` objects) are interpreted as UTC — which matches
+    the project convention that all persisted timestamps originate
+    from UTC-aware sources.
     """
     if value is None:
         return None
     if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
         return value
     if isinstance(value, date):
-        return datetime(value.year, value.month, value.day)
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
     return None
 
 

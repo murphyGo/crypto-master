@@ -1,6 +1,9 @@
 """Tests for the Bybit exchange implementation."""
 
-from datetime import datetime
+import os
+import sys
+import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
@@ -298,7 +301,9 @@ class TestBybitExchangeOHLCV:
         """Test get_ohlcv handles rate limit error."""
         from ccxt.base.errors import RateLimitExceeded
 
-        mock_ccxt_client.fetch_ohlcv.side_effect = RateLimitExceeded("Too many requests")
+        mock_ccxt_client.fetch_ohlcv.side_effect = RateLimitExceeded(
+            "Too many requests"
+        )
 
         with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
             mock_class.return_value = mock_ccxt_client
@@ -813,3 +818,107 @@ class TestBybitExchangeRegistration:
 
         assert "bybit" in _exchange_registry
         assert _exchange_registry["bybit"] is BybitExchange
+
+
+# =============================================================================
+# Phase 21.1 / DEBT-025: UTC-aware adapter timestamps
+# =============================================================================
+
+
+_HAS_TZSET = hasattr(time, "tzset") and sys.platform != "win32"
+
+
+@pytest.fixture
+def kst_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Simulate a non-UTC host (Asia/Seoul, UTC+9)."""
+    if not _HAS_TZSET:
+        pytest.skip("time.tzset() not available on this platform")
+    original_tz = os.environ.get("TZ")
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    yield
+    if original_tz is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = original_tz
+    time.tzset()
+
+
+class TestBybitTimestampUTCAware:
+    """Adapter must return UTC-aware timestamps regardless of host TZ."""
+
+    @pytest.mark.asyncio
+    async def test_get_ohlcv_returns_utc_aware_timestamp_on_kst_host(
+        self,
+        bybit_config: BybitConfig,
+        mock_ccxt_client: AsyncMock,
+        kst_host: None,
+    ) -> None:
+        """OHLCV bar timestamp carries tzinfo=UTC even on a UTC+9 host,
+        and the wall-clock UTC value matches the input ms exactly."""
+        # 1704067200000 ms == 2024-01-01 00:00:00 UTC
+        mock_ccxt_client.fetch_ohlcv.return_value = [
+            [1704067200000, 42000.0, 42500.0, 41800.0, 42300.0, 1000.0],
+        ]
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BybitExchange(config=bybit_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_ohlcv("BTC/USDT", "1h")
+
+        assert result[0].timestamp.tzinfo is timezone.utc
+        assert result[0].timestamp == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_returns_utc_aware_timestamp(
+        self, bybit_config: BybitConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """Ticker timestamp is UTC-aware (assertion holds on any host)."""
+        mock_ccxt_client.fetch_ticker.return_value = {
+            "symbol": "BTC/USDT",
+            "last": 42500.0,
+            "timestamp": 1704067200000,
+        }
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BybitExchange(config=bybit_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_ticker("BTC/USDT")
+
+        assert result.timestamp.tzinfo is timezone.utc
+        assert result.timestamp == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_map_order_returns_utc_aware_timestamps_on_kst_host(
+        self,
+        bybit_config: BybitConfig,
+        mock_ccxt_client: AsyncMock,
+        kst_host: None,
+    ) -> None:
+        """Order created_at / updated_at are UTC-aware on a non-UTC host."""
+        mock_ccxt_client.fetch_order.return_value = {
+            "id": "order-1",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "type": "limit",
+            "price": 42000.0,
+            "amount": 0.1,
+            "filled": 0.1,
+            "status": "closed",
+            "timestamp": 1704067200000,
+            "lastTradeTimestamp": 1704067260000,
+        }
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BybitExchange(config=bybit_config, testnet=True)
+            await exchange.connect()
+
+            order = await exchange.get_order("order-1", "BTC/USDT")
+
+        assert order.created_at.tzinfo is timezone.utc
+        assert order.created_at == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        assert order.updated_at is not None
+        assert order.updated_at.tzinfo is timezone.utc
+        assert order.updated_at == datetime(2024, 1, 1, 0, 1, 0, tzinfo=timezone.utc)

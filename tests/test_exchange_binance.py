@@ -1,6 +1,9 @@
 """Tests for the Binance exchange implementation."""
 
-from datetime import datetime
+import os
+import sys
+import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
@@ -53,9 +56,7 @@ class TestBinanceExchangeInit:
         assert exchange.testnet is True
         assert exchange.name == "binance"
 
-    def test_client_is_none_before_connect(
-        self, binance_config: BinanceConfig
-    ) -> None:
+    def test_client_is_none_before_connect(self, binance_config: BinanceConfig) -> None:
         """Test client is None before connect() is called."""
         exchange = BinanceExchange(config=binance_config, testnet=True)
         assert exchange._client is None
@@ -74,7 +75,9 @@ class TestBinanceExchangeInit:
         """Test URL constants are defined for reference."""
         assert BinanceExchange.MAINNET_URL == "https://api.binance.com"
         assert BinanceExchange.TESTNET_SPOT_URL == "https://testnet.binance.vision"
-        assert BinanceExchange.TESTNET_FUTURES_URL == "https://testnet.binancefutures.com"
+        assert (
+            BinanceExchange.TESTNET_FUTURES_URL == "https://testnet.binancefutures.com"
+        )
 
 
 class TestBinanceExchangeConnect:
@@ -205,9 +208,7 @@ class TestBinanceExchangeConnect:
             assert "Authentication failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_connect_network_error(
-        self, binance_config: BinanceConfig
-    ) -> None:
+    async def test_connect_network_error(self, binance_config: BinanceConfig) -> None:
         """Test connect raises ExchangeConnectionError on network failure."""
         from ccxt.base.errors import NetworkError
 
@@ -334,7 +335,9 @@ class TestBinanceExchangeOHLCV:
         """Test get_ohlcv handles rate limit error."""
         from ccxt.base.errors import RateLimitExceeded
 
-        mock_ccxt_client.fetch_ohlcv.side_effect = RateLimitExceeded("Too many requests")
+        mock_ccxt_client.fetch_ohlcv.side_effect = RateLimitExceeded(
+            "Too many requests"
+        )
 
         with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
             mock_class.return_value = mock_ccxt_client
@@ -849,3 +852,114 @@ class TestBinanceExchangeRegistration:
 
         assert "binance" in _exchange_registry
         assert _exchange_registry["binance"] is BinanceExchange
+
+
+# =============================================================================
+# Phase 21.1 / DEBT-025: UTC-aware adapter timestamps
+# =============================================================================
+
+
+_HAS_TZSET = hasattr(time, "tzset") and sys.platform != "win32"
+
+
+@pytest.fixture
+def kst_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Simulate a non-UTC host (Asia/Seoul, UTC+9).
+
+    Without ``tz=`` argument, ``datetime.fromtimestamp(ms / 1000)``
+    interprets the input in *host-local* time, so the same Unix ms
+    decodes to different wall-clock values depending on host TZ.
+    Phase 21.1 closes that surface; this fixture is the regression
+    harness.
+    """
+    if not _HAS_TZSET:
+        pytest.skip("time.tzset() not available on this platform")
+    original_tz = os.environ.get("TZ")
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    yield
+    if original_tz is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = original_tz
+    time.tzset()
+
+
+class TestBinanceTimestampUTCAware:
+    """Adapter must return UTC-aware timestamps regardless of host TZ."""
+
+    @pytest.mark.asyncio
+    async def test_get_ohlcv_returns_utc_aware_timestamp_on_kst_host(
+        self,
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+        kst_host: None,
+    ) -> None:
+        """OHLCV bar timestamp carries tzinfo=UTC even on a UTC+9 host,
+        and the wall-clock UTC value matches the input ms exactly."""
+        # 1704067200000 ms == 2024-01-01 00:00:00 UTC
+        mock_ccxt_client.fetch_ohlcv.return_value = [
+            [1704067200000, 42000.0, 42500.0, 41800.0, 42300.0, 1000.0],
+        ]
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_ohlcv("BTC/USDT", "1h")
+
+        assert result[0].timestamp.tzinfo is timezone.utc
+        assert result[0].timestamp == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_returns_utc_aware_timestamp(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """Ticker timestamp is UTC-aware (assertion holds on any host)."""
+        mock_ccxt_client.fetch_ticker.return_value = {
+            "symbol": "BTC/USDT",
+            "last": 42500.0,
+            "timestamp": 1704067200000,
+        }
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_ticker("BTC/USDT")
+
+        assert result.timestamp.tzinfo is timezone.utc
+        assert result.timestamp == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_map_order_returns_utc_aware_timestamps_on_kst_host(
+        self,
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+        kst_host: None,
+    ) -> None:
+        """Order created_at / updated_at are UTC-aware on a non-UTC host."""
+        mock_ccxt_client.fetch_order.return_value = {
+            "id": "order-1",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "type": "limit",
+            "price": 42000.0,
+            "amount": 0.1,
+            "filled": 0.1,
+            "status": "closed",
+            "timestamp": 1704067200000,
+            "lastTradeTimestamp": 1704067260000,
+        }
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            order = await exchange.get_order("order-1", "BTC/USDT")
+
+        assert order.created_at.tzinfo is timezone.utc
+        assert order.created_at == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        assert order.updated_at is not None
+        assert order.updated_at.tzinfo is timezone.utc
+        assert order.updated_at == datetime(2024, 1, 1, 0, 1, 0, tzinfo=timezone.utc)

@@ -7,7 +7,6 @@ Related Requirements:
 - CON-002: Rate Limit Compliance - Comply with exchange rate limits
 """
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
@@ -32,6 +31,7 @@ from src.exchange.base import (
 )
 from src.exchange.factory import register_exchange
 from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
+from src.utils.time import from_unix_ms
 
 
 class CCXTClient(Protocol):
@@ -232,7 +232,8 @@ class BinanceExchange(BaseExchange):
 
             return [
                 OHLCV(
-                    timestamp=datetime.fromtimestamp(candle[0] / 1000),
+                    # DEBT-025: UTC-aware via src.utils.time.from_unix_ms.
+                    timestamp=from_unix_ms(candle[0]),
                     open=Decimal(str(candle[1])),
                     high=Decimal(str(candle[2])),
                     low=Decimal(str(candle[3])),
@@ -269,7 +270,7 @@ class BinanceExchange(BaseExchange):
             return Ticker(
                 symbol=symbol,
                 price=Decimal(str(raw_ticker["last"])),
-                timestamp=datetime.fromtimestamp(raw_ticker["timestamp"] / 1000),
+                timestamp=from_unix_ms(raw_ticker["timestamp"]),
             )
 
         except RateLimitExceeded as e:
@@ -500,9 +501,9 @@ class BinanceExchange(BaseExchange):
             quantity=Decimal(str(raw_order["amount"])),
             filled_quantity=Decimal(str(raw_order.get("filled", 0) or 0)),
             status=self._map_order_status(raw_order["status"]),
-            created_at=datetime.fromtimestamp(raw_order["timestamp"] / 1000),
+            created_at=from_unix_ms(raw_order["timestamp"]),
             updated_at=(
-                datetime.fromtimestamp(raw_order["lastTradeTimestamp"] / 1000)
+                from_unix_ms(raw_order["lastTradeTimestamp"])
                 if raw_order.get("lastTradeTimestamp")
                 else None
             ),
