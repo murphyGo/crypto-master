@@ -177,9 +177,7 @@ class TestPortfolio:
 class TestRealizedPnL:
     """Tests for PortfolioTracker.calculate_realized_pnl."""
 
-    def test_no_trades_returns_zero(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_no_trades_returns_zero(self, portfolio_tracker: PortfolioTracker) -> None:
         """No closed trades → zero realized P&L."""
         assert portfolio_tracker.calculate_realized_pnl("paper") == Decimal("0")
 
@@ -188,16 +186,21 @@ class TestRealizedPnL:
         portfolio_tracker: PortfolioTracker,
         trade_tracker: TradeHistoryTracker,
     ) -> None:
-        """Realized P&L sums closed trade.pnl values."""
+        """Realized P&L sums closed trade.pnl values.
+
+        Phase 20.1 (extension): TradeHistory.pnl is leverage-neutral —
+        qty was sized off the entry-to-stop distance, so ``(Δp) ×
+        qty`` is already the correct figure (no second × leverage).
+        """
         # Trade 1: long 0.1 BTC, entry 50000 -> exit 51000, 10x
-        # pnl = (51000-50000) * 0.1 * 10 = 1000
+        # pnl = (51000-50000) * 0.1 = 100
         _open_and_close(trade_tracker, exit_price="51000")
         # Trade 2: long 0.1 BTC, entry 50000 -> exit 49500
-        # pnl = (49500-50000) * 0.1 * 10 = -500
+        # pnl = (49500-50000) * 0.1 = -50
         _open_and_close(trade_tracker, exit_price="49500")
 
         realized = portfolio_tracker.calculate_realized_pnl("paper")
-        assert realized == Decimal("500")
+        assert realized == Decimal("50")
 
     def test_excludes_open_trades(
         self,
@@ -205,7 +208,7 @@ class TestRealizedPnL:
         trade_tracker: TradeHistoryTracker,
     ) -> None:
         """Open trades are not counted in realized P&L."""
-        _open_and_close(trade_tracker, exit_price="51000")  # +1000
+        _open_and_close(trade_tracker, exit_price="51000")  # +100
         trade_tracker.open_trade(
             symbol="ETH/USDT",
             side="long",
@@ -214,9 +217,7 @@ class TestRealizedPnL:
             mode="paper",
             leverage=5,
         )  # open, no pnl
-        assert (
-            portfolio_tracker.calculate_realized_pnl("paper") == Decimal("1000")
-        )
+        assert portfolio_tracker.calculate_realized_pnl("paper") == Decimal("100")
 
     def test_mode_separation(
         self,
@@ -229,8 +230,11 @@ class TestRealizedPnL:
 
         paper = portfolio_tracker.calculate_realized_pnl("paper")
         live = portfolio_tracker.calculate_realized_pnl("live")
-        assert paper == Decimal("1000")
-        assert live == Decimal("2000")
+        # Phase 20.1 (extension): leverage-neutral.
+        # paper: 0.1 * (51000 - 50000) = 100
+        # live:  0.1 * (52000 - 50000) = 200
+        assert paper == Decimal("100")
+        assert live == Decimal("200")
 
 
 # =============================================================================
@@ -241,9 +245,7 @@ class TestRealizedPnL:
 class TestUnrealizedPnL:
     """Tests for PortfolioTracker.calculate_unrealized_pnl."""
 
-    def test_no_open_trades(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_no_open_trades(self, portfolio_tracker: PortfolioTracker) -> None:
         """Empty open-trade set → zero unrealized."""
         result = portfolio_tracker.calculate_unrealized_pnl(
             "paper", {"BTC/USDT": Decimal("50000")}
@@ -267,8 +269,10 @@ class TestUnrealizedPnL:
         unreal = portfolio_tracker.calculate_unrealized_pnl(
             "paper", {"BTC/USDT": Decimal("51000")}
         )
-        # (51000-50000) * 0.1 * 10 = 1000
-        assert unreal == Decimal("1000")
+        # (51000-50000) * 0.1 = 100. Phase 20.1: leverage is already
+        # baked into ``entry_quantity`` from sizing; no second
+        # multiplication. (Pre-fix this test asserted 1000.)
+        assert unreal == Decimal("100")
 
     def test_short_unrealized_profit(
         self,
@@ -287,8 +291,10 @@ class TestUnrealizedPnL:
         unreal = portfolio_tracker.calculate_unrealized_pnl(
             "paper", {"BTC/USDT": Decimal("49000")}
         )
-        # (50000-49000) * 0.1 * 10 = 1000
-        assert unreal == Decimal("1000")
+        # (50000-49000) * 0.1 = 100. Phase 20.1: leverage is already
+        # baked into ``entry_quantity``; no second multiplication.
+        # (Pre-fix this test asserted 1000.)
+        assert unreal == Decimal("100")
 
     def test_multiple_positions_summed(
         self,
@@ -315,11 +321,12 @@ class TestUnrealizedPnL:
         unreal = portfolio_tracker.calculate_unrealized_pnl(
             "paper",
             {
-                "BTC/USDT": Decimal("51000"),  # +1000
-                "ETH/USDT": Decimal("3100"),  # +500
+                "BTC/USDT": Decimal("51000"),  # +100 = (51000-50000)*0.1
+                "ETH/USDT": Decimal("3100"),  # +100 = (3100-3000)*1
             },
         )
-        assert unreal == Decimal("1500")
+        # Phase 20.1: no double-leverage. (Pre-fix: 1500.)
+        assert unreal == Decimal("200")
 
     def test_missing_price_skips_position(
         self,
@@ -346,7 +353,9 @@ class TestUnrealizedPnL:
         unreal = portfolio_tracker.calculate_unrealized_pnl(
             "paper", {"BTC/USDT": Decimal("51000")}  # no ETH price
         )
-        assert unreal == Decimal("1000")  # only BTC contributes
+        # Only BTC contributes: (51000-50000) * 0.1 = 100. Phase 20.1
+        # convention; pre-fix asserted 1000.
+        assert unreal == Decimal("100")
 
 
 # =============================================================================
@@ -357,9 +366,7 @@ class TestUnrealizedPnL:
 class TestGetPortfolio:
     """Tests for PortfolioTracker.get_portfolio."""
 
-    def test_empty_mode(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_empty_mode(self, portfolio_tracker: PortfolioTracker) -> None:
         """Empty mode returns portfolio with zeros and correct counts."""
         portfolio = portfolio_tracker.get_portfolio(
             mode="paper",
@@ -380,7 +387,7 @@ class TestGetPortfolio:
         trade_tracker: TradeHistoryTracker,
     ) -> None:
         """Portfolio aggregates closed + open + balances + prices."""
-        _open_and_close(trade_tracker, exit_price="51000")  # +1000 realized
+        _open_and_close(trade_tracker, exit_price="51000")  # +100 realized
         trade_tracker.open_trade(
             symbol="ETH/USDT",
             side="long",
@@ -396,12 +403,17 @@ class TestGetPortfolio:
             balances={"USDT": Decimal("11000")},
             current_prices={"ETH/USDT": Decimal("3100")},
         )
-        assert portfolio.realized_pnl == Decimal("1000")
-        assert portfolio.unrealized_pnl == Decimal("500")  # (3100-3000)*1*5
+        # Phase 20.1 (extension): both realized and unrealized are
+        # leverage-neutral now (TradeHistory.calculate_pnl routes
+        # through ``pnl_for_trade``).
+        # realized: 0.1 * (51000 - 50000) = 100
+        assert portfolio.realized_pnl == Decimal("100")
+        # unrealized: (3100 - 3000) * 1 = 100
+        assert portfolio.unrealized_pnl == Decimal("100")
         assert portfolio.open_positions_count == 1
         assert portfolio.closed_trades_count == 1
-        assert portfolio.total_equity == Decimal("11500")
-        assert portfolio.total_pnl == Decimal("1500")
+        assert portfolio.total_equity == Decimal("11100")
+        assert portfolio.total_pnl == Decimal("200")
 
     def test_without_current_prices(
         self,
@@ -434,9 +446,7 @@ class TestGetPortfolio:
 class TestSnapshots:
     """Tests for snapshot persistence and loading."""
 
-    def test_record_and_load(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_record_and_load(self, portfolio_tracker: PortfolioTracker) -> None:
         """A recorded snapshot can be reloaded."""
         snap = portfolio_tracker.record_snapshot(
             mode="paper",
@@ -454,7 +464,7 @@ class TestSnapshots:
         trade_tracker: TradeHistoryTracker,
     ) -> None:
         """Snapshot captures realized and unrealized P&L at record time."""
-        _open_and_close(trade_tracker, exit_price="51000")  # realized +1000
+        _open_and_close(trade_tracker, exit_price="51000")  # realized +100
         trade_tracker.open_trade(
             symbol="BTC/USDT",
             side="long",
@@ -470,14 +480,16 @@ class TestSnapshots:
             balances={"USDT": Decimal("10500")},
             current_prices={"BTC/USDT": Decimal("51000")},
         )
-        assert snap.realized_pnl == Decimal("1000")
-        assert snap.unrealized_pnl == Decimal("1000")
-        assert snap.total_equity == Decimal("11500")
-        assert snap.total_pnl == Decimal("2000")
+        # Phase 20.1 (extension): both realized and unrealized are
+        # leverage-neutral now.
+        # realized: 0.1 * (51000 - 50000) = 100
+        assert snap.realized_pnl == Decimal("100")
+        # unrealized: (51000-50000) * 0.1 = 100
+        assert snap.unrealized_pnl == Decimal("100")
+        assert snap.total_equity == Decimal("10600")
+        assert snap.total_pnl == Decimal("200")
 
-    def test_append_snapshots(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_append_snapshots(self, portfolio_tracker: PortfolioTracker) -> None:
         """Subsequent snapshots append, not overwrite."""
         portfolio_tracker.record_snapshot(
             mode="paper",
@@ -520,15 +532,11 @@ class TestSnapshots:
         assert (tmp_path / "portfolio" / "paper" / "snapshots.json").exists()
         assert (tmp_path / "portfolio" / "live" / "snapshots.json").exists()
 
-    def test_load_empty(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_load_empty(self, portfolio_tracker: PortfolioTracker) -> None:
         """Loading with no snapshots returns []."""
         assert portfolio_tracker.load_snapshots("paper") == []
 
-    def test_load_with_date_range(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_load_with_date_range(self, portfolio_tracker: PortfolioTracker) -> None:
         """Snapshots can be filtered by [start, end]."""
         now = datetime.now()
         older = AssetSnapshot(
@@ -549,9 +557,7 @@ class TestSnapshots:
             quote_currency="USDT",
             balances={"USDT": Decimal("10000")},
         )
-        portfolio_tracker._save_snapshots(
-            "paper", [older, middle, newest]
-        )
+        portfolio_tracker._save_snapshots("paper", [older, middle, newest])
 
         result = portfolio_tracker.load_snapshots(
             "paper",
@@ -567,9 +573,7 @@ class TestSnapshots:
         tmp_path: Path,
     ) -> None:
         """Malformed snapshot file yields an empty list, not a crash."""
-        path = (
-            tmp_path / "portfolio" / "paper" / "snapshots.json"
-        )
+        path = tmp_path / "portfolio" / "paper" / "snapshots.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{not json")
         assert portfolio_tracker.load_snapshots("paper") == []
@@ -599,9 +603,7 @@ class TestSnapshots:
 class TestEquityCurve:
     """Tests for equity curve and deletion helpers."""
 
-    def test_equity_curve(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_equity_curve(self, portfolio_tracker: PortfolioTracker) -> None:
         """get_equity_curve returns (timestamp, equity) pairs."""
         portfolio_tracker.record_snapshot(
             mode="paper",
@@ -619,9 +621,7 @@ class TestEquityCurve:
         assert curve[0][1] == Decimal("10000")
         assert curve[1][1] == Decimal("10500")
 
-    def test_delete_snapshots(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_delete_snapshots(self, portfolio_tracker: PortfolioTracker) -> None:
         """delete_snapshots removes stored data for a mode."""
         portfolio_tracker.record_snapshot(
             mode="paper",
@@ -631,8 +631,6 @@ class TestEquityCurve:
         assert portfolio_tracker.delete_snapshots("paper") is True
         assert portfolio_tracker.load_snapshots("paper") == []
 
-    def test_delete_nonexistent_mode(
-        self, portfolio_tracker: PortfolioTracker
-    ) -> None:
+    def test_delete_nonexistent_mode(self, portfolio_tracker: PortfolioTracker) -> None:
         """Deleting a mode with nothing stored returns False."""
         assert portfolio_tracker.delete_snapshots("paper") is False

@@ -414,19 +414,20 @@ class TestPaperTraderClosePosition:
         trade = await trader.open_position(long_position)
 
         # Close at higher price (profit)
-        closed = await trader.close_position(
-            trade.id, Decimal("51000"), "take_profit"
-        )
+        closed = await trader.close_position(trade.id, Decimal("51000"), "take_profit")
 
         assert closed is not None
         assert closed.status == "closed"
         assert closed.close_reason == "take_profit"
         assert closed.exit_price == Decimal("51000")
 
-        # TradeHistory P&L includes leverage: 0.1 * 1000 * 10 = 1000
-        assert closed.pnl == Decimal("1000")
+        # Phase 20.1 (extension): TradeHistory P&L is leverage-
+        # neutral — qty was sized off the entry-to-stop distance, so
+        # ``(Δp) × qty`` is already the correct figure.
+        # 0.1 * (51000 - 50000) = 100
+        assert closed.pnl == Decimal("100")
 
-        # Balance uses unleveraged P&L: 9500 + 500 + 100 = 10100
+        # Balance: unlock margin (9500 + 500 = 10000) + pnl (100) = 10100
         balance = trader.get_balance("USDT")
         assert balance is not None
         assert balance.free == Decimal("10100")
@@ -439,16 +440,15 @@ class TestPaperTraderClosePosition:
         trade = await trader.open_position(long_position)
 
         # Close at lower price (loss)
-        closed = await trader.close_position(
-            trade.id, Decimal("49500"), "stop_loss"
-        )
+        closed = await trader.close_position(trade.id, Decimal("49500"), "stop_loss")
 
         assert closed is not None
         assert closed.status == "closed"
         assert closed.close_reason == "stop_loss"
 
-        # TradeHistory P&L includes leverage: 0.1 * (-500) * 10 = -500
-        assert closed.pnl == Decimal("-500")
+        # Phase 20.1 (extension): leverage-neutral.
+        # 0.1 * (49500 - 50000) = -50
+        assert closed.pnl == Decimal("-50")
 
         # Balance uses unleveraged P&L: 9500 + 500 - 50 = 9950
         balance = trader.get_balance("USDT")
@@ -471,9 +471,7 @@ class TestPaperTraderClosePosition:
         closed = await trader.close_position("non-existent", Decimal("50000"))
         assert closed is None
 
-    async def test_close_short_position_with_profit(
-        self, trader: PaperTrader
-    ) -> None:
+    async def test_close_short_position_with_profit(self, trader: PaperTrader) -> None:
         """Test closing short position with profit."""
         short_position = Position(
             symbol="BTC/USDT",
@@ -487,13 +485,12 @@ class TestPaperTraderClosePosition:
         trade = await trader.open_position(short_position)
 
         # Close at lower price (profit for short)
-        closed = await trader.close_position(
-            trade.id, Decimal("49000"), "take_profit"
-        )
+        closed = await trader.close_position(trade.id, Decimal("49000"), "take_profit")
 
-        # TradeHistory P&L includes leverage: 0.1 * 1000 * 10 = 1000
+        # Phase 20.1 (extension): leverage-neutral.
+        # 0.1 * (50000 - 49000) = 100
         assert closed is not None
-        assert closed.pnl == Decimal("1000")
+        assert closed.pnl == Decimal("100")
 
 
 # =============================================================================
@@ -526,16 +523,12 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # Price at stop loss
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("49000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("49000"))
         assert should_exit is True
         assert reason == "stop_loss"
 
         # Price below stop loss
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("48000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("48000"))
         assert should_exit is True
         assert reason == "stop_loss"
 
@@ -553,16 +546,12 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # Price at take profit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("52000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("52000"))
         assert should_exit is True
         assert reason == "take_profit"
 
         # Price above take profit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("53000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("53000"))
         assert should_exit is True
         assert reason == "take_profit"
 
@@ -580,9 +569,7 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # Price in between
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("50500")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("50500"))
         assert should_exit is False
         assert reason is None
 
@@ -600,9 +587,7 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # Price at stop loss
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("51000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("51000"))
         assert should_exit is True
         assert reason == "stop_loss"
 
@@ -620,9 +605,7 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # Price at take profit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("48000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("48000"))
         assert should_exit is True
         assert reason == "take_profit"
 
@@ -646,9 +629,7 @@ class TestPaperTraderExitConditions:
         trade = await trader.open_position(position)
 
         # No SL/TP means no automatic exit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("40000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("40000"))
         assert should_exit is False
         assert reason is None
 
@@ -750,9 +731,7 @@ class TestPaperTraderPnL:
         )
         trade = await trader.open_position(position)
 
-        pnl_by_trade = trader.update_unrealized_pnl({
-            "BTC/USDT": Decimal("51000")
-        })
+        pnl_by_trade = trader.update_unrealized_pnl({"BTC/USDT": Decimal("51000")})
 
         # P&L = 0.1 * (51000 - 50000) = 100
         assert trade.id in pnl_by_trade
@@ -778,10 +757,12 @@ class TestPaperTraderPnL:
         await trader.open_position(position1)
         await trader.open_position(position2)
 
-        total_pnl = trader.get_total_unrealized_pnl({
-            "BTC/USDT": Decimal("51000"),  # +100
-            "ETH/USDT": Decimal("3100"),   # +100
-        })
+        total_pnl = trader.get_total_unrealized_pnl(
+            {
+                "BTC/USDT": Decimal("51000"),  # +100
+                "ETH/USDT": Decimal("3100"),  # +100
+            }
+        )
 
         assert total_pnl == Decimal("200")
 
@@ -797,10 +778,7 @@ class TestPaperTraderPnL:
         await trader.open_position(position)
 
         # Initial: 10000, Margin: 500, Unrealized: 100
-        equity = trader.get_total_equity(
-            "USDT",
-            {"BTC/USDT": Decimal("51000")}
-        )
+        equity = trader.get_total_equity("USDT", {"BTC/USDT": Decimal("51000")})
 
         # Total = 9500 (free) + 500 (locked) + 100 (unrealized) = 10100
         assert equity == Decimal("10100")
@@ -846,15 +824,11 @@ class TestPaperTraderIntegration:
         assert balance.locked == Decimal("500")
 
         # Simulate price movement, check exit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("50500")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("50500"))
         assert should_exit is False
 
         # Price hits take profit
-        should_exit, reason = trader.check_exit_conditions(
-            trade.id, Decimal("52000")
-        )
+        should_exit, reason = trader.check_exit_conditions(trade.id, Decimal("52000"))
         assert should_exit is True
         assert reason == "take_profit"
 
@@ -862,10 +836,11 @@ class TestPaperTraderIntegration:
         closed = await trader.close_position(trade.id, Decimal("52000"), reason)
         assert closed is not None
         assert closed.status == "closed"
-        # TradeHistory P&L includes leverage: 0.1 * 2000 * 10 = 2000
-        assert closed.pnl == Decimal("2000")
+        # Phase 20.1 (extension): leverage-neutral.
+        # 0.1 * (52000 - 50000) = 200
+        assert closed.pnl == Decimal("200")
 
-        # Check final balance (uses unleveraged P&L: 0.1 * 2000 = 200)
+        # Check final balance: unleveraged pnl 200 → 10000 + 200 = 10200
         balance = trader.get_balance("USDT")
         assert balance is not None
         assert balance.free == Decimal("10200")
@@ -945,8 +920,9 @@ class TestPaperTraderIntegration:
         retrieved = trader2.get_trade(trade_id)
         assert retrieved is not None
         assert retrieved.status == "closed"
-        # TradeHistory P&L includes leverage: 0.1 * 1000 * 10 = 1000
-        assert retrieved.pnl == Decimal("1000")
+        # Phase 20.1 (extension): leverage-neutral.
+        # 0.1 * (51000 - 50000) = 100
+        assert retrieved.pnl == Decimal("100")
 
 
 # =============================================================================
@@ -998,9 +974,7 @@ class TestPaperTraderFeeResolution:
         trader = PaperTrader(data_dir=tmp_path)
         assert trader.fee_config == ZERO_FEE_CONFIG
 
-    async def test_explicit_fee_config_overrides_default(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_explicit_fee_config_overrides_default(self, tmp_path: Path) -> None:
         """Explicit fee_config wins over exchange default."""
         custom = FeeConfig(
             maker_fee_rate=Decimal("0.001"),
@@ -1021,9 +995,7 @@ class TestPaperTraderFeeResolution:
         trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
         assert trader.fee_config == DEFAULT_FEE_CONFIGS["binance"]
 
-    async def test_unknown_exchange_falls_back_to_zero(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_unknown_exchange_falls_back_to_zero(self, tmp_path: Path) -> None:
         """Unknown exchange names fall back to zero fees."""
         from unittest.mock import MagicMock
 
@@ -1048,9 +1020,7 @@ class TestPaperTraderFeeCalculation:
         )
 
     @pytest.fixture
-    def trader(
-        self, tmp_path: Path, fee_config: FeeConfig
-    ) -> PaperTrader:
+    def trader(self, tmp_path: Path, fee_config: FeeConfig) -> PaperTrader:
         """PaperTrader with fee config and 10,000 USDT."""
         return PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
@@ -1071,16 +1041,12 @@ class TestPaperTraderFeeCalculation:
             take_profit=Decimal("52000"),
         )
 
-    async def test_calculate_fee_taker(
-        self, trader: PaperTrader
-    ) -> None:
+    async def test_calculate_fee_taker(self, trader: PaperTrader) -> None:
         """_calculate_fee applies taker rate by default."""
         fee = trader._calculate_fee(Decimal("5000"))
         assert fee == Decimal("5")  # 5000 * 0.001
 
-    async def test_calculate_fee_maker(
-        self, trader: PaperTrader
-    ) -> None:
+    async def test_calculate_fee_maker(self, trader: PaperTrader) -> None:
         """_calculate_fee applies maker rate when flagged."""
         fee = trader._calculate_fee(Decimal("5000"), is_maker=True)
         assert fee == Decimal("2.5")  # 5000 * 0.0005
@@ -1109,9 +1075,7 @@ class TestPaperTraderFeeCalculation:
         trade = await trader.open_position(long_position)
 
         # Close at 51000 → exit_notional = 5100, exit_fee = 5.1
-        closed = await trader.close_position(
-            trade.id, Decimal("51000"), "take_profit"
-        )
+        closed = await trader.close_position(trade.id, Decimal("51000"), "take_profit")
         assert closed is not None
 
         # Balance walk-through:
@@ -1132,17 +1096,16 @@ class TestPaperTraderFeeCalculation:
     async def test_close_position_pnl_includes_fees(
         self, trader: PaperTrader, long_position: Position
     ) -> None:
-        """TradeHistory P&L subtracts total fees after leverage."""
+        """TradeHistory P&L subtracts total fees (leverage-neutral)."""
         trade = await trader.open_position(long_position)
-        closed = await trader.close_position(
-            trade.id, Decimal("51000"), "take_profit"
-        )
+        closed = await trader.close_position(trade.id, Decimal("51000"), "take_profit")
         assert closed is not None
 
-        # Leveraged gross P&L: 0.1 * 1000 * 10 = 1000
+        # Phase 20.1 (extension): leverage-neutral.
+        # Gross P&L: 0.1 * (51000 - 50000) = 100
         # Total fees = 10.1
-        # Net P&L = 1000 - 10.1 = 989.9
-        assert closed.pnl == Decimal("989.9")
+        # Net P&L = 100 - 10.1 = 89.9
+        assert closed.pnl == Decimal("89.9")
 
     async def test_close_position_loss_with_fees(
         self, trader: PaperTrader, long_position: Position
@@ -1150,17 +1113,15 @@ class TestPaperTraderFeeCalculation:
         """Losing trade also pays fees on entry and exit."""
         trade = await trader.open_position(long_position)
 
-        # Close at 49500 → raw pnl = -50, leveraged = -500
-        closed = await trader.close_position(
-            trade.id, Decimal("49500"), "stop_loss"
-        )
+        # Close at 49500 → gross pnl = 0.1 * (49500 - 50000) = -50
+        closed = await trader.close_position(trade.id, Decimal("49500"), "stop_loss")
         assert closed is not None
 
         # Exit notional = 4950, exit_fee = 4.95
         # Total fees = 5 + 4.95 = 9.95
-        # Leveraged P&L - fees = -500 - 9.95 = -509.95
+        # P&L - fees = -50 - 9.95 = -59.95
         assert closed.fees == Decimal("9.95")
-        assert closed.pnl == Decimal("-509.95")
+        assert closed.pnl == Decimal("-59.95")
 
         # Balance walk-through:
         #  start:                       10000
@@ -1173,9 +1134,7 @@ class TestPaperTraderFeeCalculation:
         assert balance is not None
         assert balance.free == Decimal("9940.05")
 
-    async def test_short_position_with_fees(
-        self, trader: PaperTrader
-    ) -> None:
+    async def test_short_position_with_fees(self, trader: PaperTrader) -> None:
         """Short positions also pay entry and exit fees."""
         short_position = Position(
             symbol="BTC/USDT",
@@ -1191,14 +1150,14 @@ class TestPaperTraderFeeCalculation:
         closed = await trader.close_position(trade.id, Decimal("49000"))
         assert closed is not None
 
-        # Leveraged gross P&L: 0.1 * 1000 * 10 = 1000
+        # Phase 20.1 (extension): leverage-neutral.
+        # Gross P&L: 0.1 * (50000 - 49000) = 100
         # Total fees = 5 + 4.9 = 9.9
+        # Net = 100 - 9.9 = 90.1
         assert closed.fees == Decimal("9.9")
-        assert closed.pnl == Decimal("990.1")
+        assert closed.pnl == Decimal("90.1")
 
-    async def test_zero_fee_config_skips_deduction(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_zero_fee_config_skips_deduction(self, tmp_path: Path) -> None:
         """Zero fee config preserves legacy balance behavior."""
         trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
@@ -1266,7 +1225,7 @@ class TestPaperTraderFeeCalculation:
         )
         assert closed is not None
 
-        # Raw P&L = 0 (same price), leveraged = 0
+        # Gross P&L = 0 (same price)
         # Fees = 5 + 5 = 10
         # Net P&L = -10
         assert closed.pnl == Decimal("-10")

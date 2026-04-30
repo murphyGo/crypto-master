@@ -21,6 +21,7 @@ from src.logger import get_logger
 from src.models import OrderRequest, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.strategy import TradingError
+from src.utils.trading_math import pnl_for_trade
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -594,8 +595,16 @@ class PaperTrader:
         quote_currency = open_pos.quote_currency
         entry_fee = open_pos.entry_fee
 
-        # Calculate P&L (unleveraged, used for balance accounting)
-        pnl = position.calculate_pnl(exit_price)
+        # Realised P&L via the single-source helper (DEBT-024 / Phase
+        # 20.1). PaperTrader's convention has always matched the
+        # helper (no double-leverage); routing through ``pnl_for_trade``
+        # is for symmetry with the backtester and portfolio sites.
+        pnl = pnl_for_trade(
+            entry=position.entry_price,
+            exit=exit_price,
+            qty=position.quantity,
+            side=position.side,
+        )
 
         # Calculate exit fee (market orders = taker)
         exit_notional = exit_price * position.quantity

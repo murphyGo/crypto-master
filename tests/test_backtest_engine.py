@@ -183,9 +183,7 @@ class TestBacktesterGuards:
             await bt.run(strategy, [], "BTC/USDT")
 
     @pytest.mark.asyncio
-    async def test_insufficient_warmup_yields_zero_trades(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_insufficient_warmup_yields_zero_trades(self, tmp_path: Path) -> None:
         """If OHLCV shorter than warmup, no analysis calls → no trades."""
         bt = make_backtester(tmp_path, warmup_candles=10)
         strategy = ControllableStrategy(default=long_analysis())
@@ -195,9 +193,7 @@ class TestBacktesterGuards:
         assert strategy.calls == []
 
     @pytest.mark.asyncio
-    async def test_all_neutral_yields_zero_trades(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_all_neutral_yields_zero_trades(self, tmp_path: Path) -> None:
         """A strategy that always returns neutral trades nothing."""
         bt = make_backtester(tmp_path)
         strategy = ControllableStrategy()  # default is neutral
@@ -310,9 +306,7 @@ class TestLosingTrade:
         assert result.trades[0].pnl < 0
 
     @pytest.mark.asyncio
-    async def test_sl_wins_when_both_in_same_candle(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_sl_wins_when_both_in_same_candle(self, tmp_path: Path) -> None:
         """Pessimistic: if SL and TP both fall in range, SL wins."""
         bt = make_backtester(tmp_path)
         candles = make_flat_candles(5)
@@ -338,9 +332,7 @@ class TestEndOfDataClose:
     """Open trades are force-closed at the last candle."""
 
     @pytest.mark.asyncio
-    async def test_open_trade_closes_on_last_candle(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_open_trade_closes_on_last_candle(self, tmp_path: Path) -> None:
         """A trade that never hits SL/TP closes at the final candle close."""
         bt = make_backtester(tmp_path)
         candles = make_flat_candles(5)  # all flat, no SL/TP hit
@@ -382,9 +374,7 @@ class TestSlippageAndFees:
     """Slippage and taker fees are reflected in fills and P&L."""
 
     @pytest.mark.asyncio
-    async def test_slippage_applied_to_entry(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_slippage_applied_to_entry(self, tmp_path: Path) -> None:
         """Long entry fills higher than the candle close by slippage_bps."""
         bt = make_backtester(tmp_path, slippage_bps=10)  # 0.1%
         candles = make_flat_candles(5)
@@ -395,9 +385,7 @@ class TestSlippageAndFees:
         assert trade.entry_price == Decimal("50050")
 
     @pytest.mark.asyncio
-    async def test_slippage_applied_to_exit(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_slippage_applied_to_exit(self, tmp_path: Path) -> None:
         """Long TP exit fills lower than the TP target by slippage_bps."""
         bt = make_backtester(tmp_path, slippage_bps=10)
         candles = make_flat_candles(5)
@@ -448,9 +436,7 @@ class TestResultSummary:
     """Aggregate metrics are computed from the trade list."""
 
     @pytest.mark.asyncio
-    async def test_final_balance_matches_initial_plus_pnl(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_final_balance_matches_initial_plus_pnl(self, tmp_path: Path) -> None:
         """Running balance reconciles to final_balance exactly."""
         bt = make_backtester(tmp_path)
         candles = make_flat_candles(5)
@@ -463,15 +449,10 @@ class TestResultSummary:
         )
         strategy = ControllableStrategy(signals={2: long_analysis()})
         result = await bt.run(strategy, candles, "BTC/USDT")
-        assert (
-            result.final_balance
-            == result.initial_balance + result.total_pnl
-        )
+        assert result.final_balance == result.initial_balance + result.total_pnl
 
     @pytest.mark.asyncio
-    async def test_win_rate_for_mixed_results(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_win_rate_for_mixed_results(self, tmp_path: Path) -> None:
         """Win rate reflects wins / total_trades."""
         bt = make_backtester(tmp_path)
         # 6 candles: 2 is signal (win), 3 closes with TP, 4 is another
@@ -503,9 +484,7 @@ class TestProfileIntegration:
     """Profiles filter signals and drive sizing."""
 
     @pytest.mark.asyncio
-    async def test_profile_filters_low_confidence(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_profile_filters_low_confidence(self, tmp_path: Path) -> None:
         """A low-confidence signal is skipped when profile.min_confidence is high."""
         bt = make_backtester(tmp_path)
         profile = TradingProfile(
@@ -517,19 +496,13 @@ class TestProfileIntegration:
             min_risk_reward_ratio=1.5,
         )
         candles = make_flat_candles(5)
-        strategy = ControllableStrategy(
-            signals={2: long_analysis(confidence=0.5)}
-        )
-        result = await bt.run(
-            strategy, candles, "BTC/USDT", profile=profile
-        )
+        strategy = ControllableStrategy(signals={2: long_analysis(confidence=0.5)})
+        result = await bt.run(strategy, candles, "BTC/USDT", profile=profile)
         assert result.total_trades == 0
         assert result.profile_name == "strict"
 
     @pytest.mark.asyncio
-    async def test_profile_accepted_trade_recorded(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_profile_accepted_trade_recorded(self, tmp_path: Path) -> None:
         """High-confidence signal is taken; profile_name is on the result."""
         bt = make_backtester(tmp_path)
         profile = TradingProfile(
@@ -541,12 +514,8 @@ class TestProfileIntegration:
             min_risk_reward_ratio=1.5,
         )
         candles = make_flat_candles(5)
-        strategy = ControllableStrategy(
-            signals={2: long_analysis(confidence=0.9)}
-        )
-        result = await bt.run(
-            strategy, candles, "BTC/USDT", profile=profile
-        )
+        strategy = ControllableStrategy(signals={2: long_analysis(confidence=0.9)})
+        result = await bt.run(strategy, candles, "BTC/USDT", profile=profile)
         assert result.total_trades == 1
         assert result.profile_name == "moderate"
 
@@ -587,9 +556,7 @@ class TestPersistence:
         assert loaded.trades[0].close_reason == "take_profit"
 
     @pytest.mark.asyncio
-    async def test_load_missing_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_load_missing_returns_none(self, tmp_path: Path) -> None:
         """Non-existent run_id loads to None."""
         bt = make_backtester(tmp_path)
         assert bt.load_result("does-not-exist") is None
@@ -657,9 +624,7 @@ class TestPerBarCircuitBreaker:
                 timeframe: str = "1h",
             ) -> AnalysisResult:
                 self.calls += 1
-                raise ClaudeParseError(
-                    "no parseable JSON in response"
-                )
+                raise ClaudeParseError("no parseable JSON in response")
 
         # Override the breaker config explicitly so the test pins the
         # contract regardless of the global default.
@@ -687,9 +652,7 @@ class TestPerBarCircuitBreaker:
         assert strategy.calls == 3
 
     @pytest.mark.asyncio
-    async def test_per_bar_timeout_trips_breaker(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_per_bar_timeout_trips_breaker(self, tmp_path: Path) -> None:
         """A strategy that blocks past ``per_bar_timeout`` aborts with
         ``BacktestAbortedError(reason="per_bar_timeout")`` on the
         first slow bar — no consecutive-failure accumulation needed."""
@@ -742,9 +705,7 @@ class TestPerBarCircuitBreaker:
         assert strategy.calls == 1
 
     @pytest.mark.asyncio
-    async def test_intermittent_failures_do_not_trip(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_intermittent_failures_do_not_trip(self, tmp_path: Path) -> None:
         """4 failures then a success must reset the counter — only
         *consecutive* failures saturate the breaker. Pins the
         consecutive-only contract."""
@@ -796,3 +757,339 @@ class TestPerBarCircuitBreaker:
         # 4 errors then 19 - 4 = 15 successful neutral calls = 19 calls
         # over the 19 post-warmup bars (indices 1..19 inclusive).
         assert strategy.calls == 19
+
+
+# =============================================================================
+# DEBT-024 / Phase 20.1: PnL convention alignment
+# =============================================================================
+
+
+class TestPnLConventionAlignment:
+    """Backtester and PaperTrader must compute identical realised PnL.
+
+    Pre-Phase-20.1 the backtester multiplied PnL by ``leverage`` a
+    second time at close, while PaperTrader's in-memory P&L
+    calculation did not — so for a levered trade the two engines'
+    P&L computations diverged by a factor of ``leverage``. These
+    tests pin the post-fix invariant: with the same (entry, exit,
+    qty, side, leverage) inputs and zero fees / slippage, the
+    backtester ``BacktestTrade.pnl``, the canonical helper
+    ``pnl_for_trade``, and the persisted ``TradeHistory.pnl`` (via
+    ``TradeHistoryTracker.close_trade``) all agree exactly.
+    Leverage is set to 10 so any accidental re-introduction of the
+    second multiplication is loud (10x divergence).
+
+    Phase 20.1 extension: the persistence-layer site
+    (``TradeHistory.calculate_pnl`` in
+    ``src/strategy/performance.py``) was the third instance of
+    DEBT-024 and is now also fixed. The third test below pins the
+    backtester ↔ persisted-paper-trader equality by direct numeric
+    comparison (no spy / mock.patch), which would have failed before
+    the fix.
+    """
+
+    @pytest.mark.asyncio
+    async def test_backtester_and_paper_trader_match_long(self, tmp_path: Path) -> None:
+        from datetime import datetime as _dt
+
+        from src.backtest.engine import _OpenTrade
+        from src.models import Position
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("100")
+        exit_price = Decimal("110")
+        qty = Decimal("2")
+        leverage = 10  # loud multiplier — any double-apply == 10x diff
+
+        # Backtester side: drive _close_trade directly with a
+        # synthetic _OpenTrade so the test does not depend on the
+        # walk-forward loop. Zero fees / zero slippage so the gross
+        # price-move PnL == BacktestTrade.pnl == balance_delta.
+        bt = make_backtester(
+            tmp_path,
+            slippage_bps=0,
+            fee_rate=Decimal("0"),
+            leverage=leverage,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("90"),
+            take_profit=Decimal("120"),
+        )
+        open_trade = _OpenTrade(
+            position=position,
+            entry_time=_dt(2026, 1, 1, 0, 0, 0),
+            actual_entry_price=entry,
+            entry_fee=Decimal("0"),
+        )
+        bt_trade, bt_balance_delta = bt._close_trade(
+            open_trade=open_trade,
+            exit_time=_dt(2026, 1, 1, 1, 0, 0),
+            target_exit_price=exit_price,
+            reason="take_profit",
+            skip_slippage=True,
+        )
+
+        # Canonical helper output (paper.py now computes its
+        # in-memory ``pnl`` via this same call). Expected:
+        # (110 - 100) * 2 = 20. Pre-fix the backtester would have
+        # produced 20 * 10 = 200.
+        helper_pnl = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="long",
+        )
+        expected = Decimal("20")
+        assert helper_pnl == expected
+        assert bt_trade.pnl == expected, (
+            f"Backtester PnL {bt_trade.pnl} != expected {expected}; "
+            "leverage may be double-applied (DEBT-024)."
+        )
+        assert bt_balance_delta == expected
+        assert bt_trade.pnl == helper_pnl, (
+            "Backtester and canonical helper disagree; "
+            "convention has drifted (DEBT-024)."
+        )
+
+    @pytest.mark.asyncio
+    async def test_backtester_and_paper_trader_match_short(
+        self, tmp_path: Path
+    ) -> None:
+        from datetime import datetime as _dt
+
+        from src.backtest.engine import _OpenTrade
+        from src.models import Position
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("100")
+        exit_price = Decimal("90")
+        qty = Decimal("2")
+        leverage = 10
+
+        bt = make_backtester(
+            tmp_path,
+            slippage_bps=0,
+            fee_rate=Decimal("0"),
+            leverage=leverage,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="short",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("110"),
+            take_profit=Decimal("80"),
+        )
+        open_trade = _OpenTrade(
+            position=position,
+            entry_time=_dt(2026, 1, 1, 0, 0, 0),
+            actual_entry_price=entry,
+            entry_fee=Decimal("0"),
+        )
+        bt_trade, _ = bt._close_trade(
+            open_trade=open_trade,
+            exit_time=_dt(2026, 1, 1, 1, 0, 0),
+            target_exit_price=exit_price,
+            reason="take_profit",
+            skip_slippage=True,
+        )
+
+        helper_pnl = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="short",
+        )
+        # Expected gross PnL: (100 - 90) * 2 = 20.
+        expected = Decimal("20")
+        assert helper_pnl == expected
+        assert bt_trade.pnl == expected
+        assert bt_trade.pnl == helper_pnl
+
+    @pytest.mark.asyncio
+    async def test_backtester_and_persisted_paper_trade_match_long(
+        self, tmp_path: Path
+    ) -> None:
+        """Backtester and persisted-paper-trader PnL agree numerically.
+
+        Opens identical (entry, exit, qty, leverage=10) positions in
+        the backtester and the paper trader, closes both at the same
+        exit price with zero fees, and asserts that the backtester's
+        ``BacktestTrade.pnl`` equals the persisted
+        ``TradeHistory.pnl`` from ``TradeHistoryTracker.close_trade``.
+
+        Pre-Phase-20.1 (extended) this would have failed by a factor
+        of 10: the persistence layer multiplied PnL by ``leverage``
+        again inside ``TradeHistory.calculate_pnl``. The leverage=10
+        choice means any regression blows up loudly (10× divergence).
+        """
+        from datetime import datetime as _dt
+
+        from src.backtest.engine import _OpenTrade
+        from src.models import Position
+        from src.trading.paper import ZERO_FEE_CONFIG, FeeConfig, PaperTrader
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("100")
+        exit_price = Decimal("110")
+        qty = Decimal("2")
+        leverage = 10
+
+        # Backtester side
+        bt = make_backtester(
+            tmp_path / "bt",
+            slippage_bps=0,
+            fee_rate=Decimal("0"),
+            leverage=leverage,
+        )
+        bt_position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("90"),
+            take_profit=Decimal("120"),
+        )
+        open_trade = _OpenTrade(
+            position=bt_position,
+            entry_time=_dt(2026, 1, 1, 0, 0, 0),
+            actual_entry_price=entry,
+            entry_fee=Decimal("0"),
+        )
+        bt_trade, _ = bt._close_trade(
+            open_trade=open_trade,
+            exit_time=_dt(2026, 1, 1, 1, 0, 0),
+            target_exit_price=exit_price,
+            reason="take_profit",
+            skip_slippage=True,
+        )
+
+        # Paper trader side — exercise the full persistence path so
+        # we are comparing what actually gets written to disk via
+        # TradeHistoryTracker.close_trade, not just an in-memory
+        # value.
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path / "paper",
+            fee_config=ZERO_FEE_CONFIG,
+        )
+        paper_position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("90"),
+            take_profit=Decimal("120"),
+        )
+        opened = await trader.open_position(paper_position)
+        persisted = await trader.close_position(opened.id, exit_price)
+        assert persisted is not None
+
+        # Canonical: (110 - 100) * 2 = 20. Pre-fix the backtester
+        # would have produced 200 (10× double-apply); pre-extension
+        # the persisted record would also have produced 200.
+        helper_pnl = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="long",
+        )
+        expected = Decimal("20")
+        assert helper_pnl == expected
+        assert bt_trade.pnl == expected
+        assert persisted.pnl == expected, (
+            f"Persisted paper PnL {persisted.pnl} != expected "
+            f"{expected}; persistence layer may be double-applying "
+            "leverage (DEBT-024 / Phase 20.1 extension)."
+        )
+        assert bt_trade.pnl == persisted.pnl, (
+            "Backtester and persisted paper-trade PnL disagree; "
+            "convention has drifted (DEBT-024)."
+        )
+
+        # Confirm we did not introduce a stray FeeConfig dependency.
+        assert isinstance(trader.fee_config, FeeConfig)
+
+    @pytest.mark.asyncio
+    async def test_backtester_and_persisted_paper_trade_match_short(
+        self, tmp_path: Path
+    ) -> None:
+        """Short-side counterpart of the persisted-equality test."""
+        from datetime import datetime as _dt
+
+        from src.backtest.engine import _OpenTrade
+        from src.models import Position
+        from src.trading.paper import ZERO_FEE_CONFIG, PaperTrader
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("100")
+        exit_price = Decimal("90")
+        qty = Decimal("2")
+        leverage = 10
+
+        bt = make_backtester(
+            tmp_path / "bt",
+            slippage_bps=0,
+            fee_rate=Decimal("0"),
+            leverage=leverage,
+        )
+        bt_position = Position(
+            symbol="BTC/USDT",
+            side="short",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("110"),
+            take_profit=Decimal("80"),
+        )
+        open_trade = _OpenTrade(
+            position=bt_position,
+            entry_time=_dt(2026, 1, 1, 0, 0, 0),
+            actual_entry_price=entry,
+            entry_fee=Decimal("0"),
+        )
+        bt_trade, _ = bt._close_trade(
+            open_trade=open_trade,
+            exit_time=_dt(2026, 1, 1, 1, 0, 0),
+            target_exit_price=exit_price,
+            reason="take_profit",
+            skip_slippage=True,
+        )
+
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path / "paper",
+            fee_config=ZERO_FEE_CONFIG,
+        )
+        paper_position = Position(
+            symbol="BTC/USDT",
+            side="short",
+            entry_price=entry,
+            quantity=qty,
+            leverage=leverage,
+            stop_loss=Decimal("110"),
+            take_profit=Decimal("80"),
+        )
+        opened = await trader.open_position(paper_position)
+        persisted = await trader.close_position(opened.id, exit_price)
+        assert persisted is not None
+
+        helper_pnl = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="short",
+        )
+        expected = Decimal("20")  # (100 - 90) * 2
+        assert helper_pnl == expected
+        assert bt_trade.pnl == expected
+        assert persisted.pnl == expected
+        assert bt_trade.pnl == persisted.pnl

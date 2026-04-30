@@ -39,6 +39,7 @@ from src.trading.strategy import (
     TradingStrategyConfig,
     TradingValidationError,
 )
+from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.backtest.engine")
 
@@ -170,7 +171,9 @@ class BacktestTrade(BaseModel):
         take_profit: Take-profit price that was active.
         entry_fee: Fee paid on entry.
         exit_fee: Fee paid on exit.
-        pnl: Net P&L after fees and leverage.
+        pnl: Net P&L after fees. Computed via ``pnl_for_trade`` against
+            the levered ``quantity``; leverage is not re-multiplied (see
+            DEBT-024 / Phase 20.1).
         close_reason: "take_profit", "stop_loss", or "end_of_data".
     """
 
@@ -931,8 +934,10 @@ class Backtester:
         Returns:
             A tuple of (BacktestTrade, balance_delta). ``balance_delta``
             is the amount to add to the running balance — it is the
-            leveraged P&L minus the exit fee (the entry fee was
-            already deducted when the trade opened).
+            gross price-move P&L minus the exit fee (the entry fee was
+            already deducted when the trade opened). Leverage is
+            already baked into ``position.quantity`` so the helper
+            does not multiply by it again (DEBT-024 / Phase 20.1).
         """
         position = open_trade.position
 
@@ -945,19 +950,16 @@ class Backtester:
                 is_entry=False,
             )
 
-        # Leveraged raw P&L
-        if position.side == "long":
-            raw_pnl = (
-                (actual_exit - open_trade.actual_entry_price)
-                * position.quantity
-                * Decimal(position.leverage)
-            )
-        else:
-            raw_pnl = (
-                (open_trade.actual_entry_price - actual_exit)
-                * position.quantity
-                * Decimal(position.leverage)
-            )
+        # Gross price-move PnL. Leverage is intentionally NOT applied
+        # here: ``position.quantity`` already reflects the levered
+        # notional from ``calculate_position_size`` (DEBT-024 / Phase
+        # 20.1 — single source of truth in ``src.utils.trading_math``).
+        raw_pnl = pnl_for_trade(
+            entry=open_trade.actual_entry_price,
+            exit=actual_exit,
+            qty=position.quantity,
+            side=position.side,
+        )
 
         exit_fee = actual_exit * position.quantity * self.config.fee_rate
         net_pnl = raw_pnl - open_trade.entry_fee - exit_fee

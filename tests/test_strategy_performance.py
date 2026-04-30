@@ -430,9 +430,7 @@ class TestPerformanceTracker:
         records = tracker.load_records("nonexistent")
         assert records == []
 
-    def test_load_records_filter_by_version(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_load_records_filter_by_version(self, tracker: PerformanceTracker) -> None:
         """Test filtering records by version."""
         record1 = PerformanceRecord(
             technique_name="test",
@@ -887,9 +885,7 @@ class TestPerformanceProfileDimension:
         )
         assert record.profile_name is None
 
-    def test_profile_name_roundtrip(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_profile_name_roundtrip(self, tracker: PerformanceTracker) -> None:
         """profile_name survives save/load."""
         record = PerformanceRecord(
             technique_name="tech",
@@ -939,9 +935,7 @@ class TestPerformanceProfileDimension:
         )
         assert record.profile_name == "aggressive"
 
-    def test_get_records_by_profile(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_get_records_by_profile(self, tracker: PerformanceTracker) -> None:
         """Records can be filtered by profile_name."""
         for profile in ("conservative", "moderate", "conservative"):
             tracker.save_record(
@@ -965,9 +959,7 @@ class TestPerformanceProfileDimension:
         assert len(moderate) == 1
         assert all(r.profile_name == "conservative" for r in conservative)
 
-    def test_get_records_by_profile_none(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_get_records_by_profile_none(self, tracker: PerformanceTracker) -> None:
         """Passing None matches records with no profile attached."""
         tracker.save_record(
             PerformanceRecord(
@@ -1001,9 +993,7 @@ class TestPerformanceProfileDimension:
         assert len(nameless) == 1
         assert nameless[0].profile_name is None
 
-    def test_get_performance_by_combination(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_get_performance_by_combination(self, tracker: PerformanceTracker) -> None:
         """Performance aggregates scope to technique+profile."""
         # Profile A: 2 wins, 0 losses
         for _ in range(2):
@@ -1072,9 +1062,7 @@ class TestPerformanceProfileDimension:
         assert con_perf.losses == 1
         assert con_perf.win_rate == 0.5
 
-    def test_list_profiles_for_technique(
-        self, tracker: PerformanceTracker
-    ) -> None:
+    def test_list_profiles_for_technique(self, tracker: PerformanceTracker) -> None:
         """Distinct profile names are returned, sorted, excluding None."""
         for profile in ("moderate", "aggressive", "moderate", None):
             tracker.save_record(
@@ -1151,7 +1139,12 @@ class TestTradeHistory:
         assert isinstance(trade.fees, Decimal)
 
     def test_calculate_pnl_long_win(self) -> None:
-        """Test P&L calculation for winning long trade."""
+        """Test P&L calculation for winning long trade.
+
+        Phase 20.1 (extension): leverage no longer multiplies PnL or
+        pnl_pct — qty was sized off the entry-to-stop distance, so
+        ``(Δp) × qty`` is already the correct levered figure.
+        """
         trade = TradeHistory(
             symbol="BTC/USDT",
             side="long",
@@ -1167,10 +1160,10 @@ class TestTradeHistory:
         pnl, pnl_pct = trade.calculate_pnl()
 
         assert pnl is not None
-        # (52000 - 50000) * 0.1 * 10 - 10 = 2000 * 0.1 * 10 - 10 = 2000 - 10 = 1990
-        assert pnl == Decimal("1990")
-        # (2000/50000) * 100 * 10 = 0.04 * 100 * 10 = 40%
-        assert abs(pnl_pct - 40.0) < 0.01
+        # (52000 - 50000) * 0.1 - 10 = 200 - 10 = 190
+        assert pnl == Decimal("190")
+        # (2000/50000) * 100 = 4%  (price-move return, unleveraged)
+        assert abs(pnl_pct - 4.0) < 0.01
 
     def test_calculate_pnl_short_win(self) -> None:
         """Test P&L calculation for winning short trade."""
@@ -1189,10 +1182,10 @@ class TestTradeHistory:
         pnl, pnl_pct = trade.calculate_pnl()
 
         assert pnl is not None
-        # (50000 - 48000) * 0.1 * 5 - 5 = 2000 * 0.1 * 5 - 5 = 1000 - 5 = 995
-        assert pnl == Decimal("995")
-        # (2000/50000) * 100 * 5 = 0.04 * 100 * 5 = 20%
-        assert abs(pnl_pct - 20.0) < 0.01
+        # (50000 - 48000) * 0.1 - 5 = 200 - 5 = 195
+        assert pnl == Decimal("195")
+        # (2000/50000) * 100 = 4%
+        assert abs(pnl_pct - 4.0) < 0.01
 
     def test_calculate_pnl_long_loss(self) -> None:
         """Test P&L calculation for losing long trade."""
@@ -1211,8 +1204,8 @@ class TestTradeHistory:
         pnl, pnl_pct = trade.calculate_pnl()
 
         assert pnl is not None
-        # (49000 - 50000) * 0.1 * 10 - 10 = -1000 * 0.1 * 10 - 10 = -1000 - 10 = -1010
-        assert pnl == Decimal("-1010")
+        # (49000 - 50000) * 0.1 - 10 = -100 - 10 = -110
+        assert pnl == Decimal("-110")
         assert pnl_pct < 0
 
     def test_calculate_pnl_open_trade(self) -> None:
@@ -1303,6 +1296,94 @@ class TestTradeHistoryTracker:
         assert closed.close_reason == "take_profit"
         assert closed.pnl is not None
         assert closed.pnl_percent is not None
+
+    def test_close_trade_persisted_pnl_routes_through_helper(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Persisted ``TradeHistory.pnl`` equals ``pnl_for_trade(...) - fees``.
+
+        Phase 20.1 (extension): pins the persistence-layer DEBT-024
+        fix at ``TradeHistory.calculate_pnl`` in
+        ``src/strategy/performance.py``. Pre-fix the persisted ``pnl``
+        was multiplied by ``leverage`` a second time (10× too big at
+        leverage=10). This test would have failed loudly pre-fix.
+        """
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("50000")
+        exit_price = Decimal("51000")
+        qty = Decimal("0.1")
+        fees = Decimal("5")
+        leverage = 10  # loud multiplier — any regression == 10× off
+
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=entry,
+            entry_quantity=qty,
+            mode="paper",
+            leverage=leverage,
+        )
+        closed = trade_tracker.close_trade(
+            trade.id,
+            exit_price=exit_price,
+            close_reason="take_profit",
+            fees=fees,
+        )
+        assert closed is not None
+
+        gross = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="long",
+        )
+        # Gross: 0.1 * (51000 - 50000) = 100. Pre-fix would have been
+        # 100 * 10 = 1000.
+        assert gross == Decimal("100")
+        assert closed.pnl == gross - fees == Decimal("95")
+        # Percentage is on price-move, leverage-neutral:
+        # (1000 / 50000) * 100 = 2%
+        assert closed.pnl_percent is not None
+        assert abs(closed.pnl_percent - 2.0) < 0.01
+
+    def test_close_trade_persisted_pnl_short(
+        self, trade_tracker: TradeHistoryTracker
+    ) -> None:
+        """Short-side counterpart of the persistence regression."""
+        from src.utils.trading_math import pnl_for_trade
+
+        entry = Decimal("50000")
+        exit_price = Decimal("48000")
+        qty = Decimal("0.1")
+        fees = Decimal("5")
+        leverage = 10
+
+        trade = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="short",
+            entry_price=entry,
+            entry_quantity=qty,
+            mode="paper",
+            leverage=leverage,
+        )
+        closed = trade_tracker.close_trade(
+            trade.id,
+            exit_price=exit_price,
+            close_reason="take_profit",
+            fees=fees,
+        )
+        assert closed is not None
+
+        gross = pnl_for_trade(
+            entry=entry,
+            exit=exit_price,
+            qty=qty,
+            side="short",
+        )
+        # Gross: 0.1 * (50000 - 48000) = 200. Pre-fix: 200 * 10 = 2000.
+        assert gross == Decimal("200")
+        assert closed.pnl == gross - fees == Decimal("195")
 
     def test_close_trade_not_found(self, trade_tracker: TradeHistoryTracker) -> None:
         """Test closing non-existent trade."""
@@ -1437,9 +1518,7 @@ class TestTradeHistoryTracker:
         found = trade_tracker.get_trade("nonexistent-id")
         assert found is None
 
-    def test_get_trades_by_date_range(
-        self, trade_tracker: TradeHistoryTracker
-    ) -> None:
+    def test_get_trades_by_date_range(self, trade_tracker: TradeHistoryTracker) -> None:
         """Test filtering trades by date range."""
         now = datetime.now()
         yesterday = now - timedelta(days=1)
@@ -1516,9 +1595,7 @@ class TestTradeHistoryTracker:
         assert trade_tracker.delete_trades("paper") is True
         assert trade_tracker.load_trades(mode="paper") == []
 
-    def test_delete_trades_not_found(
-        self, trade_tracker: TradeHistoryTracker
-    ) -> None:
+    def test_delete_trades_not_found(self, trade_tracker: TradeHistoryTracker) -> None:
         """Test deleting non-existent mode."""
         assert trade_tracker.delete_trades("nonexistent") is False
 

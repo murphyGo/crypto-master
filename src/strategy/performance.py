@@ -26,6 +26,7 @@ from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult
 from src.strategy.base import TechniqueInfo
+from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.strategy.performance")
 
@@ -109,7 +110,13 @@ class PerformanceRecord(BaseModel):
             return v
         return Decimal(str(v))
 
-    @field_validator("exit_price", "quantity", "actual_entry_price", "actual_exit_price", mode="before")
+    @field_validator(
+        "exit_price",
+        "quantity",
+        "actual_entry_price",
+        "actual_exit_price",
+        mode="before",
+    )
     @classmethod
     def convert_optional_to_decimal(
         cls, v: str | int | float | Decimal | None
@@ -429,8 +436,14 @@ class PerformanceTracker:
         data = record.model_dump()
         # Convert Decimals to strings for JSON
         decimal_fields = [
-            "entry_price", "stop_loss", "take_profit", "exit_price",
-            "quantity", "fees", "actual_entry_price", "actual_exit_price"
+            "entry_price",
+            "stop_loss",
+            "take_profit",
+            "exit_price",
+            "quantity",
+            "fees",
+            "actual_entry_price",
+            "actual_exit_price",
         ]
         for key in decimal_fields:
             if data[key] is not None:
@@ -514,7 +527,9 @@ class PerformanceTracker:
             TechniquePerformance with aggregated metrics.
         """
         records = self.load_records(technique_name, version)
-        technique_version = version or (records[-1].technique_version if records else "")
+        technique_version = version or (
+            records[-1].technique_version if records else ""
+        )
         return TechniquePerformance.from_records(
             technique_name, technique_version, records
         )
@@ -759,9 +774,7 @@ class TradeHistory(BaseModel):
             return v
         return Decimal(str(v))
 
-    @field_validator(
-        "exit_price", "exit_quantity", "pnl", mode="before"
-    )
+    @field_validator("exit_price", "exit_quantity", "pnl", mode="before")
     @classmethod
     def convert_exit_fields_to_decimal(
         cls, v: str | int | float | Decimal | None
@@ -784,8 +797,23 @@ class TradeHistory(BaseModel):
     def calculate_pnl(self) -> tuple[Decimal | None, float | None]:
         """Calculate P&L based on entry and exit.
 
+        Routes through :func:`src.utils.trading_math.pnl_for_trade` so
+        the persistence layer obeys the same single-source convention
+        as the backtester / portfolio / paper-trader sites (DEBT-024 /
+        Phase 20.1). Per that convention, ``leverage`` is *not*
+        applied a second time at PnL time: ``calculate_position_size``
+        sizes ``quantity = risk_amount / risk_per_unit`` independently
+        of leverage, so the price-move PnL ``(Δp) * qty`` is already
+        the correct levered figure.
+
+        ``pnl_pct`` is the unleveraged return on notional —
+        ``(pnl / (entry * qty)) * 100`` — i.e. the percentage move on
+        price. Leverage does not scale a price move and therefore is
+        not multiplied in here either.
+
         Returns:
-            Tuple of (absolute P&L, percentage P&L), or (None, None) if not closed.
+            Tuple of (absolute P&L net of fees, percentage P&L on
+            price-move), or (None, None) if not closed.
         """
         if self.exit_price is None or self.exit_quantity is None:
             return None, None
@@ -794,12 +822,19 @@ class TradeHistory(BaseModel):
         exit_p = self.exit_price
         qty = self.exit_quantity
 
-        if self.side == "long":
-            pnl = (exit_p - entry) * qty * self.leverage - self.fees
-            pnl_pct = float((exit_p - entry) / entry) * 100 * self.leverage
-        else:  # short
-            pnl = (entry - exit_p) * qty * self.leverage - self.fees
-            pnl_pct = float((entry - exit_p) / entry) * 100 * self.leverage
+        gross_pnl = pnl_for_trade(
+            entry=entry,
+            exit=exit_p,
+            qty=qty,
+            side=self.side,
+        )
+        pnl = gross_pnl - self.fees
+
+        notional = entry * qty
+        if notional == 0:
+            pnl_pct = 0.0
+        else:
+            pnl_pct = float(gross_pnl / notional) * 100
 
         return pnl, pnl_pct
 
@@ -935,8 +970,7 @@ class TradeHistoryTracker:
 
         self._update_trade(trade)
         logger.info(
-            f"Closed trade {trade_id}: {close_reason}, "
-            f"P&L={pnl} ({pnl_pct:.2f}%)"
+            f"Closed trade {trade_id}: {close_reason}, " f"P&L={pnl} ({pnl_pct:.2f}%)"
         )
         return trade
 
@@ -1013,8 +1047,12 @@ class TradeHistoryTracker:
         data = trade.model_dump()
         # Convert Decimals to strings for JSON
         decimal_fields = [
-            "entry_price", "entry_quantity", "exit_price",
-            "exit_quantity", "fees", "pnl"
+            "entry_price",
+            "entry_quantity",
+            "exit_price",
+            "exit_quantity",
+            "fees",
+            "pnl",
         ]
         for key in decimal_fields:
             if data[key] is not None:
@@ -1165,8 +1203,7 @@ class TradeHistoryTracker:
         """
         all_trades = self.load_trades()
         return [
-            t for t in all_trades
-            if t.performance_record_id == performance_record_id
+            t for t in all_trades if t.performance_record_id == performance_record_id
         ]
 
     def delete_trades(self, mode: str) -> bool:

@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.config import get_settings
 from src.logger import get_logger
 from src.strategy.performance import TradeHistoryTracker
+from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.trading.portfolio")
 
@@ -226,8 +227,10 @@ class PortfolioTracker:
             current_prices: symbol -> current price map.
 
         Returns:
-            Total unrealized P&L (leverage-adjusted, fees not
-            subtracted since fees are charged on close).
+            Total unrealized P&L. Computed via
+            :func:`src.utils.trading_math.pnl_for_trade` against the
+            already-levered ``entry_quantity``; fees are not
+            subtracted since fees are charged on close.
         """
         open_trades = self._trade_tracker.get_open_trades(mode=mode)
         total = Decimal("0")
@@ -237,14 +240,16 @@ class PortfolioTracker:
             if price is None:
                 continue
 
-            entry = trade.entry_price
-            qty = trade.entry_quantity
-            leverage = Decimal(trade.leverage)
-
-            if trade.side == "long":
-                total += (price - entry) * qty * leverage
-            else:
-                total += (entry - price) * qty * leverage
+            # Leverage is NOT multiplied here: ``trade.entry_quantity``
+            # already reflects the levered notional from sizing
+            # (DEBT-024 / Phase 20.1 — single source of truth in
+            # ``src.utils.trading_math.pnl_for_trade``).
+            total += pnl_for_trade(
+                entry=trade.entry_price,
+                exit=price,
+                qty=trade.entry_quantity,
+                side=trade.side,
+            )
 
         return total
 

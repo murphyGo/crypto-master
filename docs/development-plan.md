@@ -63,6 +63,8 @@
 | Diagnostic Clarity | ✅ Complete | 15 |
 | chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
 | Auto-Research Operator Workflow + Catalog-Aware Improver | ✅ Complete | 17 |
+| Portfolio Snapshot Recording in Runtime Cycle | ✅ Complete | 17 |
+| Closed-Trade Performance Records | ✅ Complete | 17 |
 | Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker | ✅ Complete | 17 |
 | Code-Type Steering for Deterministic Catalog Picks | ❌ Missing | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
@@ -75,6 +77,14 @@
 | PnL Convention Single Source — Leverage No Double-Apply | ✅ Complete | 20 |
 | Backtest / Portfolio Leverage Math Alignment | ❌ Missing | 20 |
 | Phase 5.4+ Baseline Re-computation | ❌ Missing | 20 |
+| UTC-Aware Timestamp Helper + Adapter Migration | ❌ Missing | 21 |
+| `JsonlRotator` UTC Month Boundary | ❌ Missing | 21 |
+| Stale-Quote Payload Timestamp Coherence | ❌ Missing | 21 |
+| Atomic JSON Persistence Helper | ❌ Missing | 22 |
+| Paper Trader Liquidation Visibility | ❌ Missing | 22 |
+| AIDLC Hygiene Backfill (sessions / cross-checks / drift) | ❌ Missing | 23 |
+| Phase 17.2 / 17.3 Numbering Reconciliation | ❌ Missing | 23 |
+| Strategy Robustness Polish (intra-trade MDD / MA-SL / OOS guard / cold-start) | ❌ Missing | 24 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1669,7 +1679,85 @@ tooling on top of existing components, no new FR/NFR introduced.
   an operator script and extends one prompt; no new architectural
   seam.
 
-### 17.2 Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker
+### 17.2 Portfolio Snapshot Recording in Runtime Cycle
+
+**Background**: Trading dashboard previously only showed PnL because
+`PortfolioTracker.record_snapshot` had no caller — `data/portfolio/`
+was empty on Fly even after weeks of paper trading, so the equity
+curve metric card rendered as a flat line. The runtime engine now
+records an `AssetSnapshot` at the end of every cycle (balances +
+open-position marks); fetch errors are swallowed so a flaky exchange
+query never breaks the loop. The `Trader` Protocol grows an async
+`get_balances()` so paper and live both feed the recorder through the
+same surface. Dashboard Summary promotes Current Equity to the
+leading metric card with unrealized P&L as the delta; the prior
+caption-only treatment buried the number. **Shipped 2026-04-30 in
+commit `094a79d`**; this entry is the back-fill of the spec text
+that was missed during the original planning cycle.
+
+**Related Requirements**: NFR-008 (Asset/PnL History — wires
+`PortfolioTracker.record_snapshot` end-to-end so the volume layout
+actually receives data), FR-031 (Asset and Performance Summary —
+dashboard Current Equity card consumes the snapshots).
+
+- [x] `src/runtime/engine.py` — at the end of each cycle, gather
+  balances via `trader.get_balances()` and open-position marks via
+  `trader.get_open_trades()`, build an `AssetSnapshot`, and call
+  `PortfolioTracker.record_snapshot(...)`. Wrap in `try/except` so a
+  ticker / balance fetch failure logs WARN but does not abort the
+  cycle.
+- [x] `src/trading/base.py::Trader` — Protocol gains async
+  `get_balances() -> dict[str, Balance]`. `PaperTrader` and
+  `LiveTrader` both implement.
+- [x] `src/main.py::build_engine` — wire the `PortfolioTracker`
+  instance into `TradingEngine` (new constructor parameter; default
+  preserves single-engine wiring).
+- [x] `src/dashboard/pages/trading.py` — promote Current Equity to
+  the leading metric card; unrealized P&L becomes the delta.
+- [x] Tests in `tests/test_runtime_engine.py` — happy-path
+  `record_snapshot` invocation per cycle, error path swallows
+  exception, balance shape forwarded correctly.
+- [x] Write unit tests.
+
+### 17.3 Closed-Trade Performance Records
+
+**Background**: Analysis Techniques dashboard read every aggregate
+as 0 because `PerformanceTracker.save_record` had no caller in
+production — the proposal engine queried it for ranking but nothing
+wrote to it, so per-technique win rate / average PnL / total PnL
+were all dead values on the page. The runtime engine now snapshots a
+complete `PerformanceRecord` at trade close (technique fields from
+the originating proposal, fill prices / fees / pnl / outcome from
+`TradeHistory`) so the dashboard moves as trades land. Failures are
+logged and swallowed so a missed performance row never breaks the
+cycle. **Shipped 2026-04-30 in commit `ab9dc32`**; this entry is the
+back-fill of the spec text that was missed during the original
+planning cycle.
+
+**Related Requirements**: FR-005 (Analysis Technique Performance
+Tracking — wires `PerformanceTracker.save_record` end-to-end so
+per-technique aggregates actually accumulate), FR-021 (Technique
+Performance Analysis — dashboard reads the persisted records).
+
+- [x] `src/runtime/engine.py` — on trade close, build a
+  `PerformanceRecord` from the originating `Proposal` (technique
+  name / version / hypothesis fields) and the `TradeHistory` (fill
+  prices, fees, realized PnL, win/loss outcome); call
+  `PerformanceTracker.save_record(...)`. Wrap in `try/except` so a
+  malformed record logs WARN but does not abort the cycle.
+- [x] `src/runtime/engine.py` — track the originating proposal id on
+  each open position so the trade-close site can recover the
+  technique fields without re-querying `ProposalHistory`.
+- [x] `src/main.py::build_engine` — wire the `PerformanceTracker`
+  instance into `TradingEngine` alongside the
+  `PortfolioTracker` from 17.2.
+- [x] Tests in `tests/test_runtime_engine.py` — happy-path
+  `save_record` on trade close (technique fields populated from
+  proposal, pnl from trade); error path swallows exception; missing
+  proposal-id falls through with WARN.
+- [x] Write unit tests.
+
+### 17.4 Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker
 
 **Background**: First real run of `python -m
 scripts.auto_research_candidates --picks 5` on 2026-04-30 hung for ~9
@@ -1815,7 +1903,7 @@ fail). Extends existing requirements; no new FR/NFR introduced.
 prompt-type technique backtest, High, 2026-04-30). DEBT-019's Option B
 (code-type steering) is deferred to Phase 17.3.
 
-### 17.3 Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B)
+### 17.5 Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B)
 
 **Background**: Phase 17.2 unblocks the auto-research workflow with a
 runtime contract + circuit breaker, but the deeper fix for
@@ -2406,6 +2494,454 @@ account).
 
 ---
 
+## Phase 20: Trading-Math Correctness Sweep
+
+**Goal**: Close the leverage double-application that the 2026-04-30
+3-agent comprehensive audit surfaced (DEBT-024, High). The
+backtester's `calculate_position_size` already returns a leverage-
+neutral notional, then the per-trade PnL writer multiplies the trade
+PnL by `leverage` again — every Phase 5.4+ baseline figure
+(absolute PnL, drawdown in USDT, MDD-in-USDT) is inflated by the
+leverage multiplier (typically 5×–10×). `Portfolio.calculate_unreali
+zed_pnl` follows the same shape; `PaperTrader` records realized PnL
+without the second multiplication, so backtest and paper-trader
+ledgers carry divergent conventions and are not directly comparable.
+Sharpe / hit-rate are scale-invariant and therefore robustness-gate
+verdicts are preserved, but operator-facing absolute-magnitude
+numbers mislead by the multiplier. Phase 20 picks one canonical
+convention (recommended: leverage already baked into position size,
+backtester / portfolio drop the second multiplication, paper-trader
+shape is the reference), extracts a single helper, fixes both
+ledgers, and re-runs every persisted baseline.
+
+### 20.1 PnL Convention Single Source — Leverage No Double-Apply
+
+**Background**: DEBT-024 (High) traced the leverage double-
+application across two ledgers. Phase 20.1 picks the canonical shape
+(leverage already in position size; PnL = `(exit - entry) * qty`
+with sign-by-side; no second multiplication) and lifts the helper
+into a single module so backtester, portfolio, and paper-trader all
+go through it. The mathematical change is one removal in two files;
+the discipline change is "every PnL site goes through the helper".
+
+**Related Requirements**: FR-006 (Risk/Reward Calculation —
+correctness boundary on the per-trade PnL math), FR-025 (Backtesting
+Execution — backtester PnL must match operator expectations),
+NFR-001 (operational maturity — single source of truth for a
+trading-math primitive). Extending existing requirements; no new
+FR/NFR introduced.
+
+- [x] `src/utils/trading_math.py` — new module. `pnl_for_trade(entry:
+  Decimal, exit: Decimal, qty: Decimal, side: TradeSide) -> Decimal`
+  helper. Computes `(exit - entry) * qty` for longs, `(entry - exit)
+  * qty` for shorts. Leverage is NOT a parameter — the qty already
+  reflects the levered notional from `calculate_position_size`.
+  Module-level unit tests pin both signs.
+- [x] `src/backtest/engine.py:783-794` — drop the `pnl *= leverage`
+  line in the per-trade PnL writer; route through
+  `pnl_for_trade(...)` from the helper module.
+- [x] `src/trading/portfolio.py:245-247` — replace the `* leverage`
+  in `calculate_unrealized_pnl` with `pnl_for_trade(...)` against
+  the current mark price.
+- [x] `src/trading/paper.py` — already correct shape; route the
+  realized-PnL site through `pnl_for_trade(...)` for symmetry (no
+  behaviour change).
+- [x] Regression test — `tests/test_utils_trading_math.py` pins the
+  helper; `tests/test_backtest_engine.py` adds a fixture asserting
+  backtester and paper-trader produce identical PnL on a (entry,
+  exit, qty, leverage) fixture (today they diverge by `× leverage`).
+- [x] Write unit tests.
+
+### 20.2 Backtest / Portfolio Leverage Math Alignment
+
+**Background**: 20.1 lands the helper and the math fix. 20.2 sweeps
+every PnL surface in the codebase to confirm no other call site
+applies leverage at PnL time. `BacktestTrade.pnl` field semantics,
+`Portfolio.unrealized_pnl` field semantics, and dashboard cards
+that consume them all need a docstring update naming the new
+convention so future contributors don't reintroduce the bug.
+
+**Related Requirements**: FR-006, FR-025, NFR-001 (extending
+existing requirements; no new FR/NFR introduced).
+
+- [ ] `grep -rn "leverage" src/backtest/ src/trading/` — audit
+  every `* leverage` / `/ leverage` / `leverage *` occurrence;
+  classify as (a) position-sizing math (correct, keep) or
+  (b) PnL math (must go through `pnl_for_trade`). Document each
+  in the sub-task PR description.
+- [ ] `src/backtest/engine.py::BacktestTrade.pnl` field —
+  docstring naming the convention ("PnL is computed against
+  leveraged notional via `pnl_for_trade`; do not re-multiply by
+  `leverage` downstream").
+- [ ] `src/trading/portfolio.py::Portfolio.unrealized_pnl` field
+  — same docstring convention.
+- [ ] Dashboard `src/dashboard/pages/trading.py` Current-Equity
+  card prose — verify the unrealized-PnL delta reads cleanly
+  post-fix (no caption rewording expected; mostly a smoke check).
+- [ ] Write unit tests.
+
+### 20.3 Phase 5.4+ Baseline Re-computation
+
+**Background**: DEBT-029 (Medium) — once 20.1 / 20.2 land, every
+persisted baseline figure (`data/backtest/baselines/{rsi_4h,
+rsi_15m,bollinger_band_reversion,ma_crossover}/{result.json,
+analysis.md,summary.json}`) carries the inflated PnL and must be
+regenerated. `docs/baselines.md` reproduces these in the operator
+table; `docs/development-plan.md` change-history quotes
+absolute-magnitude figures from the same source. Phase 20.3 is
+the mechanical re-run.
+
+**Related Requirements**: FR-025 (Backtesting Execution —
+operator-facing artefact regeneration). Extending existing
+requirements; no new FR/NFR introduced.
+
+- [ ] Run `python -m scripts.backtest_baselines` for each of the
+  4 baseline strategies; overwrite the per-strategy
+  `result.json` / `analysis.md` / `summary.json`.
+- [ ] Refresh the operator table in `docs/baselines.md` with the
+  corrected PnL / MDD-in-USDT figures.
+- [ ] Add a single-line change-history row in
+  `docs/development-plan.md` noting the baselines were
+  re-baselined post-DEBT-024 — figures restated, gate verdicts
+  unchanged.
+- [ ] Write unit tests (smoke that the regenerator script still
+  runs end-to-end; no new behavioural test surface).
+
+---
+
+## Phase 21: Time / Timezone Hardening
+
+**Goal**: Close the UTC-naive `datetime` surface that the audit
+surfaced (DEBT-025, High). Exchange adapters
+(`src/exchange/binance.py`, `src/exchange/bybit.py`) construct
+OHLCV / ticker / order timestamps via `datetime.fromtimestamp(ms /
+1000)` with no `tz=` argument — host-local tz interpretation.
+`JsonlRotator` (`src/runtime/jsonl_rotator.py`) uses
+`datetime.now()` (also tz-naive local) to derive the active month
+token, so a record written near UTC midnight on a non-UTC host
+lands in the wrong month file. Phase 18.1's stale-quote payload
+mixes both tz-naive sources. Production on Fly (UTC host) hides
+the bug; local development on KST hosts surfaces it as silent
+9-hour shifts. A future region change (e.g. `fly regions add nrt`)
+silently activates the bug in production.
+
+### 21.1 UTC-Aware Timestamp Helper + Adapter Migration
+
+**Background**: A single helper plus four adapter call-site swaps
+closes the largest surface. DEBT-025 names the four
+`datetime.fromtimestamp(ms / 1000)` sites in the two adapters;
+each gets one-line replacement after the helper is in place.
+
+**Related Requirements**: FR-020 (Historical Chart Data Query —
+correctness boundary on the OHLCV timestamp), NFR-007 (Trading
+History Storage — timestamps in the trade ledger must be UTC).
+Extending existing requirements; no new FR/NFR introduced.
+
+- [ ] `src/utils/time.py` — new module. `from_unix_ms(ms: int) ->
+  datetime` returning `datetime.fromtimestamp(ms / 1000, tz=UTC)`;
+  `now_utc() -> datetime` wrapping `datetime.now(tz=UTC)`. Module-
+  level test pins UTC tzinfo on both functions.
+- [ ] `src/exchange/binance.py` — replace `datetime.fromtimestamp(
+  ms / 1000)` at lines 235, 272, 503-505 with
+  `from_unix_ms(ms)`. Verify any `timestamp.replace(tzinfo=...)`
+  calls downstream stay correct.
+- [ ] `src/exchange/bybit.py` — same swap at lines 165, 202,
+  433-435.
+- [ ] `_coerce_timestamp` (or equivalent helper that converts
+  incoming ms / s timestamps to `datetime`) — normalise to UTC-
+  aware return.
+- [ ] Regression tests — `tests/test_exchange_binance.py` and
+  `tests/test_exchange_bybit.py` add a `freeze_time` test running
+  under a non-UTC TZ via `time_machine.travel(..., tz_offset=9)`
+  and asserting the returned `datetime` carries `tzinfo=UTC` and
+  the wall-clock UTC value matches the input ms.
+- [ ] Write unit tests.
+
+### 21.2 `JsonlRotator` UTC Month Boundary
+
+**Background**: `JsonlRotator` at lines 105 / 180 / 253 uses
+`datetime.now()` (tz-naive local) to derive the active-month
+token. Records written near UTC midnight on a non-UTC host land
+in the wrong month file; readers expecting UTC alignment miss
+records or double-count them on month-boundary days. The fix is
+mechanical once 21.1's `now_utc()` is in place.
+
+**Related Requirements**: NFR-008 (Asset/PnL History — log
+retention rotation must be UTC-stable), NFR-007 (Trading History
+Storage — same). Extending existing requirements; no new FR/NFR
+introduced.
+
+- [ ] `src/runtime/jsonl_rotator.py:105,180,253` — replace
+  `datetime.now()` with `now_utc()` from 21.1.
+- [ ] `JsonlRotator.read_with_retention` (and related readers) —
+  audit any timestamp comparison; ensure UTC-aware on both sides
+  of the comparison (no naive-vs-aware `TypeError`).
+- [ ] Regression test — `tests/test_runtime_jsonl_rotator.py`
+  freezes time at `2026-04-30T23:30:00+09:00` (Asia/Tokyo) and
+  asserts the active-month token is `2026-04` (UTC-month) not
+  `2026-05` (local-month).
+- [ ] Write unit tests.
+
+### 21.3 Stale-Quote Payload Timestamp Coherence
+
+**Background**: Phase 18.1's `_record_stale_quote_rejection`
+(`src/runtime/engine.py:653-659`) builds the payload from a mix
+of engine-side `datetime.now()` (today: tz-naive) and adapter-
+returned candle timestamps (today: tz-naive local). After 21.1 +
+21.2 land, both sources become UTC-aware; the rejection payload
+needs to consume them coherently. The work is verification +
+type-tightening, not new behaviour.
+
+**Related Requirements**: FR-008 (Entry/Take-Profit/Stop-Loss
+Setting — stale-quote rejection is a fill-boundary correctness
+surface), NFR-012 (Live Trading Confirmation — same). Extending
+existing requirements; no new FR/NFR introduced.
+
+- [ ] `src/runtime/engine.py::_record_stale_quote_rejection` —
+  replace any `datetime.now()` with `now_utc()`; assert the
+  candle timestamp pulled from the ticker is UTC-aware before
+  passing to the payload.
+- [ ] Regression test — extends one of the four Phase 18.1
+  rejection tests (`test_runtime_engine.py`) with a `freeze_time`
+  under non-UTC TZ; assert the rejection event's
+  `proposal_entry_timestamp` and `live_price_timestamp` both
+  carry UTC tzinfo.
+- [ ] Write unit tests.
+
+---
+
+## Phase 22: Persistence Atomicity & Liquidation Visibility
+
+**Goal**: Close DEBT-028 (Medium — non-atomic JSON persistence
+across `TradeHistoryTracker` / `PortfolioTracker` /
+`ProposalHistory` / Phase 18.1 stale-quote rewrite) and DEBT-027
+(Medium — paper trader silently zeroes balance instead of
+recording liquidation). The atomicity fix matters before Phase
+19.2 lands because the sub-account fan-out introduces N
+concurrent writers per cycle against the same persistence files.
+The liquidation fix closes the paper-vs-live divergence: paper
+mode currently absorbs leveraged drawdowns silently, so an
+operator using paper to forecast live behaviour sees a softer
+risk profile than reality.
+
+### 22.1 Atomic JSON Persistence Helper
+
+**Background**: DEBT-028 names four call sites
+(`TradeHistoryTracker`, `PortfolioTracker`, `ProposalHistory`,
+`_record_stale_quote_rejection`) all using a load → mutate →
+`Path.write_text(json.dumps(...))` shape. Concurrent writers
+race; mid-write crashes truncate. A single helper plus one-line
+replacements at each site closes the surface.
+
+**Related Requirements**: NFR-006 (Backtesting Result Storage),
+NFR-007 (Trading History Storage), NFR-008 (Asset/PnL History)
+— atomicity is a storage-correctness boundary across all three.
+Extending existing requirements; no new FR/NFR introduced.
+
+- [ ] `src/utils/io.py` — new module. `atomic_write_text(path:
+  Path, text: str) -> None` writes to `path.with_suffix(path.
+  suffix + ".tmp")` then `os.replace(...)` into the destination.
+  Atomic on POSIX + Windows. Module-level test pins both happy
+  path and the "tmp file present after crash" rollback scenario.
+- [ ] `src/strategy/performance.py:984-1000` — route
+  `TradeHistoryTracker` save through the helper.
+- [ ] `src/trading/portfolio.py` — route `PortfolioTracker.
+  record_snapshot` save through the helper.
+- [ ] `src/proposal/history.py` — route `ProposalHistory.record`
+  / `update` saves through the helper.
+- [ ] `src/runtime/engine.py:653-659` —
+  `_record_stale_quote_rejection`'s `model_copy` + save sequence
+  routes through the helper.
+- [ ] Regression test — fault-injection test that crashes
+  mid-write (mocks the `write_text` to raise after the tmp file
+  is written but before `os.replace`); asserts the destination
+  is either fully old or fully new (never partial).
+- [ ] Write unit tests.
+
+### 22.2 Paper Trader Liquidation Visibility
+
+**Background**: DEBT-027 (Medium) — `PaperTrader.close_position`
+(`src/trading/paper.py:619` and `:626`) clamps `balance.free =
+Decimal("0")` when an exit-fee + loss combo would push free
+balance negative. The position closes "successfully" with the
+recorded loss capped, no liquidation event emitted, no activity-
+log row, no negative-equity record. Operators using paper-mode
+to forecast live-mode behaviour see a softer drawdown profile
+than they will see live (where the exchange liquidates).
+
+**Related Requirements**: FR-010 (Paper Trading Mode — paper
+must reflect live-mode risk events for forecasting parity),
+NFR-007 (Trading History Storage — liquidation must persist as
+a structured event).
+
+- [ ] `src/runtime/activity_log.py::ActivityEventType` — new
+  member `LIQUIDATED` with structured-fields contract
+  documented in the docstring (`symbol`, `side`, `entry`,
+  `exit`, `qty`, `realized_pnl`, `balance_before`,
+  `balance_after`).
+- [ ] `src/trading/paper.py::PaperTrader.close_position` —
+  branch on the under-water case: emit the `LIQUIDATED`
+  activity event, record the close with the true (negative)
+  equity in `TradeHistory`, set the balance to the post-
+  liquidation value (negative when leverage > 1; pin the
+  convention with the test).
+- [ ] `EngineConfig.paper_auto_deposit_on_liquidation: bool =
+  Field(default=False)` — opt-out flag for the legacy
+  balance-clamp behaviour, intended only for testing scenarios
+  that need a continuing run after liquidation. Default off
+  closes the paper-vs-live divergence.
+- [ ] Regression test — `tests/test_trading_paper.py` adds
+  `test_under_water_close_emits_liquidated_event` and
+  `test_under_water_close_records_negative_equity`; the
+  legacy clamp behaviour stays available behind the new flag,
+  pinned by `test_under_water_close_with_auto_deposit_clamps`.
+- [ ] Write unit tests.
+
+---
+
+## Phase 23: AIDLC Hygiene Backfill
+
+**Goal**: Close the documentation drift the audit surfaced
+(DEBT-037 Low) plus the meta-issue around the duplicate
+`Phase 17.2` / `Phase 17.3` numbering. None of this is a code
+change; all of it is documentation that operators / new
+contributors trip over. The phase batches the items because
+each individually is too small for a `/dev-crypto` cycle and the
+cumulative drift is real.
+
+### 23.1 AIDLC Hygiene Backfill (sessions / cross-checks / drift)
+
+**Background**: The 3-agent audit surfaced four documentation
+gaps: (1) `docs/sessions/` is missing
+`2026-04-30-phase-17.2-portfolio-snapshot-recording.md` and
+`2026-04-30-phase-17.3-closed-trade-performance-records.md` for
+the two shipped commits (`094a79d`, `ab9dc32`); (2)
+`docs/cross-checks/` is missing the Phase 15 cross-check (Phase
+15 sealed in change-history but no cross-check file written);
+(3) `CLAUDE.md`'s project-structure tree omits `src/runtime/`
+and `src/tools/`; (4) `DESIGN.md §2.3` references a
+`ClaudeClient` class but the actual code is `ClaudeCLI`.
+DEBT-037 carries the full surface; this sub-task lands the fixes
+in one pass.
+
+**Related Requirements**: NFR-001 (operational maturity —
+docs reflect code). Extending existing requirements; no new
+FR/NFR introduced.
+
+- [ ] `docs/sessions/2026-04-30-phase-17.2-portfolio-snapshot-
+  recording.md` — back-fill from commit `094a79d` body. Match
+  existing session-log format (Cycle / Phase header /
+  files-changed / test-count delta / qa verdict).
+- [ ] `docs/sessions/2026-04-30-phase-17.3-closed-trade-
+  performance-records.md` — back-fill from commit `ab9dc32`
+  body. Same format.
+- [ ] `docs/cross-checks/2026-04-28-phase-15-diagnostic-
+  clarity.md` — back-fill the Phase 15 cross-check (single
+  sub-task only; light document). Cross-reference the change-
+  history row.
+- [ ] `CLAUDE.md` — add `src/runtime/` (engine, activity_log,
+  audit_log, jsonl_rotator) and `src/tools/` (operator scripts)
+  to the project-structure tree.
+- [ ] `DESIGN.md §2.3` — rename `ClaudeClient` → `ClaudeCLI`
+  end to end; verify the ADR list also matches.
+- [ ] No tests — documentation-only sub-task. (Lint pass on
+  Markdown if the project has one; otherwise visual review.)
+
+### 23.2 Phase 17.2 / 17.3 Numbering Reconciliation
+
+**Background**: `git log` shows two commits using each of the
+labels `Phase 17.2` (`094a79d` portfolio snapshot, then later
+`41f9212` auto-research workflow unblock) and `Phase 17.3`
+(`ab9dc32` closed-trade performance, then later the auto-
+research code-type steering planned spec). The dev-plan status
+table and sub-task headers were updated in this cycle to:
+shipped portfolio-snapshot → 17.2; shipped performance-record
+→ 17.3; auto-research unblock spec → 17.4 (already shipped per
+change-history, marked complete); code-type steering spec →
+17.5 (still missing). Phase 23.2 is the audit pass that locks
+this in: change-history rows reconciled, the conflicting
+`Phase 17.2 added` / `Phase 17.2 complete` rows reconciled
+with the new numbering, and a single back-fill change-history
+row added explaining the rebrand.
+
+**Related Requirements**: NFR-001 (operational maturity —
+change-history accuracy). Extending existing requirements; no
+new FR/NFR introduced.
+
+- [ ] Audit `docs/development-plan.md` change-history table for
+  rows referencing `Phase 17.2` / `Phase 17.3`; tag each row
+  with its post-rebrand number (17.2 portfolio, 17.3
+  performance, 17.4 auto-research unblock, 17.5 code-type
+  steering). Multiple rows may need an erratum-style
+  parenthetical noting the original number.
+- [ ] Add a single change-history row dated 2026-04-30
+  documenting the rebrand: "Phase 17.2 / 17.3 renumbered:
+  shipped portfolio-snapshot recording (commit `094a79d`) is
+  formal Phase 17.2; shipped closed-trade performance records
+  (commit `ab9dc32`) is formal Phase 17.3; previously-spec'd
+  Auto-Research Unblock and Code-Type Steering renumbered to
+  17.4 / 17.5".
+- [ ] Verify the `Requirements Mapping` row for Phase 17 lists
+  every FR/NFR consumed across 17.1–17.5.
+- [ ] No tests — documentation-only sub-task.
+
+---
+
+## Phase 24: Strategy Robustness Polish
+
+**Goal**: Batch the Low-priority correctness items the audit
+surfaced where each individually is too small for a phase but
+the cumulative effect on per-strategy metrics is real. The
+batch closes DEBT-030 (intra-trade MDD), DEBT-031 (MA-crossover
+SL window), DEBT-032 (OOS gate IS-sample-size guard), DEBT-033
+(stale-quote ticker freshness threshold), and DEBT-034 (cold-
+start technique selection). All five are isolated to a single
+file each; the cumulative test surface is small.
+
+### 24.1 Strategy Robustness Polish
+
+**Background**: Five Low-priority debts share the "isolated
+correctness improvement" shape. Each has a one-or-two-line code
+change and a regression test. Bundling avoids five separate
+`/dev-crypto` cycles. Sequencing within the sub-task is
+arbitrary; recommended order is dependency-order
+(MDD analyzer first, since later items don't read from it).
+
+**Related Requirements**: FR-005 (Performance Tracking —
+intra-trade MDD), FR-008 (Stop-Loss Setting — MA-crossover SL
+correctness), FR-025 (Backtesting Execution — OOS gate
+sample-size guard), FR-013 (User Accept/Reject — stale-quote
+ticker freshness for accept/reject decisions). Extending
+existing requirements; no new FR/NFR introduced.
+
+- [ ] DEBT-030: `src/backtest/analyzer.py:251-315` — replace
+  the closed-trade equity curve with a per-bar equity curve
+  (mark open positions to market each bar). Regression test on
+  a long-hold scenario pins the new MDD floor below the
+  closed-trade-only value.
+- [ ] DEBT-031: `strategies/ma_crossover.py:85,94` — roll the
+  SL window back by one bar (`df.iloc[i-period:i]` rather than
+  `df.iloc[i-period+1:i+1]`); regression test fixture fires on
+  the silent-drop case and asserts the trade is emitted.
+- [ ] DEBT-032: `src/backtest/validator.py:409-420` — add
+  `minimum_is_trades: int = 5` config field; when IS trade
+  count is below floor, mark OOS gate `SKIPPED` (consistent
+  with sensitivity-gate-skip pattern from DEBT-014); surface
+  the SKIP in the gate verdict.
+- [ ] DEBT-033: `src/runtime/engine.py:557-571` — add
+  `EngineConfig.max_ticker_age_seconds: float = 10.0`; check
+  the ticker `timestamp` against `now_utc()` (post-Phase 21);
+  fall through with the same WARN as the exception path when
+  the ticker is older than the threshold.
+- [ ] DEBT-034: `src/proposal/engine.py:655-659` — minimum-
+  sample guard: if no technique has ≥ N samples, skip the
+  proposal entirely in live mode (return no proposal); paper
+  mode falls through to the alphabetical default (cold-start-
+  tolerant). Pin both branches with tests.
+- [ ] Write unit tests.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -2429,6 +2965,11 @@ account).
 | Phase 17 | FR-022, FR-023, FR-025, FR-026, FR-034, NFR-001, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL` (17.1); runtime JSON contract + backtest circuit breaker resolving DEBT-019's 9-hour hang on prompt-type generations (17.2); code-type steering for deterministic catalog picks (17.3); no new FR/NFR introduced) |
 | Phase 18 | FR-005, FR-008, FR-013, FR-021, FR-025, NFR-001, NFR-012 (live-trading quality — 18.1 stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; 18.2 trade-quality diagnostic measurement pass over the closed-trade ledger to attribute losses before any further engine-knob edit; extending the fill boundary + performance-tracking + analysis-report contracts, no new FR/NFR introduced) |
 | Phase 19 | FR-036, FR-037, FR-038, FR-005, FR-009, FR-013, FR-025, FR-027, FR-034, NFR-003, NFR-007, NFR-008, NFR-011, NFR-012 (sub-account / capital segmentation — N independent capital pools per mode, multi-credential live, strategy-combination A/B backtests; introduces FR-036 / FR-037 / FR-038) |
+| Phase 20 | FR-006, FR-025, NFR-001 (trading-math correctness sweep — leverage no-double-apply across backtester / portfolio / paper-trader, single `pnl_for_trade` helper, Phase 5.4+ baseline re-computation post-DEBT-024; no new FR/NFR introduced) |
+| Phase 21 | FR-020, NFR-007, NFR-008, NFR-012 (time / timezone hardening — UTC-aware `from_unix_ms` helper across exchange adapters, `JsonlRotator` UTC-month boundary, stale-quote payload tz coherence; resolves DEBT-025; no new FR/NFR introduced) |
+| Phase 22 | FR-010, NFR-006, NFR-007, NFR-008 (persistence atomicity — `atomic_write_text` helper across `TradeHistoryTracker` / `PortfolioTracker` / `ProposalHistory` / Phase 18.1 stale-quote rewrite (resolves DEBT-028); paper-trader liquidation visibility — `LIQUIDATED` activity event + negative-equity record (resolves DEBT-027); no new FR/NFR introduced) |
+| Phase 23 | NFR-001 (AIDLC hygiene backfill — sessions for shipped 17.2 / 17.3, Phase 15 cross-check, `CLAUDE.md` tree, `DESIGN.md` ClaudeClient → ClaudeCLI rename, Phase 17.2 / 17.3 numbering reconciliation; resolves DEBT-037; no new FR/NFR introduced) |
+| Phase 24 | FR-005, FR-008, FR-013, FR-025, NFR-001 (strategy robustness polish — intra-trade MDD (DEBT-030), MA-crossover SL window (DEBT-031), OOS gate IS-sample-size guard (DEBT-032), stale-quote ticker freshness threshold (DEBT-033), cold-start minimum-sample guard (DEBT-034); no new FR/NFR introduced) |
 
 ---
 

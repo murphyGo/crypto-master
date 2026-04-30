@@ -420,6 +420,671 @@ Cheap test surface; high regression-prevention value.
 - `strategies/chasulang_ict_smc.md` (the canonical `## Output Contract` block)
 - DEBT-019 (parent — the failure mode the regression guard prevents)
 
+### DEBT-025: Exchange adapters and `JsonlRotator` use UTC-naive `datetime`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 2.2 / 10.4 (origin); surfaced 2026-04-30 |
+| **Component** | `src/exchange/binance.py` + `src/exchange/bybit.py` + `src/runtime/jsonl_rotator.py` + `src/runtime/engine.py` |
+
+**Description:**
+`BinanceExchange` (`src/exchange/binance.py:235`, `:272`, `:503-505`)
+and `BybitExchange` (`src/exchange/bybit.py:165`, `:202`, `:433-435`)
+construct OHLCV / ticker / order timestamps via
+`datetime.fromtimestamp(ms / 1000)` with no `tz=` argument, so the
+returned `datetime` is interpreted in the host machine's local
+timezone — Fly machines run UTC, but local development on KST hosts
+silently shifts every timestamp by 9 hours. `JsonlRotator`
+(`src/runtime/jsonl_rotator.py:105`, `:180`, `:253`) uses
+`datetime.now()` (also tz-naive local) to derive the active month
+token, so a record written at `00:30 UTC` (`09:30 KST`) lands in the
+KST-month file rather than the UTC-month file expected by readers.
+Phase 18.1 stale-quote payloads compare engine `datetime.now()`
+against candle timestamps from the adapters, mixing both tz-naive
+sources — usually self-consistent on Fly but inconsistent in dev.
+
+**Impact:**
+On Fly (UTC host) both call sites coincidentally agree, so production
+behaviour is correct today. On a non-UTC dev box, the timestamps
+silently disagree with the exchange's UTC truth; downstream artefacts
+(trade ledger rows, JSONL rotation boundaries, stale-quote drift
+calculation) inherit the offset. The bug is dormant in production
+but live in dev — the failure mode is "tests pass on Fly, fail
+locally, get debugged as 'my clock is wrong'". Future move to a
+non-UTC region (e.g. `fly regions add nrt`) silently activates the
+bug in production.
+
+**Suggested Resolution:**
+Add a single helper `from_unix_ms(ms: int) -> datetime` in
+`src/exchange/_time.py` (or `src/utils/time.py`) returning a
+`datetime` with `tzinfo=UTC`. Replace the four
+`datetime.fromtimestamp(ms / 1000)` call sites in the two adapters,
+and replace `datetime.now()` in `JsonlRotator` with
+`datetime.now(tz=UTC)`. Normalise `_coerce_timestamp` (any helper
+that converts incoming timestamps) to UTC-aware. Add a regression
+test that runs with `freeze_time` in non-UTC, asserting timestamps
+land in the UTC bucket regardless of host TZ.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/exchange/binance.py:235,272,503-505`
+- `src/exchange/bybit.py:165,202,433-435`
+- `src/runtime/jsonl_rotator.py:105,180,253`
+- DEBT-017 (sibling — stale-quote payload also touches this surface)
+
+### DEBT-026: Donchian experimental strategy file truncated and untracked
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 17.2 (artefact surfaced) |
+| **Component** | `strategies/experimental/donchian_turtle_system_2_20260430_002157.md` |
+
+**Description:**
+The auto-research script's first artefact (`donchian_turtle_system_2_
+20260430_002157.md`) is preserved in the working tree but the body
+is cut off at line 39 — entry rules / exit rules / ATR sizing
+section all missing. Phase 17.2's circuit breaker meant the
+incomplete file wouldn't infinite-loop the backtester, but the
+written rules also imply "next-bar open" fill semantics whereas
+`Backtester` fills at current-bar close. The file is currently
+untracked (`git status` shows `??`).
+
+**Impact:**
+Acceptance test for Phase 17.2 (DEBT-019 follow-up) can't run
+against this file as-is — the body's missing-section makes the
+backtest meaningless. Operator-facing artefact; production paths
+unaffected.
+
+**Suggested Resolution:**
+Either restore the file body via a re-run of the auto-research
+generator (now that 17.2's contract is in place, the regenerated
+body should carry the JSON `## Output Contract` block intact), or
+archive the file under `strategies/archive/` and remove the
+operator-acceptance reference. Decide `.gitignore` policy for
+`strategies/experimental/` (currently tracked; the truncated file
+suggests an exception is warranted).
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
+- DEBT-019 (parent — Phase 17.2 acceptance test reference)
+
+### DEBT-027: Paper trader silently zeroes balance instead of recording liquidation
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 4.3 (origin); surfaced 2026-04-30 |
+| **Component** | `src/trading/paper.py` |
+
+**Description:**
+`PaperTrader.close_position` (`src/trading/paper.py:619` and `:626`)
+clamps `balance.free = Decimal("0")` when an exit-fee + loss combo
+would push free balance negative. The position closes "successfully"
+with the recorded loss capped, no liquidation event emitted, no
+activity-log row, no negative-equity record — operationally
+equivalent to a margin call that the system pretends didn't happen.
+A leveraged drawdown that should have liquidated the account looks
+identical to a normal close in the trade ledger.
+
+**Impact:**
+Paper-trading correctness boundary: operators using paper-mode to
+forecast live-mode behaviour see a softer drawdown profile than
+they will see live (where the exchange liquidates). Cycle-summary
+metrics undercount risk events — the same scenario that produces
+a `LIQUIDATED` activity event on Binance produces nothing on the
+paper trader. Real-money decisions calibrated against paper
+results understate downside risk.
+
+**Suggested Resolution:**
+Branch `close_position` on the under-water case: emit a
+`LIQUIDATED` activity event with structured fields
+(`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`,
+`balance_before`, `balance_after`); record the close with the
+true (negative) equity in `TradeHistory`; set the balance to the
+post-liquidation value (could be negative if leverage > 1 — pin
+the convention with a test). Existing balance-clamp behaviour
+becomes opt-out for an "auto-deposit on liquidation" testing
+mode that defaults off.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/trading/paper.py:619,626`
+
+### DEBT-028: Persistence sites use non-atomic JSON write (load → mutate → save)
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 3.4 / 6.2 / 11.4 (origin); surfaced 2026-04-30 |
+| **Component** | `src/strategy/performance.py` + `src/trading/portfolio.py` + `src/proposal/history.py` + `src/runtime/engine.py` |
+
+**Description:**
+`TradeHistoryTracker`, `PortfolioTracker`, and `ProposalHistory` all
+follow a load → mutate → `Path.write_text(json.dumps(...))` shape
+(`src/strategy/performance.py:984-1000` is representative);
+concurrent writers can race on the same file, and a crash mid-write
+truncates the file (recoverable via re-fetch from the exchange for
+some surfaces, lossy for others). Phase 18.1's
+`_record_stale_quote_rejection` (`src/runtime/engine.py:653-659`)
+reproduces the same pattern at a new call site.
+
+**Impact:**
+Currently low frequency — single-engine deployment, no concurrent
+writers; crashes rare. Phase 19 (sub-account fan-out) materially
+raises the rate by introducing N writers per cycle against the
+same persistence files; Phase 19.2 lands before this debt is
+addressed and may surface the race in production.
+
+**Suggested Resolution:**
+Introduce a single helper `atomic_write_text(path: Path, text: str)`
+in `src/utils/io.py` that writes to `path.with_suffix(path.suffix +
+".tmp")` then `os.replace`s into the destination (atomic on POSIX
++ Windows). Replace the 4 known call sites in one pass; pin the
+behaviour with a fault-injection test that crashes mid-write and
+asserts the destination file is either fully old or fully new
+(never partial).
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/strategy/performance.py:984-1000`
+- `src/runtime/engine.py:653-659`
+- `src/trading/portfolio.py` (snapshot writer)
+- `src/proposal/history.py` (record writer)
+
+### DEBT-029: Phase 5.4+ baseline figures need re-computation post-leverage fix
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 5.4 onward (origin); surfaced 2026-04-30 |
+| **Component** | `data/backtest/baselines/` + `docs/baselines.md` + `docs/development-plan.md` change-history |
+
+**Description:**
+DEBT-024's leverage double-application means every persisted
+baseline figure in `data/backtest/baselines/{rsi_4h,rsi_15m,
+bollinger_band_reversion,ma_crossover}/{result.json,analysis.md,
+summary.json}` carries an inflated PnL / equity / MDD-in-USDT.
+`docs/baselines.md` reproduces these in the operator-facing table.
+Sharpe and hit rate are unaffected (scale-invariant); the affected
+columns are all dollar-denominated.
+
+**Impact:**
+Operator-facing reporting: the published baseline numbers misstate
+absolute returns by ~5–10×. Once DEBT-024 lands, the artefacts
+must be regenerated or the documentation will silently disagree
+with the corrected backtester. Comparing live results against
+baseline becomes confusing if not re-aligned.
+
+**Suggested Resolution:**
+Land DEBT-024 first; then run
+`python -m scripts.backtest_baselines` for each baseline strategy;
+overwrite the per-strategy `result.json` / `analysis.md` /
+`summary.json`; refresh `docs/baselines.md` operator table; add a
+single-line change-history row in `docs/development-plan.md`
+noting the figures were re-baselined. Mechanical work after
+DEBT-024 lands.
+
+**Related:**
+- DEBT-024 (parent — leverage double-application)
+- `scripts/backtest_baselines.py` (the regeneration entry point)
+- `docs/baselines.md`
+
+### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 5.2 (origin); surfaced 2026-04-30 |
+| **Component** | `src/backtest/analyzer.py` |
+
+**Description:**
+`PerformanceAnalyzer` (`src/backtest/analyzer.py:251-315`) builds
+the equity curve by stepping forward at each closed-trade exit,
+not at each bar. Intra-trade drawdown — the lowest equity point
+reached *while* a position is open — is invisible. Long-hold
+strategies (chasulang's multi-day swings, donchian turtle) report
+materially smaller MDD than they actually experienced.
+
+**Impact:**
+MDD figure understates worst-case drawdown for any strategy that
+holds across multi-bar drawdown periods. Robustness gate's MDD
+check (when used as a kill criterion in future) would let
+genuinely-painful strategies through. Sharpe is also slightly
+miscomputed because the return series uses trade-close timestamps
+rather than uniform bar-close intervals.
+
+**Suggested Resolution:**
+Replace the closed-trade equity curve with a per-bar equity curve
+that marks open positions to market each bar. Add a regression
+test on a long-hold scenario that pins the new MDD floor below
+the closed-trade-only value.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/backtest/analyzer.py:251-315`
+
+### DEBT-031: MA-crossover SL evaluation includes the current candle
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 9.2 (origin); surfaced 2026-04-30 |
+| **Component** | `strategies/ma_crossover.py` |
+
+**Description:**
+`strategies/ma_crossover.py:85` and `:94` compute the SL using a
+window that includes the current (signal) candle, so a fresh
+crossover whose entry is near a recent low gets a SL above the
+entry, which the backtester rejects as "stop ≥ entry on long" and
+silently drops the signal. Net effect: the strategy emits fewer
+trades than the underlying logic implies.
+
+**Impact:**
+Affected strategy ships its real signal density at less than
+expected. Phase 9.2 baselines under-report MA crossover trade
+counts. Operationally invisible — the strategy doesn't error,
+it just emits fewer signals than the spec describes.
+
+**Suggested Resolution:**
+Roll the SL window back by one bar (use `df.iloc[i-period:i]`
+rather than `df.iloc[i-period+1:i+1]`); add a regression test
+fixture that fires on this exact case and asserts the trade is
+emitted.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `strategies/ma_crossover.py:85,94`
+
+### DEBT-032: OOS Sharpe gate fails when in-sample population is small
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 5.4 (origin); surfaced 2026-04-30 |
+| **Component** | `src/backtest/validator.py` |
+
+**Description:**
+`RobustnessGate.run_oos_gate` (`src/backtest/validator.py:409-420`)
+computes IS-Sharpe / OOS-Sharpe ratio and fails the gate if the
+ratio is below threshold. When IS produces fewer than ~5 trades,
+the IS-Sharpe is statistically meaningless but the gate still
+applies the ratio rule, FAILING strategies that would have passed
+with a longer in-sample window. Strategies with naturally low
+trade frequency (chasulang on a 1-month window) bear the brunt.
+
+**Impact:**
+Some legitimately-good strategies fail the OOS gate due to a
+small-sample IS Sharpe. The robustness gate's pass-rate is
+artificially low for low-frequency strategies. Operationally
+visible only as "this strategy keeps DISCARDING with
+oos_sharpe_ratio_below_threshold even though it looks good".
+
+**Suggested Resolution:**
+Add a `minimum_is_trades: int = 5` config field; when the IS
+trade count is below the floor, mark the OOS gate `SKIPPED`
+(consistent with sensitivity-gate-skip pattern from DEBT-014)
+rather than failing. Surface the SKIP in the gate verdict so
+operators see why.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/backtest/validator.py:409-420`
+
+### DEBT-033: Stale-quote gate falls through on ticker exception without freshness check
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 (origin); surfaced 2026-04-30 |
+| **Component** | `src/runtime/engine.py` |
+
+**Description:**
+`_stale_quote_gate` (`src/runtime/engine.py:557-571`) catches any
+exception from `exchange.get_ticker(...)` and falls through to
+fill (logs WARN). The fall-through is correct on a transient
+exchange hiccup, but if the ticker cache returns a *stale* ticker
+silently (no exception), the gate runs against the stale price
+believing it's fresh. There's no max-cached-age threshold.
+
+**Impact:**
+Currently low — the exchange adapter doesn't aggressively cache —
+but the gate's correctness depends on a contract the adapter
+doesn't actually provide. A future caching layer (e.g. for
+rate-limit relief) would silently break the gate's freshness
+guarantee.
+
+**Suggested Resolution:**
+Add a `max_ticker_age_seconds: float = 10.0` config; check the
+ticker's `timestamp` against `time.time()` and fail the gate
+(treat as exception, fall through with the same WARN) if the
+ticker is older than the threshold. Pins the freshness contract.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/runtime/engine.py:557-571`
+
+### DEBT-034: Cold-start technique selection uses alphabetical ordering
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 6.1 (origin); surfaced 2026-04-30 |
+| **Component** | `src/proposal/engine.py` |
+
+**Description:**
+`ProposalEngine._select_best_technique` (`src/proposal/engine.py:
+655-659`) falls back to alphabetical sort when no technique has
+enough samples to compute a composite score. In live mode, this
+means the first cycle on a fresh deployment will run whatever
+strategy comes first alphabetically (`bollinger_band_reversion`)
+regardless of actual fit. The legacy single-technique path is
+guarded by Phase 10.6's `multi_technique_per_symbol=True`
+default, so this path is dormant in production but remains live
+code for op-emergency rollback.
+
+**Impact:**
+Dormant. If an operator rolls back to single-technique mode, the
+cold-start period (until ≥ N samples accumulate) runs the
+alphabetically-first technique, which may be a poor fit for the
+current regime.
+
+**Suggested Resolution:**
+Add a "minimum sample" guard: if no technique has ≥ N samples,
+skip the proposal entirely in live mode (return no proposal
+rather than picking blindly). Paper mode could fall through to
+the alphabetical default (cold-start-tolerant). Pin both branches
+with tests.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/proposal/engine.py:655-659`
+
+### DEBT-035: `Trade` model in `src/models.py` is dead code
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 1.3 (origin); surfaced 2026-04-30 |
+| **Component** | `src/models.py` |
+
+**Description:**
+`src/models.py:199-227` defines a `Trade` Pydantic model that no
+caller in the codebase ever instantiates. `TradeHistory` in
+`src/strategy/performance.py` is the live model used for trade
+records; `Trade` in `src/models.py` is leftover from an early
+design pass.
+
+**Impact:**
+Cosmetic only — the unused model carries no behavioural weight,
+but it clutters `src/models.py` and risks confusing newcomers
+("which `Trade` should I use?"). mypy and ruff are silent on
+unused-class.
+
+**Suggested Resolution:**
+Delete the model and its imports. Search for stale imports across
+the codebase first (none expected; pin with `grep -r "from
+src.models import Trade"`). Trivial removal.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/models.py:199-227`
+
+### DEBT-036: Calendar-month math approximated via `30 * months`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 6.2 (origin); surfaced 2026-04-30 |
+| **Component** | `src/proposal/interaction.py` |
+
+**Description:**
+`src/proposal/interaction.py:413` computes the retention cutoff
+as `now - timedelta(days=30 * months)`, which is wrong for any
+month other than April / June / September / November. Over a
+12-month retention window the error compounds to ~5 days; over
+a 36-month window, ~16 days. Operationally invisible because
+nobody reads the exact-day boundary, but the contract reads
+"12 months" and means "365 days".
+
+**Impact:**
+Edge of the retention window is fuzzy by ~5–16 days depending
+on horizon. No operator-visible behaviour today. The same shape
+in `ProposalHistory.purge_old` would surface this if anyone
+queried "exactly 365 days ago".
+
+**Suggested Resolution:**
+Use `dateutil.relativedelta(months=months)` (already in the
+dependency tree via pandas) instead of `timedelta(days=30 *
+months)`. One-line change; add a regression test against
+February → March transitions.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/proposal/interaction.py:413`
+
+### DEBT-037: Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 1 / 3.3 (origin); surfaced 2026-04-30 |
+| **Component** | `CLAUDE.md` + `DESIGN.md` + `docs/TECH-DEBT.md` |
+
+**Description:**
+Three small AIDLC-hygiene drifts caught by the audit: (1)
+`CLAUDE.md`'s project-structure tree omits `src/runtime/` and
+`src/tools/` (added Phase 8 / 11.4); (2) `DESIGN.md §2.3`
+references a `ClaudeClient` class but the actual code is named
+`ClaudeCLI` in `src/ai/claude.py`; (3) `docs/TECH-DEBT.md`
+ordering puts DEBT-018 below DEBT-019 / DEBT-020 / DEBT-021 /
+DEBT-022 / DEBT-023 (the file uses an internal `---` separator
+that the audit's traversal flagged as inconsistent), and the
+Statistics row would need to be re-counted after each new debt
+landing — currently the count shown is a one-pass snapshot,
+not maintained.
+
+**Impact:**
+Cosmetic / onboarding-friction. New contributors reading
+`CLAUDE.md` find no `src/runtime/` and assume the runtime engine
+lives elsewhere; tracing `DESIGN.md`'s ClaudeClient leads
+nowhere. Statistics drift is invisible until someone audits the
+counts.
+
+**Suggested Resolution:**
+Update `CLAUDE.md`'s tree to include `src/runtime/` (engine,
+activity_log, audit_log, jsonl_rotator) and `src/tools/`
+(operator scripts). Update `DESIGN.md §2.3` to rename
+`ClaudeClient` → `ClaudeCLI` end to end. Reorder DEBT-018 above
+DEBT-019 (fix the `---` separator), refresh the Statistics
+table.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `CLAUDE.md` (project tree section)
+- `DESIGN.md §2.3`
+- `docs/TECH-DEBT.md` (Statistics table + ordering)
+
+### DEBT-038: Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 6.3 (origin); surfaced 2026-04-30 |
+| **Component** | `src/runtime/engine.py` (notifier dispatch + activity-log emission) |
+
+**Description:**
+`src/runtime/engine.py:410` (and the dispatcher's per-channel
+`try/except`) swallow notifier failures so a single bad webhook
+doesn't crash the engine — correct shape per Phase 6.3 contract.
+But the swallowing emits no activity-log row, so an operator
+seeing "no Slack alert came through" has no log evidence the
+attempt was even made. The Telegram / Email / Slack notifiers
+all share the same blind-failure surface.
+
+**Impact:**
+Operationally invisible failures: a misconfigured `SLACK_
+WEBHOOK_URL` is indistinguishable from a missing one. Only the
+log-level WARN line in the dispatcher records the attempt.
+Visibility-cost only; no data-correctness consequence.
+
+**Suggested Resolution:**
+Add `ActivityEventType.NOTIFICATION_FAILED` and emit one row
+per failed channel from the dispatcher's `except` branch with
+structured fields (`channel`, `notifier_class`, `error_class`,
+`error_message`, `proposal_id`). Dashboard's activity-log view
+surfaces it as a sibling of `LLM_TIMEOUT` / `PROPOSAL_REJECTED`.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/runtime/engine.py:410`
+- `src/proposal/notification.py` (dispatcher)
+
+### DEBT-039: Logger module global `_initialized_loggers` blocks handler reset
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 1.3 (origin); surfaced 2026-04-30 |
+| **Component** | `src/logger.py` |
+
+**Description:**
+`src/logger.py:18` keeps `_initialized_loggers: set[str]` at
+module scope; `setup_logger` (lines 56-86) returns the cached
+logger if the name is already in the set, refusing to attach
+fresh handlers. Tests that need a clean handler stack (per-test
+caplog isolation) have to monkeypatch the global, which is
+fragile.
+
+**Impact:**
+Test ergonomics only — tests that interact with logger handlers
+end up patching a module global, which is flaky across test
+ordering. No production impact.
+
+**Suggested Resolution:**
+Replace the module-global set with per-call idempotence: check
+the logger's existing handlers and skip duplicate attachment.
+Drop the `_initialized_loggers` global entirely. Tests gain a
+fresh handler stack via `logger.handlers.clear()` rather than
+patching internals.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/logger.py:18,56-86`
+
+### DEBT-040: Two `# type: ignore[arg-type]` comments in `proposal/engine.py` undocumented
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 6.1 (origin); surfaced 2026-04-30 |
+| **Component** | `src/proposal/engine.py` |
+
+**Description:**
+`src/proposal/engine.py:496` and `:532` carry
+`# type: ignore[arg-type]` with no comment explaining the
+typing-system gap. Standard project practice (per DEBT-006 /
+DEBT-008 resolutions) is to attach a one-line comment explaining
+which typing-system limitation the ignore is closing.
+
+**Impact:**
+Cosmetic; mypy is clean. New contributors hitting the line
+during a refactor have no signal whether the ignore is still
+needed.
+
+**Suggested Resolution:**
+Investigate both ignore sites; either drop the ignore (if mypy
+no longer reports the original error) or attach a one-line
+comment naming the typing-system limitation (Pydantic generic
+variance / asyncio callback shape / etc.).
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/proposal/engine.py:496,532`
+
+### DEBT-041: `RuntimeEngine` accesses `ProposalInteraction._decision_callback` privately
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 8.1 (origin); surfaced 2026-04-30 |
+| **Component** | `src/runtime/engine.py` + `src/proposal/interaction.py` |
+
+**Description:**
+`src/runtime/engine.py:222` reaches into
+`ProposalInteraction._decision_callback` to install the auto-
+decide hook. `_decision_callback` is a single-underscore
+attribute — Python convention for "internal" — so the access is
+a tight coupling that breaks if the interaction module
+restructures.
+
+**Impact:**
+Refactor-fragility only. Today's code works; a maintenance pass
+on `ProposalInteraction` (e.g. promoting the callback to a
+strategy pattern) silently breaks the engine.
+
+**Suggested Resolution:**
+Add a public `set_decision_callback(callback)` method on
+`ProposalInteraction`; `RuntimeEngine` calls it instead of
+poking the private attribute.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `src/runtime/engine.py:222`
+- `src/proposal/interaction.py`
+
+### DEBT-042: `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 1.1 (origin); surfaced 2026-04-30 |
+| **Component** | `pyproject.toml` + project-wide `src/` + `tests/` |
+
+**Description:**
+`pyproject.toml` configures `black` as a dev dependency and the
+`scripts/lint.sh` flow runs `ruff format`, but the project never
+ran `black --check` end to end — 47 files would change under
+black's default rules (line length, string-quote consistency,
+trailing comma placement). The dormant gate means a future
+"flip black on" lands as a 47-file diff in one commit.
+
+**Impact:**
+Operational hygiene — the formatter discrepancy is visible
+under `black --check src tests` (47 files). Choosing whether
+to commit to ruff format or black format is the prerequisite;
+neither is wrong, but mixing the two is the worst outcome.
+
+**Suggested Resolution:**
+Decide canonical formatter (`ruff format` vs `black`); run the
+chosen formatter once across `src/` and `tests/`; remove the
+other from `pyproject.toml` dev extras. CI lint script enforces
+the chosen one only.
+
+**Related:**
+- 3-agent comprehensive audit 2026-04-30
+- `pyproject.toml` (dev extras + tool config)
+
 ---
 
 ### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
@@ -606,18 +1271,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-30 |
 | **Resolution** | Same-cycle one-line bump caught by Phase 17.2 quant-trader-expert review before any chasulang backtest ran: `BacktestConfig.per_bar_timeout` default raised `60.0` → `600.0` (chasulang's actual 480s `claude_timeout_seconds` per-`analyze()` ceiling + 120s headroom). `Settings.engine_backtest_per_bar_timeout` default + `.env.example` operator prose + `TestBacktestEngineSettings::test_per_bar_timeout_default_and_env` parity test all updated to match. The dev-plan rationale at lines 1750–1754 referencing "240s" + "multi-bar amortised" is stale (actual: 480s, per-call) and superseded by this resolution; flagged as planner correction needed. Forward-pointer for cleaner long-term shape: `Backtester.__init__` could peek at `strategy.info.claude_timeout_seconds` and use `max(default, strategy_timeout + headroom)` so the breaker self-adjusts to whatever the loaded strategy declares — out of scope for the one-line bump, tracked under DEBT-019's broader circuit-breaker-hardening umbrella. |
 
+### DEBT-024: Leverage applied twice in backtester / portfolio PnL math ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 20.1 extracted `pnl_for_trade(entry, exit, qty, side) -> Decimal` into new `src/utils/trading_math.py` (leverage NOT a parameter — qty already reflects the levered notional from `calculate_position_size`, so making leverage a parameter would invite a future caller to pass it again and reintroduce the bug). Routed every PnL site through the helper: `src/backtest/engine.py::_close_trade` (dropped `* leverage`), `src/trading/portfolio.py::calculate_unrealized_pnl` (dropped `* leverage`), `src/trading/paper.py::close_position` (already correct shape; routed for symmetry, bytewise-identical output). **Scope extension absorbed during quant-trader-expert review** (originally scheduled for 20.2): `src/strategy/performance.py::TradeHistory.calculate_pnl` (lines ~797-839) — both branches dropped `* self.leverage` from `pnl`, and `pnl_pct` reformulated as leverage-neutral (`(exit - entry) / entry` for longs, sign-inverted for shorts). Cross-ledger parity locked by `tests/test_backtest_engine.py::TestPnLConventionAlignment` (4 cases — long/short numeric equality between backtester and paper-trader on fixed (entry, exit, qty, leverage) fixture); persistence-layer parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). 11 module-level helper unit tests; 19 cascaded assertion updates across `tests/test_paper_trading.py` (8 across 7), `tests/test_portfolio.py` (5), `tests/test_strategy_performance.py` (3 calculate_pnl) — purely mechanical fixture corrections to the new correct numbers. 1226 total passing. **Note on stale line-number references**: the original DEBT-024 description pointed at `src/backtest/engine.py:783-794` for `calculate_position_size` + per-trade PnL multiplication, but by the time the fix shipped the actual leverage site had moved to `_close_trade` ~lines 948-960. Recorded for future audit-trail readers reconstructing the diff. Session log: `docs/sessions/2026-05-01-phase-20.1-pnl-helper-unification.md`. DEBT-029 (Phase 5.4+ baseline re-computation, scheduled as Phase 20.3) remains the downstream consequence and stays open until 20.3 lands. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 9 |
+| Total Active | 27 |
 | Critical | 0 |
-| High | 0 |
-| Medium | 3 |
-| Low | 6 |
-| Resolved (All Time) | 14 |
+| High | 1 |
+| Medium | 7 |
+| Low | 19 |
+| Resolved (All Time) | 15 |
 
 ---
 
@@ -663,3 +1337,23 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Added | DEBT-021 Strategy warmup contract mismatch with `BacktestConfig.warmup_candles` (Medium) — surfaced during Phase 17.2 quant-trader-expert review Q2; `StrategyValidationError` skip-only refinement is a workaround, not a fix; declared `BaseStrategy.minimum_candles` is the long-term shape |
 | 2026-04-30 | Added | DEBT-022 Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies (Low) — surfaced during Phase 17.2 quant-trader-expert review Q3; consecutive-only counter never trips on alternating fail-success patterns; secondary cumulative-rate guard recommended |
 | 2026-04-30 | Added | DEBT-023 No test pins improvement-prompt preservation of existing Output Contract block (Low) — surfaced during Phase 17.2 quant-trader-expert review Q5; `_build_improvement_prompt` deliberately doesn't re-inject the contract (correct), but no regression test that Claude's improvement output preserves the existing block |
+| 2026-04-30 | Added | DEBT-024 Leverage applied twice in backtester / portfolio PnL math (High) — surfaced during 3-agent comprehensive audit; backtester `calculate_position_size` already returns leverage-neutral qty, then PnL multiplies by leverage again; paper trader convention divergent |
+| 2026-04-30 | Added | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` (High) — surfaced during 3-agent comprehensive audit; `datetime.fromtimestamp(ms/1000)` (no tz) at 4 adapter sites + 3 rotator sites; dormant on Fly UTC, live in non-UTC dev |
+| 2026-04-30 | Added | DEBT-026 Donchian experimental strategy file truncated and untracked (Medium) — surfaced during 3-agent comprehensive audit; body cut at line 39, fill semantics mismatch with backtester, `git status ??` |
+| 2026-04-30 | Added | DEBT-027 Paper trader silently zeroes balance instead of recording liquidation (Medium) — surfaced during 3-agent comprehensive audit; under-water close clamps `balance.free = 0` with no `LIQUIDATED` event |
+| 2026-04-30 | Added | DEBT-028 Persistence sites use non-atomic JSON write (Medium) — surfaced during 3-agent comprehensive audit; `TradeHistoryTracker` / `PortfolioTracker` / `ProposalHistory` + Phase 18.1 stale-quote rewrite all load→mutate→`write_text` |
+| 2026-04-30 | Added | DEBT-029 Phase 5.4+ baseline figures need re-computation post-leverage fix (Medium) — surfaced during 3-agent comprehensive audit; downstream of DEBT-024 |
+| 2026-04-30 | Added | DEBT-030 Backtester MDD / Sharpe computed from closed-trade equity only (Low) — surfaced during 3-agent comprehensive audit; intra-trade drawdown invisible |
+| 2026-04-30 | Added | DEBT-031 MA-crossover SL evaluation includes the current candle (Low) — surfaced during 3-agent comprehensive audit; backtester silently drops the signal |
+| 2026-04-30 | Added | DEBT-032 OOS Sharpe gate fails when in-sample population is small (Low) — surfaced during 3-agent comprehensive audit; need `minimum_is_trades` SKIP guard |
+| 2026-04-30 | Added | DEBT-033 Stale-quote gate falls through on ticker exception without freshness check (Low) — surfaced during 3-agent comprehensive audit; need max_ticker_age_seconds threshold |
+| 2026-04-30 | Added | DEBT-034 Cold-start technique selection uses alphabetical ordering (Low) — surfaced during 3-agent comprehensive audit; dormant under Phase 10.6 multi-technique default but live in legacy single-technique rollback path |
+| 2026-04-30 | Added | DEBT-035 `Trade` model in `src/models.py` is dead code (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-036 Calendar-month math approximated via `30 * months` (Low) — surfaced during 3-agent comprehensive audit; `src/proposal/interaction.py:413` |
+| 2026-04-30 | Added | DEBT-037 Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-038 Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-039 Logger module global `_initialized_loggers` blocks handler reset (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-040 Two `# type: ignore[arg-type]` comments in `proposal/engine.py` undocumented (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-041 `RuntimeEngine` accesses `ProposalInteraction._decision_callback` privately (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-04-30 | Added | DEBT-042 `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted (Low) — surfaced during 3-agent comprehensive audit |
+| 2026-05-01 | Resolved | DEBT-024 Leverage applied twice in backtester / portfolio PnL math — Phase 20.1 extracted `pnl_for_trade(entry, exit, qty, side)` into new `src/utils/trading_math.py` (leverage NOT a parameter) and routed `_close_trade` / `Portfolio.calculate_unrealized_pnl` / `PaperTrader.close_position` (symmetry) through it; scope extension absorbed `TradeHistory.calculate_pnl` (both branches drop `* leverage` from `pnl`; `pnl_pct` reformulated leverage-neutral). Cross-ledger parity locked by `TestPnLConventionAlignment` (4 cases) + persistence parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). Note: the DEBT-024 description's line-number references (`engine.py:783-794`) were stale — the actual leverage site had moved to `_close_trade` ~lines 948-960. DEBT-029 (Phase 5.4+ baseline re-computation) remains downstream-open until Phase 20.3 lands |
