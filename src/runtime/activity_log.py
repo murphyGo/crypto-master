@@ -86,6 +86,28 @@ class ActivityEventType(str, Enum):
     # reliability over time.
     LLM_TIMEOUT = "llm_timeout"
 
+    # Paper-trader liquidation (Phase 22.2 / DEBT-027). Emitted by
+    # :class:`~src.trading.paper.PaperTrader.close_position` when a
+    # closing trade's realized loss + exit fee exceeds the trader's
+    # free balance. The previous behaviour silently clamped
+    # ``balance.free`` to zero, hiding the over-leverage failure;
+    # this event surfaces the shortfall to operators so paper-mode
+    # forecasts include the same liquidation cliff that live mode
+    # would experience. ``details`` payload (structured-fields
+    # contract — pinned by ``test_under_water_close_emits_liquidated_event``):
+    #     symbol (str)
+    #     side ("long" | "short")
+    #     entry (str Decimal)         entry price
+    #     exit (str Decimal)          exit / liquidation price
+    #     qty (str Decimal)           position quantity
+    #     realized_pnl (str Decimal)  always negative for liquidation
+    #     balance_before (str Decimal) free balance pre-close
+    #     balance_after (str Decimal)  free balance post-close
+    #                                 (negative when leverage > 1 unless
+    #                                 paper_auto_deposit_on_liquidation
+    #                                 clamp is in effect)
+    LIQUIDATED = "liquidated"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from src.models import Position
+from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.trading.paper import (
     DEFAULT_FEE_CONFIGS,
     ZERO_FEE_CONFIG,
@@ -1258,3 +1259,244 @@ class TestQuoteCurrencyExtraction:
         """Test extracting currency with slash separator."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("ETH/BTC") == "BTC"
+
+
+# =============================================================================
+# PaperTrader Liquidation Visibility (Phase 22.2 / DEBT-027)
+# =============================================================================
+
+
+class TestPaperTraderLiquidationVisibility:
+    """Phase 22.2 / DEBT-027 — paper-mode liquidation visibility.
+
+    Pins the contract for under-water closes:
+    1. By default, ``balance.free`` reflects true (negative)
+       post-liquidation equity instead of being silently clamped to
+       zero.
+    2. A ``LIQUIDATED`` :class:`ActivityEvent` is emitted with the
+       structured-fields payload defined on
+       :class:`~src.runtime.activity_log.ActivityEventType.LIQUIDATED`.
+    3. The legacy clamp behaviour stays available behind
+       ``auto_deposit_on_liquidation=True`` for testing scenarios.
+    4. Normal (covered) closes never emit the event.
+    """
+
+    @pytest.fixture
+    def activity_log(self, tmp_path: Path) -> ActivityLog:
+        """Construct an ActivityLog rooted at tmp_path so the rotator
+        does not write under the operator volume.
+        """
+        return ActivityLog(path=tmp_path / "activity.jsonl")
+
+    @pytest.fixture
+    def under_water_position(self) -> Position:
+        """Position sized so a stop-loss hit overdraws the trader.
+
+        Notional 50_000 * 1 = 50_000, leverage 10 ⇒ margin 5_000.
+        Trader is initialised with 5_000, so after open the free
+        balance is 0 (margin fully locked). A close at 40_000 yields
+        a gross loss of 1 * (50_000 - 40_000) = 10_000 — twice the
+        margin. After unlock the free balance is 5_000, the projected
+        post-close balance is 5_000 - 10_000 = -5_000 (true negative
+        equity in a 10x leveraged scenario).
+        """
+        return Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("1"),
+            leverage=10,
+            stop_loss=Decimal("40000"),
+        )
+
+    async def test_under_water_close_records_negative_equity(
+        self,
+        tmp_path: Path,
+        activity_log: ActivityLog,
+        under_water_position: Position,
+    ) -> None:
+        """Default behaviour: ``free`` goes negative on under-water close."""
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("5000")},
+            data_dir=tmp_path,
+            activity_log=activity_log,
+        )
+        trade = await trader.open_position(under_water_position)
+        # 10x leverage, 1 BTC notional 50k, 10k loss on a 5k margin.
+        closed = await trader.close_position(trade.id, Decimal("40000"), "stop_loss")
+        assert closed is not None
+        assert closed.pnl == Decimal("-10000")
+
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        # Pre-close: 0 free + 5000 locked. Unlock → 5000 free. Apply
+        # gross pnl -10000 and zero exit fee → -5000 true negative.
+        assert balance.free == Decimal("-5000")
+        assert balance.locked == Decimal("0")
+
+    async def test_under_water_close_emits_liquidated_event(
+        self,
+        tmp_path: Path,
+        activity_log: ActivityLog,
+        under_water_position: Position,
+    ) -> None:
+        """The structured-fields contract is the dashboard's interface."""
+
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("5000")},
+            data_dir=tmp_path,
+            activity_log=activity_log,
+        )
+        trade = await trader.open_position(under_water_position)
+        await trader.close_position(trade.id, Decimal("40000"), "stop_loss")
+
+        events = activity_log.filter(event_type=ActivityEventType.LIQUIDATED)
+        assert len(events) == 1
+        event = events[0]
+        # Structured-fields contract pinned.
+        assert event.details["symbol"] == "BTC/USDT"
+        assert event.details["side"] == "long"
+        assert event.details["entry"] == "50000"
+        assert event.details["exit"] == "40000"
+        assert event.details["qty"] == "1"
+        assert event.details["realized_pnl"] == "-10000"
+        # balance_before is post-unlock pre-pnl (5000).
+        assert event.details["balance_before"] == "5000"
+        assert event.details["balance_after"] == "-5000"
+
+    async def test_under_water_close_with_auto_deposit_clamps(
+        self,
+        tmp_path: Path,
+        activity_log: ActivityLog,
+        under_water_position: Position,
+    ) -> None:
+        """Legacy clamp behaviour stays available behind the opt-in flag."""
+
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("5000")},
+            data_dir=tmp_path,
+            activity_log=activity_log,
+            auto_deposit_on_liquidation=True,
+        )
+        trade = await trader.open_position(under_water_position)
+        await trader.close_position(trade.id, Decimal("40000"), "stop_loss")
+
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        # Legacy clamp: free pinned to zero, no continuing negative
+        # equity ledger entry on the balance itself.
+        assert balance.free == Decimal("0")
+
+        # Even with the clamp on, the liquidation event still fires —
+        # operators always see the shortfall.
+        events = activity_log.filter(event_type=ActivityEventType.LIQUIDATED)
+        assert len(events) == 1
+        # balance_after is the clamped value (0), but the event payload
+        # captures balance_before (5000) so the gap is visible.
+        assert events[0].details["balance_before"] == "5000"
+        assert events[0].details["balance_after"] == "0"
+
+    async def test_under_water_close_without_activity_log_does_not_crash(
+        self,
+        tmp_path: Path,
+        under_water_position: Position,
+    ) -> None:
+        """No ``activity_log`` wired ⇒ negative equity recorded silently."""
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("5000")},
+            data_dir=tmp_path,
+        )
+        trade = await trader.open_position(under_water_position)
+        closed = await trader.close_position(trade.id, Decimal("40000"), "stop_loss")
+        assert closed is not None
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        # Negative equity still recorded — only the event emission
+        # depends on the activity_log being wired.
+        assert balance.free == Decimal("-5000")
+
+    async def test_exit_fee_only_shortfall_emits_liquidated_event(
+        self,
+        tmp_path: Path,
+        activity_log: ActivityLog,
+    ) -> None:
+        """Tiny pnl + an exit fee that overdraws the trader trips the same path.
+
+        Pins the second under-water branch — the historical line 626
+        clamp where ``exit_fee`` itself exceeded the post-pnl free
+        balance. With the new logic both shortfalls share one branch
+        because ``net_delta = pnl - exit_fee`` rolls them together.
+        """
+
+        # 1% exit fee on a 50_000 notional = 500 fee.
+        fee_config = FeeConfig(
+            maker_fee_rate=Decimal("0.01"),
+            taker_fee_rate=Decimal("0.01"),
+        )
+        # Trader balance covers margin + entry fee but the exit fee on
+        # an underwater close pushes the balance negative.
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("5500")},
+            data_dir=tmp_path,
+            fee_config=fee_config,
+            activity_log=activity_log,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("1"),
+            leverage=10,
+            stop_loss=Decimal("40000"),
+        )
+        # Open: margin 5000 locked, entry fee 500 → free = 0.
+        trade = await trader.open_position(position)
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("0")
+        assert balance.locked == Decimal("5000")
+
+        # Close at SL: gross pnl -10_000, exit fee 400 (1% of 40_000).
+        # net_delta = -10_400. Post-unlock free = 5000, projected
+        # = -5_400. Confirms the under-water branch fires regardless of
+        # whether the shortfall came from pnl alone or pnl+fee.
+        await trader.close_position(trade.id, Decimal("40000"), "stop_loss")
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("-5400")
+
+        events = activity_log.filter(event_type=ActivityEventType.LIQUIDATED)
+        assert len(events) == 1
+
+    async def test_normal_close_does_not_emit_liquidated_event(
+        self,
+        tmp_path: Path,
+        activity_log: ActivityLog,
+    ) -> None:
+        """Happy-path close ⇒ no liquidation event."""
+
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+            activity_log=activity_log,
+        )
+        position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+        )
+        trade = await trader.open_position(position)
+        # Small loss, fully covered by free balance.
+        await trader.close_position(trade.id, Decimal("49500"), "stop_loss")
+
+        events = activity_log.filter(event_type=ActivityEventType.LIQUIDATED)
+        assert events == []
+
+        # Balance unchanged from the legacy expectation.
+        balance = trader.get_balance("USDT")
+        assert balance is not None
+        assert balance.free == Decimal("9950")

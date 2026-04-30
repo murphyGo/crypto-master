@@ -459,49 +459,6 @@ suggests an exception is warranted).
 - `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
-### DEBT-027: Paper trader silently zeroes balance instead of recording liquidation
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 4.3 (origin); surfaced 2026-04-30 |
-| **Component** | `src/trading/paper.py` |
-
-**Description:**
-`PaperTrader.close_position` (`src/trading/paper.py:619` and `:626`)
-clamps `balance.free = Decimal("0")` when an exit-fee + loss combo
-would push free balance negative. The position closes "successfully"
-with the recorded loss capped, no liquidation event emitted, no
-activity-log row, no negative-equity record — operationally
-equivalent to a margin call that the system pretends didn't happen.
-A leveraged drawdown that should have liquidated the account looks
-identical to a normal close in the trade ledger.
-
-**Impact:**
-Paper-trading correctness boundary: operators using paper-mode to
-forecast live-mode behaviour see a softer drawdown profile than
-they will see live (where the exchange liquidates). Cycle-summary
-metrics undercount risk events — the same scenario that produces
-a `LIQUIDATED` activity event on Binance produces nothing on the
-paper trader. Real-money decisions calibrated against paper
-results understate downside risk.
-
-**Suggested Resolution:**
-Branch `close_position` on the under-water case: emit a
-`LIQUIDATED` activity event with structured fields
-(`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`,
-`balance_before`, `balance_after`); record the close with the
-true (negative) equity in `TradeHistory`; set the balance to the
-post-liquidation value (could be negative if leverage > 1 — pin
-the convention with a test). Existing balance-clamp behaviour
-becomes opt-out for an "auto-deposit on liquidation" testing
-mode that defaults off.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/trading/paper.py:619,626`
-
 ### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only
 
 | Field | Value |
@@ -1175,6 +1132,68 @@ Two viable shapes; Phase 19.2 planner picks:
 
 ---
 
+### DEBT-047: Backtester has no leverage-liquidation modeling — `balance` can go arbitrarily negative without LIQUIDATED analogue
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 22.2 (origin — surfaced during quant review as backtester / paper-trader asymmetry) |
+| **Component** | `src/backtest/engine.py:371,396` |
+
+**Description:**
+`Backtester` (`src/backtest/engine.py:371,396`) advances the
+simulated balance via `balance += pnl_delta` after each closed
+trade — no margin lock, no clamp, no liquidation event. The
+balance can run arbitrarily negative across a leveraged drawdown
+sequence without producing any structural marker that "this
+strategy would have been liquidated" before the recovery began.
+Asymmetric with `PaperTrader` post-Phase 22.2: paper mode now
+emits a structured `LIQUIDATED` activity event on the under-water
+close branch (and round-trips true negative equity), but the
+backtester treats path-equity as if margin doesn't exist.
+
+**Impact:**
+Operators reading backtest equity curves to forecast live
+behaviour now see a *paper-faithful* picture from `PaperTrader`
+(LIQUIDATED event + true-negative-equity round-trip) and a
+*liquidation-blind* picture from `Backtester` (continuous equity
+through a region that would have been a margin call live). A
+strategy that "would have been liquidated mid-backtest" cannot
+be distinguished from one that drew down deeply but recovered;
+the equity curve hides the fact that the recovery isn't reachable
+under live margin rules. Historical baselines built from the
+backtester systematically understate downside risk for any
+leveraged strategy whose simulated path crosses a liquidation
+threshold.
+
+**Suggested Resolution:**
+Two viable shapes; either the team-lead or Phase 24 planner
+picks (consider folding into Phase 24 strategy robustness polish):
+- **`BacktestConfig.liquidation_threshold` + structural marker**:
+  add a config knob (e.g. `balance ≤ 0` or `balance / initial <
+  0.1`) and emit a structural marker on `BacktestTrade` /
+  `BacktestResult` summary when the threshold is crossed.
+  Operators reading the result can distinguish "would have been
+  liquidated" from "deep drawdown but recovered". Trade-off:
+  requires a downstream consumer (PerformanceAnalyzer, dashboard)
+  to render the marker meaningfully.
+- **Conservative clamp + log at threshold**: when balance crosses
+  the threshold, clamp + log + halt the simulated run with a
+  recorded `LIQUIDATED` analogue on the result. Trade-off: more
+  invasive, changes the equity curve shape for affected runs
+  (but that's the point — the existing curve shape is the bug).
+
+**Related:**
+- Phase 22.2 quant-trader-expert review
+- DEBT-027 (sibling — paper-trader liquidation visibility,
+  Resolved 2026-05-01 by Phase 22.2; this DEBT is the symmetric
+  follow-up on the backtester side)
+- `src/backtest/engine.py:371,396`
+- Possible Phase 24 hosting (strategy robustness polish)
+
+---
+
 ### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
 
 | Field | Value |
@@ -1386,6 +1405,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 22.1 introduced `src/utils/io.py::atomic_write_text(path: Path, text: str) -> None` — writes to `path.with_suffix(path.suffix + ".tmp")` with a uuid-suffixed tmp name (concurrent-writer-tolerant on the tmp side) then `os.replace(...)`s into the destination, with cleanup-on-exception so a raise mid-write leaves no orphan tmp file. Migrated 5 named load → mutate → save sites: `PerformanceTracker._save_records` (`src/strategy/performance.py:439`), `PerformanceTracker._update_summary` (`src/strategy/performance.py:494`), `TradeHistoryTracker._save_trades` (`src/strategy/performance.py:1077`), `PortfolioTracker._save_snapshots` (`src/trading/portfolio.py:407`), `ProposalHistory.save` (`src/proposal/interaction.py:245`). `RuntimeEngine._record_stale_quote_rejection` covered transitively via `ProposalHistory.save`; doc comment added at the call-site naming the transitive coverage. 15 module-level helper unit tests (happy path, tmp-file present after crash, last-writer-wins under threads, cleanup-on-exception); 4 site regression tests (one per migrated tracker — crash-mid-write preserves prior record on disk; threaded last-writer-wins). pytest 1265 → 1284 (+19); ruff / mypy / black clean. Both reviewers ship-class (qa 🟢, quant 🟢). **Plan-text correction noted**: the DEBT-028 description and the Phase 22.1 spec line both pointed at `src/proposal/history.py`, but `ProposalHistory` actually lives in `src/proposal/interaction.py`. Plan text corrected in-place by Phase 22.1 docs-auditor (`docs/development-plan.md` Phase 22.1 sub-task block). **Caveat — atomicity ≠ concurrency-safety**: `atomic_write_text` resolves crash-mid-write durability (destination is either fully old or fully new, never partial) but does **not** solve concurrent-mutation loss — two workers doing load → mutate → save in the same wall-clock window will each see the same prior state, each write atomically, and the loser's mutation is silently dropped. Single-engine deployment is safe (one writer per file); Phase 19.2 sub-account fan-out introduces parallel workers and requires additional per-file locking (e.g. `fcntl.flock`) or per-account file partitioning. Captured as **DEBT-046 (Medium, hard prereq for Phase 19.2)** with the resolution-shape options enumerated; cross-referenced on the Phase 19.2 spec page (`docs/development-plan.md` Prerequisites line). Two adjacent-scope follow-ups also registered: **DEBT-044** (Low — `FeedbackLoop.save_state` not migrated; same shape, mechanical) and **DEBT-045** (Low — `Backtester._save_result` single-write not atomic; helper exists, one-line route). Session log: `docs/sessions/2026-05-01-phase-22.1-atomic-write-helper.md`. |
 
+### DEBT-027: Paper trader silently zeroes balance instead of recording liquidation ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 22.2 closed the paper-vs-live divergence at the under-water close boundary. Under-water close detection rewritten via a projected-free predicate evaluated *before* the mutation lands (`projected_free = balance.free + (pnl - exit_fee) < 0`), splitting detection from remediation cleanly. Default branch records true negative equity AND emits a structured `LIQUIDATED` activity event with the documented payload contract (`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`, `balance_before`, `balance_after`). New `ActivityEventType.LIQUIDATED` enum member (`src/runtime/activity_log.py:109`) carries the contract on the type. `PaperBalance.free` Pydantic constraint relaxed (dropped `ge=0`) so the negative-equity round-trip survives `validate_assignment`; lock / deduct / reserve paths still enforce overdraw protection at their own boundaries — the relaxation is a permission to *report* negative equity, not to silently underflow during normal operations. `PaperTrader.__init__` gained 2 backward-compatible kwargs: `activity_log` (the bus the LIQUIDATED event emits onto, default `None` so legacy callers without an activity log still work) and `auto_deposit_on_liquidation` (default `False`, the new correctness-first behaviour). The legacy clamp-to-zero behaviour is preserved behind the opt-out flag for testing scenarios that need a continuing run after liquidation; **both branches emit the LIQUIDATED event** — the flag controls balance treatment, not event semantics. `EngineConfig` / `Settings` mirror the flag as `paper_auto_deposit_on_liquidation` (env-overridable via `PAPER_AUTO_DEPOSIT_ON_LIQUIDATION`); `.env.example` documents the toggle; `src/main.py::build_engine` plumbs `ActivityLog` and the flag into `build_trader`. 6 regression tests in `tests/test_paper_trading.py` pin the contract: under-water default emits LIQUIDATED, under-water default round-trips negative equity, auto-deposit opt-out clamps but still emits, exit-fee-only shortfall (the historical line-626 branch — fee alone pushes balance negative without any pnl loss component) takes the liquidation path, normal close stays silent, flag-on payload parity with default. pytest 1284 → 1290 (+6); ruff / mypy / black clean. Both reviewers ship-class (qa 🟢, quant 🟢). **Asymmetry surfaced**: backtester (`src/backtest/engine.py:371,396`) has no margin / liquidation modeling — `balance += pnl_delta` runs arbitrarily negative without an analogue. Captured as **DEBT-047 (Medium)** with two resolution shapes (`BacktestConfig.liquidation_threshold` + structural marker on `BacktestTrade` / `BacktestResult`, OR conservative clamp + log at threshold). **Plan-text drift noted**: DEBT-027's description cited `src/trading/paper.py:619,626` as the under-water clamp sites; by the time 22.2 shipped the actual liquidation branch lives around lines 656-720 — same pattern as DEBT-024 stale line references and DEBT-028 / Phase 22.1 path drift. Phase 22 cross-check `docs/cross-checks/2026-05-01-phase-22-persistence-atomicity-liquidation.md` PASS; phase sealed (22.1 ✅, 22.2 ✅). Session log: `docs/sessions/2026-05-01-phase-22.2-and-phase-22-seal.md`. |
+
 ### DEBT-024: Leverage applied twice in backtester / portfolio PnL math ✅
 
 | Field | Value |
@@ -1406,7 +1434,7 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 7 |
 | Low | 21 |
-| Resolved (All Time) | 18 |
+| Resolved (All Time) | 19 |
 
 ---
 
@@ -1481,3 +1509,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Added | DEBT-044 `FeedbackLoop.save_state` not migrated to `atomic_write_text` (Low) — surfaced during Phase 22.1 senior-developer review; same load → mutate → save shape as the 5 migrated sites, out of Phase 22.1 named scope; mechanical one-line fix |
 | 2026-05-01 | Added | DEBT-045 `Backtester._save_result` single-write not atomic (Low) — surfaced during Phase 22.1 quant-trader-expert review; single-write (no load → mutate) but benefits from atomicity if backtest run crashes during persistence; helper exists, one-line route |
 | 2026-05-01 | Added | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 prereq (Medium) — surfaced during Phase 22.1 implementation as the durability-vs-concurrency caveat; `atomic_write_text` is last-writer-wins under concurrent load → mutate → save; **hard prereq for Phase 19.2 sub-account fan-out**; resolution shapes: per-file lock helper (`fcntl.flock`) layered over atomic-write OR per-account file partitioning (Phase 19.2 planner picks); cross-referenced in `docs/development-plan.md` Phase 19.2 Prerequisites line |
+| 2026-05-01 | Resolved | DEBT-027 Paper trader silently zeroes balance instead of recording liquidation — Phase 22.2 rewrote `PaperTrader.close_position` under-water branch with projected-free predicate (`projected_free = balance.free + (pnl - exit_fee) < 0`); default behaviour records true negative equity AND emits structured `LIQUIDATED` activity event (`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`, `balance_before`, `balance_after`); legacy clamp-to-zero preserved behind opt-out flag `auto_deposit_on_liquidation` (still emits the event — flag controls balance treatment, not event semantics). New `ActivityEventType.LIQUIDATED` enum member; `PaperBalance.free` Pydantic constraint relaxed (lock / deduct / reserve paths still enforce overdraw protection); `PaperTrader.__init__` gained `activity_log` + `auto_deposit_on_liquidation` kwargs; `EngineConfig` / `Settings.paper_auto_deposit_on_liquidation` (env-overridable `PAPER_AUTO_DEPOSIT_ON_LIQUIDATION`); `.env.example` documented; `build_engine` plumbs through. 6 regression tests pin the contract; pytest 1284 → 1290 (+6); reviewers 🟢🟢. Backtester asymmetry surfaced as DEBT-047 (Medium). Plan-text drift noted (DEBT-027 cited `paper.py:619,626`; actual liquidation branch lives ~656-720). Phase 22 sealed (22.1 ✅, 22.2 ✅); cross-check `docs/cross-checks/2026-05-01-phase-22-persistence-atomicity-liquidation.md` PASS |
+| 2026-05-01 | Added | DEBT-047 Backtester has no leverage-liquidation modeling (Medium) — surfaced during Phase 22.2 quant-trader-expert review; `src/backtest/engine.py:371,396` does `balance += pnl_delta` with no margin lock / clamp / event; asymmetric with `PaperTrader` post-22.2 (paper now emits `LIQUIDATED`, backtester continues simulating against arbitrarily negative equity); operators reading backtest equity curves can't distinguish "would have been liquidated" from "deep drawdown but recovered"; resolution shapes: `BacktestConfig.liquidation_threshold` + structural marker on `BacktestTrade` / `BacktestResult` OR conservative clamp + log at threshold; consider folding into Phase 24 |

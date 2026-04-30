@@ -121,6 +121,15 @@ class Settings(BaseSettings):
 
     # Paper Trading Configuration
     paper_initial_balance: float = Field(default=10000.0, gt=0)
+    # Phase 22.2 / DEBT-027 paper-trader liquidation visibility opt-out.
+    # Default ``False`` lets ``PaperTrader`` record true negative equity
+    # when an under-water close would push free balance below zero
+    # (closes the paper-vs-live forecasting gap). Setting ``True``
+    # re-enables the legacy ``balance.free = 0`` clamp — intended only
+    # for testing scenarios that need a continuing run past a paper
+    # liquidation. Either way the engine logs a ``LIQUIDATED`` activity
+    # event so the shortfall surfaces on the dashboard.
+    paper_auto_deposit_on_liquidation: bool = Field(default=False)
 
     # Risk Management
     max_leverage: int = Field(default=10, ge=1, le=125)
@@ -178,9 +187,7 @@ class Settings(BaseSettings):
     # the engine to reject the fill with
     # ``decision_reason="slippage_exceeds_tolerance"``. Minimum 0
     # (== reject any drift). Default 0.005.
-    engine_fill_slippage_tolerance: Decimal = Field(
-        default=Decimal("0.005"), ge=0
-    )
+    engine_fill_slippage_tolerance: Decimal = Field(default=Decimal("0.005"), ge=0)
     # When True, the engine fetches a fresh ticker before each fill
     # and rejects the proposal if live has already crossed the
     # proposal's stop-loss in the trade direction. Default True

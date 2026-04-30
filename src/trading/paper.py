@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from src.logger import get_logger
 from src.models import OrderRequest, Position
+from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.strategy import TradingError
 from src.utils.trading_math import pnl_for_trade
@@ -105,14 +106,25 @@ class PaperBalance(BaseModel):
 
     Tracks free (available) and locked (in positions) amounts.
 
+    Phase 22.2 / DEBT-027 relaxes the ``ge=0`` constraint on ``free``
+    so :meth:`PaperTrader.close_position` can record true post-
+    liquidation negative equity. The ``lock`` / ``deduct`` methods
+    still reject operations that would overdraw, so the only path to
+    a negative ``free`` is the deliberate liquidation branch in
+    ``close_position``. ``locked`` keeps its non-negative invariant —
+    no leverage scenario produces negative locked margin.
+
     Attributes:
         currency: Currency code (e.g., "USDT").
-        free: Available balance.
+        free: Available balance. Normally non-negative, but may go
+            negative after a paper-mode liquidation event when
+            ``EngineConfig.paper_auto_deposit_on_liquidation`` is False
+            (the default).
         locked: Balance locked in open positions.
     """
 
     currency: str
-    free: Decimal = Field(default=Decimal("0"), ge=0)
+    free: Decimal = Field(default=Decimal("0"))
     locked: Decimal = Field(default=Decimal("0"), ge=0)
 
     model_config = {"validate_assignment": True}
@@ -265,6 +277,9 @@ class PaperTrader:
         data_dir: Path | None = None,
         exchange: "BaseExchange | None" = None,
         fee_config: FeeConfig | None = None,
+        *,
+        activity_log: ActivityLog | None = None,
+        auto_deposit_on_liquidation: bool = False,
     ) -> None:
         """Initialize PaperTrader.
 
@@ -279,6 +294,24 @@ class PaperTrader:
                        the default config for the supplied ``exchange`` (keyed
                        by ``exchange.name``), or zero fees when no exchange
                        is configured.
+            activity_log: Optional :class:`ActivityLog` used to surface
+                paper-mode liquidation events (Phase 22.2 / DEBT-027).
+                When ``None``, the under-water close still records true
+                negative equity on the balance but no
+                :attr:`ActivityEventType.LIQUIDATED` event is emitted —
+                this matches the legacy in-memory test setup. Production
+                wires in the engine's shared ``ActivityLog`` so the
+                dashboard sees the event.
+            auto_deposit_on_liquidation: Opt-out flag for the legacy
+                balance-clamp behaviour (Phase 22.2 / DEBT-027). Default
+                ``False`` means an under-water close lets ``free`` go
+                negative so paper-mode forecasts include the liquidation
+                cliff. ``True`` re-enables the legacy
+                ``balance.free = Decimal("0")`` clamp — intended only
+                for testing scenarios that need a continuing run after
+                liquidation. Either way, when ``activity_log`` is wired,
+                the ``LIQUIDATED`` event is still emitted so the
+                shortfall is never silently swallowed.
         """
         self._balances: dict[str, PaperBalance] = {}
         self._open_positions: dict[str, OpenPosition] = {}
@@ -286,6 +319,8 @@ class PaperTrader:
         self._exchange = exchange
         self._use_testnet = exchange is not None and exchange.testnet
         self._fee_config = self._resolve_fee_config(fee_config, exchange)
+        self._activity_log = activity_log
+        self._auto_deposit_on_liquidation = auto_deposit_on_liquidation
 
         # Initialize balances
         if initial_balance:
@@ -613,26 +648,46 @@ class PaperTrader:
 
         # Update balance: unlock margin, apply P&L, deduct exit fee.
         # Entry fee was already deducted at open time.
+        #
+        # Phase 22.2 / DEBT-027: when ``pnl - exit_fee`` would push
+        # ``free`` below zero the trade is under water — the legacy
+        # behaviour silently clamped to zero, hiding the shortfall.
+        # The new behaviour records true (negative) post-liquidation
+        # equity AND emits a ``LIQUIDATED`` activity event so the
+        # dashboard / operators see the cliff. The legacy clamp is
+        # available behind ``self._auto_deposit_on_liquidation``
+        # for testing scenarios that need the run to continue.
         balance = self.get_balance(quote_currency)
+        liquidated = False
+        balance_before = Decimal("0")
+        balance_after = Decimal("0")
         if balance:
             balance.unlock(margin)
-            if pnl > 0:
-                balance.add(pnl)
-            elif pnl < 0:
-                # Deduct loss from free balance (already unlocked margin)
-                loss_amount = abs(pnl)
-                if loss_amount <= balance.free:
-                    balance.deduct(loss_amount)
-                else:
-                    # Margin was the max loss; adjust to available
-                    balance.free = Decimal("0")
+            balance_before = balance.free
 
-            if exit_fee > 0:
-                if exit_fee <= balance.free:
-                    balance.deduct(exit_fee)
-                else:
-                    # Insufficient balance to cover fees — zero out.
-                    balance.free = Decimal("0")
+            # Net delta to ``free`` from this close: pnl is negative on
+            # losses (we add it directly so a loss subtracts) and
+            # exit_fee always deducts.
+            net_delta = pnl - exit_fee
+            projected_free = balance.free + net_delta
+            liquidated = projected_free < 0
+
+            if liquidated and self._auto_deposit_on_liquidation:
+                # Legacy clamp — available only behind the explicit
+                # opt-in flag so paper forecasts continue past the
+                # liquidation point. The shortfall is still visible
+                # via the LIQUIDATED activity event below.
+                balance.free = Decimal("0")
+            else:
+                # Default + non-liquidating happy path: write the
+                # projected balance directly. The relaxed ``ge=0``
+                # constraint on ``PaperBalance.free`` lets this go
+                # negative when ``liquidated`` is True, reflecting the
+                # true post-liquidation equity (negative when
+                # leverage > 1).
+                balance.free = projected_free
+
+            balance_after = balance.free
 
         # Close trade via tracker (records total fees for P&L accuracy)
         closed_trade = self._trade_tracker.close_trade(
@@ -649,6 +704,28 @@ class PaperTrader:
             f"Closed paper position {trade_id}: {reason}, "
             f"exit_price={exit_price}, P&L={pnl}, fees={total_fees}"
         )
+
+        if liquidated and self._activity_log is not None:
+            # Structured-fields contract pinned by
+            # ``test_under_water_close_emits_liquidated_event``. The
+            # dashboard reads these keys verbatim.
+            self._activity_log.append(
+                ActivityEventType.LIQUIDATED,
+                (
+                    f"Paper liquidation: {position.symbol} {position.side} "
+                    f"realized_pnl={pnl} balance_after={balance_after}"
+                ),
+                details={
+                    "symbol": position.symbol,
+                    "side": position.side,
+                    "entry": str(position.entry_price),
+                    "exit": str(exit_price),
+                    "qty": str(position.quantity),
+                    "realized_pnl": str(pnl),
+                    "balance_before": str(balance_before),
+                    "balance_after": str(balance_after),
+                },
+            )
 
         return closed_trade
 
@@ -821,9 +898,7 @@ class PaperTrader:
             )
 
         except Exception as e:
-            raise PaperTradingError(
-                f"Failed to sync balance from exchange: {e}"
-            ) from e
+            raise PaperTradingError(f"Failed to sync balance from exchange: {e}") from e
 
     async def open_position_on_testnet(
         self,
@@ -910,9 +985,7 @@ class PaperTrader:
                     available=Decimal("0"),  # Unknown from error
                     currency=quote_currency,
                 ) from e
-            raise PaperTradingError(
-                f"Failed to create testnet order: {e}"
-            ) from e
+            raise PaperTradingError(f"Failed to create testnet order: {e}") from e
 
     async def close_position_on_testnet(
         self,

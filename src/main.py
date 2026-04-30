@@ -105,6 +105,8 @@ def build_trader(
     settings: Settings,
     exchange: BaseExchange,
     config: EngineConfig,
+    *,
+    activity_log: ActivityLog | None = None,
 ) -> Trader:
     """Build the right :class:`Trader` for ``Settings.trading_mode``.
 
@@ -116,6 +118,11 @@ def build_trader(
     drives notification gating). Per-trade SL/TP exits skip the
     callback inside ``LiveTrader.close_position`` because the user
     already pre-authorized those bounds at open time.
+
+    ``activity_log`` is forwarded to :class:`PaperTrader` so paper-mode
+    liquidation events (Phase 22.2 / DEBT-027) land in the same shared
+    log the engine writes to. Live mode ignores the parameter — the
+    real exchange surfaces liquidations natively.
     """
     if settings.trading_mode == "live":
         return LiveTrader(
@@ -126,6 +133,8 @@ def build_trader(
     return PaperTrader(
         initial_balance={"USDT": Decimal(str(settings.paper_initial_balance))},
         exchange=exchange,
+        activity_log=activity_log,
+        auto_deposit_on_liquidation=config.paper_auto_deposit_on_liquidation,
     )
 
 
@@ -181,14 +190,17 @@ def build_engine(
         # Phase 18.1 stale-quote sanity gate.
         fill_slippage_tolerance=settings.engine_fill_slippage_tolerance,
         reject_if_past_stop_loss=settings.engine_reject_if_past_stop_loss,
+        # Phase 22.2 / DEBT-027 paper-mode liquidation visibility.
+        paper_auto_deposit_on_liquidation=(settings.paper_auto_deposit_on_liquidation),
     )
 
     strategies = load_all_strategies()
     perf = PerformanceTracker()
     # Phase 12.3: share one ActivityLog instance between the proposal
-    # engine (for ``LLM_TIMEOUT`` events) and the trading engine (for
-    # everything else) so the dashboard sees all events on the same
-    # rotated file.
+    # engine (for ``LLM_TIMEOUT`` events), the paper trader (for
+    # ``LIQUIDATED`` events — Phase 22.2 / DEBT-027), and the trading
+    # engine (for everything else) so the dashboard sees all events on
+    # the same rotated file.
     activity = ActivityLog()
     proposal_engine = ProposalEngine(
         exchange=exchange,
@@ -198,7 +210,7 @@ def build_engine(
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
-    trader = build_trader(settings, exchange, config)
+    trader = build_trader(settings, exchange, config, activity_log=activity)
 
     # Notifier list grows with optional push backends (Phase 11.3,
     # 12.4, 13.4). Console + File are always-on. Slack is opt-in via

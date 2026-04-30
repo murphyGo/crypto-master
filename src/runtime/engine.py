@@ -115,6 +115,15 @@ class EngineConfig(BaseModel):
     # smoking-gun bug closes without an env flip.
     fill_slippage_tolerance: Decimal = Field(default=Decimal("0.005"), ge=0)
     reject_if_past_stop_loss: bool = True
+    # Phase 22.2 / DEBT-027 paper-trader liquidation visibility.
+    # Default ``False`` lets ``PaperTrader.close_position`` record true
+    # negative equity when an under-water close would push the free
+    # balance below zero, closing the paper-vs-live forecasting gap.
+    # Setting ``True`` re-enables the legacy ``balance.free = 0`` clamp
+    # — intended only for testing scenarios that need a continuing run
+    # after a paper liquidation. Either way, a ``LIQUIDATED`` activity
+    # event is emitted so the shortfall is never silently swallowed.
+    paper_auto_deposit_on_liquidation: bool = Field(default=False)
 
 
 # =============================================================================
