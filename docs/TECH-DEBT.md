@@ -258,6 +258,170 @@ generic-payload consistency and dropping the explicit
 - `src/runtime/engine.py::_record_stale_quote_rejection`
 - `src/runtime/engine.py::_proposal_summary`
 
+### DEBT-021: Strategy warmup contract mismatch with `BacktestConfig.warmup_candles`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 17.2 |
+| **Component** | `src/backtest/engine.py` (`BacktestConfig.warmup_candles`) + `src/strategy/base.py` (`BaseStrategy`) |
+
+**Description:**
+Phase 17.2's circuit-breaker refinement catches
+`StrategyValidationError` separately and skips the bar without
+incrementing the breaker counter — otherwise any strategy whose
+internal warmup exceeds `BacktestConfig.warmup_candles` would trip
+the breaker on the very first bar. The exemplar is `rsi_universal`:
+its internal floor is `period * 3 = 42` candles, but
+`BacktestConfig.warmup_candles` defaults to 20. Without the skip,
+bars 20–41 would all raise `StrategyValidationError`, blow through
+the 5-failure counter, and abort with
+`BacktestAbortedError(reason="consecutive_parse_failures")` even
+though the strategy was simply waiting for legitimate warmup data.
+
+The skip is a workaround. The real fix is to make the engine aware
+of each strategy's minimum warmup and use that as the effective
+floor — eliminating the "right thing" vs "ergonomic thing" gap.
+
+**Impact:**
+Currently Medium. The Phase 17.2 skip path keeps the breaker safe,
+but it papers over a contract mismatch: callers reading
+`BacktestConfig.warmup_candles` cannot tell whether the value will
+actually take effect, since the strategy's own floor may be higher.
+This bites operator-tuning expectations (operator sets
+`warmup_candles=10` expecting fewer wasted bars; strategy's
+`period * 3` floor still wastes 42) and complicates per-strategy
+backtest comparison (two strategies with different internal floors
+but the same `warmup_candles` setting are not comparable).
+
+**Suggested Resolution:**
+Add `BaseStrategy.minimum_candles: int` (default 0) — or surface
+it on `TechniqueInfo.min_warmup_candles` — and have
+`Backtester.run` (and `_run_multi_timeframe`) compute the
+effective warmup as `max(self.config.warmup_candles,
+strategy.minimum_candles)`. Strategies that need more candles than
+the engine default declare it; the engine respects the maximum.
+The `StrategyValidationError` skip-only refinement can stay as a
+defensive belt-and-braces measure (cheap, no harm), but the
+declared-minimum path becomes the primary mechanism.
+
+**Related:**
+- Phase 17.2 quant-trader-expert review Q2
+- `src/backtest/engine.py::BacktestConfig.warmup_candles`
+- `strategies/rsi.py::RSIMeanReversionStrategy.validate` (`period * 3` floor)
+- DEBT-019 (parent — Phase 17.2's circuit-breaker refinement surfaced this)
+
+### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 17.2 |
+| **Component** | `src/backtest/engine.py` (`Backtester.run` + `_run_multi_timeframe` per-bar circuit breaker) |
+
+**Description:**
+Phase 17.2's circuit breaker counts **consecutive** parse failures —
+a single non-error bar resets the counter. This is the right shape
+for catching the structural failure mode DEBT-019 surfaced (every
+bar fails, the loop should abort within `max_parse_failures` bars).
+But it never trips on alternating fail-success-fail-success
+patterns: a structurally-broken strategy that happens to produce a
+parseable response every other bar would burn the full backtest
+window producing a low-trade-count `BacktestResult` that ostensibly
+"ran cleanly" but actually represents 50% Claude API spend wasted.
+
+**Impact:**
+Low until the workflow exercises a strategy with intermittent
+parse-failure behaviour. The current threshold (5 consecutive
+failures, ~5 minutes of wallclock) bounds the worst case for the
+**structural** failure mode (all bars failing). The
+**intermittent** failure mode is unbounded by design.
+
+**Suggested Resolution:**
+Add a secondary cumulative-failure-rate guard alongside the
+consecutive-counter. Pseudocode:
+
+```python
+analyzed_bars += 1
+if cumulative_failures > 50 and cumulative_failures /
+   analyzed_bars > 0.5:
+    raise BacktestAbortedError(
+        reason="cumulative_parse_failure_rate",
+        candle_index=i,
+    )
+```
+
+50-bar minimum sample so the rate has statistical meaning; 0.5
+threshold matches the 50%-spend-wasted floor above. Both
+thresholds operator-tunable via new `Settings.engine_backtest_*`
+fields when the use case crystallises (don't add config until a
+real workload demands it).
+
+**Related:**
+- Phase 17.2 quant-trader-expert review Q3
+- `src/backtest/engine.py::Backtester.run` per-bar breaker block
+- DEBT-019 (parent — broader "circuit breaker hardening" umbrella)
+- DEBT-020 (sibling — same cycle's breaker tuning)
+
+### DEBT-023: No test pins improvement-prompt preservation of existing Output Contract block
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 17.2 |
+| **Component** | `tests/test_ai_improver.py` (improvement-prompt regression coverage) |
+
+**Description:**
+Phase 17.2 deliberately does NOT inject the Output Contract
+instruction into `_build_improvement_prompt` — improvement is
+targeted failure-mode analysis on an existing strategy, and the
+existing strategy's `original_source` already carries its
+`## Output Contract` block. The improver's job is to refine the
+hypothesis / rules / parameters; the contract should pass through
+unchanged.
+
+But there is no regression test that the **Claude output** of
+`_build_improvement_prompt` actually preserves the `## Output
+Contract` block. If a future Claude version condenses the body
+(e.g. drops the contract block as "boilerplate") or paraphrases it
+in a way that breaks the JSON schema match, the resulting strategy
+file would land back in the broken-`prompt`-type state that
+DEBT-019 just resolved — silently re-creating the 9-hour-hang
+failure mode with no test guard against it.
+
+**Impact:**
+Low frequency until an improvement cycle actually fires against
+chasulang or any other contract-dependent `prompt`-type strategy.
+But the consequence is high (recurrence of DEBT-019), so the
+asymmetry argues for a cheap regression guard now.
+
+**Suggested Resolution:**
+Add a `TestImprovementOutputContract` class to
+`tests/test_ai_improver.py` that:
+
+1. Constructs an `original_source` containing a `## Output
+   Contract` block with the canonical chasulang JSON schema.
+2. Mocks `claude.run` to return a refined-but-shape-preserving
+   improvement (the typical Claude output shape).
+3. Asserts the returned strategy body still contains the literal
+   `## Output Contract` heading and the four canonical keys
+   (`signal`, `entry_price`, `stop_loss`, `take_profit`).
+4. Inverse case: a Claude mock that drops the block triggers a
+   detectable failure (raise / warn / both — implementation choice).
+
+Cheap test surface; high regression-prevention value.
+
+**Related:**
+- Phase 17.2 quant-trader-expert review Q5
+- `src/ai/improver.py::_build_improvement_prompt` (deliberate non-injection — correct shape)
+- `strategies/chasulang_ict_smc.md` (the canonical `## Output Contract` block)
+- DEBT-019 (parent — the failure mode the regression guard prevents)
+
+---
+
 ### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
 
 | Field | Value |
@@ -424,18 +588,36 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-04-28 |
 | **Resolution** | Phase 14.2 added `email_use_ssl` Settings flag; `EmailNotifier` branches between `smtplib.SMTP`+STARTTLS (default) and `smtplib.SMTP_SSL` (port 465 providers). |
 
+### DEBT-019: Auto-research script hangs indefinitely on prompt-type technique backtest ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-04-30 |
+| **Resolution** | Phase 17.2 shipped DEBT-019's Options A + C: (A) `_build_new_idea_prompt` mandates a `## Output Contract` block in the generated body matching chasulang's JSON schema (`signal` / `entry_price` / `stop_loss` / `take_profit`), pinned by 3 new `TestNewIdeaOutputContract` cases; (C) `Backtester.run` and `_run_multi_timeframe` gain per-bar `asyncio.wait_for` timeout + consecutive-parse-failures counter that aborts via new `BacktestAbortedError(reason, candle_index)` propagating to `LoopStatus.ERRORED`, pinned by 3 new `TestPerBarCircuitBreaker` cases. Refinement at implementation: `StrategyValidationError` ("data not ready") caught separately and skipped without incrementing the breaker counter so warmup-floor strategies (`rsi_universal`'s `period * 3 = 42` vs default `warmup_candles=20`) don't trip the breaker — surfaced as DEBT-021 for the long-term contract fix. New `Settings.engine_backtest_per_bar_timeout` (default 600s post-DEBT-020) + `engine_backtest_max_parse_failures` (default 5) env overrides. Option B (code-type steering for deterministic catalog picks) deferred to Phase 17.3 as the cleaner long-term path. 9-hour hang failure mode now bounded to ~minutes; `donchian_turtle_system_2_20260430_002157.md` artefact preserved as the operator-acceptance test case for item 7 of the dev-plan spec. |
+
+### DEBT-020: `BacktestConfig.per_bar_timeout` default unsafe for chasulang ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-04-30 |
+| **Resolution** | Same-cycle one-line bump caught by Phase 17.2 quant-trader-expert review before any chasulang backtest ran: `BacktestConfig.per_bar_timeout` default raised `60.0` → `600.0` (chasulang's actual 480s `claude_timeout_seconds` per-`analyze()` ceiling + 120s headroom). `Settings.engine_backtest_per_bar_timeout` default + `.env.example` operator prose + `TestBacktestEngineSettings::test_per_bar_timeout_default_and_env` parity test all updated to match. The dev-plan rationale at lines 1750–1754 referencing "240s" + "multi-bar amortised" is stale (actual: 480s, per-call) and superseded by this resolution; flagged as planner correction needed. Forward-pointer for cleaner long-term shape: `Backtester.__init__` could peek at `strategy.info.claude_timeout_seconds` and use `max(default, strategy_timeout + headroom)` so the breaker self-adjusts to whatever the loaded strategy declares — out of scope for the one-line bump, tracked under DEBT-019's broader circuit-breaker-hardening umbrella. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 9 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 2 |
-| Low | 4 |
-| Resolved (All Time) | 12 |
+| Medium | 3 |
+| Low | 6 |
+| Resolved (All Time) | 14 |
 
 ---
 
@@ -474,3 +656,10 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Added | DEBT-016 `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented (Low) — surfaced during Phase 18.1 qa-reviewer review note 2 |
 | 2026-04-30 | Added | DEBT-017 Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value (Low / cosmetic) — surfaced during Phase 18.1 qa-reviewer review note 3 |
 | 2026-04-30 | Added | DEBT-018 Phase 18.1 rejection tests don't assert simultaneous-counters contract (Low) — surfaced during Phase 18.1 qa-reviewer review note 4 |
+| 2026-04-30 | Added | DEBT-019 Auto-research script hangs indefinitely on prompt-type technique backtest (High) — surfaced during first real run of `auto_research_candidates.py --picks 5`; ~9-hour API-spend with one well-formed candidate generated and zero gated |
+| 2026-04-30 | Added | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang (High) — surfaced during Phase 17.2 quant-trader-expert review; default 60s was 8× smaller than chasulang's 480s per-`analyze()` ceiling |
+| 2026-04-30 | Resolved | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang — same-cycle one-line bump 60→600 (chasulang's 480s + 120s headroom); dynamic derivation flagged as forward-pointer follow-up |
+| 2026-04-30 | Resolved | DEBT-019 Auto-research script hangs indefinitely on prompt-type technique backtest — Phase 17.2 shipped Options A (mandatory `## Output Contract` injection in `_build_new_idea_prompt`) + C (per-bar timeout + consecutive-parse-failures circuit breaker raising `BacktestAbortedError` → `LoopStatus.ERRORED`); `StrategyValidationError` skip-only refinement applied; Option B (code-type steering) deferred to Phase 17.3 |
+| 2026-04-30 | Added | DEBT-021 Strategy warmup contract mismatch with `BacktestConfig.warmup_candles` (Medium) — surfaced during Phase 17.2 quant-trader-expert review Q2; `StrategyValidationError` skip-only refinement is a workaround, not a fix; declared `BaseStrategy.minimum_candles` is the long-term shape |
+| 2026-04-30 | Added | DEBT-022 Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies (Low) — surfaced during Phase 17.2 quant-trader-expert review Q3; consecutive-only counter never trips on alternating fail-success patterns; secondary cumulative-rate guard recommended |
+| 2026-04-30 | Added | DEBT-023 No test pins improvement-prompt preservation of existing Output Contract block (Low) — surfaced during Phase 17.2 quant-trader-expert review Q5; `_build_improvement_prompt` deliberately doesn't re-inject the contract (correct), but no regression test that Claude's improvement output preserves the existing block |

@@ -11,6 +11,7 @@ Related Requirements:
 
 from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
 from src.backtest.engine import (
+    BacktestAbortedError,
     BacktestConfig,
     Backtester,
     BacktestError,
@@ -24,6 +25,7 @@ __all__ = [
     "BacktestResult",
     "BacktestTrade",
     "BacktestError",
+    "BacktestAbortedError",
     "PerformanceAnalyzer",
     "PerformanceMetrics",
 ]

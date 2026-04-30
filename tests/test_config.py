@@ -511,6 +511,55 @@ class TestEngineSettings:
             assert Settings().engine_actor == "fly-prod-1"
 
 
+class TestBacktestEngineSettings:
+    """Tests for the Phase 17.2 / DEBT-019 backtest circuit-breaker
+    fields. Defaults must match ``BacktestConfig``'s defaults so
+    callers that build ``BacktestConfig()`` inherit the same
+    breaker behaviour as callers that thread ``Settings`` through.
+    """
+
+    def test_backtest_defaults_match_backtest_config(self) -> None:
+        """Settings defaults must match ``BacktestConfig``'s defaults."""
+        from src.backtest.engine import BacktestConfig
+
+        settings = Settings()
+        bc = BacktestConfig()
+
+        assert (
+            settings.engine_backtest_per_bar_timeout == bc.per_bar_timeout
+        )
+        assert (
+            settings.engine_backtest_max_parse_failures
+            == bc.max_parse_failures
+        )
+
+    def test_per_bar_timeout_default_and_env(self) -> None:
+        """Default 600.0 (DEBT-020); env override propagates."""
+        assert Settings().engine_backtest_per_bar_timeout == 600.0
+        with patch.dict(
+            os.environ, {"ENGINE_BACKTEST_PER_BAR_TIMEOUT": "180.0"}
+        ):
+            assert Settings().engine_backtest_per_bar_timeout == 180.0
+
+    def test_per_bar_timeout_minimum_enforced(self) -> None:
+        """``ge=1.0`` floor — sub-second timeout is meaningless."""
+        with pytest.raises(ValidationError):
+            Settings(engine_backtest_per_bar_timeout=0.5)
+
+    def test_max_parse_failures_default_and_env(self) -> None:
+        """Default 5; env override propagates."""
+        assert Settings().engine_backtest_max_parse_failures == 5
+        with patch.dict(
+            os.environ, {"ENGINE_BACKTEST_MAX_PARSE_FAILURES": "20"}
+        ):
+            assert Settings().engine_backtest_max_parse_failures == 20
+
+    def test_max_parse_failures_minimum_enforced(self) -> None:
+        """``ge=1`` floor — zero would trip on the first error."""
+        with pytest.raises(ValidationError):
+            Settings(engine_backtest_max_parse_failures=0)
+
+
 class TestLogRetentionSettings:
     """Tests for the Phase 10.4 ``log_retention_months`` field."""
 

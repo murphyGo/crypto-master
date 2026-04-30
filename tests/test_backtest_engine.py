@@ -614,3 +614,185 @@ class TestPersistence:
         """list_runs on a fresh dir returns []."""
         bt = make_backtester(tmp_path)
         assert bt.list_runs() == []
+
+
+# =============================================================================
+# Per-bar circuit breaker (Phase 17.2 / DEBT-019)
+# =============================================================================
+
+
+class TestPerBarCircuitBreaker:
+    """The backtester must abort cleanly when a per-bar invocation
+    either times out or accumulates ``max_parse_failures`` consecutive
+    failures. Closes the 9-hour-hang failure mode where a structurally
+    broken ``prompt``-type technique looped forever producing
+    unparseable output."""
+
+    @pytest.mark.asyncio
+    async def test_consecutive_parse_failures_trip_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        """``ClaudeParseError`` raised on every bar trips
+        ``BacktestAbortedError(reason="consecutive_parse_failures")``
+        after exactly ``max_parse_failures`` consecutive failures."""
+        from src.ai.exceptions import ClaudeParseError
+        from src.backtest.engine import BacktestAbortedError
+
+        class AlwaysParseError(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="always_parse_error",
+                        version="1.0.0",
+                        description="raises ClaudeParseError every bar",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                raise ClaudeParseError(
+                    "no parseable JSON in response"
+                )
+
+        # Override the breaker config explicitly so the test pins the
+        # contract regardless of the global default.
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                max_parse_failures=3,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = AlwaysParseError()
+        candles = make_flat_candles(20)
+
+        with pytest.raises(BacktestAbortedError) as excinfo:
+            await bt.run(strategy, candles, "BTC/USDT")
+        assert excinfo.value.reason == "consecutive_parse_failures"
+        # First analysis call lands on candle index 1 (warmup_candles=2
+        # means we need len(prefix) >= 2, so i=1 is the first bar that
+        # actually invokes analyze). 3 consecutive failures trip on
+        # candle index 3 (1, 2, 3).
+        assert excinfo.value.candle_index == 3
+        assert strategy.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_per_bar_timeout_trips_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        """A strategy that blocks past ``per_bar_timeout`` aborts with
+        ``BacktestAbortedError(reason="per_bar_timeout")`` on the
+        first slow bar — no consecutive-failure accumulation needed."""
+        import asyncio
+
+        from src.backtest.engine import BacktestAbortedError
+
+        class TooSlow(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="too_slow",
+                        version="1.0.0",
+                        description="sleeps past per-bar timeout",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                # Block much longer than the per_bar_timeout below.
+                await asyncio.sleep(5.0)
+                return long_analysis()
+
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                max_parse_failures=5,
+                # Tight enough to fire well before the 5s sleep.
+                per_bar_timeout=1.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = TooSlow()
+        candles = make_flat_candles(20)
+
+        with pytest.raises(BacktestAbortedError) as excinfo:
+            await bt.run(strategy, candles, "BTC/USDT")
+        assert excinfo.value.reason == "per_bar_timeout"
+        # First analyze call is candle index 1 with warmup_candles=2.
+        assert excinfo.value.candle_index == 1
+        assert strategy.calls == 1
+
+    @pytest.mark.asyncio
+    async def test_intermittent_failures_do_not_trip(
+        self, tmp_path: Path
+    ) -> None:
+        """4 failures then a success must reset the counter — only
+        *consecutive* failures saturate the breaker. Pins the
+        consecutive-only contract."""
+        from src.ai.exceptions import ClaudeParseError
+
+        class FlakyThenStable(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="flaky_then_stable",
+                        version="1.0.0",
+                        description="fails 4 then succeeds neutral",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                if self.calls <= 4:
+                    raise ClaudeParseError("transient")
+                # Stay neutral so no trades open and we exercise the
+                # full candle range.
+                return neutral_analysis()
+
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                # 4 failures < 5; counter resets on the 5th call.
+                max_parse_failures=5,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = FlakyThenStable()
+        candles = make_flat_candles(20)
+
+        # Must complete normally, no exception raised.
+        result = await bt.run(strategy, candles, "BTC/USDT")
+        assert isinstance(result, BacktestResult)
+        assert result.total_trades == 0  # neutral signals only
+        # 4 errors then 19 - 4 = 15 successful neutral calls = 19 calls
+        # over the 19 post-warmup bars (indices 1..19 inclusive).
+        assert strategy.calls == 19

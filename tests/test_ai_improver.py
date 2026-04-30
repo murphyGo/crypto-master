@@ -621,3 +621,63 @@ class TestCatalogInjection:
         assert DEFAULT_CATALOG_PATH == Path(
             "docs/research/strategies/00-priority-matrix.md"
         )
+
+
+class TestNewIdeaOutputContract:
+    """Phase 17.2 / DEBT-019 — ``_build_new_idea_prompt`` must mandate
+    the runtime JSON Output Contract so generated ``prompt``-type
+    technique bodies are actually runnable. The user-idea and
+    improvement prompts are intentionally untouched: user-idea is
+    anchored on the user's text, and improvement is a focused
+    failure-mode analysis on one specific technique. Mirrors the
+    structure of ``TestCatalogInjection``."""
+
+    @pytest.mark.asyncio
+    async def test_new_idea_prompt_contains_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """The Output Contract instruction and all four mandatory JSON
+        schema keys (signal, entry_price, stop_loss, take_profit)
+        must appear in the new-idea prompt so Claude produces a
+        body that the per-bar parser can actually consume."""
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
+        await improver.generate_idea(context="anything")
+        prompt = claude.complete.await_args.args[0]
+        assert "Output Contract" in prompt
+        # The four schema keys the runtime parser requires verbatim.
+        assert '"signal"' in prompt
+        assert '"entry_price"' in prompt
+        assert '"stop_loss"' in prompt
+        assert '"take_profit"' in prompt
+
+    @pytest.mark.asyncio
+    async def test_user_idea_prompt_omits_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """User-idea is anchored on the user's text; injecting the
+        Output Contract framing would push Claude toward a JSON-
+        contract template instead of expanding the user's intent.
+        Regression guard parallel to
+        ``test_catalog_not_in_user_idea_prompt``."""
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
+        await improver.generate_from_user_idea("scalp BTC")
+        prompt = claude.complete.await_args.args[0]
+        assert "Output Contract" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_improvement_prompt_omits_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """Improvement is targeted failure-mode analysis on one
+        existing technique; the original technique already carries
+        its own runtime contract, so re-injecting the new-idea
+        Output Contract here would be off-topic. Regression guard."""
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
+        await improver.suggest_improvement(
+            technique=sample_technique(),
+            original_source="ORIGINAL_SOURCE_MARKER",
+            performance=sample_performance(),
+            records=sample_records(),
+        )
+        prompt = claude.complete.await_args.args[0]
+        assert "Output Contract" not in prompt

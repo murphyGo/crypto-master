@@ -372,7 +372,10 @@ async def run_picks(
         exchange: Optional pre-built exchange (tests inject mocks here).
     """
     loop = loop or build_loop()
+    owns_exchange = exchange is None
     exchange = exchange or BinanceExchange(BinanceConfig())
+    if owns_exchange:
+        await exchange.connect()
 
     if dry_run:
         # Route dry-run output to a subdir so an operator running
@@ -384,53 +387,57 @@ async def run_picks(
             loop.improver.experimental_dir / "dry_runs"
         )
 
-    cache = await fetch_for_picks(exchange, symbol, picks)
-    results: list[PickResult] = []
+    try:
+        cache = await fetch_for_picks(exchange, symbol, picks)
+        results: list[PickResult] = []
 
-    for pick in picks:
-        ohlcv = cache[pick.timeframe]
-        logger.info(f"=== Running pick: {pick.slug} ===")
-        try:
-            if dry_run:
-                generated = await loop.improver.generate_idea(
-                    context=pick.context, save=True
-                )
-                logger.info(
-                    f"  dry-run: generated technique '{generated.name}' at "
-                    f"{generated.saved_path} — skipping backtest/gate"
-                )
-                results.append(
-                    PickResult(
-                        slug=pick.slug,
-                        context_preview=pick.context[:80] + "…",
-                        status="generated_only",
-                        candidate_id=None,
-                        technique_name=generated.name,
-                        saved_path=str(generated.saved_path),
-                        robustness_passed=None,
-                        failed_gates=[],
-                        decision_reason="dry-run",
+        for pick in picks:
+            ohlcv = cache[pick.timeframe]
+            logger.info(f"=== Running pick: {pick.slug} ===")
+            try:
+                if dry_run:
+                    generated = await loop.improver.generate_idea(
+                        context=pick.context, save=True
                     )
+                    logger.info(
+                        f"  dry-run: generated technique '{generated.name}' at "
+                        f"{generated.saved_path} — skipping backtest/gate"
+                    )
+                    results.append(
+                        PickResult(
+                            slug=pick.slug,
+                            context_preview=pick.context[:80] + "…",
+                            status="generated_only",
+                            candidate_id=None,
+                            technique_name=generated.name,
+                            saved_path=str(generated.saved_path),
+                            robustness_passed=None,
+                            failed_gates=[],
+                            decision_reason="dry-run",
+                        )
+                    )
+                    continue
+
+                record = await loop.propose_new(
+                    context=pick.context,
+                    ohlcv=ohlcv,
+                    symbol=symbol,
+                    timeframe=pick.timeframe,
                 )
-                continue
+                results.append(PickResult.from_record(pick.slug, pick.context, record))
+                logger.info(
+                    f"  status={record.status} "
+                    f"passed={record.robustness_passed} "
+                    f"reason={record.decision_reason}"
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.exception(f"Pick {pick.slug} errored: {e}")
+                results.append(PickResult.errored(pick.slug, pick.context, e))
 
-            record = await loop.propose_new(
-                context=pick.context,
-                ohlcv=ohlcv,
-                symbol=symbol,
-                timeframe=pick.timeframe,
-            )
-            results.append(PickResult.from_record(pick.slug, pick.context, record))
-            logger.info(
-                f"  status={record.status} "
-                f"passed={record.robustness_passed} "
-                f"reason={record.decision_reason}"
-            )
-        except Exception as e:  # noqa: BLE001
-            logger.exception(f"Pick {pick.slug} errored: {e}")
-            results.append(PickResult.errored(pick.slug, pick.context, e))
-
-    return results
+        return results
+    finally:
+        if owns_exchange:
+            await exchange.disconnect()
 
 
 def render_summary(results: list[PickResult]) -> str:

@@ -63,6 +63,8 @@
 | Diagnostic Clarity | ✅ Complete | 15 |
 | chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
 | Auto-Research Operator Workflow + Catalog-Aware Improver | ✅ Complete | 17 |
+| Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker | ✅ Complete | 17 |
+| Code-Type Steering for Deterministic Catalog Picks | ❌ Missing | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
 | Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
 | Sub-Account Engine Integration | ❌ Missing | 19 |
@@ -1663,6 +1665,216 @@ tooling on top of existing components, no new FR/NFR introduced.
   an operator script and extends one prompt; no new architectural
   seam.
 
+### 17.2 Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker
+
+**Background**: First real run of `python -m
+scripts.auto_research_candidates --picks 5` on 2026-04-30 hung for ~9
+hours after producing exactly one candidate
+(`strategies/experimental/donchian_turtle_system_2_20260430_002157.md`).
+DEBT-019 (High, 2026-04-30) traces it to a three-way contract gap:
+(a) `_build_new_idea_prompt` injects the catalog and asks for a
+falsifiable hypothesis but does NOT mandate the runtime JSON schema
+in the technique body, so Claude defaults to a human-readable rule
+list; (b) the generated technique frontmatter lands on
+`technique_type: prompt`, so `Backtester` invokes Claude per-bar
+expecting strict JSON; (c) `Backtester` has no per-bar timeout and no
+"N consecutive parse failures → abort" rule, so the engine logs
+"Claude response did not contain parseable JSON" and continues bar
+after bar, producing 1.5 MB of warnings and unbounded API spend
+without ever erroring out. Production-shipped `chasulang_ict_smc.md`
+is unaffected — its body has the JSON schema baked in and Phase 16.1
+hardened the parser. Phase 17.2 closes this with the **A + C** combo
+from DEBT-019: hardening the new-idea prompt to embed the runtime
+JSON contract (so the next generated `prompt`-type candidate is
+actually runnable) plus a backtest circuit breaker (so any future
+contract drift fails fast in minutes instead of hours and surfaces a
+clean `ERRORED` candidate). Option B (code-type steering for
+deterministic catalog picks) is the cleaner long-term fix and lands
+separately as Phase 17.3.
+
+**Related Requirements**: FR-022 (Technique Improvement Suggestion —
+prompt-format hardening of generated artefacts), FR-023 (New Technique
+Idea Generation — the prompt path that produced the broken candidate),
+FR-025 (Backtesting Execution — the per-bar invocation site where the
+hang occurred), NFR-001 (operational maturity — circuit breaker / fast-
+fail). Extends existing requirements; no new FR/NFR introduced.
+
+- [x] `src/ai/improver.py::_build_new_idea_prompt` gains an explicit
+  "Output Contract" section in its instructions, requiring the
+  generated `prompt`-type technique body to include a `## Output
+  Contract` block carrying the chasulang JSON schema verbatim
+  (`signal: long|short|neutral`, `entry_price`, `stop_loss`,
+  `take_profit` keys; one JSON object per bar; no prose around the
+  fenced JSON block). Reference `strategies/chasulang_ict_smc.md` as
+  the canonical template Claude must replicate. Do NOT inject this
+  into `_build_user_idea_prompt` — Phase 17.1's Issue-4 deviation
+  explicitly anchors user-idea on the user's text, pinned by
+  `tests/test_ai_improver.py::TestCatalogInjection::test_catalog_not_in_user_idea_prompt`;
+  `_build_improvement_prompt` is also untouched (improvement is
+  failure-mode analysis, not a fresh body).
+- [x] `src/backtest/engine.py::Backtester.run` (single-TF, line ~334)
+  and `Backtester._run_multi_timeframe` (line ~532) — both per-bar
+  `strategy.analyze(...)` invocation sites — gain a per-bar timeout
+  wrapping the call (`asyncio.wait_for(...)`) and a counter that
+  increments on `ClaudeParseError` / `StrategyError`. When the
+  consecutive-failure counter reaches the threshold, abort the run
+  and raise a new `BacktestAbortedError` with `reason` ∈
+  `{"per_bar_timeout", "consecutive_parse_failures"}` and the offending
+  candle index. A single non-error bar resets the counter (so a
+  flaky one-off doesn't trip the breaker). The existing `try/except
+  StrategyError` at `engine.py:337` is the surface to extend; do not
+  introduce a second per-bar try/except. **Refinement at
+  implementation:** ``StrategyValidationError`` (a ``StrategyError``
+  subclass that semantically means "data not ready yet") is caught
+  separately and skipped without incrementing the breaker counter —
+  otherwise any strategy whose internal warmup exceeds
+  ``BacktestConfig.warmup_candles`` (e.g. ``rsi_universal``'s
+  ``period * 3`` floor against the default 20-bar engine warmup)
+  would trip the breaker immediately, which is a footgun, not a
+  circuit breaker. Genuine contract failures
+  (``ClaudeParseError``, ``StrategyExecutionError``,
+  ``StrategyLoadError``, ``asyncio.TimeoutError``) still count.
+- [x] `BacktestAbortedError` propagates through
+  `Backtester.run_for_strategy` and `RobustnessGate` to
+  `FeedbackLoop._run_cycle`'s existing exception handler, where it
+  lands as `LoopStatus.ERRORED` (`src/feedback/loop.py:529`) with
+  `decision_reason` carrying the abort reason and offending-candle
+  index. The candidate record is recorded `ERRORED`, never silently
+  passing or hanging. No new path through the loop — reuse the
+  current ERRORED handler shape.
+- [x] `Settings` gains two env-overridable fields in `src/config.py`
+  following the Phase 10.2 / 13.2 pattern:
+  `engine_backtest_per_bar_timeout: float = Field(default=60.0, ge=1.0)`
+  (env `ENGINE_BACKTEST_PER_BAR_TIMEOUT`) and
+  `engine_backtest_max_parse_failures: int = Field(default=5, ge=1)`
+  (env `ENGINE_BACKTEST_MAX_PARSE_FAILURES`). Defaults are
+  conservative — 60s per bar (chasulang's per-call ceiling under the
+  Phase 14.1 240s strategy override is multi-bar amortised; 60s per
+  bar still gates a runaway), 5 consecutive failures (one transient
+  blip won't trip; a structurally broken contract trips inside the
+  first warmup window). `BacktestConfig` reads these from `Settings`
+  in `Backtester.__init__` (or equivalent — match whichever existing
+  pattern threads `Settings` into `BacktestConfig` today; if none, add
+  fields to `BacktestConfig` and have `build_engine` /
+  `FeedbackLoop` callers wire the `Settings.engine_*` values
+  through). Parity assertion alongside the existing
+  `test_settings_defaults_match_engine_config` style. **Implementation
+  decision:** added the fields directly to `BacktestConfig` with
+  defaults matching `Settings.engine_backtest_*`. Since no caller
+  currently threads `Settings` into `BacktestConfig`, this is the
+  one-line minimum-diff seam — `BacktestConfig()` and
+  `Backtester()` continue to inherit the breaker behaviour without
+  caller changes; the parity test
+  (`TestBacktestEngineSettings::test_backtest_defaults_match_backtest_config`)
+  pins the two sides together.
+- [x] `.env.example` documents both new env vars with operator-facing
+  prose: when to raise the per-bar timeout (long-running multi-TF
+  Claude calls), when to raise the max-parse-failures threshold (a
+  noisy LLM in development), and the warning that lowering
+  `engine_backtest_per_bar_timeout` below the strategy's
+  `claude_timeout_seconds` will trip the breaker on every bar.
+- [x] Tests:
+  - `tests/test_ai_improver.py` — three new cases under
+    `TestNewIdeaOutputContract`: (a) `_build_new_idea_prompt` output
+    contains the literal "Output Contract" instruction and the
+    canonical JSON-schema keys (`signal`, `entry_price`, `stop_loss`,
+    `take_profit`); (b) the same instruction does NOT appear in
+    `_build_user_idea_prompt` output (regression guard, parallel to
+    `TestCatalogInjection::test_catalog_not_in_user_idea_prompt`);
+    (c) the same instruction does NOT appear in
+    `_build_improvement_prompt` output. Existing
+    `TestCatalogInjection` cases are untouched and must continue to
+    pass.
+  - `tests/test_backtest_engine.py` — three new cases: (a) a
+    `MockStrategy` whose `analyze` raises `ClaudeParseError` on every
+    bar trips the breaker after `engine_backtest_max_parse_failures`
+    consecutive failures and aborts with `BacktestAbortedError(
+    reason="consecutive_parse_failures")`; (b) a slow `MockStrategy`
+    whose `analyze` blocks past `engine_backtest_per_bar_timeout`
+    aborts with `BacktestAbortedError(reason="per_bar_timeout")`;
+    (c) a `MockStrategy` that fails 4 times then succeeds does NOT
+    trip the breaker (counter resets) — pins the consecutive-only
+    contract.
+- [ ] Acceptance — operator action, not a `/dev-crypto` blocker: re-run
+  (Pending — this is operator action against a real Claude CLI session
+  and is intentionally out of scope for the implementation cycle.)
+  `python -m scripts.auto_research_candidates --picks 1` against the
+  surviving artefact `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
+  (DEBT-019 flags this file as the canonical test case). Must either
+  (i) complete the backtest within minutes because the hardened prompt
+  from item 1 produces a parseable response, or (ii) abort cleanly to
+  `LoopStatus.ERRORED` with `decision_reason` naming the abort reason.
+  9-hour hangs are a hard regression.
+- [x] Write unit tests.
+
+**Parent Debt**: DEBT-019 (Auto-research script hangs indefinitely on
+prompt-type technique backtest, High, 2026-04-30). DEBT-019's Option B
+(code-type steering) is deferred to Phase 17.3.
+
+### 17.3 Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B)
+
+**Background**: Phase 17.2 unblocks the auto-research workflow with a
+runtime contract + circuit breaker, but the deeper fix for
+deterministic catalog picks (Donchian, Supertrend, Z-score, Larry
+Williams, NR7, Connors RSI(2), BB %B+RSI, Golden Cross) is to generate
+them as Python `BaseStrategy` subclasses instead of Claude-driven
+markdown prompts. A code-type technique runs locally per bar, with no
+LLM in the hot path — orders of magnitude faster, deterministic, and
+immune to JSON-contract drift entirely. DEBT-019 lists this as the
+cleaner long-term fix; this sub-task ships it as a separate
+`/dev-crypto` cycle so the unblock (17.2) and the cleanup (17.3) can
+land independently.
+
+**Related Requirements**: FR-023 (New Technique Idea Generation — adds
+a code-generation branch to the existing prompt path), FR-025
+(Backtesting Execution — code-type techniques bypass the per-bar
+Claude call entirely), NFR-001 (operational maturity — eliminates the
+LLM-in-hot-path failure surface for deterministic strategies). No new
+FR/NFR introduced.
+
+- [ ] Decide steering signal: explicit boolean flag on `Pick` (the
+  cleanest test, no fragile heuristic) versus context-keyword
+  detection (e.g. "close > N-bar high") versus always-code for catalog
+  picks. Recommended: explicit flag on `Pick`, defaulting to `False`
+  so non-flagged picks retain the 17.2-hardened prompt path.
+- [ ] `src/ai/improver.py` — branch `_build_new_idea_prompt` (or add a
+  sibling `_build_new_idea_code_prompt`) on the steering signal. The
+  code branch instructs Claude to produce a Python file containing a
+  `BaseStrategy` subclass with a synchronous `signal()` method,
+  mirroring `strategies/rsi.py`, `strategies/bollinger_bands.py`, and
+  `strategies/ma_crossover.py` as canonical templates (frontmatter
+  block + class + parameter constants). The catalog injection from
+  Phase 17.1 is retained on this branch (Claude still benefits from
+  the taxonomy when picking implementation choices).
+- [ ] `scripts/auto_research_candidates.py::TOP_PICKS` — flag the
+  deterministic picks for code-type generation. Likely all 9 default
+  picks qualify (Donchian, Supertrend, Z-score, Larry Williams, NR7,
+  Connors RSI(2), BB %B+RSI, Golden Cross, plus whichever ninth the
+  matrix ranks); confirm against
+  `docs/research/strategies/00-priority-matrix.md` at implementation
+  time.
+- [ ] Tests:
+  - `tests/test_ai_improver.py` — new cases asserting the code-type
+    prompt path emits the `BaseStrategy` / `signal()` instruction
+    string and references the canonical example files; the prompt
+    branch is selected when the steering flag is `True` and skipped
+    when `False`.
+  - Integration test: a `BaseStrategy` subclass produced via the
+    code-type path is loadable by `src/strategy/loader.py::load_strategy`
+    and runs through `Backtester.run_for_strategy` end-to-end without
+    invoking the Claude CLI per-bar (mock `ClaudeCLI` should record
+    zero `analyze` calls during the simulated backtest).
+- [ ] Acceptance: `python -m scripts.auto_research_candidates --picks 5`
+  produces 5 Python strategy files under `strategies/experimental/`
+  that load cleanly via `load_strategy` and run through `Backtester` +
+  `RobustnessGate` with no per-bar Claude calls. Wallclock for the
+  whole batch is dominated by OHLCV fetches, not LLM round-trips.
+- [ ] Write unit tests.
+
+**Parent Debt**: DEBT-019 Option B (Auto-research script hangs
+indefinitely on prompt-type technique backtest, High, 2026-04-30). 17.2
+ships the unblock; 17.3 ships the cleaner long-term path.
+
 ---
 
 ## Phase 18: Live Trading Quality
@@ -2139,7 +2351,7 @@ account).
 | Phase 14 | FR-015, FR-022, NFR-001 (production reliability — chasulang per-strategy Claude CLI timeout override + retry observability, SMTP_SSL alternative for `EmailNotifier`; no new FR/NFR introduced) |
 | Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
 | Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
-| Phase 17 | FR-023, FR-026, FR-034, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL`; no new FR/NFR introduced) |
+| Phase 17 | FR-022, FR-023, FR-025, FR-026, FR-034, NFR-001, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL` (17.1); runtime JSON contract + backtest circuit breaker resolving DEBT-019's 9-hour hang on prompt-type generations (17.2); code-type steering for deterministic catalog picks (17.3); no new FR/NFR introduced) |
 | Phase 18 | FR-008, FR-013, NFR-012 (live-trading quality — stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; extending the fill boundary, no new FR/NFR introduced) |
 | Phase 19 | FR-036, FR-037, FR-038, FR-005, FR-009, FR-013, FR-025, FR-027, FR-034, NFR-003, NFR-007, NFR-008, NFR-011, NFR-012 (sub-account / capital segmentation — N independent capital pools per mode, multi-credential live, strategy-combination A/B backtests; introduces FR-036 / FR-037 / FR-038) |
 
@@ -2234,3 +2446,7 @@ account).
 | 18.1 | 2026-04-30 | Phase 18.1 added - Stale-Quote Sanity Gate at Proposal Fill (FR-008, FR-013, NFR-012); driven by 2026-04-30 production review of `/data/trades/paper/trades.json` (1W/8L, EV -8.73/trade) — proposal `6ef8c07e...` filled 3 min 13 sec stale at `entry=2323` then closed `0.48s` later at `2300` because live had already crossed `SL=2305`. | product-planner |
 | 18.1 | 2026-04-30 | Phase 18.1 sealed — stale-quote sanity gate shipped, full suite 1198 pass. Sanity gate inserted between auto-approval and `trader.open_position` in `src/runtime/engine.py::_execute` via new `_stale_quote_gate` helper; past-SL check (side-dispatched off `proposal.signal`) + symmetric slippage check (`abs(live - entry)/entry > tolerance`); rejection rewrites `ProposalRecord` to `REJECTED` (load + `model_copy` + save) + emits activity event with `proposal_entry` / `proposal_stop_loss` / `live_price` / `drift_bps`; ticker fetch failure → fall through to fill, log WARN `stale_quote_check_failed`. New `EngineConfig.fill_slippage_tolerance: Decimal = Decimal("0.005")` (50 bps, `Field(ge=0)`) and `EngineConfig.reject_if_past_stop_loss: bool = True`; env overrides `ENGINE_FILL_SLIPPAGE_TOLERANCE` + `ENGINE_REJECT_IF_PAST_STOP_LOSS` via `Settings.engine_*` (Phase 10.2 / 13.2 pattern); `build_engine` wires alongside existing eight fields. Two pre-existing tests (`test_proposal_executes_when_cap_not_reached`, `test_cap_counts_only_matching_symbol`) had inverted-SL fixtures for short proposals that the new gate exposed; dev fixed both fixtures in same diff. 7 files in working-tree diff (not yet committed): src/runtime/engine.py, src/config.py, src/main.py, .env.example, tests/test_runtime_engine.py, tests/test_config.py, docs/development-plan.md. 1193 → 1198 tests (+5 net new in `test_runtime_engine.py`, total 23 → 28). ruff/mypy clean. Quant validated 50-bps default against 1H BTC/ETH expected drift over a 4-min latency window (~26 bps ≈ 2σ at 50 bps); confirmed smoking-gun ETH case caught with 49 bps headroom; flagged `bollinger_band_reversion` will see visible rejection-rate uptick (intended behaviour, not regression). QA verdict: 🟡 Ship with note — four observations recorded as DEBT-015 (Medium — rejection-path semantic divergence vs Phase 12.1) / DEBT-016 (Low — simultaneous-counters contract undocumented) / DEBT-017 (Low / cosmetic — `entry_price` + `proposal_entry` redundancy in event payload) / DEBT-018 (Low — rejection tests don't assert `proposals_accepted == 1`). One operator action standing: Fly redeploy + 24h log monitoring for first `stale_quote_past_sl` / `slippage_exceeds_tolerance` rejection. No ADR — guard inserted into existing seam, `Trader` Protocol unchanged. | docs-auditor |
 | 19.x | 2026-04-30 | Phase 19 added — Sub-Account / Capital Segmentation (FR-036, FR-037, FR-038 introduced). Five sub-tasks: 19.1 Foundation (entity + registry + default-account migration, single-default registry preserves single-seed back-compat); 19.2 Engine Integration (every proposal / trade / performance record / portfolio snapshot scoped by `sub_account_id`, persistence paths gain a sub-account level, cap rejection logs include the id, single-default still in flight); 19.3 Multi-Paper-Account + YAML + Dashboard (`config/sub_accounts.yaml` parsed into N entries, dashboard surfaces per-sub-account equity curves + selector, multi-paper operative, multi-live walled off until 19.4); 19.4 Multi-Credential Live Mode (`Settings.exchange_credentials: dict[str, ExchangeConfig]` with `EXCHANGE_<REF>_*` env schema + legacy `BINANCE_API_KEY` / `BYBIT_API_KEY` aliasing, missing creds for live sub-account fail loud at boot, per-sub-account `LiveTrader` cached, Phase 18.1 stale-quote gate routes per sub-account); 19.5 Strategy-Combination A/B Backtest Harness (`BacktestHarness.run_sub_accounts`, `MultiAccountReport` with per-sub-account equity / PerformanceSummary / pairwise correlation / merged trade ledger, `scripts/backtest_combinations.py` operator entry, robustness gate routes per sub-account). Driven by user request 2026-04-30: "전략별로 시드를 분리하거나, 여러 조합의 전략을 테스트하기 위해서는 서브 계정 개념이 필요할듯". Architecture documented in `DESIGN.md §9`. | Claude |
+| 17.2 | 2026-04-30 | Phase 17.2 added — Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker (FR-022, FR-023, FR-025, NFR-001; resolves DEBT-019 Options A + C). Driven by 2026-04-30 first real run of `auto_research_candidates --picks 5` hanging ~9 hours after generating one candidate (`donchian_turtle_system_2_20260430_002157.md`): generated `prompt`-type body lacked the runtime JSON contract → Claude returned conversational text per bar → `Backtester` swallowed the parse error and looped forever. A: `_build_new_idea_prompt` mandates a `## Output Contract` block in the generated body matching chasulang's JSON schema (`signal` / `entry_price` / `stop_loss` / `take_profit`); user-idea + improvement prompts deliberately untouched per Phase 17.1 Issue-4 deviation. C: `Backtester` gains per-bar timeout + N-consecutive-parse-failures circuit breaker raising new `BacktestAbortedError` that propagates to `LoopStatus.ERRORED`; new `Settings.engine_backtest_per_bar_timeout` (default 60s) + `engine_backtest_max_parse_failures` (default 5) env overrides. Option B (code-type steering) deferred to Phase 17.3 as the cleaner long-term path. | product-planner |
+| 17.3 | 2026-04-30 | Phase 17.3 added — Code-Type Steering for Deterministic Catalog Picks (FR-023, FR-025, NFR-001; resolves DEBT-019 Option B as the long-term cleanup behind 17.2's unblock). Adds an explicit steering flag on `Pick` (recommended over fragile keyword heuristics) so deterministic catalog picks (Donchian, Supertrend, Z-score, Larry Williams, NR7, Connors RSI(2), BB %B+RSI, Golden Cross) generate as Python `BaseStrategy` subclasses mirroring `strategies/{rsi,bollinger_bands,ma_crossover}.py`, eliminating the per-bar Claude call from the hot path entirely. Phase 17.1 catalog injection retained on the new branch so Claude still sees the taxonomy when picking implementation choices. Acceptance: `--picks 5` produces 5 loadable Python strategy files that run end-to-end through `Backtester` + `RobustnessGate` with zero per-bar Claude calls. | product-planner |
+| 17.2 | 2026-04-30 | Phase 17.2 complete - Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker (FR-022, FR-023, FR-025, NFR-001; DEBT-019 Resolved, DEBT-020 Resolved same-cycle, DEBT-021/022/023 Added). Items 1–6 + 8 of the 8-item spec ticked; item 7 (operator acceptance run against the surviving `donchian_turtle_system_2_20260430_002157.md` artefact) deliberately left `[ ]` as the post-cycle operator action. **Implementation (senior-developer):** `src/ai/improver.py::_new_idea_output_contract()` injection in `_build_new_idea_prompt` only (user-idea + improvement prompts deliberately untouched per Phase 17.1 Issue-4 deviation, pinned by 2 regression-guard tests); `src/backtest/engine.py` gains `BacktestAbortedError(reason, candle_index)` + per-bar `asyncio.wait_for` + consecutive-failure counter on both `Backtester.run` (single-TF) and `_run_multi_timeframe`; `BacktestAbortedError` exported from `src/backtest/__init__.py` and propagates to `LoopStatus.ERRORED` via the existing `FeedbackLoop._run_cycle` exception handler. `BacktestConfig` gains `per_bar_timeout: float = 600.0` (post-DEBT-020 bump from initial 60.0 — see below) and `max_parse_failures: int = 5`; `Settings.engine_backtest_per_bar_timeout` + `engine_backtest_max_parse_failures` mirror the defaults with env overrides. **Implementation refinement:** `StrategyValidationError` (a `StrategyError` subclass meaning "data not ready") caught separately and skipped without incrementing the breaker counter, so `rsi_universal`'s `period * 3 = 42` warmup floor against the engine's default `warmup_candles = 20` doesn't trip the breaker — surfaced as DEBT-021 (Medium) for the long-term `BaseStrategy.minimum_candles` contract fix. Genuine contract failures (`ClaudeParseError`, `StrategyExecutionError`, `StrategyLoadError`, `asyncio.TimeoutError`) still count. **Same-cycle DEBT-020 fix:** `BacktestConfig.per_bar_timeout` default raised `60.0 → 600.0` (chasulang's actual 480s `claude_timeout_seconds` per-`analyze()` ceiling + 120s headroom) — caught by quant-trader-expert review before any chasulang backtest ran; `Settings.engine_backtest_per_bar_timeout` + `.env.example` operator prose + `TestBacktestEngineSettings::test_per_bar_timeout_default_and_env` parity test all updated to match. **While-in-there:** `scripts/auto_research_candidates.py` gains `connect()` / `disconnect()` lifecycle around `BinanceExchange` with `owns_exchange` ownership flag and `try/finally`; this fix landed during the original DEBT-019 hung-Phase-B debugging session when the script first errored "Not connected. Call connect() first." — behaviorally correct, well-tested (12/12 in `tests/test_scripts_auto_research_candidates.py` still pass), recorded in the session log without spawning a separate DEBT entry. **Tests:** `tests/test_ai_improver.py` gains 3 new `TestNewIdeaOutputContract` cases; `tests/test_backtest_engine.py` gains 3 new `TestPerBarCircuitBreaker` cases; `tests/test_config.py` gains 5 new `TestBacktestEngineSettings` cases. 1198 → 1209 (+11 net new — same after DEBT-020 fix). ruff/mypy clean. **QA verdict:** 🟡 Ship with note (qa-reviewer). **Quant verdict:** Ship with follow-ups (3 deferred TECH-DEBT items: DEBT-021 Medium / DEBT-022 Low / DEBT-023 Low — none blocking, all surfaced for future-cycle pickup). No ADR — extends an existing prompt method + adds a circuit-breaker block inside an existing seam (`Backtester.run`); no new architectural component. Phase 17.3 stays `❌ Missing`; Phase 17 is NOT sealed (cross-check deferred until 17.3 lands). | docs-auditor |
+| erratum | 2026-04-30 | Phase 17.2 spec at `docs/development-plan.md:1750–1754` rationale ("`240s` under Phase 14.1's strategy override is multi-bar amortised") is **stale** and was the source of the DEBT-020 regression vector. Actual values: `strategies/chasulang_ict_smc.md:10` sets `claude_timeout_seconds: 480` (not 240); `src/strategy/loader.py:226–232` applies the override **per `analyze()` call**, NOT amortised across bars (every per-bar invocation gets the full 480s ceiling). The 60s default that flowed from this rationale was 8× smaller than chasulang's actual per-bar leash. Resolved at the code level by DEBT-020's same-cycle 60→600 bump; the spec text remains as written because senior-developer's scope rule is "planner owns spec text". Planner correction needed: rewrite lines 1750–1754 to reference 480s + per-call (not amortised) + the 600s post-fix default. | docs-auditor |

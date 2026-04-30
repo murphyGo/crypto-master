@@ -187,6 +187,23 @@ class Settings(BaseSettings):
     # (closes the smoking-gun stale-quote bug without an env flip).
     engine_reject_if_past_stop_loss: bool = Field(default=True)
 
+    # Phase 17.2 (DEBT-019): backtest engine circuit breaker. Defaults
+    # match ``src.backtest.engine.BacktestConfig``'s
+    # ``per_bar_timeout`` / ``max_parse_failures`` so existing
+    # deployments don't change behaviour without an explicit env
+    # setting. ``per_bar_timeout`` wraps every per-bar
+    # ``strategy.analyze`` call in ``asyncio.wait_for``;
+    # ``max_parse_failures`` is the consecutive-failure ceiling
+    # before the engine raises ``BacktestAbortedError``.
+    # DEBT-020: default 600s = chasulang's 480s per-call ceiling
+    # (``claude_timeout_seconds`` in ``strategies/chasulang_ict_smc.md``,
+    # applied per ``analyze()`` call by ``src/strategy/loader.py``)
+    # plus 120s headroom for parsing/validation/disk I/O. Lowering
+    # this below the strategy's ``claude_timeout_seconds`` will trip
+    # the breaker on every bar.
+    engine_backtest_per_bar_timeout: float = Field(default=600.0, ge=1.0)
+    engine_backtest_max_parse_failures: int = Field(default=5, ge=1)
+
     # Log Retention (Phase 10.4)
     # ``JsonlRotator`` keeps the active month + this many archive
     # months merged into ``read_all``. Older rotated files stay on

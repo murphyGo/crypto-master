@@ -390,6 +390,46 @@ class StrategyImprover:
         )
 
     @staticmethod
+    def _new_idea_output_contract() -> str:
+        """Runtime Output Contract instruction for ``prompt``-type techniques.
+
+        Phase 17.2 / DEBT-019 — the new-idea flow's body MUST tell
+        Claude to embed the chasulang-style runtime JSON schema in the
+        generated technique. Without this, Claude defaults to a human-
+        readable rule list and the resulting ``technique_type: prompt``
+        candidate produces unparseable per-bar output, which the
+        backtester loops on for hours. The schema mirrors the trade
+        block of ``strategies/chasulang_ict_smc.md`` (the canonical
+        production-hardened template) plus the four keys the
+        ``PromptStrategy`` parser hard-requires.
+        """
+        return (
+            "## Output Contract\n"
+            "If `technique_type: prompt`, the technique body MUST "
+            "include an explicit `## Output Contract` section telling "
+            "Claude how to respond at *runtime* (per-bar). The "
+            "technique body's contract section must require ONE fenced "
+            "JSON object per bar, no prose around the block, with at "
+            "minimum these four keys (mirror "
+            "`strategies/chasulang_ict_smc.md` for the canonical "
+            "shape):\n"
+            "```json\n"
+            "{\n"
+            '  "signal": "long" | "short" | "neutral",\n'
+            '  "entry_price": <decimal> | null,\n'
+            '  "stop_loss": <decimal> | null,\n'
+            '  "take_profit": <decimal> | null\n'
+            "}\n"
+            "```\n"
+            "Additional keys (confidence, reasoning, structured "
+            "context) are encouraged when they help the technique, but "
+            "the four keys above are mandatory and must keep their "
+            "names verbatim — the backtest engine parses them by key. "
+            "A `prompt`-type technique that omits this contract section "
+            "will be rejected as unrunnable.\n\n"
+        )
+
+    @staticmethod
     def _output_format_instructions() -> str:
         """Boilerplate telling Claude how to format its reply."""
         return (
@@ -530,6 +570,7 @@ class StrategyImprover:
             "it is available.\n\n"
             f"{context_line}"
             + self._catalog_section()
+            + self._new_idea_output_contract()
             + self._output_format_instructions()
         )
 

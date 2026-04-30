@@ -16,6 +16,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+import asyncio
 import bisect
 import json
 import uuid
@@ -27,10 +28,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.ai.exceptions import ClaudeParseError
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import OHLCV, Position
-from src.strategy.base import BaseStrategy, StrategyError
+from src.strategy.base import BaseStrategy, StrategyError, StrategyValidationError
 from src.trading.profiles import TradingProfile, create_strategy_from_profile
 from src.trading.strategy import (
     TradingStrategy,
@@ -45,6 +47,46 @@ class BacktestError(Exception):
     """Base exception for backtest errors."""
 
     pass
+
+
+class BacktestAbortedError(Exception):
+    """Raised when the per-bar circuit breaker fires.
+
+    Phase 17.2 / DEBT-019 — `Backtester.run` and
+    `Backtester._run_multi_timeframe` (the per-bar invocation sites)
+    abort cleanly when either the per-bar `asyncio.wait_for` timeout
+    fires or the strategy raises ``ClaudeParseError`` /
+    ``StrategyError`` ``max_parse_failures`` times in a row. This stops
+    the 9-hour-hang failure mode where a structurally broken
+    `prompt`-type technique never returns parseable JSON: instead of
+    looping forever, the engine raises this exception, the existing
+    ``except Exception`` handler in
+    ``FeedbackLoop._run_cycle`` catches it, and the candidate lands as
+    ``LoopStatus.ERRORED`` with a ``decision_reason`` naming the abort
+    reason and offending candle index.
+
+    Attributes:
+        reason: ``"per_bar_timeout"`` when ``asyncio.wait_for`` fires,
+            or ``"consecutive_parse_failures"`` when the failure
+            counter saturates.
+        candle_index: 0-indexed candle position at which the breaker
+            tripped (the bar whose `analyze` call timed out, or the
+            bar of the final consecutive failure).
+    """
+
+    def __init__(self, reason: str, candle_index: int) -> None:
+        """Initialize BacktestAbortedError.
+
+        Args:
+            reason: One of ``"per_bar_timeout"`` /
+                ``"consecutive_parse_failures"``.
+            candle_index: The candle index where the breaker tripped.
+        """
+        super().__init__(
+            f"Backtest aborted at candle {candle_index}: {reason}"
+        )
+        self.reason = reason
+        self.candle_index = candle_index
 
 
 class BacktestConfig(BaseModel):
@@ -66,6 +108,29 @@ class BacktestConfig(BaseModel):
         max_position_size_percent: Cap on margin as % of balance.
         allow_concurrent_positions: If False (default), a new signal
             is skipped while another trade is still open.
+        per_bar_timeout: Phase 17.2 / DEBT-019 circuit breaker —
+            per-bar wall-clock ceiling on ``strategy.analyze(...)``.
+            ``asyncio.wait_for`` wraps each invocation; when it fires,
+            the engine raises ``BacktestAbortedError(reason=
+            "per_bar_timeout")`` instead of waiting forever. Defaults
+            mirror ``Settings.engine_backtest_per_bar_timeout`` (600s).
+            DEBT-020: the 600s default = chasulang's per-call ceiling
+            (``claude_timeout_seconds: 480`` from
+            ``strategies/chasulang_ict_smc.md``, applied per
+            ``analyze()`` call by ``src/strategy/loader.py``) plus
+            120s headroom for parsing/validation/disk I/O. Lower
+            bound 1.0; lowering this below the strategy's
+            ``claude_timeout_seconds`` will trip the breaker on every
+            bar.
+        max_parse_failures: Phase 17.2 / DEBT-019 circuit breaker —
+            number of *consecutive* per-bar failures
+            (``ClaudeParseError`` / ``StrategyError`` /
+            ``asyncio.TimeoutError``) tolerated before the engine
+            raises ``BacktestAbortedError(reason=
+            "consecutive_parse_failures")``. A single successful bar
+            resets the counter, so transient blips don't trip the
+            breaker. Defaults mirror
+            ``Settings.engine_backtest_max_parse_failures`` (5).
     """
 
     initial_balance: Decimal = Decimal("10000")
@@ -78,6 +143,12 @@ class BacktestConfig(BaseModel):
     min_risk_reward_ratio: float = Field(default=1.5, gt=0)
     max_position_size_percent: float = Field(default=10.0, gt=0, le=100)
     allow_concurrent_positions: bool = False
+    # Phase 17.2 / DEBT-019: per-bar circuit breaker. Defaults match
+    # ``Settings.engine_backtest_per_bar_timeout`` /
+    # ``engine_backtest_max_parse_failures`` so existing deployments
+    # don't change behaviour without an explicit env setting.
+    per_bar_timeout: float = Field(default=600.0, ge=1.0)
+    max_parse_failures: int = Field(default=5, ge=1)
 
     model_config = {"validate_assignment": True}
 
@@ -297,6 +368,10 @@ class Backtester:
         balance = self.config.initial_balance
         trades: list[BacktestTrade] = []
         open_trade: _OpenTrade | None = None
+        # Phase 17.2 / DEBT-019: consecutive-failure counter for the
+        # per-bar circuit breaker. A single non-error bar resets it;
+        # see _check_breaker / the extended try/except below.
+        consecutive_failures = 0
 
         # First analysis call happens once we have enough history.
         # Walk candle-by-candle; the strategy only sees up to index i.
@@ -330,15 +405,61 @@ class Backtester:
                 continue
 
             # 4. Run the technique on candles 0..i (inclusive).
+            # Phase 17.2 / DEBT-019: ``asyncio.wait_for`` enforces a
+            # per-bar wall-clock ceiling; ``ClaudeParseError`` is
+            # caught here too because it is NOT a ``StrategyError``
+            # subclass. The consecutive-failure counter resets on any
+            # successful invocation so transient blips don't trip the
+            # breaker.
             try:
-                analysis = await strategy.analyze(
-                    ohlcv[: i + 1], symbol, timeframe
+                analysis = await asyncio.wait_for(
+                    strategy.analyze(ohlcv[: i + 1], symbol, timeframe),
+                    timeout=self.config.per_bar_timeout,
                 )
-            except StrategyError as e:
+            except asyncio.TimeoutError as e:
+                logger.warning(
+                    f"Strategy.analyze exceeded per-bar timeout "
+                    f"({self.config.per_bar_timeout}s) on candle {i}: "
+                    f"{e}; aborting backtest"
+                )
+                raise BacktestAbortedError(
+                    reason="per_bar_timeout", candle_index=i
+                ) from e
+            except StrategyValidationError as e:
+                # "Not enough data yet" — semantically a warmup gate,
+                # not a contract failure. Skip the bar without
+                # incrementing the breaker counter (otherwise a
+                # strategy whose internal warmup exceeds
+                # ``BacktestConfig.warmup_candles`` would trip the
+                # breaker immediately, which is a footgun, not a
+                # circuit breaker).
                 logger.debug(
-                    f"Strategy raised on candle {i}: {e}; skipping"
+                    f"Strategy validation error on candle {i}: {e}; "
+                    "skipping (does not count toward breaker)"
                 )
                 continue
+            except (ClaudeParseError, StrategyError) as e:
+                consecutive_failures += 1
+                logger.debug(
+                    f"Strategy raised on candle {i} "
+                    f"({type(e).__name__}, "
+                    f"streak={consecutive_failures}/"
+                    f"{self.config.max_parse_failures}): {e}"
+                )
+                if consecutive_failures >= self.config.max_parse_failures:
+                    logger.warning(
+                        f"Strategy.analyze hit "
+                        f"{self.config.max_parse_failures} consecutive "
+                        f"parse/strategy failures by candle {i}; "
+                        f"aborting backtest"
+                    )
+                    raise BacktestAbortedError(
+                        reason="consecutive_parse_failures",
+                        candle_index=i,
+                    ) from e
+                continue
+            else:
+                consecutive_failures = 0
 
             if analysis.signal == "neutral":
                 continue
@@ -486,6 +607,9 @@ class Backtester:
         balance = self.config.initial_balance
         trades: list[BacktestTrade] = []
         open_trade: _OpenTrade | None = None
+        # Phase 17.2 / DEBT-019: consecutive-failure counter for the
+        # per-bar circuit breaker (mirrors single-TF run loop).
+        consecutive_failures = 0
 
         for i, current_candle in enumerate(primary_ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
@@ -528,19 +652,61 @@ class Backtester:
                 continue
 
             # 5. Run the technique with the full multi-TF context.
+            # Phase 17.2 / DEBT-019: per-bar circuit breaker — mirror
+            # of the single-TF path. ``asyncio.wait_for`` caps the
+            # per-bar wall clock; ``ClaudeParseError`` is caught
+            # alongside ``StrategyError`` because it does NOT inherit
+            # from it.
             try:
-                analysis = await strategy.analyze(
-                    primary_slice,
-                    symbol,
-                    primary_timeframe,
-                    ohlcv_by_timeframe=slice_dict,
-                    current_price=current_candle.close,
+                analysis = await asyncio.wait_for(
+                    strategy.analyze(
+                        primary_slice,
+                        symbol,
+                        primary_timeframe,
+                        ohlcv_by_timeframe=slice_dict,
+                        current_price=current_candle.close,
+                    ),
+                    timeout=self.config.per_bar_timeout,
                 )
-            except StrategyError as e:
+            except asyncio.TimeoutError as e:
+                logger.warning(
+                    f"Strategy.analyze exceeded per-bar timeout "
+                    f"({self.config.per_bar_timeout}s) on candle {i}: "
+                    f"{e}; aborting multi-TF backtest"
+                )
+                raise BacktestAbortedError(
+                    reason="per_bar_timeout", candle_index=i
+                ) from e
+            except StrategyValidationError as e:
+                # See single-TF path: warmup-style "data not ready"
+                # is a skip, not a breaker failure.
                 logger.debug(
-                    f"Strategy raised on candle {i}: {e}; skipping"
+                    f"Strategy validation error on candle {i}: {e}; "
+                    "skipping (does not count toward breaker)"
                 )
                 continue
+            except (ClaudeParseError, StrategyError) as e:
+                consecutive_failures += 1
+                logger.debug(
+                    f"Strategy raised on candle {i} "
+                    f"({type(e).__name__}, "
+                    f"streak={consecutive_failures}/"
+                    f"{self.config.max_parse_failures}): {e}"
+                )
+                if consecutive_failures >= self.config.max_parse_failures:
+                    logger.warning(
+                        f"Strategy.analyze hit "
+                        f"{self.config.max_parse_failures} consecutive "
+                        f"parse/strategy failures by candle {i}; "
+                        f"aborting multi-TF backtest"
+                    )
+                    raise BacktestAbortedError(
+                        reason="consecutive_parse_failures",
+                        candle_index=i,
+                    ) from e
+                continue
+            else:
+                consecutive_failures = 0
 
             if analysis.signal == "neutral":
                 continue
