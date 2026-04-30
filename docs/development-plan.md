@@ -63,6 +63,7 @@
 | Diagnostic Clarity | ✅ Complete | 15 |
 | chasulang Parse + Wedge Mitigation | ✅ Complete | 16 |
 | Auto-Research Operator Workflow + Catalog-Aware Improver | ✅ Complete | 17 |
+| Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing
 
@@ -1659,6 +1660,105 @@ tooling on top of existing components, no new FR/NFR introduced.
 
 ---
 
+## Phase 18: Live Trading Quality
+
+**Goal**: Close trading-correctness gaps surfaced by the 2026-04-30
+production review of `/data/trades/paper/trades.json` (1W/8L,
+-78.50 USDT, EV -8.73/trade). The first defect is a stale-quote class
+of bug at proposal fill: the runtime engine copies
+`proposal.entry_price` into the opened `Position` with no live-price
+sanity check, so when chasulang/Claude CLI takes minutes to return
+the auto-approved fill happens at a price the live ticker has already
+crossed past the proposal's stop-loss. Phase 18 starts with the fill
+boundary; later sub-tasks will address the next-largest contributors
+the production review surfaces.
+
+### 18.1 Stale-Quote Sanity Gate at Proposal Fill
+
+**Background**: Production paper-trading data on Fly volume
+`/data/trades/paper/trades.json` shows trade
+`5d51cba3-900f-4415-a401-096df391860a` (ETH long, proposal
+`6ef8c07e...`) as a smoking-gun for the stale-quote class of bug:
+proposal created at `14:43:21` with `entry=2323`, `SL=2305`;
+chasulang/Claude CLI took 3 min 13 sec to return; auto-approval +
+fill at `14:46:34` recorded the position at the stale `entry=2323`;
+the position closed `0.48s` later at `2300` because the live ticker
+had already crossed past the SL by the time of fill. The runtime
+engine (`src/runtime/engine.py::_execute` →
+`_proposal_to_position`) copies `proposal.entry_price` into the
+`Position` with no live-price sanity check, so any LLM latency
+spike turns into a guaranteed-loss fill at a price the market has
+already moved through. The fix is a sanity gate between
+auto-approval and `trader.open_position`: fetch a fresh ticker,
+reject the fill if live has crossed the SL or drifted beyond a
+configurable slippage tolerance, otherwise fill at
+`proposal.entry_price` exactly as today (no silent switch to live
+price — that would defeat the proposal's R/R math). Ticker fetch
+failure falls back to fill so a transient exchange hiccup doesn't
+silently disable trading; the WARN log is the operator's signal.
+
+**Related Requirements**: FR-008 (Entry/Take-Profit/Stop-Loss
+Setting — extending the fill boundary so SL is enforced at fill,
+not just at exit), FR-013 (User Accept/Reject — auto-approval is
+the system's stand-in; the gate is the system's reject path),
+NFR-012 (Live Trading Confirmation — paper-trading correctness
+boundary; same code path runs live).
+
+- [x] `src/runtime/engine.py::_execute` — between auto-approval and
+  `trader.open_position`, call `exchange.get_ticker(symbol).price`
+  to fetch a fresh live price. On `Exception`, log WARN
+  (`stale_quote_check_failed`) and fall through to fill (preserve
+  current behaviour — transient exchange errors must not silently
+  disable trading).
+- [x] When `EngineConfig.reject_if_past_stop_loss` is `True` and
+  live has crossed the SL (live ≤ `proposal.stop_loss` for longs,
+  live ≥ `proposal.stop_loss` for shorts), record the proposal as
+  `rejected` with `decision_reason="stale_quote_past_sl"` and emit
+  the existing rejection activity event with structured fields
+  (`live_price`, `proposal_entry`, `proposal_stop_loss`, `side`).
+  Skip `trader.open_position`; do not increment `positions_opened`.
+- [x] When the absolute drift `abs(live - proposal.entry_price) /
+  proposal.entry_price` exceeds
+  `EngineConfig.fill_slippage_tolerance`, record the proposal as
+  `rejected` with `decision_reason="slippage_exceeds_tolerance"`
+  and emit the same rejection activity event shape. Order matters:
+  the past-SL check runs first (more specific signal); only if it
+  passes does the slippage check run.
+- [x] Otherwise fill at `proposal.entry_price` as today — no
+  silent switch to the live price. The proposal's R/R math is
+  predicated on `entry_price`; mutating it at fill would corrupt
+  every downstream metric.
+- [x] `EngineConfig.fill_slippage_tolerance: Decimal = Decimal("0.005")`
+  (50 bps default; `Field(ge=0)`) and
+  `EngineConfig.reject_if_past_stop_loss: bool = True` defaults in
+  `src/runtime/engine.py`. Defaults are deliberately conservative —
+  reject_if_past_sl on by default closes the smoking-gun bug
+  without an env flip.
+- [x] `Settings.engine_fill_slippage_tolerance: Decimal` and
+  `Settings.engine_reject_if_past_stop_loss: bool` env overrides
+  in `src/config.py` (`ENGINE_FILL_SLIPPAGE_TOLERANCE` and
+  `ENGINE_REJECT_IF_PAST_STOP_LOSS`); follow the Phase 10.2 /
+  13.2 pattern (`Field(default=...)`, parity assertion via the
+  existing `test_settings_defaults_match_engine_config` style).
+- [x] `src/main.py::build_engine` — wire the two new
+  `Settings.engine_*` fields into the `EngineConfig(...)`
+  constructor call alongside the existing eight fields; explicit-
+  config-wins back-compat preserved. `.env.example` documents both
+  new env vars with operator-facing prose.
+- [x] Tests in `tests/test_runtime_engine.py` — four cases:
+  (a) live past SL → proposal recorded `rejected` with
+  `decision_reason="stale_quote_past_sl"`, rejection activity
+  event emitted, no `trader.open_position` call,
+  `positions_opened == 0`; (b) live within tolerance → fill at
+  `proposal.entry_price` (regression guard — pin the no-silent-
+  switch contract); (c) live drift beyond tolerance → proposal
+  recorded `rejected` with
+  `decision_reason="slippage_exceeds_tolerance"`, rejection event
+  emitted; (d) `exchange.get_ticker` raises → fill proceeds as
+  before, WARN logged with `stale_quote_check_failed`.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -1680,6 +1780,7 @@ tooling on top of existing components, no new FR/NFR introduced.
 | Phase 15 | NFR-001 (diagnostic clarity — proposal-sizing log rename, dashboard threshold-rejection count; no new FR/NFR introduced) |
 | Phase 16 | FR-022, NFR-001 (chasulang stability — JSON parse path now accepts nested `trade.signal`, subprocess wedge mitigation; no new FR/NFR introduced) |
 | Phase 17 | FR-023, FR-026, FR-034, CON-003 (operator-driven strategy-evolution workflow — catalog-aware idea generation + auto-research script landing candidates in `AWAITING_APPROVAL`; no new FR/NFR introduced) |
+| Phase 18 | FR-008, FR-013, NFR-012 (live-trading quality — stale-quote sanity gate at proposal fill enforces SL + slippage tolerance against a fresh ticker; extending the fill boundary, no new FR/NFR introduced) |
 
 ---
 
@@ -1769,3 +1870,5 @@ tooling on top of existing components, no new FR/NFR introduced.
 | 16.0 | 2026-04-29 | Phase 16 complete - all sub-tasks (16.1) checked. Phase 16 cross-check: `docs/cross-checks/2026-04-29-phase-16-chasulang-stability.md`. | Claude |
 | 17.1 | 2026-04-29 | Phase 17.1 complete - Auto-Research Operator Workflow + Catalog-Aware Improver (FR-023, FR-026, FR-034, CON-003; first end-to-end exercise of the strategy-evolution stack — `StrategyImprover` → `Backtester` → `PerformanceAnalyzer` → `RobustnessGate` → `FeedbackLoop._run_cycle` → `CandidateRecord` — landing every robustness-gate-passing pick in `AWAITING_APPROVAL` for explicit operator approval per CON-003; promotion stays manual). New `scripts/auto_research_candidates.py` operator entry point (`python -m scripts.auto_research_candidates [--picks N] [--dry-run]`) parses the priority matrix's first-wave OHLCV-only Top-N picks from `docs/research/strategies/00-priority-matrix.md`, dispatches each through `improver.generate_idea(context=<pick description>)` → `loop.propose_new(...)`, persists run snapshot to `data/research_runs/run_{ts}.json`, and prints an operator-facing summary with `decision_reason` + `robustness_summary` continuation lines so DISCARDED reasons are visible without opening the JSON. `--dry-run` short-circuits before the loop call and routes generated experimental files under `strategies/experimental/dry_runs/` so they never mix with real gated candidates. `src/ai/improver.py::StrategyImprover.__init__` accepts `catalog_path: Path | None = None` (default `docs/research/strategies/00-priority-matrix.md`); new private `_load_catalog` helper reads the file at most once per improver lifetime, fail-softs on missing path with INFO log + empty string. `_build_new_idea_prompt` injects the cached catalog under a `## Reference Catalog` section. `_build_user_idea_prompt` deliberately omits the catalog (the user has already described their idea — injecting the catalog would redirect Claude away from the user's intent; deviation from original spec wording per quant-trader-expert review Issue 4). `_build_improvement_prompt` also untouched (improvement is failure-mode analysis on an existing strategy, not a fresh-idea exercise). Quant review surfaced 4 in-scope fixes shipped in the dev's commit: per-timeframe candle defaults bumped (1h: 4380, 15m: 8760) so the regime gate sees both bull and bear; summary surfaces `decision_reason` + `robustness_summary` so DISCARDED reasons are terminal-visible; dry-run output routes under `strategies/experimental/dry_runs/`; the user-idea catalog-injection deletion above (Issue 4). 14 files in commit `10bbd7f` (`scripts/auto_research_candidates.py`, `src/ai/improver.py`, `tests/test_ai_improver.py`, `tests/test_scripts_auto_research_candidates.py`, plus the operator-curated catalog under `docs/research/strategies/{00-priority-matrix,01-ict-smc,02-chart-patterns,03-breakout-range,04-mean-reversion,05-trend-indicators,06-crypto-specific,README}.md`, `.gitignore` for `data/research_runs/`, and dev plan). 1170 → 1189 tests (+19 net new — improver gains catalog-injection / catalog-not-in-user-idea / catalog-not-in-improvement / fail-soft-when-absent cases plus existing-test churn for the new `catalog_path` constructor kwarg; new `tests/test_scripts_auto_research_candidates.py` covers happy-path / dry-run / one-pick-raises). ruff/mypy clean (53 source files; `scripts/` not in mypy scope per spec). Two new debt items: DEBT-013 `auto_research_candidates.run_async` constructs its own `FeedbackLoop` / `BinanceExchange` (Low — fine until a second caller materialises; quant Issue 3) and DEBT-014 `loop.propose_new` called without `param_grid` so the sensitivity gate is `SKIPPED` for every Phase 17.1 candidate (Medium — fix needs `Pick`-level parameter-grid declaration or strategy-introspection helper; quant Issue 5; partial-robustness-verdict consequence). One operator action deferred and standing: `flyctl ssh console --app crypto-master -C "python -m scripts.auto_research_candidates --picks 2"` to populate `/data/feedback/state/` + `/data/audit/` end-to-end. No ADR — wires existing components into an operator script + extends one prompt; no new architectural seam. | Claude |
 | 17.0 | 2026-04-29 | Phase 17 complete - all sub-tasks (17.1) checked. Phase 17 cross-check: `docs/cross-checks/2026-04-29-phase-17-strategy-evolution-operator.md`. | Claude |
+| 18.1 | 2026-04-30 | Phase 18.1 added - Stale-Quote Sanity Gate at Proposal Fill (FR-008, FR-013, NFR-012); driven by 2026-04-30 production review of `/data/trades/paper/trades.json` (1W/8L, EV -8.73/trade) — proposal `6ef8c07e...` filled 3 min 13 sec stale at `entry=2323` then closed `0.48s` later at `2300` because live had already crossed `SL=2305`. | product-planner |
+| 18.1 | 2026-04-30 | Phase 18.1 sealed — stale-quote sanity gate shipped, full suite 1198 pass. Sanity gate inserted between auto-approval and `trader.open_position` in `src/runtime/engine.py::_execute` via new `_stale_quote_gate` helper; past-SL check (side-dispatched off `proposal.signal`) + symmetric slippage check (`abs(live - entry)/entry > tolerance`); rejection rewrites `ProposalRecord` to `REJECTED` (load + `model_copy` + save) + emits activity event with `proposal_entry` / `proposal_stop_loss` / `live_price` / `drift_bps`; ticker fetch failure → fall through to fill, log WARN `stale_quote_check_failed`. New `EngineConfig.fill_slippage_tolerance: Decimal = Decimal("0.005")` (50 bps, `Field(ge=0)`) and `EngineConfig.reject_if_past_stop_loss: bool = True`; env overrides `ENGINE_FILL_SLIPPAGE_TOLERANCE` + `ENGINE_REJECT_IF_PAST_STOP_LOSS` via `Settings.engine_*` (Phase 10.2 / 13.2 pattern); `build_engine` wires alongside existing eight fields. Two pre-existing tests (`test_proposal_executes_when_cap_not_reached`, `test_cap_counts_only_matching_symbol`) had inverted-SL fixtures for short proposals that the new gate exposed; dev fixed both fixtures in same diff. 7 files in working-tree diff (not yet committed): src/runtime/engine.py, src/config.py, src/main.py, .env.example, tests/test_runtime_engine.py, tests/test_config.py, docs/development-plan.md. 1193 → 1198 tests (+5 net new in `test_runtime_engine.py`, total 23 → 28). ruff/mypy clean. Quant validated 50-bps default against 1H BTC/ETH expected drift over a 4-min latency window (~26 bps ≈ 2σ at 50 bps); confirmed smoking-gun ETH case caught with 49 bps headroom; flagged `bollinger_band_reversion` will see visible rejection-rate uptick (intended behaviour, not regression). QA verdict: 🟡 Ship with note — four observations recorded as DEBT-015 (Medium — rejection-path semantic divergence vs Phase 12.1) / DEBT-016 (Low — simultaneous-counters contract undocumented) / DEBT-017 (Low / cosmetic — `entry_price` + `proposal_entry` redundancy in event payload) / DEBT-018 (Low — rejection tests don't assert `proposals_accepted == 1`). One operator action standing: Fly redeploy + 24h log monitoring for first `stale_quote_past_sl` / `slippage_exceeds_tolerance` rejection. No ADR — guard inserted into existing seam, `Trader` Protocol unchanged. | docs-auditor |

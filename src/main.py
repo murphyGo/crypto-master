@@ -178,6 +178,9 @@ def build_engine(
         bitcoin_symbol=settings.engine_bitcoin_symbol,
         altcoin_top_k=settings.engine_altcoin_top_k,
         actor=settings.engine_actor,
+        # Phase 18.1 stale-quote sanity gate.
+        fill_slippage_tolerance=settings.engine_fill_slippage_tolerance,
+        reject_if_past_stop_loss=settings.engine_reject_if_past_stop_loss,
     )
 
     strategies = load_all_strategies()

@@ -169,6 +169,24 @@ class Settings(BaseSettings):
     # events. Default "auto-engine".
     engine_actor: str = Field(default="auto-engine")
 
+    # Phase 18.1 stale-quote sanity gate at proposal fill. Defaults
+    # match ``src.runtime.engine.EngineConfig`` so existing deployments
+    # do not change behaviour without an explicit env setting.
+    # Maximum absolute drift between the live ticker price and
+    # ``proposal.entry_price`` tolerated at fill, expressed as a
+    # fraction (50 bps = 0.005). Drift beyond this threshold causes
+    # the engine to reject the fill with
+    # ``decision_reason="slippage_exceeds_tolerance"``. Minimum 0
+    # (== reject any drift). Default 0.005.
+    engine_fill_slippage_tolerance: Decimal = Field(
+        default=Decimal("0.005"), ge=0
+    )
+    # When True, the engine fetches a fresh ticker before each fill
+    # and rejects the proposal if live has already crossed the
+    # proposal's stop-loss in the trade direction. Default True
+    # (closes the smoking-gun stale-quote bug without an env flip).
+    engine_reject_if_past_stop_loss: bool = Field(default=True)
+
     # Log Retention (Phase 10.4)
     # ``JsonlRotator`` keeps the active month + this many archive
     # months merged into ``read_all``. Older rotated files stay on

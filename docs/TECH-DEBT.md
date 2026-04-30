@@ -136,6 +136,169 @@ sensitivity surface), but option 1 is a faster bridge.
 - `src/feedback/loop.py::FeedbackLoop.propose_new`
 - `src/backtest/robustness.py::RobustnessGate` (sensitivity gate design)
 
+### DEBT-015: Rejection-path semantic divergence — Phase 18.1 rewrites `ProposalRecord`, Phase 12.1 emits activity-event only
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 |
+| **Component** | `src/runtime/engine.py` (`_stale_quote_gate` + `_handle_proposal` cap branch) |
+
+**Description:**
+Phase 18.1's stale-quote rejection path overwrites the
+`ProposalRecord` decision to `REJECTED` (load + `model_copy` +
+save) so dashboard / post-mortems reading
+`ProposalHistory.list_all(decision=REJECTED)` see the rejections
+with structured fields. Phase 12.1's cap rejection path takes a
+lighter route — it only emits an activity event without
+rewriting the proposal record. Two rejection paths now follow two
+persistence patterns.
+
+**Impact:**
+Dashboard / post-mortems running queries against
+`ProposalHistory.list_all(decision=REJECTED)` see Phase 18.1's
+stale-quote rejections but miss Phase 12.1's cap rejections. An
+operator running a "show me all rejected proposals in the last
+24h" query would silently under-count cap rejections, which
+distorts the rejected-proposals view. Single-source-of-truth for
+the proposal decision is split across two stores depending on
+which gate fired.
+
+**Suggested Resolution:**
+Pick one canonical pattern and apply it to both. The rewrite is
+probably the right shape (preserves a single source of truth for
+the decision, makes `ProposalHistory` queries authoritative);
+applying it to the cap branch is mechanical — the activity event
+emitted from `_handle_proposal` already carries enough context
+to drive the rewrite. Should land before Phase 18.2 so the
+rejection-path consistency is in place when 18.2 adds new
+diagnostic queries.
+
+**Related:**
+- Phase 18.1 qa-reviewer note 1
+- `src/runtime/engine.py::_stale_quote_gate` (rewrite path)
+- `src/runtime/engine.py::_handle_proposal` cap branch
+  (activity-event-only path)
+
+### DEBT-016: `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 |
+| **Component** | `src/runtime/engine.py` (`CycleResult` field docstrings) |
+
+**Description:**
+When a post-acceptance gate fires (Phase 12.1 cap rejection,
+Phase 18.1 stale-quote rejection), both
+`CycleResult.proposals_accepted` and
+`CycleResult.proposals_rejected` increment for the same proposal
+— the composite gate accepts the proposal first, the
+post-acceptance gate then rejects it. Cycle summary log
+`accepted+rejected` will not sum to `proposals_processed`. The
+rejection paths are correct; the documentation is what's missing.
+
+**Impact:**
+Operators reading the cycle summary may mis-attribute "where did
+the proposal go" — `accepted=N rejected=M processed=N+M-K` (K =
+post-acceptance rejections) is confusing without the contract
+documented. Low-frequency in practice (only fires when a
+post-acceptance gate rejects), but the misattribution risk grows
+proportional to rejection-rate, which Phase 18.1's gate may
+elevate visibly on `bollinger_band_reversion`.
+
+**Suggested Resolution:**
+Add a docstring section to `CycleResult` noting that
+`proposals_accepted` counts proposals that passed the composite
+gate (regardless of whether a post-acceptance gate later
+rejected) and `proposals_rejected` counts proposals that were
+rejected anywhere in the chain (composite gate, cap gate, or
+stale-quote gate). Both can fire for the same proposal; the
+sum is not an invariant. No code change.
+
+**Related:**
+- Phase 18.1 qa-reviewer note 2
+- `src/runtime/engine.py::CycleResult`
+
+### DEBT-017: Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 |
+| **Component** | `src/runtime/engine.py` (`_record_stale_quote_rejection` event payload) |
+
+**Description:**
+The stale-quote rejection activity event's `details` payload
+carries both `entry_price` (via `_proposal_summary`) and
+`proposal_entry` (explicitly added by
+`_record_stale_quote_rejection`). Same value, two keys. Cosmetic
+redundancy; downstream consumers reading either key will get the
+same answer.
+
+**Impact:**
+Cosmetic only. No data correctness issue. A future dashboard
+pass that consumes the rejection event has two equivalent fields
+to choose from — pick one and the other becomes dead weight.
+
+**Suggested Resolution:**
+Drop one of the two in the next dashboard pass. `proposal_entry`
+is clearer at the rejection-event call site (paired with
+`live_price` and `proposal_stop_loss`); `entry_price` is the
+generic `_proposal_summary` field that every proposal-related
+event carries. Leaning toward keeping `entry_price` for
+generic-payload consistency and dropping the explicit
+`proposal_entry` add.
+
+**Related:**
+- Phase 18.1 qa-reviewer note 3
+- `src/runtime/engine.py::_record_stale_quote_rejection`
+- `src/runtime/engine.py::_proposal_summary`
+
+### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 |
+| **Component** | `tests/test_runtime_engine.py` (4 new rejection tests) |
+
+**Description:**
+The 4 new Phase 18.1 rejection tests
+(`test_runtime_engine.py`) assert
+`result.proposals_rejected == 1` and `positions_opened == 0` but
+do NOT assert `result.proposals_accepted == 1`. The
+simultaneous-counters contract from DEBT-016 (the proposal
+*was* accepted by the composite gate before the post-acceptance
+gate rejected it) isn't locked in by the test suite.
+
+**Impact:**
+Low. A future regression that drops the accept-counter
+increment on the rejection path (e.g. an over-eager refactor
+that decides "if it's rejected, it wasn't accepted") wouldn't
+be caught by the suite. Operationally invisible until someone
+looks at a cycle summary and notices the count mismatch.
+
+**Suggested Resolution:**
+One-line addition to each of the 4 rejection tests:
+`assert result.proposals_accepted == 1`. Pairs naturally with
+the DEBT-016 docstring update (test pins the contract; docstring
+explains it). Trivial, can land in any cycle that touches the
+test file.
+
+**Related:**
+- Phase 18.1 qa-reviewer note 4
+- `tests/test_runtime_engine.py` 4 new rejection tests
+  (`test_stale_quote_past_sl_rejects_long`,
+  `test_stale_quote_past_sl_rejects_short`,
+  `test_slippage_exceeds_tolerance_rejects`,
+  `test_ticker_fetch_failure_falls_through_to_fill`)
+- DEBT-016 (counterpart docstring update)
+
 ---
 
 ## Resolved Debt Items
@@ -267,11 +430,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 6 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
-| Low | 1 |
+| Medium | 2 |
+| Low | 4 |
 | Resolved (All Time) | 12 |
 
 ---
@@ -307,3 +470,7 @@ Move resolved items here with resolution date and notes.
 | 2026-04-28 | Resolved | DEBT-012 SMTP_SSL alternative for port 465 SMTP providers — Phase 14.2 added `email_use_ssl` Settings flag; `EmailNotifier` branches between `smtplib.SMTP`+STARTTLS (default) and `smtplib.SMTP_SSL` (port 465 providers) |
 | 2026-04-29 | Added | DEBT-013 `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` (Low) — surfaced during Phase 17.1 quant-trader-expert review Issue 3 |
 | 2026-04-29 | Added | DEBT-014 `loop.propose_new` called without `param_grid` — sensitivity gate SKIPPED for every Phase 17.1 candidate (Medium) — surfaced during Phase 17.1 quant-trader-expert review Issue 5 |
+| 2026-04-30 | Added | DEBT-015 Rejection-path semantic divergence — Phase 18.1 rewrites `ProposalRecord`, Phase 12.1 emits activity-event only (Medium) — surfaced during Phase 18.1 qa-reviewer review note 1 |
+| 2026-04-30 | Added | DEBT-016 `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented (Low) — surfaced during Phase 18.1 qa-reviewer review note 2 |
+| 2026-04-30 | Added | DEBT-017 Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value (Low / cosmetic) — surfaced during Phase 18.1 qa-reviewer review note 3 |
+| 2026-04-30 | Added | DEBT-018 Phase 18.1 rejection tests don't assert simultaneous-counters contract (Low) — surfaced during Phase 18.1 qa-reviewer review note 4 |

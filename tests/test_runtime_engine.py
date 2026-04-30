@@ -526,11 +526,18 @@ async def test_proposal_rejected_when_symbol_cap_reached(tmp_path: Path) -> None
 
 async def test_proposal_executes_when_cap_not_reached(tmp_path: Path) -> None:
     """No existing open trade on the symbol: proposal executes normally."""
+    # SL above entry for a coherent short proposal (the Phase 18.1
+    # stale-quote gate dispatches off ``proposal.signal``; an inverted
+    # SL would trip the past-SL check in this test's default ticker
+    # state).
     proposal = make_proposal(
         proposal_id="bnb-1",
         symbol="BNB/USDT",
         signal="short",
         composite=2.0,
+        entry="50000",
+        sl="50500",
+        tp="48500",
     )
 
     engine, mocks = build_engine(
@@ -563,11 +570,15 @@ async def test_cap_counts_only_matching_symbol(tmp_path: Path) -> None:
         symbol="ETH/USDT",
         side="long",
     )
+    # SL above entry for a coherent short proposal (Phase 18.1).
     proposal = make_proposal(
         proposal_id="bnb-1",
         symbol="BNB/USDT",
         signal="short",
         composite=2.0,
+        entry="50000",
+        sl="50500",
+        tp="48500",
     )
 
     engine, mocks = build_engine(
@@ -762,6 +773,205 @@ async def test_close_writes_performance_record_for_dashboard(
     assert rec.pnl_percent == 3.0
     assert rec.symbol == pre_proposal.symbol
     assert rec.signal == pre_proposal.signal
+
+
+# =============================================================================
+# Phase 18.1: Stale-Quote Sanity Gate at Proposal Fill
+# =============================================================================
+
+
+async def test_stale_quote_gate_rejects_when_live_past_sl(
+    tmp_path: Path,
+) -> None:
+    """Live has crossed the proposal's SL → reject fill, no open_position."""
+    # Long proposal: entry=50000, SL=49500. Live=49400 has crossed SL.
+    proposal = make_proposal(proposal_id="stale-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("49400"),
+    )
+
+    result = await engine.run_cycle()
+
+    # open_position must NOT be called.
+    mocks["trader"].open_position.assert_not_called()
+    assert result.positions_opened == 0
+    assert result.proposals_rejected == 1
+
+    # Proposal record overwritten as REJECTED with the stale-quote reason.
+    record = mocks["history"].load("stale-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_past_sl"
+
+    # Activity event with structured payload.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    details = rejections[0].details
+    assert details["reason"] == "stale_quote_past_sl"
+    assert details["proposal_entry"] == "50000"
+    assert details["proposal_stop_loss"] == "49500"
+    assert details["live_price"] == "49400"
+    # drift_bps = |49400 - 50000| / 50000 * 10_000 = 120
+    assert details["drift_bps"] == pytest.approx(120.0)
+
+
+async def test_stale_quote_gate_rejects_when_live_past_sl_short(
+    tmp_path: Path,
+) -> None:
+    """Short side: live >= SL is the stale-quote condition."""
+    # Short proposal: entry=50000, SL=50500. Live=50600 has crossed SL upward.
+    proposal = make_proposal(
+        proposal_id="stale-short-1",
+        composite=2.0,
+        signal="short",
+        entry="50000",
+        sl="50500",
+        tp="48500",
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("50600"),
+    )
+
+    result = await engine.run_cycle()
+
+    mocks["trader"].open_position.assert_not_called()
+    assert result.positions_opened == 0
+    record = mocks["history"].load("stale-short-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_past_sl"
+
+
+async def test_stale_quote_gate_fills_when_within_tolerance(
+    tmp_path: Path,
+) -> None:
+    """Live within slippage tolerance → fill at proposal.entry_price.
+
+    Regression guard for the no-silent-switch contract: even when the
+    live price differs from the proposal's entry, the gate must NOT
+    mutate the entry. The proposal's R/R math is predicated on
+    ``entry_price``.
+    """
+    # Long proposal: entry=50000, SL=49500. Live=50100 → drift 20 bps,
+    # well below the 50 bps default tolerance, and not past SL.
+    proposal = make_proposal(proposal_id="ok-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("50100"),
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_called_once()
+    # The Position handed to the trader carries the *proposal* entry,
+    # not the live price.
+    call_position = mocks["trader"].open_position.call_args.args[0]
+    assert call_position.entry_price == Decimal("50000")
+
+    # Proposal record stays ACCEPTED.
+    record = mocks["history"].load("ok-1")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+    # No PROPOSAL_REJECTED activity for this cycle.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 0
+
+
+async def test_stale_quote_gate_rejects_when_drift_exceeds_tolerance(
+    tmp_path: Path,
+) -> None:
+    """Live drift beyond fill_slippage_tolerance → reject."""
+    # Long proposal: entry=50000, SL=49500. Live=50500 → drift 100 bps,
+    # which exceeds the 50 bps default. SL not crossed (50500 > 49500).
+    proposal = make_proposal(proposal_id="drift-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("50500"),
+    )
+
+    result = await engine.run_cycle()
+
+    mocks["trader"].open_position.assert_not_called()
+    assert result.positions_opened == 0
+    assert result.proposals_rejected == 1
+
+    record = mocks["history"].load("drift-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "slippage_exceeds_tolerance"
+
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    details = rejections[0].details
+    assert details["reason"] == "slippage_exceeds_tolerance"
+    assert details["live_price"] == "50500"
+    # drift_bps = |50500 - 50000| / 50000 * 10_000 = 100
+    assert details["drift_bps"] == pytest.approx(100.0)
+
+
+async def test_stale_quote_gate_falls_through_on_ticker_failure(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """exchange.get_ticker raising → fill proceeds, WARN logged.
+
+    Transient exchange errors must not silently disable trading. The
+    operator's signal is the WARN log emitted with the
+    ``stale_quote_check_failed`` marker.
+    """
+    proposal = make_proposal(proposal_id="fallback-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_error=ExchangeAPIError("ticker down"),
+    )
+
+    import logging
+
+    # ``get_logger`` disables propagation so caplog's root handler
+    # misses these records — wire caplog onto the named logger for
+    # the duration of the assertion (same pattern as test_main_dispatch).
+    target_logger = logging.getLogger("crypto_master.runtime.engine")
+    target_logger.addHandler(caplog.handler)
+    previous_level = target_logger.level
+    target_logger.setLevel(logging.WARNING)
+    try:
+        result = await engine.run_cycle()
+    finally:
+        target_logger.removeHandler(caplog.handler)
+        target_logger.setLevel(previous_level)
+
+    # Fill proceeded.
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_called_once()
+    record = mocks["history"].load("fallback-1")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+
+    # WARN log carries the marker + the symbol + proposal id.
+    warn_messages = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and "stale_quote_check_failed" in r.getMessage()
+    ]
+    assert len(warn_messages) == 1
+    msg = warn_messages[0]
+    assert "BTC/USDT" in msg
+    assert "fallback-1" in msg
 
 
 async def test_portfolio_snapshot_balance_failure_does_not_break_cycle(

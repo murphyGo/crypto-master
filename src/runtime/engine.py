@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -104,6 +105,16 @@ class EngineConfig(BaseModel):
     # generation continues unchanged so the audit record is still
     # written.
     max_open_positions_per_symbol: int = Field(default=1, ge=1)
+    # Phase 18.1 stale-quote sanity gate. Between auto-approval and
+    # ``trader.open_position``, the engine fetches a fresh ticker and
+    # rejects the fill if live has crossed the proposal's SL or has
+    # drifted beyond ``fill_slippage_tolerance`` (50 bps default).
+    # Eliminates the "instant stop-out" class of losers caused by
+    # chasulang / Claude CLI proposal-to-fill latency. Defaults are
+    # deliberately conservative (reject_if_past_stop_loss=True) so the
+    # smoking-gun bug closes without an env flip.
+    fill_slippage_tolerance: Decimal = Field(default=Decimal("0.005"), ge=0)
+    reject_if_past_stop_loss: bool = True
 
 
 # =============================================================================
@@ -461,7 +472,31 @@ class TradingEngine:
         cycle_id: str,
         result: CycleResult,
     ) -> None:
-        """Open a paper position for an accepted proposal."""
+        """Open a paper position for an accepted proposal.
+
+        Phase 18.1: between auto-approval and ``trader.open_position``,
+        the engine fetches a fresh ticker and applies two gates against
+        the live price:
+
+        1. **Past-SL gate** (when ``reject_if_past_stop_loss=True``):
+           reject if the live price has already crossed the proposal's
+           stop-loss in the trade direction.
+        2. **Slippage gate**: reject if absolute drift between live and
+           ``proposal.entry_price`` exceeds ``fill_slippage_tolerance``.
+
+        On rejection, the proposal record is overwritten with
+        ``decision="rejected"`` and a structured rejection activity
+        event is emitted; ``trader.open_position`` is not called.
+        Otherwise the fill proceeds at ``proposal.entry_price`` exactly
+        as before — no silent switch to live (would corrupt R/R math).
+        Ticker fetch failures fall through to fill (preserve existing
+        behaviour; transient exchange errors must not silently disable
+        trading).
+        """
+        rejection = await self._stale_quote_gate(proposal, cycle_id, result)
+        if rejection is not None:
+            return
+
         position = _proposal_to_position(proposal)
         try:
             trade = await self.trader.open_position(position)
@@ -494,6 +529,152 @@ class TradingEngine:
                 "entry_price": str(proposal.entry_price),
                 "quantity": str(trade.entry_quantity),
                 "leverage": proposal.leverage,
+            },
+            cycle_id=cycle_id,
+        )
+
+    async def _stale_quote_gate(
+        self,
+        proposal: Proposal,
+        cycle_id: str,
+        result: CycleResult,
+    ) -> str | None:
+        """Reject the fill if the live ticker has gone stale on the proposal.
+
+        Phase 18.1 sanity gate. Returns the rejection reason string if
+        the proposal should be skipped, or ``None`` if execution should
+        proceed (either the gates passed or the ticker fetch failed and
+        we are falling through to fill).
+
+        On rejection: overwrites the proposal record with
+        ``decision="rejected"``, emits a ``PROPOSAL_REJECTED`` activity
+        event with structured ``proposal_entry``, ``live_price``, and
+        ``drift_bps`` fields for post-mortem reconstruction, and bumps
+        ``result.proposals_rejected`` while leaving
+        ``proposals_accepted`` untouched (the cycle summary records both
+        sides of the gate).
+        """
+        try:
+            ticker = await self.exchange.get_ticker(proposal.symbol)
+        except Exception as e:
+            # Transient exchange errors fall through to fill so a brief
+            # outage does not silently disable trading. The WARN is the
+            # operator's signal.
+            logger.warning(
+                "stale_quote_check_failed: symbol=%s proposal_id=%s "
+                "error_type=%s error=%s",
+                proposal.symbol,
+                proposal.proposal_id,
+                type(e).__name__,
+                e,
+            )
+            return None
+
+        live_price = ticker.price
+        entry = proposal.entry_price
+        sl = proposal.stop_loss
+
+        # Past-SL gate: only run when explicitly enabled. Side dispatch
+        # is keyed off ``proposal.signal`` (the spec) — never inferred
+        # from the entry/SL ordering, which would silently flip on a
+        # short with the same numeric layout.
+        if self.config.reject_if_past_stop_loss:
+            past_sl = (proposal.signal == "long" and live_price <= sl) or (
+                proposal.signal == "short" and live_price >= sl
+            )
+            if past_sl:
+                reason = "stale_quote_past_sl"
+                self._record_stale_quote_rejection(
+                    proposal=proposal,
+                    cycle_id=cycle_id,
+                    result=result,
+                    reason=reason,
+                    live_price=live_price,
+                )
+                return reason
+
+        # Slippage gate. Symmetric absolute drift over a non-zero entry.
+        if entry > 0:
+            drift = abs(live_price - entry) / entry
+            if drift > self.config.fill_slippage_tolerance:
+                reason = "slippage_exceeds_tolerance"
+                self._record_stale_quote_rejection(
+                    proposal=proposal,
+                    cycle_id=cycle_id,
+                    result=result,
+                    reason=reason,
+                    live_price=live_price,
+                )
+                return reason
+
+        return None
+
+    def _record_stale_quote_rejection(
+        self,
+        *,
+        proposal: Proposal,
+        cycle_id: str,
+        result: CycleResult,
+        reason: str,
+        live_price: Decimal,
+    ) -> None:
+        """Persist + log a stale-quote rejection for the dashboard.
+
+        The proposal record was already written ACCEPTED by
+        :meth:`ProposalInteraction.present`; overwrite it here with the
+        rejected verdict so post-mortems see the final outcome at the
+        canonical persistence path. The activity event carries the
+        numeric trio (``proposal_entry``, ``live_price``, ``drift_bps``)
+        that the dashboard / audit reports need to reconstruct the
+        rejection distribution.
+        """
+        # Drift is reported in basis points for readability; entry > 0
+        # is checked at call sites that need it, but defend here too so
+        # the activity payload is always populated.
+        if proposal.entry_price > 0:
+            drift = abs(live_price - proposal.entry_price) / proposal.entry_price
+            drift_bps = float(drift) * 10_000
+        else:
+            drift_bps = 0.0
+
+        # Overwrite the record. ``ProposalInteraction.present`` saved
+        # ACCEPTED; we replace it with REJECTED + the reason so the
+        # canonical history reflects the final verdict.
+        try:
+            existing = self.proposal_history.load(proposal.proposal_id)
+            updated = existing.model_copy(
+                update={
+                    "decision": ProposalDecision.REJECTED.value,
+                    "rejection_reason": reason,
+                    "decision_at": datetime.now(),
+                }
+            )
+            self.proposal_history.save(updated)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to overwrite proposal record %s with stale-quote "
+                "rejection: %s",
+                proposal.proposal_id,
+                e,
+            )
+
+        # The composite gate already incremented ``proposals_accepted``
+        # (the proposal *was* accepted by score); we add ``+1`` to
+        # ``proposals_rejected`` here so the cycle summary records both
+        # sides of the gate. Same pattern as Phase 12.1's per-symbol cap
+        # (see ``_handle_proposal``'s cap-rejection branch).
+        result.proposals_rejected += 1
+
+        self.activity_log.append(
+            ActivityEventType.PROPOSAL_REJECTED,
+            f"Stale-quote rejected {proposal.symbol} {proposal.signal} ({reason})",
+            details={
+                **_proposal_summary(proposal),
+                "reason": reason,
+                "proposal_entry": str(proposal.entry_price),
+                "proposal_stop_loss": str(proposal.stop_loss),
+                "live_price": str(live_price),
+                "drift_bps": drift_bps,
             },
             cycle_id=cycle_id,
         )
