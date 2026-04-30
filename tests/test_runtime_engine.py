@@ -679,9 +679,7 @@ async def test_portfolio_snapshot_recorded_each_cycle(tmp_path: Path) -> None:
     engine.mode = "paper"
     engine.quote_currency = "USDT"
 
-    mocks["trader"].get_balances = AsyncMock(
-        return_value={"USDT": Decimal("9876.54")}
-    )
+    mocks["trader"].get_balances = AsyncMock(return_value={"USDT": Decimal("9876.54")})
 
     await engine.run_cycle()
 
@@ -804,6 +802,9 @@ async def test_stale_quote_gate_rejects_when_live_past_sl(
     record = mocks["history"].load("stale-1")
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason == "stale_quote_past_sl"
+    # Phase 21.2: decision_at on the overwritten record is UTC-aware.
+    assert record.decision_at is not None
+    assert record.decision_at.tzinfo is not None
 
     # Activity event with structured payload.
     rejections = mocks["activity_log"].filter(
@@ -965,8 +966,7 @@ async def test_stale_quote_gate_falls_through_on_ticker_failure(
     warn_messages = [
         r.getMessage()
         for r in caplog.records
-        if r.levelno == logging.WARNING
-        and "stale_quote_check_failed" in r.getMessage()
+        if r.levelno == logging.WARNING and "stale_quote_check_failed" in r.getMessage()
     ]
     assert len(warn_messages) == 1
     msg = warn_messages[0]

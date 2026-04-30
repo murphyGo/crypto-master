@@ -14,7 +14,7 @@ Layout::
 
 Where ``<base>`` is a path *without* extension (e.g.
 ``data/runtime/activity``). Callers pass the base path; the rotator
-derives the active month from ``datetime.now()`` on every append, so a
+derives the active month from ``now_utc()`` on every append, so a
 process that runs across a month boundary correctly switches files
 without restart.
 
@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any
 
 from src.logger import get_logger
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.runtime.jsonl_rotator")
 
@@ -99,8 +100,15 @@ class JsonlRotator:
 
         Recomputed on every call so a long-running process correctly
         switches files when the wall clock crosses a month boundary.
+
+        DEBT-025 (Phase 21.2): the active-month token is derived from
+        ``now_utc()`` so a non-UTC host (e.g. KST = UTC+9) doesn't
+        rotate one calendar day early when local midnight falls before
+        UTC midnight. Records previously written under naive local-
+        month tokens are still readable via ``_coerce_timestamp``;
+        only the *active* file selection moves to UTC.
         """
-        now = datetime.now()
+        now = now_utc()
         token = now.strftime("%Y-%m")
         return self._path_for_token(token)
 
@@ -164,11 +172,11 @@ class JsonlRotator:
     def append(self, record: dict[str, Any]) -> None:
         """Append one record (already a JSON-serializable dict).
 
-        The active month is recomputed every call from
-        ``datetime.now()``, so a process running across a month
-        boundary writes to the new file on its next append without
-        restart. The parent directory is created lazily on first
-        write — callers don't have to pre-create it.
+        The active month is recomputed every call from ``now_utc()``,
+        so a process running across a month boundary writes to the new
+        file on its next append without restart. The parent directory
+        is created lazily on first write — callers don't have to pre-
+        create it.
 
         Args:
             record: A JSON-serializable dict. Caller is responsible

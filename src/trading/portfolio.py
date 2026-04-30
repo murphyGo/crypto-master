@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.config import get_settings
 from src.logger import get_logger
 from src.strategy.performance import TradeHistoryTracker
+from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.trading.portfolio")
@@ -68,7 +69,7 @@ class AssetSnapshot(BaseModel):
             Phase 20.1).
     """
 
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_utc)
     mode: Mode
     quote_currency: str
     balances: dict[str, Decimal] = Field(default_factory=dict)
@@ -92,6 +93,18 @@ class AssetSnapshot(BaseModel):
     def coerce_pnl(cls, v: str | int | float | Decimal) -> Decimal:
         """Coerce P&L values to Decimal."""
         return _coerce_decimal(v)
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def _coerce_timestamp_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
+
+        Snapshots written before the 21.2 sweep persist naive
+        timestamps; the dashboard takes ``max(snapshots, key=ts)`` to
+        pick the latest, mixing naive and aware after a partial
+        rollout. ``ensure_utc`` makes the loaded snapshot uniform.
+        """
+        return ensure_utc(value)
 
     @property
     def quote_balance(self) -> Decimal:
@@ -367,6 +380,15 @@ class PortfolioTracker:
             return []
 
         snapshots = [AssetSnapshot(**item) for item in data]
+
+        # DEBT-025 (Phase 21.2): snapshots loaded from disk are now
+        # UTC-aware (via the field validator on ``AssetSnapshot``).
+        # Tolerate naive ``start`` / ``end`` from callers by treating
+        # them as UTC, so aware-vs-naive comparison doesn't raise.
+        if start is not None and start.tzinfo is None:
+            start = ensure_utc(start)
+        if end is not None and end.tzinfo is None:
+            end = ensure_utc(end)
 
         if start is not None or end is not None:
             snapshots = [

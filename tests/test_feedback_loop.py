@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import textwrap
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -669,3 +669,63 @@ async def test_approve_refuses_to_overwrite_existing_active(
         loop.approve(record.candidate_id, approver="alice")
     # Source file must remain in experimental on failed promotion.
     assert md_path.exists()
+
+
+# =============================================================================
+# Phase 21.2 — UTC-aware write-side + legacy tolerance at read boundary
+# =============================================================================
+
+
+def test_candidate_record_load_coerces_legacy_naive_timestamps(
+    tmp_path: Path,
+) -> None:
+    """Legacy ``CandidateRecord`` JSON with naive timestamps loads UTC-aware.
+
+    Phase 21.2: ``CandidateRecord`` ships a ``field_validator`` that
+    coerces naive ``created_at`` / ``updated_at`` to UTC at the read
+    boundary, so the dashboard sort by ``updated_at`` doesn't mix
+    naive and aware after a partial rollout.
+    """
+    import json
+
+    from src.feedback.loop import CandidateRecord, LoopStatus
+
+    legacy = {
+        "candidate_id": "legacy-cand",
+        "kind": "improvement",
+        "parent_technique": "rsi_4h",
+        "technique_name": "rsi_v2",
+        "technique_version": "0.2.0",
+        "source_path": str(tmp_path / "x.md"),
+        "status": LoopStatus.AWAITING_APPROVAL.value,
+        "decision_reason": "",
+        "created_at": "2026-01-01T00:00:00",  # naive
+        "updated_at": "2026-01-02T00:00:00",  # naive
+    }
+    state_path = tmp_path / "legacy-cand.json"
+    state_path.write_text(json.dumps(legacy), encoding="utf-8")
+
+    loaded = CandidateRecord(**json.loads(state_path.read_text(encoding="utf-8")))
+
+    assert loaded.created_at.tzinfo is not None
+    assert loaded.updated_at.tzinfo is not None
+    # Naive treated as UTC.
+    assert loaded.created_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert loaded.updated_at == datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+
+def test_candidate_record_default_timestamps_are_utc_aware() -> None:
+    """Phase 21.2: fresh ``CandidateRecord`` defaults are UTC-aware."""
+    from src.feedback.loop import CandidateRecord, LoopStatus
+
+    record = CandidateRecord(
+        candidate_id="x",
+        kind="improvement",
+        technique_name="t",
+        technique_version="0.1.0",
+        source_path=Path("/tmp/x.md"),
+        status=LoopStatus.GENERATED,
+    )
+
+    assert record.created_at.tzinfo is not None
+    assert record.updated_at.tzinfo is not None

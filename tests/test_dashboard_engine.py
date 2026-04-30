@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -30,6 +30,11 @@ def make_event(
     message: str = "",
     details: dict | None = None,
 ) -> ActivityEvent:
+    # Phase 21.2: ActivityEvent.timestamp is UTC-aware via the
+    # ``ensure_utc`` validator. Coerce naive test inputs so the
+    # equality assertions below compare aware-vs-aware.
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
     return ActivityEvent(
         event_type=event_type,
         timestamp=timestamp,
@@ -153,7 +158,7 @@ def test_aggregate_cycles_skips_events_without_cycle_id() -> None:
 
 
 def test_aggregate_cycles_one_complete_cycle() -> None:
-    started = datetime(2026, 4, 27, 12, 0, 0)
+    started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
     events = make_cycle_events(
         "cycle-a",
         started_at=started,
@@ -184,7 +189,7 @@ def test_aggregate_cycles_one_complete_cycle() -> None:
 
 def test_aggregate_cycles_running_cycle_has_no_duration() -> None:
     """A cycle without a CYCLE_COMPLETED event is in flight."""
-    started = datetime(2026, 4, 27, 12, 0, 0)
+    started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
     events = make_cycle_events(
         "cycle-running",
         started_at=started,
@@ -202,7 +207,7 @@ def test_aggregate_cycles_running_cycle_has_no_duration() -> None:
 
 
 def test_aggregate_cycles_errored_cycle_marked() -> None:
-    started = datetime(2026, 4, 27, 12, 0, 0)
+    started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
     events = make_cycle_events(
         "cycle-bad",
         started_at=started,
@@ -229,7 +234,7 @@ def test_aggregate_cycles_orders_newest_first() -> None:
 
 def test_aggregate_cycles_handles_unsorted_events() -> None:
     """Aggregator must not assume events are pre-sorted."""
-    started = datetime(2026, 4, 27, 12, 0, 0)
+    started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
     events = make_cycle_events(
         "c-shuffled",
         started_at=started,
@@ -546,7 +551,7 @@ def test_engine_page_renders_populated(tmp_path: Path) -> None:
 
     log_path = tmp_path / "activity.jsonl"
     log = ActivityLog(path=log_path)
-    started = datetime(2026, 4, 27, 12, 0, 0)
+    started = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
     for ev in make_cycle_events(
         "c-smoke",
         started_at=started,

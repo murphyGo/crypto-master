@@ -38,7 +38,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.ai.exceptions import ClaudeTimeoutError
 from src.exchange.base import BaseExchange, ExchangeError
@@ -48,6 +48,7 @@ from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.trading.strategy import TradingStrategy, TradingValidationError
+from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.proposal.engine")
 
@@ -119,7 +120,7 @@ class Proposal(BaseModel):
     """
 
     proposal_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_utc)
     symbol: str
     timeframe: str
     technique_name: str
@@ -134,6 +135,12 @@ class Proposal(BaseModel):
     risk_reward_ratio: float
     score: ProposalScore
     reasoning: str = ""
+
+    @field_validator("created_at", mode="after")
+    @classmethod
+    def _coerce_created_at_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
+        return ensure_utc(value)
 
 
 class ProposalEngineConfig(BaseModel):
@@ -599,9 +606,7 @@ class ProposalEngine:
         The original ``timeout_seconds`` key is preserved for
         back-compat with downstream readers that already parse it.
         """
-        logger.warning(
-            f"Strategy {strategy.name} failed on {symbol}: {error}"
-        )
+        logger.warning(f"Strategy {strategy.name} failed on {symbol}: {error}")
         if not isinstance(error, ClaudeTimeoutError):
             return
         if self.activity_log is None:

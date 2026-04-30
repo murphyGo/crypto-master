@@ -1,31 +1,14 @@
-"""Tests for the JSONL monthly rotator (Phase 10.4)."""
+"""Tests for the JSONL monthly rotator (Phase 10.4 / 21.2)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from src.runtime import jsonl_rotator
 from src.runtime.jsonl_rotator import JsonlRotator
-
-
-class _ClockStub:
-    """Mutable replacement for ``datetime.now`` inside the rotator module.
-
-    Unlike ``freezegun`` (which the project doesn't currently depend on),
-    this is a simple monkeypatch target — the test sets ``.now`` to the
-    desired wall clock and the rotator uses it for its next append.
-    """
-
-    def __init__(self, fixed: datetime) -> None:
-        self.fixed = fixed
-
-    # ``datetime.now`` is called as an unbound method in the module, so
-    # we replace the whole class with a small shim that exposes ``now``.
-    def now(self) -> datetime:  # noqa: D401 - simple stub
-        return self.fixed
 
 
 @pytest.fixture
@@ -35,14 +18,16 @@ def base(tmp_path: Path) -> Path:
 
 
 def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
-    """Pin ``datetime.now()`` inside the rotator module."""
+    """Pin ``now_utc()`` inside the rotator module.
 
-    class _DT(datetime):
-        @classmethod
-        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
-            return when
+    Phase 21.2: the rotator imports :func:`src.utils.time.now_utc` and
+    calls it for the active-month token. Tests patch the import-bound
+    name so naive test inputs (treated as UTC) drive the rotation
+    independently of the host clock or the host TZ.
+    """
 
-    monkeypatch.setattr(jsonl_rotator, "datetime", _DT)
+    fixed = when if when.tzinfo is not None else when.replace(tzinfo=timezone.utc)
+    monkeypatch.setattr(jsonl_rotator, "now_utc", lambda: fixed)
 
 
 # =============================================================================
@@ -285,9 +270,7 @@ def test_unrelated_files_in_directory_are_ignored(
         '{"junk": true}\n', encoding="utf-8"
     )
     # A totally unrelated jsonl.
-    (base.parent / "other.jsonl").write_text(
-        '{"junk": true}\n', encoding="utf-8"
-    )
+    (base.parent / "other.jsonl").write_text('{"junk": true}\n', encoding="utf-8")
 
     _set_clock(monkeypatch, datetime(2026, 4, 1, 0, 0, 0))
     rotator = JsonlRotator(base)
@@ -296,3 +279,86 @@ def test_unrelated_files_in_directory_are_ignored(
     records = list(rotator.read_all())
 
     assert [r["n"] for r in records] == [1]
+
+
+# =============================================================================
+# Phase 21.2: UTC month boundary on a non-UTC host
+# =============================================================================
+
+
+def test_active_path_is_utc_month_not_local_month(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Active-month token tracks UTC, not local.
+
+    DEBT-025 / Phase 21.2: with the host clock at ``2026-04-30
+    23:30 +09:00`` (Asia/Tokyo / KST), local-month says ``2026-04``
+    but UTC-month is also ``2026-04`` (UTC = 2026-04-30 14:30). The
+    interesting case is ``2026-05-01 00:30 +09:00`` (UTC =
+    2026-04-30 15:30): local rolled to May, UTC is still April. The
+    rotator must follow UTC.
+    """
+    # Local 2026-05-01 00:30 KST == UTC 2026-04-30 15:30. The real
+    # ``now_utc`` always returns the UTC-aware instant — for this
+    # wall-clock moment, that's April 30 in UTC. We feed the patched
+    # rotator the UTC-aware equivalent of the KST wall clock so the
+    # ``strftime("%Y-%m")`` on the result yields the UTC month.
+    kst = timezone(timedelta(hours=9))
+    kst_local = datetime(2026, 5, 1, 0, 30, 0, tzinfo=kst)
+    utc_instant = kst_local.astimezone(timezone.utc)
+    assert utc_instant.month == 4  # sanity: same instant, UTC-month is April
+    _set_clock(monkeypatch, utc_instant)
+
+    rotator = JsonlRotator(base)
+    rotator.append({"timestamp": utc_instant.isoformat(), "n": 1})
+
+    april = base.with_name("events.2026-04.jsonl")
+    may = base.with_name("events.2026-05.jsonl")
+    assert (
+        april.exists()
+    ), "Active month should be UTC-April even when local clock is May"
+    assert (
+        not may.exists()
+    ), "Local-month rotation would have written to May; UTC must not"
+
+
+def test_active_path_uses_utc_aware_now(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rotator's ``_active_path`` consumes a UTC-aware ``now_utc``.
+
+    Pin the clock to a known UTC instant and assert the active path
+    reflects the UTC year-month token, regardless of any host TZ
+    arithmetic that ``datetime.strftime`` might apply.
+    """
+    fixed = datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc)
+    _set_clock(monkeypatch, fixed)
+
+    rotator = JsonlRotator(base)
+    active = rotator._active_path()
+
+    assert active.name == "events.2026-04.jsonl"
+
+
+def test_read_with_legacy_naive_timestamp_is_tolerant(
+    base: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy records with naive ISO timestamps still load.
+
+    Records persisted before Phase 21.2 carry naive ISO-8601 strings.
+    ``read_all`` must coerce them to UTC at the comparison boundary
+    so the merged sort doesn't raise ``TypeError`` when an aware
+    record arrives in the same stream.
+    """
+    _set_clock(monkeypatch, datetime(2026, 4, 1, 0, 0, 0, tzinfo=timezone.utc))
+    rotator = JsonlRotator(base)
+
+    # Naive (legacy) timestamp.
+    rotator.append({"timestamp": "2026-03-15T10:00:00", "n": 1})
+    # Aware (post-21.2) timestamp.
+    rotator.append({"timestamp": "2026-04-01T08:00:00+00:00", "n": 2})
+
+    records = list(rotator.read_all())
+
+    # Both records load and sort by timestamp without raising.
+    assert [r["n"] for r in records] == [1, 2]

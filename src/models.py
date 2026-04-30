@@ -17,6 +17,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.utils.time import now_utc
+
 
 class OrderStatus(str, Enum):
     """Status of an order in the exchange."""
@@ -186,7 +188,7 @@ class AnalysisResult(BaseModel):
     stop_loss: Decimal = Field(gt=0)
     take_profit: Decimal = Field(gt=0)
     reasoning: str
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_utc)
 
     @property
     def risk_reward_ratio(self) -> float | None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -464,12 +464,8 @@ def test_purge_old_is_idempotent(tmp_path: Path) -> None:
         )
     )
 
-    first = history.purge_old(
-        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
-    )
-    second = history.purge_old(
-        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
-    )
+    first = history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12)
+    second = history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12)
 
     assert len(first) == 1
     assert second == []
@@ -512,9 +508,7 @@ def test_purge_old_does_not_revisit_archive_subdir(tmp_path: Path) -> None:
             )
         )
     )
-    history.purge_old(
-        now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12
-    )
+    history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12)
 
     # Top-level listing must not surface the archived file.
     assert history.list_all() == []
@@ -524,8 +518,7 @@ def test_purge_old_handles_missing_data_dir(tmp_path: Path) -> None:
     history = ProposalHistory(data_dir=tmp_path / "never_created")
 
     assert (
-        history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12)
-        == []
+        history.purge_old(now=datetime(2026, 4, 28, 0, 0, 0), retention_months=12) == []
     )
 
 
@@ -648,3 +641,98 @@ async def test_present_batch_returns_one_record_per_proposal(
     assert records[2].decision == ProposalDecision.ACCEPTED.value
     assert all(r.actor == "bob" for r in records)
     assert len(history.list_all()) == 3
+
+
+# =============================================================================
+# Phase 21.2 — UTC-aware write-side + legacy-tolerance at read boundary
+# =============================================================================
+
+
+async def test_present_writes_utc_aware_decision_at(tmp_path: Path) -> None:
+    """Phase 21.2: ``decision_at`` is UTC-aware on a fresh write."""
+    history = ProposalHistory(data_dir=tmp_path)
+
+    async def accept(_: Proposal) -> ProposalDecisionInput:
+        return ProposalDecisionInput(accepted=True)
+
+    interaction = ProposalInteraction(history=history, decision_callback=accept)
+    record = await interaction.present(make_proposal(proposal_id="utc-1"))
+
+    assert record.decision_at is not None
+    assert record.decision_at.tzinfo is not None
+    assert record.decision_at.utcoffset() == timezone.utc.utcoffset(None)
+
+
+def test_attach_outcome_writes_utc_aware_outcome_recorded_at(
+    tmp_path: Path,
+) -> None:
+    """Phase 21.2: ``outcome_recorded_at`` is UTC-aware on a fresh write."""
+    history = ProposalHistory(data_dir=tmp_path)
+    record = ProposalRecord(
+        proposal=make_proposal(proposal_id="utc-2"),
+        decision=ProposalDecision.ACCEPTED,
+    )
+    history.save(record)
+
+    updated = history.attach_outcome(
+        proposal_id="utc-2",
+        trade_id="trade-1",
+        pnl_percent=1.5,
+    )
+
+    assert updated.outcome_recorded_at is not None
+    assert updated.outcome_recorded_at.tzinfo is not None
+
+
+def test_list_all_tolerates_legacy_naive_created_at(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy proposals on disk with naive ``created_at`` still load + sort.
+
+    Phase 21.2: the sort key in :meth:`ProposalHistory.list_all` coerces
+    naive timestamps to UTC at the comparison boundary so a partial
+    rollout (some files naive, some aware) doesn't raise ``TypeError``.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+
+    # Hand-craft a legacy proposal JSON with a naive ``created_at``.
+    proposal = make_proposal(proposal_id="legacy-1")
+    legacy_record = ProposalRecord(
+        proposal=proposal,
+        decision=ProposalDecision.PENDING,
+    )
+    legacy_payload = legacy_record.model_dump(mode="json")
+    # Strip the timezone suffix from the ISO-8601 string so the on-disk
+    # shape mimics a pre-21.2 record.
+    legacy_payload["proposal"]["created_at"] = "2026-01-01T00:00:00"
+    (tmp_path / "legacy-1.json").write_text(
+        __import__("json").dumps(legacy_payload),
+        encoding="utf-8",
+    )
+
+    # Save a fresh (aware) proposal alongside it.
+    fresh = make_proposal(proposal_id="fresh-1")
+    history.save(ProposalRecord(proposal=fresh, decision=ProposalDecision.PENDING))
+
+    # ``list_all`` must not raise; the legacy record loads (its
+    # ``created_at`` is treated as UTC) and sorts ahead of fresh.
+    records = history.list_all()
+    ids = [r.proposal.proposal_id for r in records]
+    assert "legacy-1" in ids
+    assert "fresh-1" in ids
+
+
+def test_purge_old_tolerates_naive_now_argument(tmp_path: Path) -> None:
+    """``purge_old`` coerces naive ``now`` arguments to UTC (Phase 21.2)."""
+    history = ProposalHistory(data_dir=tmp_path)
+    fresh = make_proposal(proposal_id="fresh-1")
+    history.save(ProposalRecord(proposal=fresh, decision=ProposalDecision.PENDING))
+
+    # Pass a naive ``now`` far in the future so retention shouldn't
+    # apply (everything is younger than 30*N days from this far-future
+    # cutoff). The point is that the comparison must not raise.
+    naive_now = datetime(2027, 1, 1, 12, 0, 0)
+    archived = history.purge_old(now=naive_now, retention_months=120)
+    # 120 months is huge — nothing should be archived. Either way, no
+    # ``TypeError`` from naive-vs-aware comparison.
+    assert isinstance(archived, list)

@@ -19,6 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.models import OHLCV, AnalysisResult
+from src.utils.time import now_utc
 
 # =============================================================================
 # Exceptions
@@ -162,7 +163,7 @@ class TechniqueInfo(BaseModel):
         description="Technique lifecycle status",
     )
 
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime | None = Field(default=None)
     changelog: str | None = Field(default=None, description="Version change notes")
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -426,7 +426,9 @@ def test_summary_metrics_uses_latest_snapshot() -> None:
     metrics = build_summary_metrics([], snapshots)
 
     # Latest snapshot is 2026-01-05 even though it's not last in the list.
-    assert metrics["latest_snapshot_at"] == datetime(2026, 1, 5)
+    # Phase 21.2: AssetSnapshot.timestamp is UTC-aware via the validator,
+    # so the latest_snapshot_at metric is also aware.
+    assert metrics["latest_snapshot_at"] == datetime(2026, 1, 5, tzinfo=timezone.utc)
     assert metrics["latest_equity"] == pytest.approx(11200.0)  # 11000 + 200
     assert metrics["unrealized_pnl"] == pytest.approx(200.0)
 

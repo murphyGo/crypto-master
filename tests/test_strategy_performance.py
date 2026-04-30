@@ -5,7 +5,7 @@ TradeHistory, and TradeHistoryTracker.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -1727,3 +1727,110 @@ class TestTradeHistoryStorage:
         assert live_data[0]["symbol"] == "ETH/USDT"
         assert len(backtest_data) == 1
         assert backtest_data[0]["symbol"] == "SOL/USDT"
+
+
+# =============================================================================
+# Phase 21.2 — UTC-aware defaults + legacy tolerance at the read boundary
+# =============================================================================
+
+
+class TestPhase21_2UtcAware:
+    """Phase 21.2: every fresh write is UTC-aware; legacy reads coerce."""
+
+    def test_performance_record_default_analysis_timestamp_is_utc(
+        self,
+    ) -> None:
+        record = PerformanceRecord(
+            technique_name="t",
+            technique_version="0.1.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.7,
+        )
+        assert record.analysis_timestamp.tzinfo is not None
+
+    def test_performance_record_load_coerces_naive_to_utc(self) -> None:
+        """Legacy records with naive ISO strings load as UTC-aware."""
+        record = PerformanceRecord(
+            technique_name="t",
+            technique_version="0.1.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.7,
+            analysis_timestamp="2026-01-01T00:00:00",  # naive ISO string
+            exit_timestamp="2026-01-05T00:00:00",  # naive ISO string
+        )
+        assert record.analysis_timestamp.tzinfo is not None
+        assert record.exit_timestamp is not None
+        assert record.exit_timestamp.tzinfo is not None
+        # Naive treated as UTC.
+        assert record.analysis_timestamp == datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def test_trade_history_default_entry_time_is_utc(self) -> None:
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+        )
+        assert trade.entry_time.tzinfo is not None
+
+    def test_trade_history_load_coerces_naive_entry_exit_to_utc(self) -> None:
+        trade = TradeHistory(
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            entry_time="2026-01-01T00:00:00",  # naive
+            exit_time="2026-01-02T00:00:00",  # naive
+        )
+        assert trade.entry_time.tzinfo is not None
+        assert trade.exit_time is not None
+        assert trade.exit_time.tzinfo is not None
+
+    def test_get_trades_by_date_range_tolerates_naive_bounds(
+        self, tmp_path: Path
+    ) -> None:
+        """Naive ``start`` / ``end`` are coerced to UTC at the boundary."""
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        # Naive bounds — must not raise.
+        trades = tracker.get_trades_by_date_range(
+            start=datetime(2020, 1, 1),
+            end=datetime(2030, 1, 1),
+            mode="paper",
+        )
+        assert len(trades) == 1
+
+    def test_close_trade_writes_utc_aware_exit_time(self, tmp_path: Path) -> None:
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        opened = tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+        closed = tracker.close_trade(
+            trade_id=opened.id,
+            exit_price=Decimal("51000"),
+        )
+        assert closed is not None
+        assert closed.exit_time is not None
+        assert closed.exit_time.tzinfo is not None

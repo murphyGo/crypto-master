@@ -414,8 +414,10 @@ class TestAnalysisResult:
         assert result.risk_reward_ratio is None
 
     def test_timestamp_defaults_to_now(self) -> None:
-        """Test that timestamp defaults to current time."""
-        before = datetime.now()
+        """Test that timestamp defaults to current UTC time (Phase 21.2)."""
+        from datetime import timezone
+
+        before = datetime.now(tz=timezone.utc)
         result = AnalysisResult(
             signal="neutral",
             confidence=0.5,
@@ -424,7 +426,8 @@ class TestAnalysisResult:
             take_profit=Decimal("52000"),
             reasoning="Test",
         )
-        after = datetime.now()
+        after = datetime.now(tz=timezone.utc)
+        assert result.timestamp.tzinfo is not None
         assert before <= result.timestamp <= after
 
 

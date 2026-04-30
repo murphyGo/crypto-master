@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -243,8 +243,11 @@ def test_trend_orders_by_timestamp_and_cumsums() -> None:
 
 def test_trend_uses_exit_timestamp_when_available() -> None:
     """The trend axis should reflect when the trade closed, not when it was analyzed."""
-    analysis = datetime(2026, 1, 1)
-    exit_at = datetime(2026, 1, 5)
+    # Phase 21.2: PerformanceRecord timestamps are UTC-aware via the
+    # field validator. Pass aware fixtures so the dataframe equality
+    # holds against the validator's coerced output.
+    analysis = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    exit_at = datetime(2026, 1, 5, tzinfo=timezone.utc)
     rec = make_record(
         analysis_at=analysis,
         exit_at=exit_at,
@@ -258,7 +261,7 @@ def test_trend_uses_exit_timestamp_when_available() -> None:
 
 def test_trend_falls_back_to_analysis_timestamp_when_no_exit() -> None:
     """Backstop: a closed-but-no-exit-time record (test fixture) still plots."""
-    analysis = datetime(2026, 1, 1)
+    analysis = datetime(2026, 1, 1, tzinfo=timezone.utc)
     rec = make_record(
         analysis_at=analysis,
         exit_at=None,

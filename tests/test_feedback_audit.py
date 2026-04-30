@@ -3,25 +3,28 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from src.config import reload_settings
+from src.feedback import audit as audit_module
 from src.feedback.audit import AuditEvent, AuditEventType, AuditLog
 from src.runtime import jsonl_rotator
 
 
 def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
-    """Pin ``datetime.now()`` inside the rotator module."""
+    """Pin ``now_utc()`` for both the rotator and the audit-event model.
 
-    class _DT(datetime):
-        @classmethod
-        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
-            return when
-
-    monkeypatch.setattr(jsonl_rotator, "datetime", _DT)
+    Phase 21.2: write-time wall-clock comes from ``now_utc()`` in two
+    spots — the rotator's active-month token and ``AuditEvent``'s
+    default ``timestamp`` factory. Patching both keeps tests
+    deterministic across the boundary.
+    """
+    fixed = when if when.tzinfo is not None else when.replace(tzinfo=timezone.utc)
+    monkeypatch.setattr(jsonl_rotator, "now_utc", lambda: fixed)
+    monkeypatch.setattr(audit_module, "now_utc", lambda: fixed)
 
 
 def make_event(
@@ -179,7 +182,14 @@ def test_rotator_integration_merges_across_months(
 
 def test_default_timestamp_is_set(tmp_path: Path) -> None:
     log = AuditLog(path=tmp_path / "audit.jsonl")
-    before = datetime.now()
+    before = datetime.now(tz=timezone.utc)
     log.append(make_event())
     history = log.read_all()
-    assert before <= history[0].timestamp
+    # Phase 21.2: AuditEvent.timestamp is UTC-aware via ``now_utc``;
+    # after a JSONL round-trip Pydantic returns its own zero-offset
+    # tzinfo (not the ``timezone.utc`` singleton), so assert equality
+    # via ``utcoffset`` rather than identity.
+    ts = history[0].timestamp
+    assert ts.tzinfo is not None
+    assert ts.utcoffset() == timezone.utc.utcoffset(None)
+    assert before <= ts

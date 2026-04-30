@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from src.config import reload_settings
-from src.runtime import jsonl_rotator
+from src.runtime import activity_log, jsonl_rotator
 from src.runtime.activity_log import (
     ActivityEvent,
     ActivityEventType,
@@ -17,14 +17,17 @@ from src.runtime.activity_log import (
 
 
 def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
-    """Pin ``datetime.now()`` inside the rotator module."""
+    """Pin ``now_utc()`` for both the rotator and the activity-log models.
 
-    class _DT(datetime):
-        @classmethod
-        def now(cls, tz: object = None) -> datetime:  # type: ignore[override]
-            return when
+    Phase 21.2: write-time wall-clock comes from ``now_utc()`` in two
+    spots — the rotator's active-month token and ``ActivityEvent``'s
+    default ``timestamp`` factory. Patching both keeps tests
+    deterministic across the boundary.
+    """
+    fixed = when if when.tzinfo is not None else when.replace(tzinfo=timezone.utc)
+    monkeypatch.setattr(jsonl_rotator, "now_utc", lambda: fixed)
+    monkeypatch.setattr(activity_log, "now_utc", lambda: fixed)
 
-    monkeypatch.setattr(jsonl_rotator, "datetime", _DT)
 
 # =============================================================================
 # Append + read round-trip

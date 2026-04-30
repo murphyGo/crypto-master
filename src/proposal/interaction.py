@@ -27,7 +27,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.proposal.interaction")
 
@@ -282,7 +283,17 @@ class ProposalHistory:
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Skipping unreadable proposal file {path}: {e}")
 
-        records.sort(key=lambda r: r.proposal.created_at)
+        # DEBT-025 (Phase 21.2): legacy proposals on disk may carry
+        # naive ``created_at`` while new ones (post-21.2) are UTC-aware.
+        # Coerce to UTC at the sort key so aware-vs-naive comparisons
+        # don't raise ``TypeError``.
+        def _sort_key(r: ProposalRecord) -> datetime:
+            ts = r.proposal.created_at
+            if ts.tzinfo is None:
+                return ts.replace(tzinfo=timezone.utc)
+            return ts
+
+        records.sort(key=_sort_key)
 
         if decision is not None:
             wanted = (
@@ -319,7 +330,7 @@ class ProposalHistory:
             update={
                 "trade_id": trade_id,
                 "outcome_pnl_percent": pnl_percent,
-                "outcome_recorded_at": datetime.now(),
+                "outcome_recorded_at": now_utc(),
             }
         )
         self.save(updated)
@@ -393,9 +404,11 @@ class ProposalHistory:
         nothing.
 
         Args:
-            now: Wall-clock reference. Defaults to ``datetime.now()``.
+            now: Wall-clock reference. Defaults to ``now_utc()``.
                 Tests pass a fixed datetime to make the cutoff
-                deterministic.
+                deterministic. Naive inputs are coerced to UTC so the
+                comparison against on-disk records (which may carry
+                aware timestamps post-Phase 21.2) doesn't raise.
             retention_months: Window in months. Defaults to
                 ``Settings.log_retention_months``.
 
@@ -407,7 +420,12 @@ class ProposalHistory:
             return []
 
         if now is None:
-            now = datetime.now()
+            now = now_utc()
+        elif now.tzinfo is None:
+            # DEBT-025 (Phase 21.2): tolerate test callers that still
+            # pass naive datetimes; treat them as UTC so the cutoff
+            # comparison stays aware-vs-aware.
+            now = now.replace(tzinfo=timezone.utc)
         if retention_months is None:
             retention_months = get_settings().log_retention_months
         cutoff = now - timedelta(days=30 * retention_months)
@@ -424,6 +442,12 @@ class ProposalHistory:
                 continue
 
             created_at = record.proposal.created_at
+            # DEBT-025 (Phase 21.2): legacy proposals on disk carry
+            # naive timestamps; coerce to UTC at the read boundary so
+            # the cutoff comparison stays aware-vs-aware regardless of
+            # when the record was originally written.
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
             if created_at >= cutoff:
                 continue
 
@@ -504,7 +528,7 @@ class ProposalInteraction:
         record = ProposalRecord(
             proposal=proposal,
             decision=decision,
-            decision_at=datetime.now(),
+            decision_at=now_utc(),
             actor=actor,
             rejection_reason=rejection_reason,
         )

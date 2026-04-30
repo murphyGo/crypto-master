@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from email.message import EmailMessage
 from pathlib import Path
@@ -382,8 +382,10 @@ def test_notification_default_id_is_unique() -> None:
 
 
 def test_notification_created_at_default_recent() -> None:
+    """Phase 21.2: Notification.created_at is UTC-aware via ``now_utc``."""
     n = make_notification()
-    delta = datetime.now() - n.created_at
+    assert n.created_at.tzinfo is not None
+    delta = datetime.now(tz=timezone.utc) - n.created_at
     assert delta.total_seconds() < 5
 
 
@@ -512,9 +514,7 @@ async def test_slack_http_failure_does_not_crash_dispatch(
             fp=None,
         )
 
-    monkeypatch.setattr(
-        "src.proposal.notification.urllib.request.urlopen", _raise_500
-    )
+    monkeypatch.setattr("src.proposal.notification.urllib.request.urlopen", _raise_500)
 
     slack = SlackNotifier(WEBHOOK_URL)
     good = RecordingNotifier()
@@ -679,9 +679,7 @@ async def test_telegram_http_failure_does_not_crash_dispatch(
             fp=None,
         )
 
-    monkeypatch.setattr(
-        "src.proposal.notification.urllib.request.urlopen", _raise_500
-    )
+    monkeypatch.setattr("src.proposal.notification.urllib.request.urlopen", _raise_500)
 
     telegram = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
     good = RecordingNotifier()
@@ -729,9 +727,7 @@ async def test_telegram_notifier_does_not_log_secrets(
 
 def test_telegram_notifier_uses_configured_timeout() -> None:
     """The constructor's timeout flows into the urllib call."""
-    notifier = TelegramNotifier(
-        TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, timeout=2.5
-    )
+    notifier = TelegramNotifier(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, timeout=2.5)
     assert notifier.timeout == 2.5
 
 
@@ -903,9 +899,7 @@ async def test_email_smtp_failure_does_not_crash_dispatch(
     def _raising_smtp(*args: object, **kwargs: object) -> _FakeSMTP:
         raise _smtplib_real.SMTPException("connection refused")
 
-    monkeypatch.setattr(
-        "src.proposal.notification.smtplib.SMTP", _raising_smtp
-    )
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _raising_smtp)
 
     email_notifier = _make_email_notifier()
     good = RecordingNotifier()
@@ -981,18 +975,12 @@ async def test_email_notifier_uses_smtp_ssl_when_flag_set(
     # Patch ``SMTP_SSL`` for the SSL path; also patch ``SMTP`` to a
     # raising stub so the test fails loudly if the wrong constructor
     # is selected.
-    monkeypatch.setattr(
-        "src.proposal.notification.smtplib.SMTP_SSL", _FakeSMTP
-    )
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP_SSL", _FakeSMTP)
 
     def _wrong_constructor(*args: object, **kwargs: object) -> _FakeSMTP:
-        raise AssertionError(
-            "smtplib.SMTP must not be called when use_ssl=True"
-        )
+        raise AssertionError("smtplib.SMTP must not be called when use_ssl=True")
 
-    monkeypatch.setattr(
-        "src.proposal.notification.smtplib.SMTP", _wrong_constructor
-    )
+    monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _wrong_constructor)
 
     notifier = EmailNotifier(
         host=EMAIL_SMTP_HOST,
@@ -1030,9 +1018,7 @@ async def test_email_notifier_uses_starttls_when_flag_unset(
     monkeypatch.setattr("src.proposal.notification.smtplib.SMTP", _FakeSMTP)
 
     def _wrong_constructor(*args: object, **kwargs: object) -> _FakeSMTP:
-        raise AssertionError(
-            "smtplib.SMTP_SSL must not be called when use_ssl=False"
-        )
+        raise AssertionError("smtplib.SMTP_SSL must not be called when use_ssl=False")
 
     monkeypatch.setattr(
         "src.proposal.notification.smtplib.SMTP_SSL", _wrong_constructor

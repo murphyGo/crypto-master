@@ -37,7 +37,6 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -61,6 +60,7 @@ from src.strategy.performance import (
     TradeHistory,
     TradeOutcome,
 )
+from src.utils.time import now_utc
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -646,7 +646,7 @@ class TradingEngine:
                 update={
                     "decision": ProposalDecision.REJECTED.value,
                     "rejection_reason": reason,
-                    "decision_at": datetime.now(),
+                    "decision_at": now_utc(),
                 }
             )
             self.proposal_history.save(updated)
@@ -782,9 +782,7 @@ class TradingEngine:
     ) -> None:
         """Log a closed trade and write realized P&L back to its proposal."""
         proposal_record = self._find_proposal_record_for_trade(trade.id)
-        proposal_id = (
-            proposal_record.proposal.proposal_id if proposal_record else None
-        )
+        proposal_id = proposal_record.proposal.proposal_id if proposal_record else None
         pnl_percent = trade.pnl_percent if trade.pnl_percent is not None else 0.0
         if proposal_id is not None:
             self.proposal_history.attach_outcome(
@@ -879,9 +877,7 @@ class TradingEngine:
             return TradeOutcome.LOSS
         return TradeOutcome.BREAKEVEN
 
-    def _find_proposal_record_for_trade(
-        self, trade_id: str
-    ) -> ProposalRecord | None:
+    def _find_proposal_record_for_trade(self, trade_id: str) -> ProposalRecord | None:
         """Look up the full ``ProposalRecord`` that owns a given trade id.
 
         ``ProposalHistory`` stores ``trade_id`` on every record; we

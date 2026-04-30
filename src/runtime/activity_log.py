@@ -30,11 +30,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.config import get_settings
 from src.logger import get_logger
 from src.runtime.jsonl_rotator import JsonlRotator
+from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.runtime.activity_log")
 
@@ -90,8 +91,10 @@ class ActivityEvent(BaseModel):
     """A single activity log entry.
 
     Attributes:
-        timestamp: When the event happened (UTC-naive ``datetime.now``
-            to match the rest of this codebase).
+        timestamp: When the event happened (UTC-aware ``now_utc()``
+            per Phase 21.2). Legacy on-disk records may carry naive
+            timestamps; readers that compare timestamps must coerce
+            to UTC at the read boundary.
         event_type: One of :class:`ActivityEventType`.
         message: Short human-readable summary — what shows up in the
             dashboard's activity timeline.
@@ -103,13 +106,26 @@ class ActivityEvent(BaseModel):
             (startup, shutdown).
     """
 
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_utc)
     event_type: ActivityEventType
     message: str = ""
     details: dict[str, Any] = Field(default_factory=dict)
     cycle_id: str | None = None
 
     model_config = {"use_enum_values": True}
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def _coerce_timestamp_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
+
+        Activity events written before the 21.2 sweep persist naive
+        timestamps; mixing them with new aware timestamps in
+        dashboard sorts raises ``TypeError``. ``ensure_utc`` makes
+        every loaded ``ActivityEvent`` UTC-aware regardless of the
+        on-disk shape.
+        """
+        return ensure_utc(value)
 
 
 class ActivityLog:
@@ -160,9 +176,7 @@ class ActivityLog:
             # off the rotator base, which is the same path with any
             # ``.jsonl`` suffix removed.
             self.path = path
-            base = (
-                path.with_suffix("") if path.suffix == ".jsonl" else path
-            )
+            base = path.with_suffix("") if path.suffix == ".jsonl" else path
         else:
             root = data_dir if data_dir is not None else get_settings().data_dir
             base = root / "runtime" / "activity"

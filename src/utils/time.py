@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-__all__ = ["from_unix_ms", "now_utc"]
+__all__ = ["ensure_utc", "from_unix_ms", "now_utc"]
 
 
 def from_unix_ms(ms: int | float) -> datetime:
@@ -63,3 +63,31 @@ def now_utc() -> datetime:
         ``datetime`` with ``tzinfo=timezone.utc``.
     """
     return datetime.now(tz=timezone.utc)
+
+
+def ensure_utc(value: datetime) -> datetime:
+    """Coerce a ``datetime`` to UTC-aware, treating naive inputs as UTC.
+
+    Phase 21.2 read-boundary helper: legacy records persisted before
+    the 21.x sweep carry naive ``datetime`` values. Loading them back
+    into a Pydantic model that participates in aware-vs-aware
+    comparisons (sort, ``min``/``max``, retention cutoff, JSONL merge)
+    raises ``TypeError`` on the first comparison. This helper is
+    invoked from ``field_validator`` hooks on those models so the
+    naive→aware coercion happens once, at the read boundary, before
+    any comparison.
+
+    Aware inputs are passed through unchanged; naive inputs gain
+    ``tzinfo=timezone.utc`` (the project's project-wide convention
+    that all persisted datetimes originate from UTC sources).
+
+    Args:
+        value: A ``datetime`` (naive or aware).
+
+    Returns:
+        ``datetime`` with ``tzinfo`` set to UTC if previously naive,
+        otherwise the input unchanged.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value

@@ -1,6 +1,6 @@
 """Tests for the portfolio management module."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -90,10 +90,11 @@ class TestAssetSnapshot:
     """Tests for the AssetSnapshot model."""
 
     def test_default_timestamp(self) -> None:
-        """Timestamp defaults to now."""
-        before = datetime.now()
+        """Timestamp defaults to UTC-aware now (Phase 21.2)."""
+        before = datetime.now(tz=timezone.utc)
         snap = AssetSnapshot(mode="paper", quote_currency="USDT")
-        after = datetime.now()
+        after = datetime.now(tz=timezone.utc)
+        assert snap.timestamp.tzinfo is not None
         assert before <= snap.timestamp <= after
 
     def test_balances_coercion(self) -> None:

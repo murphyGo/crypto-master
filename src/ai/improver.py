@@ -16,7 +16,6 @@ Related Requirements:
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -28,6 +27,7 @@ from src.ai.exceptions import ClaudeParseError
 from src.logger import get_logger
 from src.strategy.base import TechniqueInfo
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.ai.improver")
 
@@ -257,8 +257,7 @@ class StrategyImprover:
             path = self._save(generated)
             generated = generated.model_copy(update={"saved_path": path})
             logger.info(
-                f"Saved generated technique '{generated.name}' ({kind}) "
-                f"to {path}"
+                f"Saved generated technique '{generated.name}' ({kind}) " f"to {path}"
             )
         return generated
 
@@ -279,9 +278,7 @@ class StrategyImprover:
             content = match.group(1).strip()
 
         if not content:
-            raise GeneratedTechniqueError(
-                "Claude returned no technique content"
-            )
+            raise GeneratedTechniqueError("Claude returned no technique content")
 
         fm = self._parse_frontmatter(content)
         name = str(fm.get("name") or fallback_name)
@@ -331,7 +328,7 @@ class StrategyImprover:
         alphanumerics, hyphens, and underscores.
         """
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", name).strip("_") or "technique"
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = now_utc().strftime("%Y%m%d_%H%M%S")
         return f"{slug}_{timestamp}.md"
 
     def _save(self, generated: GeneratedTechnique) -> Path:
@@ -440,13 +437,13 @@ class StrategyImprover:
             "`---` lines and containing at minimum:\n"
             "- name: short snake_case identifier\n"
             "- version: semantic version string\n"
-            '- description: single line of description\n'
+            "- description: single line of description\n"
             '- technique_type: either "prompt" or "code"\n'
             "- hypothesis: ONE sentence stating the specific market "
             "inefficiency or behavior this technique exploits, phrased "
-            "so it could be falsified by data (e.g. \"funding rate "
+            'so it could be falsified by data (e.g. "funding rate '
             "above the 95th percentile predicts a mean-reverting move "
-            "within 8 hours\"). This is mandatory — a technique with "
+            'within 8 hours"). This is mandatory — a technique with '
             "no falsifiable hypothesis will be rejected.\n"
             "\nAfter the frontmatter, include the prompt/logic body. "
             "Do not wrap it in additional commentary."
@@ -471,8 +468,10 @@ class StrategyImprover:
             f"- Worst trade P&L %: {performance.worst_trade_pnl:.2f}"
         )
 
-        records_block = self._format_records(records[-10:]) if records else (
-            "(no detailed records supplied)"
+        records_block = (
+            self._format_records(records[-10:])
+            if records
+            else ("(no detailed records supplied)")
         )
 
         suggested_name = f"{technique.name}_v2"
@@ -498,9 +497,9 @@ class StrategyImprover:
             "steps in your reply (inside the markdown body, as a "
             "## Failure Analysis section at the top):\n"
             "1. Identify 2-3 SPECIFIC failure modes visible in the "
-            "losing trades (e.g. \"entered counter-trend during strong "
-            "momentum\", \"stops too tight relative to ATR\", "
-            "\"signal fires equally in trending and ranging regimes\").\n"
+            'losing trades (e.g. "entered counter-trend during strong '
+            'momentum", "stops too tight relative to ATR", '
+            '"signal fires equally in trending and ranging regimes").\n'
             "2. For each failure mode, state the structural reason it "
             "happens — not just the symptom.\n"
             "3. Propose ONE targeted change per failure mode. Avoid "
@@ -508,26 +507,23 @@ class StrategyImprover:
             "one principled rule per problem.\n\n"
             "## Hard Constraints\n"
             "- Do NOT add lookback-specific thresholds tuned to the "
-            "exact trades shown (e.g. \"avoid trading on Tuesdays\" "
+            'exact trades shown (e.g. "avoid trading on Tuesdays" '
             "because two losses happened on a Tuesday).\n"
             "- Do NOT add more than 2 new conditions total. Simpler "
             "rules generalize better.\n"
             "- Every new rule must be justifiable from a market-"
-            "structure argument, not just \"it would have avoided the "
-            "losses above.\"\n"
+            'structure argument, not just "it would have avoided the '
+            'losses above."\n'
             "- The hypothesis in frontmatter must reflect what the "
             "REVISED technique exploits, not the original.\n\n"
-            f"Use name=\"{suggested_name}\" (or similar) and bump the "
-            "version above the original.\n\n"
-            + self._output_format_instructions()
+            f'Use name="{suggested_name}" (or similar) and bump the '
+            "version above the original.\n\n" + self._output_format_instructions()
         )
 
     def _build_new_idea_prompt(self, context: str) -> str:
         """Construct the new-idea prompt (FR-023)."""
         context_line = (
-            f"Context / steering: {context.strip()}\n\n"
-            if context.strip()
-            else ""
+            f"Context / steering: {context.strip()}\n\n" if context.strip() else ""
         )
         return (
             "You are a quantitative trading strategy engineer "
@@ -556,8 +552,8 @@ class StrategyImprover:
             "## What to AVOID\n"
             "- Generic indicator mashups (RSI + MACD + Bollinger, etc.) "
             "with no underlying market-structure reason.\n"
-            "- Pattern-recognition heuristics (\"head and shoulders\", "
-            "\"triangle breakout\") without a quantified edge.\n"
+            '- Pattern-recognition heuristics ("head and shoulders", '
+            '"triangle breakout") without a quantified edge.\n'
             "- More than 3 conditions for entry — complexity is a "
             "red flag for overfitting risk.\n"
             "- Hypotheses you cannot describe a falsifying experiment "
@@ -604,7 +600,7 @@ class StrategyImprover:
             "(e.g. it's a generic indicator mashup), still produce "
             "the technique faithfully but say so honestly in a "
             "## Caveats section at the end of the body, naming the "
-            "specific concern. Do not silently \"fix\" their idea.\n\n"
+            'specific concern. Do not silently "fix" their idea.\n\n'
             "## Constraints\n"
             "- Do not add filters or conditions the user did not ask "
             "for, beyond the minimum needed for safe execution "

@@ -1,6 +1,6 @@
 """Tests for the strategy base classes and exceptions."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -190,14 +190,16 @@ class TestTechniqueInfo:
 
     def test_created_at_defaults_to_now(self) -> None:
         """Test created_at defaults to current time."""
-        before = datetime.now()
+        before = datetime.now(tz=timezone.utc)
         info = TechniqueInfo(
             name="test",
             version="1.0.0",
             description="Test",
             technique_type="code",
         )
-        after = datetime.now()
+        after = datetime.now(tz=timezone.utc)
+        # Phase 21.2: TechniqueInfo.created_at is now UTC-aware.
+        assert info.created_at.tzinfo is not None
         assert before <= info.created_at <= after
 
 

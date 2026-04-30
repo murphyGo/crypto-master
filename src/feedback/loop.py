@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.ai.improver import GeneratedTechnique, StrategyImprover
 from src.backtest.analyzer import PerformanceAnalyzer
@@ -55,6 +55,7 @@ from src.strategy.base import TechniqueInfo
 from src.strategy.loader import load_strategy
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.trading.profiles import TradingProfile
+from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.feedback.loop")
 
@@ -125,10 +126,22 @@ class CandidateRecord(BaseModel):
     robustness_summary: str | None = None
     failed_gates: list[str] = Field(default_factory=list)
     decision_reason: str = ""
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_utc)
+    updated_at: datetime = Field(default_factory=now_utc)
 
     model_config = ConfigDict(use_enum_values=True)
+
+    @field_validator("created_at", "updated_at", mode="after")
+    @classmethod
+    def _coerce_timestamps_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
+
+        Candidate state files written before the 21.2 sweep persist
+        naive timestamps; the dashboard sorts pending candidates by
+        ``updated_at``, which mixes naive and aware after a partial
+        rollout. ``ensure_utc`` makes the loaded record uniform.
+        """
+        return ensure_utc(value)
 
 
 # =============================================================================
@@ -364,7 +377,7 @@ class FeedbackLoop:
                 "status": LoopStatus.PROMOTED,
                 "source_path": new_path,
                 "decision_reason": f"Approved by {approver}",
-                "updated_at": datetime.now(),
+                "updated_at": now_utc(),
             }
         )
         self.save_state(record)
@@ -401,7 +414,7 @@ class FeedbackLoop:
             update={
                 "status": LoopStatus.DISCARDED,
                 "decision_reason": f"Rejected by {approver}: {reason}",
-                "updated_at": datetime.now(),
+                "updated_at": now_utc(),
             }
         )
         self.save_state(record)
@@ -528,7 +541,7 @@ class FeedbackLoop:
                 update={
                     "status": LoopStatus.ERRORED,
                     "decision_reason": f"Errored: {exc!s}",
-                    "updated_at": datetime.now(),
+                    "updated_at": now_utc(),
                 }
             )
             self.save_state(errored)
@@ -548,7 +561,7 @@ class FeedbackLoop:
             update={
                 "status": LoopStatus.BACKTESTED,
                 "backtest_run_id": backtest.run_id,
-                "updated_at": datetime.now(),
+                "updated_at": now_utc(),
             }
         )
         self.save_state(record)
@@ -598,7 +611,7 @@ class FeedbackLoop:
                     "decision_reason": (
                         "Robustness gate PASSED; awaiting user approval"
                     ),
-                    "updated_at": datetime.now(),
+                    "updated_at": now_utc(),
                 }
             )
             self.save_state(updated)
@@ -614,7 +627,7 @@ class FeedbackLoop:
                 "decision_reason": (
                     f"Discarded: gate FAILED on {', '.join(failed) or 'unknown'}"
                 ),
-                "updated_at": datetime.now(),
+                "updated_at": now_utc(),
             }
         )
         self.save_state(updated)
@@ -665,7 +678,7 @@ class FeedbackLoop:
         frontmatter) on the off chance a generated candidate omitted it.
         """
         match = _FRONTMATTER_PATTERN.match(content)
-        now_iso = datetime.now().isoformat()
+        now_iso = now_utc().isoformat()
         if match is None:
             new_frontmatter = (
                 "---\n" f"status: active\n" f"updated_at: '{now_iso}'\n" "---\n"

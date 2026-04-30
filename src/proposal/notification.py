@@ -44,6 +44,7 @@ from pydantic import BaseModel, Field
 from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.proposal.notification")
 
@@ -86,7 +87,7 @@ class Notification(BaseModel):
     """
 
     notification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=now_utc)
     level: NotificationLevel
     proposal: Proposal
     message: str

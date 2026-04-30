@@ -26,6 +26,7 @@ from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult
 from src.strategy.base import TechniqueInfo
+from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.strategy.performance")
@@ -84,7 +85,7 @@ class PerformanceRecord(BaseModel):
     stop_loss: Decimal
     take_profit: Decimal
     confidence: float = Field(ge=0.0, le=1.0)
-    analysis_timestamp: datetime = Field(default_factory=datetime.now)
+    analysis_timestamp: datetime = Field(default_factory=now_utc)
     outcome: TradeOutcome = TradeOutcome.PENDING
     exit_price: Decimal | None = None
     exit_timestamp: datetime | None = None
@@ -135,6 +136,20 @@ class PerformanceRecord(BaseModel):
         if isinstance(v, Decimal):
             return v
         return Decimal(str(v))
+
+    @field_validator("analysis_timestamp", mode="after")
+    @classmethod
+    def _coerce_analysis_timestamp_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
+        return ensure_utc(value)
+
+    @field_validator("exit_timestamp", mode="after")
+    @classmethod
+    def _coerce_exit_timestamp_to_utc(cls, value: datetime | None) -> datetime | None:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
+        if value is None:
+            return None
+        return ensure_utc(value)
 
     def calculate_pnl(self) -> float | None:
         """Calculate P&L percentage based on outcome.
@@ -191,7 +206,7 @@ class TechniquePerformance(BaseModel):
     total_pnl_percent: float = 0.0
     best_trade_pnl: float = 0.0
     worst_trade_pnl: float = 0.0
-    last_updated: datetime = Field(default_factory=datetime.now)
+    last_updated: datetime = Field(default_factory=now_utc)
 
     @classmethod
     def from_records(
@@ -244,7 +259,7 @@ class TechniquePerformance(BaseModel):
             total_pnl_percent=total_pnl,
             best_trade_pnl=best_pnl,
             worst_trade_pnl=worst_pnl,
-            last_updated=datetime.now(),
+            last_updated=now_utc(),
         )
 
 
@@ -377,7 +392,7 @@ class PerformanceTracker:
             if record.id == record_id:
                 record.outcome = outcome
                 record.exit_price = exit_price
-                record.exit_timestamp = datetime.now()
+                record.exit_timestamp = now_utc()
                 record.pnl_percent = record.calculate_pnl()
                 records[i] = record
                 updated_record = record
@@ -661,6 +676,13 @@ class PerformanceTracker:
             List of matching PerformanceRecords.
         """
         records = self.load_records(technique_name)
+        # DEBT-025 (Phase 21.2): records on disk are now UTC-aware;
+        # tolerate naive ``start`` / ``end`` from callers by coercing
+        # to UTC so aware-vs-naive comparison doesn't raise.
+        if start.tzinfo is None:
+            start = ensure_utc(start)
+        if end.tzinfo is None:
+            end = ensure_utc(end)
         return [r for r in records if start <= r.analysis_timestamp <= end]
 
     def list_techniques(self) -> list[str]:
@@ -751,7 +773,7 @@ class TradeHistory(BaseModel):
     # Entry details
     entry_price: Decimal
     entry_quantity: Decimal
-    entry_time: datetime = Field(default_factory=datetime.now)
+    entry_time: datetime = Field(default_factory=now_utc)
     entry_order_id: str | None = None
 
     # Exit details
@@ -799,6 +821,20 @@ class TradeHistory(BaseModel):
         if isinstance(v, Decimal):
             return v
         return Decimal(str(v))
+
+    @field_validator("entry_time", mode="after")
+    @classmethod
+    def _coerce_entry_time_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk entry timestamps to UTC (DEBT-025 / Phase 21.2)."""
+        return ensure_utc(value)
+
+    @field_validator("exit_time", mode="after")
+    @classmethod
+    def _coerce_exit_time_to_utc(cls, value: datetime | None) -> datetime | None:
+        """Coerce naive on-disk exit timestamps to UTC (DEBT-025 / Phase 21.2)."""
+        if value is None:
+            return None
+        return ensure_utc(value)
 
     def calculate_pnl(self) -> tuple[Decimal | None, float | None]:
         """Calculate P&L based on entry and exit.
@@ -963,7 +999,7 @@ class TradeHistoryTracker:
 
         trade.exit_price = exit_price
         trade.exit_quantity = exit_quantity or trade.entry_quantity
-        trade.exit_time = datetime.now()
+        trade.exit_time = now_utc()
         trade.exit_order_id = exit_order_id
         trade.fees = trade.fees + fees
         trade.close_reason = close_reason
@@ -999,7 +1035,7 @@ class TradeHistoryTracker:
             return None
 
         trade.status = "cancelled"
-        trade.exit_time = datetime.now()
+        trade.exit_time = now_utc()
 
         self._update_trade(trade)
         logger.info(f"Cancelled trade {trade_id}")
@@ -1168,6 +1204,13 @@ class TradeHistoryTracker:
             List of matching TradeHistory records.
         """
         trades = self.load_trades(mode)
+        # DEBT-025 (Phase 21.2): trades on disk are now UTC-aware
+        # (validator coerces); tolerate naive callers by treating
+        # naive ``start`` / ``end`` as UTC.
+        if start.tzinfo is None:
+            start = ensure_utc(start)
+        if end.tzinfo is None:
+            end = ensure_utc(end)
         return [t for t in trades if start <= t.entry_time <= end]
 
     def link_to_performance(

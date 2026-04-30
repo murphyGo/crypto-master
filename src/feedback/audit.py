@@ -33,11 +33,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.config import get_settings
 from src.logger import get_logger
 from src.runtime.jsonl_rotator import JsonlRotator
+from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.feedback.audit")
 
@@ -66,8 +67,10 @@ class AuditEvent(BaseModel):
     """A single audit log entry.
 
     Attributes:
-        timestamp: When the event happened (UTC-naive ``datetime.now``
-            to match the rest of this codebase).
+        timestamp: When the event happened (UTC-aware ``now_utc()``
+            per Phase 21.2). Legacy on-disk records may carry naive
+            timestamps; readers that compare timestamps must coerce
+            to UTC at the read boundary.
         event_type: One of ``AuditEventType``.
         candidate_id: UUID of the candidate this event belongs to.
         technique_name: Technique name at the time of the event.
@@ -79,7 +82,7 @@ class AuditEvent(BaseModel):
             paths, etc.
     """
 
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=now_utc)
     event_type: AuditEventType
     candidate_id: str
     technique_name: str
@@ -88,6 +91,19 @@ class AuditEvent(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"use_enum_values": True}
+
+    @field_validator("timestamp", mode="after")
+    @classmethod
+    def _coerce_timestamp_to_utc(cls, value: datetime) -> datetime:
+        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
+
+        Audit events written before the 21.2 sweep persist naive
+        timestamps; mixing them with new aware timestamps in
+        dashboard sorts raises ``TypeError``. ``ensure_utc`` makes
+        every loaded ``AuditEvent`` UTC-aware regardless of the
+        on-disk shape.
+        """
+        return ensure_utc(value)
 
 
 class AuditLog:
@@ -134,9 +150,7 @@ class AuditLog:
         """
         if path is not None:
             self.path = path
-            base = (
-                path.with_suffix("") if path.suffix == ".jsonl" else path
-            )
+            base = path.with_suffix("") if path.suffix == ".jsonl" else path
         else:
             root = data_dir if data_dir is not None else get_settings().data_dir
             base = root / "audit" / "feedback"
