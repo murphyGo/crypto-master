@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
+from src.utils.io import atomic_write_text
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.proposal.interaction")
@@ -217,8 +218,9 @@ class ProposalHistory:
     """JSON-per-proposal history under ``data/proposals/``.
 
     Same pattern as ``FeedbackLoop.save_state`` / ``load_state``:
-    one ``{proposal_id}.json`` file per record, written atomically via
-    ``Path.write_text`` after Pydantic serializes the whole record.
+    one ``{proposal_id}.json`` file per record, written via the
+    project-wide ``atomic_write_text`` helper after Pydantic
+    serializes the whole record (DEBT-028 / Phase 22.1).
 
     The directory is created lazily on first ``save``; tests should pass
     ``tmp_path`` so the real ``data/proposals/`` is left untouched.
@@ -242,7 +244,12 @@ class ProposalHistory:
         """Persist a record, overwriting any earlier snapshot."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
         path = self._path_for(record.proposal.proposal_id)
-        path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+        # DEBT-028 (Phase 22.1): the engine's stale-quote rejection
+        # path does load → model_copy → save against this same file
+        # in the same cycle that ``ProposalInteraction.present`` first
+        # wrote it; atomic write prevents a crash between the two
+        # writes from leaving a truncated record on disk.
+        atomic_write_text(path, record.model_dump_json(indent=2))
         logger.debug(
             f"Saved proposal record {record.proposal.proposal_id} "
             f"decision={record.decision} → {path}"

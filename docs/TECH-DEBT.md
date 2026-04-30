@@ -502,48 +502,6 @@ mode that defaults off.
 - 3-agent comprehensive audit 2026-04-30
 - `src/trading/paper.py:619,626`
 
-### DEBT-028: Persistence sites use non-atomic JSON write (load → mutate → save)
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 3.4 / 6.2 / 11.4 (origin); surfaced 2026-04-30 |
-| **Component** | `src/strategy/performance.py` + `src/trading/portfolio.py` + `src/proposal/history.py` + `src/runtime/engine.py` |
-
-**Description:**
-`TradeHistoryTracker`, `PortfolioTracker`, and `ProposalHistory` all
-follow a load → mutate → `Path.write_text(json.dumps(...))` shape
-(`src/strategy/performance.py:984-1000` is representative);
-concurrent writers can race on the same file, and a crash mid-write
-truncates the file (recoverable via re-fetch from the exchange for
-some surfaces, lossy for others). Phase 18.1's
-`_record_stale_quote_rejection` (`src/runtime/engine.py:653-659`)
-reproduces the same pattern at a new call site.
-
-**Impact:**
-Currently low frequency — single-engine deployment, no concurrent
-writers; crashes rare. Phase 19 (sub-account fan-out) materially
-raises the rate by introducing N writers per cycle against the
-same persistence files; Phase 19.2 lands before this debt is
-addressed and may surface the race in production.
-
-**Suggested Resolution:**
-Introduce a single helper `atomic_write_text(path: Path, text: str)`
-in `src/utils/io.py` that writes to `path.with_suffix(path.suffix +
-".tmp")` then `os.replace`s into the destination (atomic on POSIX
-+ Windows). Replace the 4 known call sites in one pass; pin the
-behaviour with a fault-injection test that crashes mid-write and
-asserts the destination file is either fully old or fully new
-(never partial).
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/strategy/performance.py:984-1000`
-- `src/runtime/engine.py:653-659`
-- `src/trading/portfolio.py` (snapshot writer)
-- `src/proposal/history.py` (record writer)
-
 ### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only
 
 | Field | Value |
@@ -1070,6 +1028,153 @@ Phase 25 (Snapshot-Pinned Reproducible Baselines):
 
 ---
 
+### DEBT-044: `FeedbackLoop.save_state` not migrated to `atomic_write_text`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 22.1 (origin); surfaced 2026-05-01 |
+| **Component** | `src/feedback/loop.py:444` (and ~9 callers post-`load_state`) |
+
+**Description:**
+`FeedbackLoop.save_state` (and any direct `Path.write_text(...)`
+in the same module) follows the same load → mutate → save shape as
+the five sites Phase 22.1 migrated, but it was outside the named
+scope of DEBT-028 (which enumerated `TradeHistoryTracker` /
+`PortfolioTracker` / `ProposalHistory` / `_record_stale_quote_
+rejection`). Senior-developer surfaced it during Phase 22.1
+implementation review as the obvious next-pass site — same shape,
+same risk, mechanical fix.
+
+**Impact:**
+Same risk profile as the migrated sites: crash-mid-write can
+truncate the feedback-loop state file, and concurrent writers
+(post Phase 19.2) can race. Currently low because the feedback
+loop is single-writer in single-engine mode.
+
+**Suggested Resolution:**
+Add `atomic_write_text(...)` call to `FeedbackLoop.save_state`
+and any other direct `write_text` in `src/feedback/loop.py`.
+Mechanical — same one-line shape as the five Phase 22.1
+migrations.
+
+**Related:**
+- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1)
+- DEBT-046 (concurrent-mutation loss — same caveat applies once
+  Phase 19.2 fan-out lands)
+- `src/feedback/loop.py:444`
+
+---
+
+### DEBT-045: `Backtester._save_result` single-write not atomic
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 22.1 (origin); surfaced 2026-05-01 |
+| **Component** | `src/backtest/engine.py:1057` |
+
+**Description:**
+`Backtester._save_result` writes a backtest-result JSON payload
+in a single `Path.write_text(...)` call (no load → mutate cycle).
+A crash during persistence still corrupts the file even though
+there is no race window. Out of Phase 22.1's named scope (which
+targeted load → mutate → save sites), but quant-trader-expert
+emphasised it during review as a small completeness item: the
+helper exists, the migration is one line, and a backtest run that
+crashes during result persistence is a real failure mode for
+long-running operator runs.
+
+**Impact:**
+Low — backtest results are reproducible by re-running the
+backtest. Atomicity prevents corruption of a finished result file
+if the process crashes mid-write (e.g. SIGTERM during shutdown,
+disk full).
+
+**Suggested Resolution:**
+Route `Backtester._save_result` through `atomic_write_text(...)`.
+One-line mechanical change.
+
+**Related:**
+- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1)
+- `src/backtest/engine.py:1057`
+
+---
+
+### DEBT-046: Atomic write does not protect against concurrent-mutation loss; Phase 19.2 prereq
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 22.1 (origin — caveat surfaced during atomic-write rollout); Phase 19.2 (consumer) |
+| **Component** | `src/utils/io.py` (helper itself); affects all 5 Phase 22.1 migrated sites |
+
+**Description:**
+`atomic_write_text(path, text)` (Phase 22.1, `src/utils/io.py`)
+resolves last-writer-wins durability — the destination file is
+either fully the prior contents or fully the new contents, never
+partial. It does **not** resolve concurrent-mutation loss: when
+two workers each do `data = json.loads(path.read_text());
+data.append(record); atomic_write_text(path, json.dumps(data))`
+in the same wall-clock window, both reads see the same prior
+state, both writes succeed atomically, and the loser's mutation is
+silently dropped — `os.replace(...)` overwrites the prior file
+with whichever write lands second.
+
+Single-engine deployment today is safe (one writer per file).
+Phase 19.2 sub-account fan-out introduces parallel workers per
+cycle against `data/performance/...`, `data/trades/...`,
+`data/portfolio/...`, and `data/proposals/...`; without per-file
+locking or per-account file partitioning, sub-account A's
+mutation can silently overwrite sub-account B's record. The
+durability guarantee Phase 22.1 ships is necessary but not
+sufficient.
+
+**Impact:**
+- **Hard prerequisite for Phase 19.2.** Without resolution,
+  19.2's sub-account fan-out can silently lose trade records,
+  performance updates, portfolio snapshots, and proposal
+  status changes under concurrent writes.
+- **Defensible single-engine today**: zero impact under the
+  current deployment shape; the caveat is dormant until 19.2
+  introduces parallel writers.
+- **Surface this on the Phase 19.2 spec page** so the planner
+  cites it as a prereq before 19.2 starts. (Cross-reference
+  added in `docs/development-plan.md` Phase 19.2 block.)
+
+**Suggested Resolution:**
+Two viable shapes; Phase 19.2 planner picks:
+- **Per-file lock helper layered over `atomic_write_text`**:
+  `with_file_lock(path)` context manager using `fcntl.flock` on
+  POSIX (advisory exclusive lock, blocks concurrent readers
+  doing load → mutate → save against the same path); helper
+  composes naturally with the existing atomic-write helper.
+  Trade-off: POSIX-only (Windows needs a separate path); blocks
+  on contention (latency penalty per cycle).
+- **Per-account file partitioning**: 19.2's path layout already
+  introduces a `{sub_account_id}` level (`data/performance/
+  {sub_account_id}/{technique}/`, etc.); making the partitioning
+  exhaustive (no shared cross-account file) eliminates the race
+  by construction. Trade-off: cross-account aggregation reads
+  fan out across N files (cheap); migration of pre-19.2
+  shared-file records to per-account partitions needs a
+  marker-file pattern (same shape as 19.1's
+  `migrate_legacy_paths`).
+
+**Related:**
+- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1; this
+  caveat is the "atomicity ≠ concurrency-safety" residual)
+- Phase 19.2 (`docs/development-plan.md` — Prerequisites line
+  added 2026-05-01 cites this DEBT)
+- Phase 22.1 (`docs/sessions/2026-05-01-phase-22.1-atomic-write-
+  helper.md` — caveat recorded in session log)
+- `src/utils/io.py` (helper site)
+
+---
+
 ### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
 
 | Field | Value |
@@ -1272,6 +1377,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Closed across Phase 21.1 (adapter read-side, 8 sites + helper module), 21.2 (write-side sweep, 12+ sites + 7 Pydantic UTC-coerce validators + 5 reader-boundary naive-tolerance shims), and 21.3 (stale-quote payload coherence — formal contract docstring + 3 regression tests pinning aware-on-write, cross-source aware math, and legacy-naive read tolerance). Every UTC-naive surface flagged in the 2026-04-30 audit is now closed. Phase 21.1: new `src/utils/time.py` with `from_unix_ms(ms) -> datetime` (`tz=UTC`) and `now_utc() -> datetime` wrapping `datetime.now(tz=UTC)`; 4 site swaps in `src/exchange/binance.py` (~lines 233, 273, 504, 506) and 4 in `src/exchange/bybit.py` (~lines 165, 202, 433-435); `JsonlRotator._coerce_timestamp` (read-side) UTC-normalised. Phase 21.2: new `ensure_utc(value)` helper added to `src/utils/time.py` (3-function module now); write-side `datetime.now()` swaps at 12+ sites across `src/runtime/jsonl_rotator.py:103` (the original 21.2 spec target), `src/runtime/engine.py` (multiple), `src/runtime/activity_log.py`, `src/feedback/loop.py` (~6 sites), `src/feedback/audit.py`, `src/proposal/interaction.py` (~3 sites), `src/proposal/engine.py`, `src/proposal/notification.py`, `src/strategy/performance.py` (~6 sites), `src/strategy/base.py`, `src/ai/improver.py:334`, `src/models.py`, `src/trading/portfolio.py`; Pydantic `field_validator(mode="after")` UTC-coerce hooks on 7 models / 9 fields (`ActivityEvent`, `AuditEvent`, `Proposal`, `CandidateRecord`, `AssetSnapshot`, `PerformanceRecord`×2, `TradeHistory`×2); reader-boundary naive-tolerance shims at 5 sites (`PortfolioTracker.load_snapshots`, `TradeHistoryTracker.get_trades_by_date_range`, `PerformanceTracker.get_records_by_date_range`, `ProposalHistory.purge_old`, `ProposalHistory.list_all` sort key). Phase 21.3: `_record_stale_quote_rejection` docstring extended with formal "Timestamp coherence contract (DEBT-025 / Phase 21.3)" section naming five UTC-aware sources (engine wall-clock, ticker candle, proposal entry, live price, persisted record); function body byte-identical below the new docstring section; 3 new regression tests in `tests/test_runtime_engine.py` (lines 992 / 1033 / 1082) pinning aware-on-write coherence, cross-source aware math (`decision_at - candle_ts`), and legacy-naive read tolerance. 1265 total tests passing across the chain. Reviewers ship-class throughout (21.1 🟢🟢, 21.2 🟢🟢, 21.3 🟢 quant + 🟡 qa with recorded out-of-scope linter-reformat note at `engine.py:436-440` not actioned per lead's standing guidance). Phase 21 cross-check: `docs/cross-checks/2026-05-01-phase-21-time-tz-hardening.md` (PASS, no gaps, no new debt). Session logs: `docs/sessions/2026-05-01-phase-21.1-utc-timestamp-helper.md`, `docs/sessions/2026-05-01-phase-21.2-utc-write-side-sweep.md`, `docs/sessions/2026-05-01-phase-21.3-and-phase-21-seal.md`. |
 
+### DEBT-028: Persistence sites use non-atomic JSON write (load → mutate → save) ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 22.1 introduced `src/utils/io.py::atomic_write_text(path: Path, text: str) -> None` — writes to `path.with_suffix(path.suffix + ".tmp")` with a uuid-suffixed tmp name (concurrent-writer-tolerant on the tmp side) then `os.replace(...)`s into the destination, with cleanup-on-exception so a raise mid-write leaves no orphan tmp file. Migrated 5 named load → mutate → save sites: `PerformanceTracker._save_records` (`src/strategy/performance.py:439`), `PerformanceTracker._update_summary` (`src/strategy/performance.py:494`), `TradeHistoryTracker._save_trades` (`src/strategy/performance.py:1077`), `PortfolioTracker._save_snapshots` (`src/trading/portfolio.py:407`), `ProposalHistory.save` (`src/proposal/interaction.py:245`). `RuntimeEngine._record_stale_quote_rejection` covered transitively via `ProposalHistory.save`; doc comment added at the call-site naming the transitive coverage. 15 module-level helper unit tests (happy path, tmp-file present after crash, last-writer-wins under threads, cleanup-on-exception); 4 site regression tests (one per migrated tracker — crash-mid-write preserves prior record on disk; threaded last-writer-wins). pytest 1265 → 1284 (+19); ruff / mypy / black clean. Both reviewers ship-class (qa 🟢, quant 🟢). **Plan-text correction noted**: the DEBT-028 description and the Phase 22.1 spec line both pointed at `src/proposal/history.py`, but `ProposalHistory` actually lives in `src/proposal/interaction.py`. Plan text corrected in-place by Phase 22.1 docs-auditor (`docs/development-plan.md` Phase 22.1 sub-task block). **Caveat — atomicity ≠ concurrency-safety**: `atomic_write_text` resolves crash-mid-write durability (destination is either fully old or fully new, never partial) but does **not** solve concurrent-mutation loss — two workers doing load → mutate → save in the same wall-clock window will each see the same prior state, each write atomically, and the loser's mutation is silently dropped. Single-engine deployment is safe (one writer per file); Phase 19.2 sub-account fan-out introduces parallel workers and requires additional per-file locking (e.g. `fcntl.flock`) or per-account file partitioning. Captured as **DEBT-046 (Medium, hard prereq for Phase 19.2)** with the resolution-shape options enumerated; cross-referenced on the Phase 19.2 spec page (`docs/development-plan.md` Prerequisites line). Two adjacent-scope follow-ups also registered: **DEBT-044** (Low — `FeedbackLoop.save_state` not migrated; same shape, mechanical) and **DEBT-045** (Low — `Backtester._save_result` single-write not atomic; helper exists, one-line route). Session log: `docs/sessions/2026-05-01-phase-22.1-atomic-write-helper.md`. |
+
 ### DEBT-024: Leverage applied twice in backtester / portfolio PnL math ✅
 
 | Field | Value |
@@ -1287,12 +1401,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 26 |
+| Total Active | 28 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 7 |
-| Low | 19 |
-| Resolved (All Time) | 17 |
+| Low | 21 |
+| Resolved (All Time) | 18 |
 
 ---
 
@@ -1363,3 +1477,7 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Updated | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.1 closed the adapter read-side (4 sites in `binance.py` + 4 in `bybit.py` routed through new `src/utils/time.py::from_unix_ms`) and the `JsonlRotator._coerce_timestamp` read-side. DEBT-025 remains Active: write-side `datetime.now()` sweep is Phase 21.2, stale-quote payload coherence is Phase 21.3. Status note appended to Active entry |
 | 2026-05-01 | Updated | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.2 closed the engine-side write-half: 12+ naive `datetime.now()` write-sites swept to `now_utc()` across runtime / feedback / proposal / strategy / ai / models / portfolio modules; Pydantic `field_validator(mode="after")` UTC-coerce hooks added on 7 models (9 timestamp fields: `ActivityEvent`, `AuditEvent`, `Proposal`, `CandidateRecord`, `AssetSnapshot`, `PerformanceRecord`×2, `TradeHistory`×2); reader-boundary naive-tolerance shims at 5 sites (`PortfolioTracker.load_snapshots`, `TradeHistoryTracker.get_trades_by_date_range`, `PerformanceTracker.get_records_by_date_range`, `ProposalHistory.purge_old`, `ProposalHistory.list_all` sort key); new `src/utils/time.py::ensure_utc(value)` helper. DEBT-025 remains Active: stale-quote payload coherence (Phase 21.3) is the only remaining surface. Status note rewritten on Active entry |
 | 2026-05-01 | Resolved | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.3 sealed stale-quote payload coherence (formal contract docstring on `_record_stale_quote_rejection` naming all 5 UTC-aware timestamp sources + 3 regression tests in `tests/test_runtime_engine.py` lines 992 / 1033 / 1082 pinning aware-on-write coherence, cross-source aware math, and legacy-naive read tolerance). Function body byte-identical below the new docstring section. Closes DEBT-025 fully across the 21.1 / 21.2 / 21.3 chain — every UTC-naive surface flagged in the 2026-04-30 audit is now closed. Phase 21 sealed; cross-check `docs/cross-checks/2026-05-01-phase-21-time-tz-hardening.md` PASS with no gaps and no new debt |
+| 2026-05-01 | Resolved | DEBT-028 Persistence sites use non-atomic JSON write — Phase 22.1 introduced `src/utils/io.py::atomic_write_text` (uuid-suffixed tmp + `os.replace` + cleanup-on-exception); 5 named sites migrated (`PerformanceTracker._save_records` / `_update_summary`, `TradeHistoryTracker._save_trades`, `PortfolioTracker._save_snapshots`, `ProposalHistory.save`); `_record_stale_quote_rejection` covered transitively via `ProposalHistory.save`. 15 helper unit tests + 4 site regression tests; pytest 1265 → 1284 (+19); reviewers 🟢🟢. Caveat: atomicity ≠ concurrency-safety — tracked as DEBT-046 (Medium, hard prereq for Phase 19.2). Plan-text correction noted (`src/proposal/history.py` → `src/proposal/interaction.py`) |
+| 2026-05-01 | Added | DEBT-044 `FeedbackLoop.save_state` not migrated to `atomic_write_text` (Low) — surfaced during Phase 22.1 senior-developer review; same load → mutate → save shape as the 5 migrated sites, out of Phase 22.1 named scope; mechanical one-line fix |
+| 2026-05-01 | Added | DEBT-045 `Backtester._save_result` single-write not atomic (Low) — surfaced during Phase 22.1 quant-trader-expert review; single-write (no load → mutate) but benefits from atomicity if backtest run crashes during persistence; helper exists, one-line route |
+| 2026-05-01 | Added | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 prereq (Medium) — surfaced during Phase 22.1 implementation as the durability-vs-concurrency caveat; `atomic_write_text` is last-writer-wins under concurrent load → mutate → save; **hard prereq for Phase 19.2 sub-account fan-out**; resolution shapes: per-file lock helper (`fcntl.flock`) layered over atomic-write OR per-account file partitioning (Phase 19.2 planner picks); cross-referenced in `docs/development-plan.md` Phase 19.2 Prerequisites line |

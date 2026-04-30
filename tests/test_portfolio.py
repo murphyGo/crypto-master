@@ -635,3 +635,46 @@ class TestEquityCurve:
     def test_delete_nonexistent_mode(self, portfolio_tracker: PortfolioTracker) -> None:
         """Deleting a mode with nothing stored returns False."""
         assert portfolio_tracker.delete_snapshots("paper") is False
+
+
+# =============================================================================
+# Phase 22.1 / DEBT-028 — atomic write regression
+# =============================================================================
+
+
+class TestAtomicSnapshotWrite:
+    """Crash mid-save leaves the previous snapshots file intact.
+
+    Pins the DEBT-028 fix at ``PortfolioTracker._save_snapshots``.
+    """
+
+    def test_record_snapshot_crash_preserves_prior_snapshots(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Seed with one snapshot so we have a "previous" version on disk.
+        portfolio_tracker.record_snapshot(
+            mode="paper",
+            quote_currency="USDT",
+            balances={"USDT": Decimal("10000")},
+        )
+
+        # Patch the helper to fail mid-save.
+        def boom(path: Path, text: str, **kwargs: object) -> None:
+            raise OSError("simulated mid-write crash")
+
+        monkeypatch.setattr("src.trading.portfolio.atomic_write_text", boom)
+
+        with pytest.raises(OSError, match="simulated mid-write crash"):
+            portfolio_tracker.record_snapshot(
+                mode="paper",
+                quote_currency="USDT",
+                balances={"USDT": Decimal("10500")},
+            )
+
+        # The seed snapshot is still readable; no truncation, no
+        # corruption, no half-written file.
+        snapshots = portfolio_tracker.load_snapshots("paper")
+        assert len(snapshots) == 1
+        assert snapshots[0].balances["USDT"] == Decimal("10000")

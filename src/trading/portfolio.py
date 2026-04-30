@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.config import get_settings
 from src.logger import get_logger
 from src.strategy.performance import TradeHistoryTracker
+from src.utils.io import atomic_write_text
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
 
@@ -404,8 +405,14 @@ class PortfolioTracker:
         """Write snapshots to the mode's storage file."""
         snapshots_path = self._get_snapshots_path(mode)
         data = [self._snapshot_to_dict(s) for s in snapshots]
-        with open(snapshots_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        # DEBT-028 (Phase 22.1): atomic write so a crash mid-save
+        # leaves the previous snapshot file intact rather than a
+        # truncated equity curve. Phase 19's sub-account fan-out
+        # multiplies concurrent writers per cycle against this file.
+        atomic_write_text(
+            snapshots_path,
+            json.dumps(data, indent=2),
+        )
 
     @staticmethod
     def _snapshot_to_dict(snapshot: AssetSnapshot) -> dict:

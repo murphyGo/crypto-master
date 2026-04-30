@@ -662,6 +662,11 @@ class TradingEngine:
         # Overwrite the record. ``ProposalInteraction.present`` saved
         # ACCEPTED; we replace it with REJECTED + the reason so the
         # canonical history reflects the final verdict.
+        # DEBT-028 (Phase 22.1): ``ProposalHistory.save`` routes through
+        # ``atomic_write_text``, so the load → model_copy → save
+        # sequence below leaves the previous (ACCEPTED) record intact
+        # if the rewrite crashes mid-save instead of producing a
+        # truncated file.
         try:
             existing = self.proposal_history.load(proposal.proposal_id)
             updated = existing.model_copy(

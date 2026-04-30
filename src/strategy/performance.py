@@ -26,6 +26,7 @@ from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult
 from src.strategy.base import TechniqueInfo
+from src.utils.io import atomic_write_text
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
 
@@ -436,8 +437,14 @@ class PerformanceTracker:
         records_path = self._get_records_path(technique_name)
         data = [self._record_to_dict(r) for r in records]
 
-        with open(records_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, default=str)
+        # DEBT-028 (Phase 22.1): atomic write so a crash mid-save
+        # leaves the previous records file intact rather than a
+        # truncated one. Phase 19's sub-account fan-out will multiply
+        # concurrent writers against this file.
+        atomic_write_text(
+            records_path,
+            json.dumps(data, indent=2, default=str),
+        )
 
     def _record_to_dict(self, record: PerformanceRecord) -> dict:
         """Convert a PerformanceRecord to a JSON-serializable dict.
@@ -491,8 +498,12 @@ class PerformanceTracker:
         data = performance.model_dump()
         data["last_updated"] = data["last_updated"].isoformat()
 
-        with open(summary_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        # DEBT-028 (Phase 22.1): atomic write — same load-all/save-all
+        # shape as ``_save_records``.
+        atomic_write_text(
+            summary_path,
+            json.dumps(data, indent=2),
+        )
 
     def load_records(
         self,
@@ -1074,8 +1085,14 @@ class TradeHistoryTracker:
         trades_path = self._get_trades_path(mode)
         data = [self._trade_to_dict(t) for t in trades]
 
-        with open(trades_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, default=str)
+        # DEBT-028 (Phase 22.1): atomic write so the trade ledger is
+        # never observable in a half-written state. The load-all →
+        # mutate → save-all shape here is exactly the surface
+        # DEBT-028 names.
+        atomic_write_text(
+            trades_path,
+            json.dumps(data, indent=2, default=str),
+        )
 
     def _trade_to_dict(self, trade: TradeHistory) -> dict:
         """Convert a TradeHistory to a JSON-serializable dict.

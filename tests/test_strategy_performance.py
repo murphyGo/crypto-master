@@ -1834,3 +1834,95 @@ class TestPhase21_2UtcAware:
         assert closed is not None
         assert closed.exit_time is not None
         assert closed.exit_time.tzinfo is not None
+
+
+# =============================================================================
+# Phase 22.1 / DEBT-028 — atomic write regression
+# =============================================================================
+
+
+class TestAtomicWriteRegression:
+    """Crash mid-save leaves the previous record file intact.
+
+    Pins the DEBT-028 fix at the three persistence sites in this
+    module: ``_save_records``, ``_update_summary``, ``_save_trades``.
+    The simulated crash patches the helper to raise after the temp
+    file has been written but before ``os.replace`` lands.
+    """
+
+    def test_save_records_crash_preserves_prior_records(
+        self,
+        tmp_path: Path,
+        sample_technique_info: TechniqueInfo,
+        sample_analysis_result: AnalysisResult,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tracker = PerformanceTracker(data_dir=tmp_path)
+        # Seed with one record so we have a "previous" version.
+        tracker.record_analysis(
+            sample_technique_info,
+            sample_analysis_result,
+            symbol="BTC/USDT",
+            timeframe="1h",
+        )
+
+        # Now patch the helper to fail. The next save must not
+        # truncate the existing records file.
+        def boom(path: Path, text: str, **kwargs: object) -> None:
+            raise OSError("simulated mid-write crash")
+
+        monkeypatch.setattr("src.strategy.performance.atomic_write_text", boom)
+
+        with pytest.raises(OSError, match="simulated mid-write crash"):
+            tracker.record_analysis(
+                sample_technique_info,
+                sample_analysis_result,
+                symbol="ETH/USDT",
+                timeframe="1h",
+            )
+
+        # Records file is unchanged: still only the seed record.
+        records_path = tracker._get_records_path(sample_technique_info.name)
+        with records_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        assert (
+            len(data) == 1
+        ), "Crash mid-save must not truncate or corrupt the records file"
+        assert data[0]["symbol"] == "BTC/USDT"
+
+    def test_save_trades_crash_preserves_prior_trades(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        first = tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        def boom(path: Path, text: str, **kwargs: object) -> None:
+            raise OSError("simulated mid-write crash")
+
+        monkeypatch.setattr("src.strategy.performance.atomic_write_text", boom)
+
+        with pytest.raises(OSError, match="simulated mid-write crash"):
+            tracker.open_trade(
+                symbol="ETH/USDT",
+                side="long",
+                entry_price=Decimal("3000"),
+                entry_quantity=Decimal("1"),
+                mode="paper",
+            )
+
+        # Trades file still carries the first trade; the failed
+        # second open did not corrupt it.
+        trades_path = tracker._get_trades_path("paper")
+        with trades_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        assert len(data) == 1
+        assert data[0]["id"] == first.id
+        assert data[0]["symbol"] == "BTC/USDT"

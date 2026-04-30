@@ -736,3 +736,46 @@ def test_purge_old_tolerates_naive_now_argument(tmp_path: Path) -> None:
     # 120 months is huge — nothing should be archived. Either way, no
     # ``TypeError`` from naive-vs-aware comparison.
     assert isinstance(archived, list)
+
+
+# =============================================================================
+# Phase 22.1 / DEBT-028 — atomic write regression
+# =============================================================================
+
+
+def test_proposal_history_save_crash_preserves_prior_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A crash mid-save leaves the previous record JSON intact.
+
+    Pins the DEBT-028 fix at ``ProposalHistory.save``. The engine's
+    stale-quote rejection path runs ``load → model_copy → save``
+    against the same file in the same cycle that
+    ``ProposalInteraction.present`` first wrote it; the crash here
+    must not corrupt the canonical record on disk.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+    proposal = make_proposal(proposal_id="prop-22-1")
+    record = ProposalRecord(
+        proposal=proposal,
+        decision=ProposalDecision.ACCEPTED,
+        decision_at=datetime(2026, 4, 30, 12, 0, 0, tzinfo=timezone.utc),
+        actor="user",
+    )
+    history.save(record)
+
+    # Now patch the helper and try to overwrite with a REJECTED
+    # decision. The crash must not truncate the on-disk file.
+    def boom(path: Path, text: str, **kwargs: object) -> None:
+        raise OSError("simulated mid-write crash")
+
+    monkeypatch.setattr("src.proposal.interaction.atomic_write_text", boom)
+
+    rejected = record.model_copy(update={"decision": ProposalDecision.REJECTED.value})
+    with pytest.raises(OSError, match="simulated mid-write crash"):
+        history.save(rejected)
+
+    # The original ACCEPTED record is still readable verbatim.
+    loaded = history.load("prop-22-1")
+    assert loaded.decision == ProposalDecision.ACCEPTED.value
