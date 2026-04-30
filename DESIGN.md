@@ -84,13 +84,41 @@ class BaseStrategy(ABC):
 **Purpose**: Interface with Claude via CLI.
 
 ```python
-class ClaudeClient:
-    def analyze_chart(prompt: str, data: str) -> str
-    def improve_strategy(performance: PerformanceData) -> str
-    def generate_strategy(idea: str) -> str
+# src/ai/claude.py
+class ClaudeCLI:
+    """Async wrapper around the `claude -p "..."` CLI."""
+
+    def __init__(
+        self,
+        timeout: float | None = None,
+        claude_path: str = "claude",
+        max_retries: int | None = None,
+    ) -> None: ...
+
+    def is_available(self) -> bool: ...
+    async def analyze(self, prompt: str) -> dict[str, Any]: ...   # JSON-shaped responses
+    async def complete(self, prompt: str) -> str: ...             # Free-form text responses
+
+# src/ai/improver.py
+class StrategyImprover:
+    """Drives ClaudeCLI to propose improvements / new ideas / user-driven ideas."""
+
+    def __init__(
+        self,
+        claude: ClaudeCLI | None = None,
+        experimental_dir: Path | None = None,
+        catalog_path: Path | None = None,
+    ) -> None: ...
+
+    async def generate_idea(self, context: str | None = None) -> StrategyArtefact: ...
+    async def generate_user_idea(self, idea_text: str) -> StrategyArtefact: ...
+    async def improve(self, original_strategy_path: Path, performance: PerformanceData) -> StrategyArtefact: ...
 ```
 
-**Constraint**: Uses `claude -p "..."` CLI only (NFR-002).
+**Constraint**: Uses `claude -p "..."` CLI only (NFR-002). The
+`ClaudeCLI.analyze` / `complete` split lets callers choose between
+strict JSON parsing and raw stdout depending on what the prompt
+asks for.
 
 ### 2.4 Trading Engine (`src/trading/`)
 

@@ -258,6 +258,47 @@ generic-payload consistency and dropping the explicit
 - `src/runtime/engine.py::_record_stale_quote_rejection`
 - `src/runtime/engine.py::_proposal_summary`
 
+### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Phase** | Phase 18.1 |
+| **Component** | `tests/test_runtime_engine.py` (4 new rejection tests) |
+
+**Description:**
+The 4 new Phase 18.1 rejection tests
+(`test_runtime_engine.py`) assert
+`result.proposals_rejected == 1` and `positions_opened == 0` but
+do NOT assert `result.proposals_accepted == 1`. The
+simultaneous-counters contract from DEBT-016 (the proposal
+*was* accepted by the composite gate before the post-acceptance
+gate rejected it) isn't locked in by the test suite.
+
+**Impact:**
+Low. A future regression that drops the accept-counter
+increment on the rejection path (e.g. an over-eager refactor
+that decides "if it's rejected, it wasn't accepted") wouldn't
+be caught by the suite. Operationally invisible until someone
+looks at a cycle summary and notices the count mismatch.
+
+**Suggested Resolution:**
+One-line addition to each of the 4 rejection tests:
+`assert result.proposals_accepted == 1`. Pairs naturally with
+the DEBT-016 docstring update (test pins the contract; docstring
+explains it). Trivial, can land in any cycle that touches the
+test file.
+
+**Related:**
+- Phase 18.1 qa-reviewer note 4
+- `tests/test_runtime_engine.py` 4 new rejection tests
+  (`test_stale_quote_past_sl_rejects_long`,
+  `test_stale_quote_past_sl_rejects_short`,
+  `test_slippage_exceeds_tolerance_rejects`,
+  `test_ticker_fetch_failure_falls_through_to_fill`)
+- DEBT-016 (counterpart docstring update)
+
 ### DEBT-021: Strategy warmup contract mismatch with `BacktestConfig.warmup_candles`
 
 | Field | Value |
@@ -698,49 +739,6 @@ February → March transitions.
 **Related:**
 - 3-agent comprehensive audit 2026-04-30
 - `src/proposal/interaction.py:413`
-
-### DEBT-037: Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 1 / 3.3 (origin); surfaced 2026-04-30 |
-| **Component** | `CLAUDE.md` + `DESIGN.md` + `docs/TECH-DEBT.md` |
-
-**Description:**
-Three small AIDLC-hygiene drifts caught by the audit: (1)
-`CLAUDE.md`'s project-structure tree omits `src/runtime/` and
-`src/tools/` (added Phase 8 / 11.4); (2) `DESIGN.md §2.3`
-references a `ClaudeClient` class but the actual code is named
-`ClaudeCLI` in `src/ai/claude.py`; (3) `docs/TECH-DEBT.md`
-ordering puts DEBT-018 below DEBT-019 / DEBT-020 / DEBT-021 /
-DEBT-022 / DEBT-023 (the file uses an internal `---` separator
-that the audit's traversal flagged as inconsistent), and the
-Statistics row would need to be re-counted after each new debt
-landing — currently the count shown is a one-pass snapshot,
-not maintained.
-
-**Impact:**
-Cosmetic / onboarding-friction. New contributors reading
-`CLAUDE.md` find no `src/runtime/` and assume the runtime engine
-lives elsewhere; tracing `DESIGN.md`'s ClaudeClient leads
-nowhere. Statistics drift is invisible until someone audits the
-counts.
-
-**Suggested Resolution:**
-Update `CLAUDE.md`'s tree to include `src/runtime/` (engine,
-activity_log, audit_log, jsonl_rotator) and `src/tools/`
-(operator scripts). Update `DESIGN.md §2.3` to rename
-`ClaudeClient` → `ClaudeCLI` end to end. Reorder DEBT-018 above
-DEBT-019 (fix the `---` separator), refresh the Statistics
-table.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `CLAUDE.md` (project tree section)
-- `DESIGN.md §2.3`
-- `docs/TECH-DEBT.md` (Statistics table + ordering)
 
 ### DEBT-038: Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event
 
@@ -1194,49 +1192,6 @@ picks (consider folding into Phase 24 strategy robustness polish):
 
 ---
 
-### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 |
-| **Component** | `tests/test_runtime_engine.py` (4 new rejection tests) |
-
-**Description:**
-The 4 new Phase 18.1 rejection tests
-(`test_runtime_engine.py`) assert
-`result.proposals_rejected == 1` and `positions_opened == 0` but
-do NOT assert `result.proposals_accepted == 1`. The
-simultaneous-counters contract from DEBT-016 (the proposal
-*was* accepted by the composite gate before the post-acceptance
-gate rejected it) isn't locked in by the test suite.
-
-**Impact:**
-Low. A future regression that drops the accept-counter
-increment on the rejection path (e.g. an over-eager refactor
-that decides "if it's rejected, it wasn't accepted") wouldn't
-be caught by the suite. Operationally invisible until someone
-looks at a cycle summary and notices the count mismatch.
-
-**Suggested Resolution:**
-One-line addition to each of the 4 rejection tests:
-`assert result.proposals_accepted == 1`. Pairs naturally with
-the DEBT-016 docstring update (test pins the contract; docstring
-explains it). Trivial, can land in any cycle that touches the
-test file.
-
-**Related:**
-- Phase 18.1 qa-reviewer note 4
-- `tests/test_runtime_engine.py` 4 new rejection tests
-  (`test_stale_quote_past_sl_rejects_long`,
-  `test_stale_quote_past_sl_rejects_short`,
-  `test_slippage_exceeds_tolerance_rejects`,
-  `test_ticker_fetch_failure_falls_through_to_fill`)
-- DEBT-016 (counterpart docstring update)
-
----
-
 ## Resolved Debt Items
 
 <!--
@@ -1423,18 +1378,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 20.1 extracted `pnl_for_trade(entry, exit, qty, side) -> Decimal` into new `src/utils/trading_math.py` (leverage NOT a parameter — qty already reflects the levered notional from `calculate_position_size`, so making leverage a parameter would invite a future caller to pass it again and reintroduce the bug). Routed every PnL site through the helper: `src/backtest/engine.py::_close_trade` (dropped `* leverage`), `src/trading/portfolio.py::calculate_unrealized_pnl` (dropped `* leverage`), `src/trading/paper.py::close_position` (already correct shape; routed for symmetry, bytewise-identical output). **Scope extension absorbed during quant-trader-expert review** (originally scheduled for 20.2): `src/strategy/performance.py::TradeHistory.calculate_pnl` (lines ~797-839) — both branches dropped `* self.leverage` from `pnl`, and `pnl_pct` reformulated as leverage-neutral (`(exit - entry) / entry` for longs, sign-inverted for shorts). Cross-ledger parity locked by `tests/test_backtest_engine.py::TestPnLConventionAlignment` (4 cases — long/short numeric equality between backtester and paper-trader on fixed (entry, exit, qty, leverage) fixture); persistence-layer parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). 11 module-level helper unit tests; 19 cascaded assertion updates across `tests/test_paper_trading.py` (8 across 7), `tests/test_portfolio.py` (5), `tests/test_strategy_performance.py` (3 calculate_pnl) — purely mechanical fixture corrections to the new correct numbers. 1226 total passing. **Note on stale line-number references**: the original DEBT-024 description pointed at `src/backtest/engine.py:783-794` for `calculate_position_size` + per-trade PnL multiplication, but by the time the fix shipped the actual leverage site had moved to `_close_trade` ~lines 948-960. Recorded for future audit-trail readers reconstructing the diff. Session log: `docs/sessions/2026-05-01-phase-20.1-pnl-helper-unification.md`. **Phase 20.2 follow-up (2026-05-01)** locked the discipline side: grep audit across `src/backtest/`, `src/trading/`, `src/strategy/` confirmed no missed `* leverage` on the PnL surface (4 margin sites kept, 4 PnL sites confirmed routed); convention docstrings added on `AssetSnapshot.unrealized_pnl`, `Portfolio.unrealized_pnl`, `TradeHistory.pnl`, `TradeHistory.pnl_percent`, and `Position.calculate_pnl` naming the leverage-neutral convention; regression-guard test `tests/test_leverage_pnl_no_double_apply.py` (5 tests, 4 file scans + 1 self-test) pins the convention forward against text-shape reintroduction (alias-gap acknowledged in module docstring; defence-in-depth alongside Phase 20.1's `TestPnLConventionAlignment` numeric parity, not a sole gate). Session log: `docs/sessions/2026-05-01-phase-20.2-leverage-math-alignment.md`. DEBT-029 (Phase 5.4+ baseline re-computation, scheduled as Phase 20.3) remains the downstream consequence and stays open until 20.3 lands. |
 
+### DEBT-037: Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 23.1 closed all three drift items the 2026-04-30 audit named. (1) `CLAUDE.md`'s project-structure tree extended to include `src/runtime/` (engine, activity_log, jsonl_rotator), `src/tools/` (operator scripts), and `src/utils/` (`trading_math.py` from Phase 20.1, `time.py` from Phase 21.1, `io.py` from Phase 22.1) — three directories that had shipped without ever being listed in the contributor-facing tree. `src/main.py` also surfaced as a top-level entry point alongside the existing `config.py` / `logger.py` / `models.py` listing. (2) `DESIGN.md §2.3` rewritten end to end: `class ClaudeClient` (which never existed in code) replaced with the actual `class ClaudeCLI` from `src/ai/claude.py:46`, real method signatures listed verbatim (`__init__(timeout, claude_path, max_retries)`, `is_available()`, `async analyze(prompt) -> dict[str, Any]`, `async complete(prompt) -> str`); the parallel `class StrategyImprover` block from `src/ai/improver.py:98` added so the documentation matches the actual two-class shape (`generate_idea`, `generate_user_idea`, `improve`); the constraint line clarified to name the `analyze` / `complete` split. The DESIGN.md "ADR list" cross-reference flagged in the original spec did not need a corresponding edit (no ADR list exists in DESIGN.md; the project's ADRs would live as Markdown files under `docs/adr/` if any are written, and that directory is not present in the current checkout). (3) `docs/TECH-DEBT.md` ordering: DEBT-018 reordered above DEBT-021 (was below DEBT-019 / 20 / 21 / 22 / 23 separated by an internal `---` separator that the audit's traversal flagged as inconsistent); the stray `---` separator that had isolated DEBT-018 from the rest of the Active items removed. Statistics table recomputed by counting `### DEBT-` headings in Active vs Resolved sections (28 active → 27 active after DEBT-037 closes; 19 resolved → 20 resolved; Medium unchanged at 7; Low 21 → 20). Phase 23.1 also backfilled the missing artefacts the same audit surfaced (sessions for shipped Phase 17.2 portfolio-snapshot recording / 17.3 closed-trade performance records, the Phase 15 cross-check) — same audit finding, separate spec items, same cycle. Session log: `docs/sessions/2026-05-01-phase-23.1-docs-drift-backfill.md`. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 28 |
+| Total Active | 27 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 7 |
-| Low | 21 |
-| Resolved (All Time) | 19 |
+| Low | 20 |
+| Resolved (All Time) | 20 |
 
 ---
 
@@ -1511,3 +1475,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Added | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 prereq (Medium) — surfaced during Phase 22.1 implementation as the durability-vs-concurrency caveat; `atomic_write_text` is last-writer-wins under concurrent load → mutate → save; **hard prereq for Phase 19.2 sub-account fan-out**; resolution shapes: per-file lock helper (`fcntl.flock`) layered over atomic-write OR per-account file partitioning (Phase 19.2 planner picks); cross-referenced in `docs/development-plan.md` Phase 19.2 Prerequisites line |
 | 2026-05-01 | Resolved | DEBT-027 Paper trader silently zeroes balance instead of recording liquidation — Phase 22.2 rewrote `PaperTrader.close_position` under-water branch with projected-free predicate (`projected_free = balance.free + (pnl - exit_fee) < 0`); default behaviour records true negative equity AND emits structured `LIQUIDATED` activity event (`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`, `balance_before`, `balance_after`); legacy clamp-to-zero preserved behind opt-out flag `auto_deposit_on_liquidation` (still emits the event — flag controls balance treatment, not event semantics). New `ActivityEventType.LIQUIDATED` enum member; `PaperBalance.free` Pydantic constraint relaxed (lock / deduct / reserve paths still enforce overdraw protection); `PaperTrader.__init__` gained `activity_log` + `auto_deposit_on_liquidation` kwargs; `EngineConfig` / `Settings.paper_auto_deposit_on_liquidation` (env-overridable `PAPER_AUTO_DEPOSIT_ON_LIQUIDATION`); `.env.example` documented; `build_engine` plumbs through. 6 regression tests pin the contract; pytest 1284 → 1290 (+6); reviewers 🟢🟢. Backtester asymmetry surfaced as DEBT-047 (Medium). Plan-text drift noted (DEBT-027 cited `paper.py:619,626`; actual liquidation branch lives ~656-720). Phase 22 sealed (22.1 ✅, 22.2 ✅); cross-check `docs/cross-checks/2026-05-01-phase-22-persistence-atomicity-liquidation.md` PASS |
 | 2026-05-01 | Added | DEBT-047 Backtester has no leverage-liquidation modeling (Medium) — surfaced during Phase 22.2 quant-trader-expert review; `src/backtest/engine.py:371,396` does `balance += pnl_delta` with no margin lock / clamp / event; asymmetric with `PaperTrader` post-22.2 (paper now emits `LIQUIDATED`, backtester continues simulating against arbitrarily negative equity); operators reading backtest equity curves can't distinguish "would have been liquidated" from "deep drawdown but recovered"; resolution shapes: `BacktestConfig.liquidation_threshold` + structural marker on `BacktestTrade` / `BacktestResult` OR conservative clamp + log at threshold; consider folding into Phase 24 |
+| 2026-05-01 | Resolved | DEBT-037 Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats — Phase 23.1 backfilled `src/runtime/` / `src/tools/` / `src/utils/` directories + `src/main.py` entry point in `CLAUDE.md` project tree; renamed `class ClaudeClient` → actual `class ClaudeCLI` in `DESIGN.md §2.3` with verbatim method signatures from `src/ai/claude.py:46`, added parallel `class StrategyImprover` block from `src/ai/improver.py:98`; reordered DEBT-018 above DEBT-021 in TECH-DEBT.md (was below DEBT-019..23 separated by an internal `---` separator), removed the stray `---`; recomputed Statistics by counting Active vs Resolved `### DEBT-` headings (28 → 27 active; 19 → 20 resolved; Medium 7 unchanged; Low 21 → 20). Same-cycle Phase 23.1 also backfilled the missing session logs for shipped Phase 17.2 + 17.3 cycles and the Phase 15 cross-check (separate spec items, same audit finding) |

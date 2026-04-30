@@ -21,13 +21,17 @@ crypto-master/
 │   ├── config.py          # Configuration management
 │   ├── logger.py          # Logging setup
 │   ├── models.py          # Common data models
-│   ├── exchange/          # Exchange integrations
-│   ├── strategy/          # Analysis techniques
-│   ├── trading/           # Trading engine
-│   ├── ai/                # Claude AI integration
+│   ├── main.py            # Engine entry point / build_engine factory
+│   ├── exchange/          # Exchange integrations (Binance, Bybit, base, factory)
+│   ├── strategy/          # Analysis techniques + performance tracker
+│   ├── trading/           # Trading engine (paper, live, portfolio, strategy)
+│   ├── ai/                # Claude AI integration (ClaudeCLI, StrategyImprover)
 │   ├── backtest/          # Backtesting engine
-│   ├── proposal/          # Trading proposals
-│   ├── feedback/          # Feedback loop
+│   ├── proposal/          # Trading proposals (engine, interaction, notification)
+│   ├── feedback/          # Feedback loop + audit
+│   ├── runtime/           # Engine runtime (engine.py, activity_log.py, jsonl_rotator.py)
+│   ├── tools/             # Operator scripts (purge_proposals, etc.)
+│   ├── utils/             # Shared utilities (trading_math.py, time.py, io.py)
 │   └── dashboard/         # Streamlit UI
 ├── strategies/            # Analysis technique files
 ├── tests/                 # Test files
