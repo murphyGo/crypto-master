@@ -436,8 +436,7 @@ class TradingEngine:
             )
             if existing >= cap:
                 reason = (
-                    f"symbol {proposal.symbol} cap {cap} reached "
-                    f"({existing} open)"
+                    f"symbol {proposal.symbol} cap {cap} reached " f"({existing} open)"
                 )
                 result.proposals_rejected += 1
                 self.activity_log.append(
@@ -627,6 +626,29 @@ class TradingEngine:
         numeric trio (``proposal_entry``, ``live_price``, ``drift_bps``)
         that the dashboard / audit reports need to reconstruct the
         rejection distribution.
+
+        **Timestamp coherence contract (DEBT-025 / Phase 21.3)**:
+        every ``datetime`` that lands in the rejection payload is
+        UTC-aware:
+
+        * ``ProposalRecord.decision_at`` — set to :func:`now_utc`
+          (UTC-aware by construction).
+        * ``ProposalRecord.proposal.created_at`` — typed ``datetime``;
+          the ``Proposal._coerce_created_at_to_utc`` field validator
+          coerces naive on-disk values to UTC at the read boundary
+          (Phase 21.2).
+        * ``ActivityEvent.timestamp`` — defaulted to :func:`now_utc`
+          and validated via ``_coerce_timestamp_to_utc`` (Phase 21.2).
+        * ``ticker.timestamp`` (the live-quote sample feeding
+          ``live_price``) — produced by exchange adapters via
+          :func:`from_unix_ms` (Phase 21.1), so the candle-side clock
+          is UTC-aware before it ever reaches this function.
+
+        The callers (:meth:`_stale_quote_gate`) read ``ticker.price``
+        only; the candle ``timestamp`` is not currently embedded in
+        the ``details`` payload (out of scope per Phase 21.3 — no new
+        payload fields). The contract above is the regression surface
+        the Phase 21.3 tests pin.
         """
         # Drift is reported in basis points for readability; entry > 0
         # is checked at call sites that need it, but defend here too so

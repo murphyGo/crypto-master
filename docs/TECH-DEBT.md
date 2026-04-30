@@ -420,62 +420,6 @@ Cheap test surface; high regression-prevention value.
 - `strategies/chasulang_ict_smc.md` (the canonical `## Output Contract` block)
 - DEBT-019 (parent — the failure mode the regression guard prevents)
 
-### DEBT-025: Exchange adapters and `JsonlRotator` use UTC-naive `datetime`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 2.2 / 10.4 (origin); surfaced 2026-04-30 |
-| **Component** | `src/exchange/binance.py` + `src/exchange/bybit.py` + `src/runtime/jsonl_rotator.py` + `src/runtime/engine.py` |
-
-**Description:**
-`BinanceExchange` (`src/exchange/binance.py:235`, `:272`, `:503-505`)
-and `BybitExchange` (`src/exchange/bybit.py:165`, `:202`, `:433-435`)
-construct OHLCV / ticker / order timestamps via
-`datetime.fromtimestamp(ms / 1000)` with no `tz=` argument, so the
-returned `datetime` is interpreted in the host machine's local
-timezone — Fly machines run UTC, but local development on KST hosts
-silently shifts every timestamp by 9 hours. `JsonlRotator`
-(`src/runtime/jsonl_rotator.py:105`, `:180`, `:253`) uses
-`datetime.now()` (also tz-naive local) to derive the active month
-token, so a record written at `00:30 UTC` (`09:30 KST`) lands in the
-KST-month file rather than the UTC-month file expected by readers.
-Phase 18.1 stale-quote payloads compare engine `datetime.now()`
-against candle timestamps from the adapters, mixing both tz-naive
-sources — usually self-consistent on Fly but inconsistent in dev.
-
-**Impact:**
-On Fly (UTC host) both call sites coincidentally agree, so production
-behaviour is correct today. On a non-UTC dev box, the timestamps
-silently disagree with the exchange's UTC truth; downstream artefacts
-(trade ledger rows, JSONL rotation boundaries, stale-quote drift
-calculation) inherit the offset. The bug is dormant in production
-but live in dev — the failure mode is "tests pass on Fly, fail
-locally, get debugged as 'my clock is wrong'". Future move to a
-non-UTC region (e.g. `fly regions add nrt`) silently activates the
-bug in production.
-
-**Suggested Resolution:**
-Add a single helper `from_unix_ms(ms: int) -> datetime` in
-`src/exchange/_time.py` (or `src/utils/time.py`) returning a
-`datetime` with `tzinfo=UTC`. Replace the four
-`datetime.fromtimestamp(ms / 1000)` call sites in the two adapters,
-and replace `datetime.now()` in `JsonlRotator` with
-`datetime.now(tz=UTC)`. Normalise `_coerce_timestamp` (any helper
-that converts incoming timestamps) to UTC-aware. Add a regression
-test that runs with `freeze_time` in non-UTC, asserting timestamps
-land in the UTC bucket regardless of host TZ.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/exchange/binance.py:235,272,503-505`
-- `src/exchange/bybit.py:165,202,433-435`
-- `src/runtime/jsonl_rotator.py:105,180,253`
-- DEBT-017 (sibling — stale-quote payload also touches this surface)
-
-**Status (2026-05-01):** Adapter read-side closed by Phase 21.1; write-side `datetime.now()` sweep + Pydantic UTC coercion + reader naive-tolerance closed by Phase 21.2; stale-quote payload coherence is Phase 21.3 (the only remaining surface).
-
 ### DEBT-026: Donchian experimental strategy file truncated and untracked
 
 | Field | Value |
@@ -1319,6 +1263,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 (**Reframed**, not implemented) |
 | **Resolution** | Phase 20.3 deferral surfaced that DEBT-029's "operator-facing artefact regeneration" framing was vacuous: `data/backtest/baselines/` directory is absent on this checkout (gitignored), `docs/baselines.md` operator table is `_TBD_` for every metric (lines 124-136), and no inflated baseline figures had ever been persisted. The bug existed in the math (DEBT-024), not in any persisted operator surface — operator impact of the regeneration assumption was therefore 0. The math fix (DEBT-024) closed at the code level by Phase 20.1 (`pnl_for_trade` helper + four PnL sites routed through it) and Phase 20.2 (grep audit, convention docstrings, regression-guard test); cross-ledger numeric parity locked by `TestPnLConventionAlignment` (4 cases) and persistence parity by `test_close_trade_persisted_pnl_routes_through_helper{,_short}` (2 cases). What remains is reproducible baseline design work, not "re-compute" — `scripts/backtest_baselines.py` calls live Binance mainnet with no snapshot mode, so a re-run produces non-deterministic output that drifts day-to-day. That reproducibility debt is reassigned to new **DEBT-043** (Medium, owned by Phase 25: Snapshot-Pinned Reproducible Baselines). DEBT-029 itself closes as **Reframed** because the original problem statement was wrong; the math-correctness side is fully addressed by the chain DEBT-024 → 20.1 + 20.2, and the reproducibility side is now tracked under DEBT-043 with its own suggested resolution shape (snapshot dataset + `--snapshot` flag + freshness policy + first-time `docs/baselines.md` population). |
 
+### DEBT-025: Exchange adapters and `JsonlRotator` use UTC-naive `datetime` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Closed across Phase 21.1 (adapter read-side, 8 sites + helper module), 21.2 (write-side sweep, 12+ sites + 7 Pydantic UTC-coerce validators + 5 reader-boundary naive-tolerance shims), and 21.3 (stale-quote payload coherence — formal contract docstring + 3 regression tests pinning aware-on-write, cross-source aware math, and legacy-naive read tolerance). Every UTC-naive surface flagged in the 2026-04-30 audit is now closed. Phase 21.1: new `src/utils/time.py` with `from_unix_ms(ms) -> datetime` (`tz=UTC`) and `now_utc() -> datetime` wrapping `datetime.now(tz=UTC)`; 4 site swaps in `src/exchange/binance.py` (~lines 233, 273, 504, 506) and 4 in `src/exchange/bybit.py` (~lines 165, 202, 433-435); `JsonlRotator._coerce_timestamp` (read-side) UTC-normalised. Phase 21.2: new `ensure_utc(value)` helper added to `src/utils/time.py` (3-function module now); write-side `datetime.now()` swaps at 12+ sites across `src/runtime/jsonl_rotator.py:103` (the original 21.2 spec target), `src/runtime/engine.py` (multiple), `src/runtime/activity_log.py`, `src/feedback/loop.py` (~6 sites), `src/feedback/audit.py`, `src/proposal/interaction.py` (~3 sites), `src/proposal/engine.py`, `src/proposal/notification.py`, `src/strategy/performance.py` (~6 sites), `src/strategy/base.py`, `src/ai/improver.py:334`, `src/models.py`, `src/trading/portfolio.py`; Pydantic `field_validator(mode="after")` UTC-coerce hooks on 7 models / 9 fields (`ActivityEvent`, `AuditEvent`, `Proposal`, `CandidateRecord`, `AssetSnapshot`, `PerformanceRecord`×2, `TradeHistory`×2); reader-boundary naive-tolerance shims at 5 sites (`PortfolioTracker.load_snapshots`, `TradeHistoryTracker.get_trades_by_date_range`, `PerformanceTracker.get_records_by_date_range`, `ProposalHistory.purge_old`, `ProposalHistory.list_all` sort key). Phase 21.3: `_record_stale_quote_rejection` docstring extended with formal "Timestamp coherence contract (DEBT-025 / Phase 21.3)" section naming five UTC-aware sources (engine wall-clock, ticker candle, proposal entry, live price, persisted record); function body byte-identical below the new docstring section; 3 new regression tests in `tests/test_runtime_engine.py` (lines 992 / 1033 / 1082) pinning aware-on-write coherence, cross-source aware math (`decision_at - candle_ts`), and legacy-naive read tolerance. 1265 total tests passing across the chain. Reviewers ship-class throughout (21.1 🟢🟢, 21.2 🟢🟢, 21.3 🟢 quant + 🟡 qa with recorded out-of-scope linter-reformat note at `engine.py:436-440` not actioned per lead's standing guidance). Phase 21 cross-check: `docs/cross-checks/2026-05-01-phase-21-time-tz-hardening.md` (PASS, no gaps, no new debt). Session logs: `docs/sessions/2026-05-01-phase-21.1-utc-timestamp-helper.md`, `docs/sessions/2026-05-01-phase-21.2-utc-write-side-sweep.md`, `docs/sessions/2026-05-01-phase-21.3-and-phase-21-seal.md`. |
+
 ### DEBT-024: Leverage applied twice in backtester / portfolio PnL math ✅
 
 | Field | Value |
@@ -1334,12 +1287,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 27 |
+| Total Active | 26 |
 | Critical | 0 |
-| High | 1 |
+| High | 0 |
 | Medium | 7 |
 | Low | 19 |
-| Resolved (All Time) | 16 |
+| Resolved (All Time) | 17 |
 
 ---
 
@@ -1409,3 +1362,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Added | DEBT-043 Baseline regenerator is non-deterministic — live Binance, no snapshot mode (Medium) — surfaced during Phase 20.3 deferral; `scripts/backtest_baselines.py:26-30` (docstring) + `:511-518` (live exchange construction) make real network calls every run, output drifts day-to-day, cross-operator / cross-day reproducibility broken; owned by Phase 25 (snapshot dataset + `--snapshot` flag + freshness policy + first-time `docs/baselines.md` population) |
 | 2026-05-01 | Updated | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.1 closed the adapter read-side (4 sites in `binance.py` + 4 in `bybit.py` routed through new `src/utils/time.py::from_unix_ms`) and the `JsonlRotator._coerce_timestamp` read-side. DEBT-025 remains Active: write-side `datetime.now()` sweep is Phase 21.2, stale-quote payload coherence is Phase 21.3. Status note appended to Active entry |
 | 2026-05-01 | Updated | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.2 closed the engine-side write-half: 12+ naive `datetime.now()` write-sites swept to `now_utc()` across runtime / feedback / proposal / strategy / ai / models / portfolio modules; Pydantic `field_validator(mode="after")` UTC-coerce hooks added on 7 models (9 timestamp fields: `ActivityEvent`, `AuditEvent`, `Proposal`, `CandidateRecord`, `AssetSnapshot`, `PerformanceRecord`×2, `TradeHistory`×2); reader-boundary naive-tolerance shims at 5 sites (`PortfolioTracker.load_snapshots`, `TradeHistoryTracker.get_trades_by_date_range`, `PerformanceTracker.get_records_by_date_range`, `ProposalHistory.purge_old`, `ProposalHistory.list_all` sort key); new `src/utils/time.py::ensure_utc(value)` helper. DEBT-025 remains Active: stale-quote payload coherence (Phase 21.3) is the only remaining surface. Status note rewritten on Active entry |
+| 2026-05-01 | Resolved | DEBT-025 Exchange adapters and `JsonlRotator` use UTC-naive `datetime` — Phase 21.3 sealed stale-quote payload coherence (formal contract docstring on `_record_stale_quote_rejection` naming all 5 UTC-aware timestamp sources + 3 regression tests in `tests/test_runtime_engine.py` lines 992 / 1033 / 1082 pinning aware-on-write coherence, cross-source aware math, and legacy-naive read tolerance). Function body byte-identical below the new docstring section. Closes DEBT-025 fully across the 21.1 / 21.2 / 21.3 chain — every UTC-naive surface flagged in the 2026-04-30 audit is now closed. Phase 21 sealed; cross-check `docs/cross-checks/2026-05-01-phase-21-time-tz-hardening.md` PASS with no gaps and no new debt |

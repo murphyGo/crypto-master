@@ -974,6 +974,198 @@ async def test_stale_quote_gate_falls_through_on_ticker_failure(
     assert "fallback-1" in msg
 
 
+# =============================================================================
+# Phase 21.3: Stale-Quote Payload Timestamp Coherence (DEBT-025)
+# =============================================================================
+#
+# These tests pin the contract documented on
+# ``TradingEngine._record_stale_quote_rejection``: every ``datetime`` that
+# participates in the rejection payload is UTC-aware.
+#
+# Sources verified:
+#   * ``ProposalRecord.decision_at``  → ``now_utc()`` (engine.py)
+#   * ``ProposalRecord.proposal.created_at`` → ``Proposal`` validator
+#   * ``ActivityEvent.timestamp``     → ``now_utc()`` + validator
+#   * ``ticker.timestamp``            → adapter ``from_unix_ms`` (Phase 21.1)
+
+
+async def test_stale_quote_rejection_payload_timestamps_are_utc_aware(
+    tmp_path: Path,
+) -> None:
+    """Every datetime in the persisted rejection record is UTC-aware.
+
+    Coherence test for Phase 21.3 / DEBT-025: assert ``decision_at`` and
+    ``proposal.created_at`` on the overwritten ``ProposalRecord`` carry
+    ``tzinfo == timezone.utc``, and the ``PROPOSAL_REJECTED``
+    ``ActivityEvent.timestamp`` does too.
+    """
+    from datetime import timezone
+
+    proposal = make_proposal(proposal_id="utc-coherence-1", composite=2.0)
+    # Sanity: the proposal's own ``created_at`` is UTC-aware out of the
+    # box (default_factory=now_utc + _coerce_created_at_to_utc validator).
+    assert proposal.created_at.tzinfo == timezone.utc
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("49400"),  # past SL → stale-quote rejection
+    )
+
+    await engine.run_cycle()
+
+    # ProposalRecord fields are aware.
+    record = mocks["history"].load("utc-coherence-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.decision_at is not None
+    assert record.decision_at.tzinfo == timezone.utc
+    assert record.proposal.created_at.tzinfo == timezone.utc
+
+    # The PROPOSAL_REJECTED ActivityEvent timestamp is aware too.
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    assert rejections[0].timestamp.tzinfo == timezone.utc
+
+
+async def test_stale_quote_rejection_decision_at_minus_candle_ts_is_aware_math(
+    tmp_path: Path,
+) -> None:
+    """``decision_at`` (engine) and ``ticker.timestamp`` (adapter) are
+    aware-comparable.
+
+    Cross-source test for Phase 21.3: confirm the engine-side clock and
+    the adapter-side candle clock are both UTC-aware so timedelta math
+    between them does not raise ``TypeError``. This is the regression
+    surface that catches a future regression of either side back to
+    naive datetimes.
+    """
+    from datetime import timezone
+
+    from src.utils.time import from_unix_ms
+
+    proposal = make_proposal(proposal_id="utc-cross-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("49400"),
+    )
+
+    # Override the default fixture ticker (which uses a naive datetime
+    # for backward compatibility with older tests) with an adapter-shaped
+    # one: ``from_unix_ms`` is the canonical Phase 21.1 source.
+    aware_ts = from_unix_ms(1_761_580_000_000)  # 2025-10-27 12:26:40 UTC
+    assert aware_ts.tzinfo == timezone.utc
+    mocks["exchange"].get_ticker.return_value = Ticker(
+        symbol="BTC/USDT",
+        price=Decimal("49400"),
+        timestamp=aware_ts,
+    )
+
+    await engine.run_cycle()
+
+    record = mocks["history"].load("utc-cross-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.decision_at is not None
+    assert record.decision_at.tzinfo == timezone.utc
+
+    # Aware-vs-aware subtraction works (regression: a naive value on
+    # either side would raise ``TypeError: can't subtract offset-naive
+    # and offset-aware datetimes``).
+    delta = record.decision_at - aware_ts
+    assert delta.total_seconds() >= 0  # decision happened after the quote
+
+
+async def test_stale_quote_rejection_tolerates_legacy_naive_record_on_disk(
+    tmp_path: Path,
+) -> None:
+    """Pre-21.1 records with naive ``created_at`` don't crash the rewrite.
+
+    Legacy-tolerance test for Phase 21.3: a proposal record persisted
+    before the 21.x sweep carries a naive ``created_at`` on disk. When
+    the stale-quote gate overwrites that record with REJECTED, the
+    ``Proposal._coerce_created_at_to_utc`` validator must coerce the
+    naive value to UTC at the read boundary so ``decision_at - created_at``
+    style comparisons (engine-side or downstream) stay aware-vs-aware.
+    """
+    import json
+    from datetime import timezone
+
+    proposal = make_proposal(proposal_id="legacy-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("49400"),
+    )
+
+    # Pre-seed a legacy ProposalRecord on disk with a NAIVE created_at,
+    # mirroring what a pre-Phase-21.1 deployment would have written. We
+    # bypass ``ProposalHistory.save`` (which round-trips through Pydantic
+    # and would coerce on construction) and write the raw JSON directly.
+    history = mocks["history"]
+    history.data_dir.mkdir(parents=True, exist_ok=True)
+    legacy_path = history.data_dir / "legacy-1.json"
+    legacy_payload = {
+        "proposal": {
+            "proposal_id": "legacy-1",
+            # Naive timestamp string — no offset suffix, mimics legacy
+            # data on disk before Phase 21.2's UTC coercion landed.
+            "created_at": "2026-04-01T00:00:00",
+            "symbol": "BTC/USDT",
+            "timeframe": "1h",
+            "technique_name": "tech_a",
+            "technique_version": "1.0.0",
+            "profile_name": None,
+            "signal": "long",
+            "entry_price": "50000",
+            "stop_loss": "49500",
+            "take_profit": "51500",
+            "quantity": "0.1",
+            "leverage": 1,
+            "risk_reward_ratio": 3.0,
+            "score": {
+                "confidence": 0.8,
+                "win_rate": 0.6,
+                "sample_size": 25,
+                "expected_value": 2.0,
+                "sample_factor": 1.0,
+                "edge_factor": 2.0,
+                "composite": 2.0,
+            },
+            "reasoning": "legacy",
+        },
+        "decision": "accepted",
+        # Naive decision_at on the legacy record too.
+        "decision_at": "2026-04-01T00:00:01",
+        "actor": "auto",
+        "rejection_reason": None,
+        "trade_id": None,
+        "outcome_pnl_percent": None,
+        "outcome_recorded_at": None,
+    }
+    legacy_path.write_text(json.dumps(legacy_payload), encoding="utf-8")
+
+    # The cycle must complete without raising — the gate's overwrite
+    # path loads the legacy record, applies model_copy, and saves. With
+    # a naive ``created_at`` on disk, a future regression of the
+    # validator would either persist naive or raise on aware-vs-naive
+    # comparison downstream.
+    await engine.run_cycle()
+
+    # The record was overwritten as REJECTED, and the validator coerced
+    # the naive ``created_at`` to UTC on read.
+    rewritten = history.load("legacy-1")
+    assert rewritten.decision == ProposalDecision.REJECTED.value
+    assert rewritten.rejection_reason == "stale_quote_past_sl"
+    assert rewritten.proposal.created_at.tzinfo == timezone.utc
+    assert rewritten.decision_at is not None
+    assert rewritten.decision_at.tzinfo == timezone.utc
+
+
 async def test_portfolio_snapshot_balance_failure_does_not_break_cycle(
     tmp_path: Path,
 ) -> None:
