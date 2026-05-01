@@ -632,3 +632,158 @@ class TestNewIdeaOutputContract:
         )
         prompt = claude.complete.await_args.args[0]
         assert "Output Contract" not in prompt
+
+
+# =============================================================================
+# Phase 17.5 / DEBT-019 Option B — code-type generation branch
+# =============================================================================
+
+
+# A Claude response that emits a Python ``BaseStrategy`` subclass under
+# a fenced ``python`` block. Mirrors the canonical shape of
+# ``strategies/rsi.py`` (TECHNIQUE_INFO dict + class with async analyze).
+GOOD_CODE_RESPONSE = '''\
+```python
+"""Donchian breakout — code-type fixture (Phase 17.5)."""
+
+from datetime import datetime
+from decimal import Decimal
+
+from src.models import OHLCV, AnalysisResult
+from src.strategy.base import BaseStrategy, TechniqueInfo
+
+TECHNIQUE_INFO = {
+    "name": "donchian_fixture",
+    "version": "0.1.0",
+    "description": "Donchian breakout fixture",
+    "author": "system",
+    "symbols": ["BTC/USDT"],
+    "timeframes": ["1h"],
+    "status": "experimental",
+    "changelog": "fixture",
+}
+
+
+class DonchianFixtureStrategy(BaseStrategy):
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+    ) -> AnalysisResult:
+        self.validate_input(ohlcv, min_candles=20)
+        price = float(ohlcv[-1].close)
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.3,
+            entry_price=Decimal(str(round(price, 2))),
+            stop_loss=Decimal(str(round(price * 0.99, 2))),
+            take_profit=Decimal(str(round(price * 1.01, 2))),
+            reasoning="fixture",
+            timestamp=datetime.now(),
+        )
+```
+'''
+
+
+class TestCodeTypeNewIdea:
+    """Phase 17.5 / DEBT-019 Option B — ``generate_idea(code_type=True)``
+    must select the Python ``BaseStrategy`` code-generation prompt and
+    write a ``.py`` file. The default (``code_type=False``) still rides
+    the historical markdown path so the 17.4-hardened prompt is the
+    default.
+    """
+
+    @pytest.mark.asyncio
+    async def test_code_type_prompt_targets_basestrategy_subclass(
+        self, tmp_path: Path
+    ) -> None:
+        """The code-type prompt must instruct Claude to emit a Python
+        ``BaseStrategy`` subclass with the canonical shape. The async
+        ``analyze`` method (NOT a sync ``signal()``) is the actual
+        ``BaseStrategy`` interface — the prompt must ask for that.
+        References to the canonical baseline files steer Claude toward
+        the in-repo template rather than inventing a foreign shape.
+        """
+        improver, claude = make_improver(tmp_path, GOOD_CODE_RESPONSE)
+        await improver.generate_idea(context="Donchian", code_type=True)
+        prompt = claude.complete.await_args.args[0]
+        assert "BaseStrategy" in prompt
+        assert "analyze" in prompt
+        # Canonical baseline file references — the prompt names them so
+        # Claude mirrors their TECHNIQUE_INFO + class shape rather than
+        # inventing a foreign one.
+        assert "strategies/rsi.py" in prompt
+        assert "strategies/ma_crossover.py" in prompt
+        assert "strategies/bollinger_bands.py" in prompt
+        # Code-only fence instruction: response must be a ``python``
+        # block, not a ``markdown`` one.
+        assert "python" in prompt.lower()
+        assert "TECHNIQUE_INFO" in prompt
+
+    @pytest.mark.asyncio
+    async def test_default_path_omits_code_only_strings(self, tmp_path: Path) -> None:
+        """``code_type=False`` (the default) keeps the historical
+        markdown path; the code-only instruction strings must NOT
+        appear there. Regression guard against accidental cross-
+        contamination of the two prompt branches.
+        """
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
+        await improver.generate_idea(context="anything")
+        prompt = claude.complete.await_args.args[0]
+        # Markdown path mentions the format in passing ("technique_type:
+        # either prompt or code"), but it MUST NOT instruct Claude to
+        # emit a BaseStrategy subclass or reference the canonical .py
+        # baselines — those belong to the code branch.
+        assert "BaseStrategy" not in prompt
+        assert "strategies/rsi.py" not in prompt
+        assert "strategies/ma_crossover.py" not in prompt
+        assert "strategies/bollinger_bands.py" not in prompt
+        assert "TECHNIQUE_INFO" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_code_type_writes_py_file(self, tmp_path: Path) -> None:
+        """A ``code_type=True`` generation must land on disk as a
+        ``.py`` file, with the Python source body — not a ``.md``
+        wrapping. The ``output_kind`` field on the returned
+        ``GeneratedTechnique`` mirrors that.
+        """
+        improver, _ = make_improver(tmp_path, GOOD_CODE_RESPONSE)
+        gen = await improver.generate_idea(code_type=True)
+        assert gen.output_kind == "python"
+        assert gen.saved_path is not None
+        assert gen.saved_path.suffix == ".py"
+        body = gen.saved_path.read_text(encoding="utf-8")
+        assert "class DonchianFixtureStrategy(BaseStrategy)" in body
+        assert "TECHNIQUE_INFO" in body
+        # Metadata extracted from the literal TECHNIQUE_INFO dict via
+        # ast.literal_eval — never executes the module.
+        assert gen.name == "donchian_fixture"
+        assert gen.version == "0.1.0"
+
+    @pytest.mark.asyncio
+    async def test_code_type_metadata_extracted_via_ast_literal_eval(
+        self, tmp_path: Path
+    ) -> None:
+        """The improver must extract TECHNIQUE_INFO via ``ast``, never
+        ``exec`` — a generated file with a side-effect at import time
+        must NOT trigger that side effect during metadata extraction.
+        """
+        # Module-level ``raise`` would crash any executor. The improver
+        # only parses, so this is harmless; the test asserts that.
+        hostile_response = (
+            "```python\n"
+            "raise RuntimeError('module-level side effect')\n\n"
+            "TECHNIQUE_INFO = {\n"
+            '    "name": "hostile",\n'
+            '    "version": "0.1.0",\n'
+            '    "description": "should still parse",\n'
+            "}\n"
+            "```\n"
+        )
+        improver, _ = make_improver(tmp_path, hostile_response)
+        gen = await improver.generate_idea(code_type=True)
+        # ast.literal_eval extracted the metadata without executing the
+        # raise statement.
+        assert gen.name == "hostile"
+        assert gen.version == "0.1.0"

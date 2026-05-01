@@ -571,8 +571,45 @@ Two viable shapes; Phase 19.2 planner picks:
   helper.md` — caveat recorded in session log)
 - `src/utils/io.py` (helper site)
 
----
+### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path)
 
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-02 |
+| **Phase** | Phase 17.5 (origin) |
+| **Component** | `tests/test_scripts_auto_research_candidates.py` (`GOOD_PYTHON_STRATEGY` fixture, lines 427-468) |
+
+**Description:**
+Phase 17.5's load-bearing integration test
+`test_code_type_pick_runs_without_per_bar_claude_calls` proves the
+zero-per-bar-LLM invariant by running a real `Backtester` over 300
+synthetic candles and asserting `claude.analyze.call_count == 0`.
+However, the `GOOD_PYTHON_STRATEGY` fixture hardcodes
+`signal="neutral"` always, so the backtest produces zero trades —
+the loader/dispatch path is exercised but the actual trade-producing
+branch (`signal="long"`/`"short"` → entry → SL/TP → close) is not.
+Existing baseline strategies (`rsi.py`, `ma_crossover.py`) cover the
+trade-execution path through the same `Backtester`, so this gap is
+test-density only, not a correctness blind spot.
+
+**Impact:**
+- A regression that breaks code-type strategies' ability to *emit
+  signals* (vs just load) wouldn't be caught by Phase 17.5's test
+  alone — it would need to ride a baseline strategy regression.
+
+**Suggested Resolution:**
+Add a follow-up test where the fixture flips `signal="long"` on a
+Donchian-shaped trigger (e.g. `close > rolling_max(20)`) so the
+backtest produces real `Trade` objects and the code-type-strategy
+trade-execution path is pinned end-to-end. Trivial — copy the
+existing test structure, swap one method body in the fixture.
+
+**Related:**
+- Phase 17.5 quant-trader-expert review (2026-05-02 — flagged as
+  ship-with-note, non-blocking)
+- `tests/test_scripts_auto_research_candidates.py:427-468`
+- `test_code_type_pick_runs_without_per_bar_claude_calls`
 
 ---
 
@@ -706,7 +743,7 @@ Move resolved items here with resolution date and notes.
 | **Priority** | High |
 | **Created** | 2026-04-30 |
 | **Resolved** | 2026-04-30 |
-| **Resolution** | Phase 17.2 shipped DEBT-019's Options A + C: (A) `_build_new_idea_prompt` mandates a `## Output Contract` block in the generated body matching chasulang's JSON schema (`signal` / `entry_price` / `stop_loss` / `take_profit`), pinned by 3 new `TestNewIdeaOutputContract` cases; (C) `Backtester.run` and `_run_multi_timeframe` gain per-bar `asyncio.wait_for` timeout + consecutive-parse-failures counter that aborts via new `BacktestAbortedError(reason, candle_index)` propagating to `LoopStatus.ERRORED`, pinned by 3 new `TestPerBarCircuitBreaker` cases. Refinement at implementation: `StrategyValidationError` ("data not ready") caught separately and skipped without incrementing the breaker counter so warmup-floor strategies (`rsi_universal`'s `period * 3 = 42` vs default `warmup_candles=20`) don't trip the breaker — surfaced as DEBT-021 for the long-term contract fix. New `Settings.engine_backtest_per_bar_timeout` (default 600s post-DEBT-020) + `engine_backtest_max_parse_failures` (default 5) env overrides. Option B (code-type steering for deterministic catalog picks) deferred to Phase 17.3 as the cleaner long-term path. 9-hour hang failure mode now bounded to ~minutes; `donchian_turtle_system_2_20260430_002157.md` artefact preserved as the operator-acceptance test case for item 7 of the dev-plan spec. |
+| **Resolution** | Phase 17.4 (originally tagged 17.2 in commit log; renumbered by Phase 23.2) shipped DEBT-019's Options A + C: (A) `_build_new_idea_prompt` mandates a `## Output Contract` block in the generated body matching chasulang's JSON schema (`signal` / `entry_price` / `stop_loss` / `take_profit`), pinned by 3 new `TestNewIdeaOutputContract` cases; (C) `Backtester.run` and `_run_multi_timeframe` gain per-bar `asyncio.wait_for` timeout + consecutive-parse-failures counter that aborts via new `BacktestAbortedError(reason, candle_index)` propagating to `LoopStatus.ERRORED`, pinned by 3 new `TestPerBarCircuitBreaker` cases. Refinement at implementation: `StrategyValidationError` ("data not ready") caught separately and skipped without incrementing the breaker counter so warmup-floor strategies (`rsi_universal`'s `period * 3 = 42` vs default `warmup_candles=20`) don't trip the breaker — surfaced as DEBT-021 for the long-term contract fix. New `Settings.engine_backtest_per_bar_timeout` (default 600s post-DEBT-020) + `engine_backtest_max_parse_failures` (default 5) env overrides. **Option B (code-type steering) shipped 2026-05-02 by Phase 17.5**: `Pick.code_type: bool = False` flag + `_build_new_idea_code_prompt` branch in `src/ai/improver.py:676` instructing Claude to emit `BaseStrategy` Python subclasses (with `async analyze` matching the abstract interface, not the spec's mistaken "sync `signal`"); all 9 catalog TOP_PICKS (Donchian, Supertrend, Connors RSI(2), Z-score, Larry Williams, TTM Squeeze, BB %B+RSI, Golden Cross, NR7) flagged `code_type=True`. Loader (`src/strategy/loader.py`) already supported `.py` files via existing `load_technique_info_from_py` — no changes needed. 6 new tests pin the contract; the load-bearing integration test asserts `claude.complete.call_count == 1` (single code-generation call) AND `claude.analyze.call_count == 0` during a real `Backtester.run_for_strategy` over 300 synthetic candles — proving zero per-bar LLM calls for code-type strategies. pytest 1361 → 1367 (+6); ruff/mypy/black clean. Reviewers: quant 🟡 (catalog/interface/invariant all correct; non-blocking note that fixture's `signal="neutral"` doesn't exercise real-trade path → recorded as DEBT-049), qa 🟢 ship. 9-hour hang failure mode now closed at root: deterministic strategies bypass the LLM hot path entirely. `donchian_turtle_system_2_20260430_002157.md` artefact (DEBT-026) becomes obsolete on next regenerate. |
 
 ### DEBT-020: `BacktestConfig.per_bar_timeout` default unsafe for chasulang ✅
 
@@ -930,11 +967,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 11 |
+| Total Active | 12 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 5 |
-| Low | 6 |
+| Low | 7 |
 | Resolved (All Time) | 37 |
 
 ---
@@ -1031,3 +1068,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-039 Logger reset for test isolation — Phase 26.3 wired existing `reset_loggers()` into autouse pytest fixture (`tests/conftest.py`); 1 contract test |
 | 2026-05-01 | Resolved | DEBT-047 Backtester leverage-liquidation parity — Phase 26.4 added `BacktestConfig.liquidation_threshold` (default `Decimal("0")`), `BacktestTrade.liquidated` marker, `BacktestResult.liquidated` rollup, `_mark_if_liquidated` wired to 4 close sites, equity-curve truncation at first liquidating trade; 4 regression tests; PnL math unchanged |
 | 2026-05-01 | Resolved | DEBT-042 Black formatter gate dormant — Phase 26.5 ran one-shot `black src tests scripts` sweep; 21 files reformatted; pytest 1361 → 1361 (zero delta — pure formatter); gate now enforceable (115 files clean) |
+| 2026-05-02 | Updated | DEBT-019 Resolution prose extended — Option B (code-type steering) shipped by Phase 17.5: `Pick.code_type` flag, `_build_new_idea_code_prompt` branch instructing `BaseStrategy` Python emission, all 9 catalog TOP_PICKS flagged; integration test pins `claude.analyze.call_count == 0` during 300-candle backtest |
+| 2026-05-02 | Added | DEBT-049 Phase 17.5 integration fixture uses `signal="neutral"` (Low) — surfaced during quant-trader-expert review; trade-producing path not exercised; trivial follow-up to flip fixture to `signal="long"` on a Donchian-shaped trigger |

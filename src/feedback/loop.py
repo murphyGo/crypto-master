@@ -264,9 +264,19 @@ class FeedbackLoop:
         param_grid: dict[str, list[Any]] | None = None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        code_type: bool = False,
     ) -> CandidateRecord:
-        """Generate a brand-new technique and run it through the gate."""
-        generated = await self.improver.generate_idea(context=context, save=True)
+        """Generate a brand-new technique and run it through the gate.
+
+        Phase 17.5 / DEBT-019 Option B — when ``code_type=True`` the
+        improver emits a Python ``BaseStrategy`` subclass instead of a
+        markdown prompt, so the resulting backtest never invokes the
+        Claude CLI per bar. Defaults to ``False`` so existing callers
+        keep the historical prompt-type path.
+        """
+        generated = await self.improver.generate_idea(
+            context=context, save=True, code_type=code_type
+        )
         return await self._run_cycle(
             generated=generated,
             kind="new_idea",

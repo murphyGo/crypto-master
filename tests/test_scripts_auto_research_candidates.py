@@ -397,3 +397,217 @@ def test_top_picks_are_ohlcv_only() -> None:
         assert (
             "on-chain" not in pick.context.lower()
         ), f"Pick {pick.slug} references on-chain data — needs data layer first"
+
+
+def test_top_picks_are_all_code_type() -> None:
+    """Phase 17.5 / DEBT-019 Option B — every shipped TOP_PICK is a
+    deterministic catalog technique (Donchian, Supertrend, Z-score,
+    Connors RSI(2), NR7, BB %B+RSI, Larry Williams, Golden Cross, TTM
+    Squeeze) and must be flagged ``code_type=True`` so the resulting
+    backtest never invokes Claude per bar. Defaults to ``False`` is
+    preserved on the dataclass; this test pins the per-pick flag."""
+    for pick in script.TOP_PICKS:
+        assert pick.code_type is True, (
+            f"Pick {pick.slug} must be code_type=True for the local "
+            "per-bar execution path; the prompt-type fallback is for "
+            "operator-authored picks only."
+        )
+
+
+# =============================================================================
+# Phase 17.5 / DEBT-019 Option B — code-type integration test
+# =============================================================================
+
+
+# A Python ``BaseStrategy`` body the improver will return. Mirrors the
+# canonical shape of ``strategies/rsi.py``: TECHNIQUE_INFO dict + class
+# extending BaseStrategy + async ``analyze``. The body is intentionally
+# trivial (always neutral) — the test cares about the loader and
+# call-count invariants, not P&L.
+GOOD_PYTHON_STRATEGY = '''\
+```python
+"""Donchian fixture — code-type integration test."""
+
+from datetime import datetime
+from decimal import Decimal
+
+from src.models import OHLCV, AnalysisResult
+from src.strategy.base import BaseStrategy, TechniqueInfo
+
+TECHNIQUE_INFO = {
+    "name": "donchian_codepath_fixture",
+    "version": "0.1.0",
+    "description": "Donchian fixture for code-path integration test",
+    "author": "system",
+    "symbols": ["BTC/USDT"],
+    "timeframes": ["1h"],
+    "status": "experimental",
+    "changelog": "fixture",
+}
+
+
+class DonchianCodepathFixture(BaseStrategy):
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+    ) -> AnalysisResult:
+        self.validate_input(ohlcv, min_candles=20)
+        price = float(ohlcv[-1].close)
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.3,
+            entry_price=Decimal(str(round(price, 2))),
+            stop_loss=Decimal(str(round(price * 0.99, 2))),
+            take_profit=Decimal(str(round(price * 1.01, 2))),
+            reasoning="fixture neutral",
+            timestamp=datetime.now(),
+        )
+```
+'''
+
+
+def _make_code_type_loop(
+    tmp_path: Path, audit_path: Path, claude_mock: AsyncMock
+) -> FeedbackLoop:
+    """Build a loop with the supplied ClaudeCLI mock + REAL Backtester.
+
+    The Backtester runs end-to-end against the loaded strategy so we
+    can prove that ``ClaudeCLI.analyze`` is never called per bar — if
+    the backtest were silently routing through a prompt-type strategy
+    it would fire ``analyze`` once per candle, blowing the call count
+    past 0.
+    """
+    from src.ai.improver import StrategyImprover
+    from src.backtest.analyzer import PerformanceAnalyzer
+    from src.backtest.engine import BacktestConfig, Backtester
+    from src.backtest.validator import RobustnessGate, RobustnessReport
+
+    improver = StrategyImprover(
+        claude=claude_mock,
+        experimental_dir=tmp_path / "experimental",
+        catalog_path=tmp_path / "no_catalog.md",
+    )
+    backtester = Backtester(BacktestConfig(), data_dir=tmp_path / "backtest")
+    analyzer = PerformanceAnalyzer()
+    gate = RobustnessGate(backtester=backtester)
+
+    # Stub the gate to avoid OOS / walk-forward / regime / sensitivity
+    # sub-runs — those would multiply backtest time without exercising
+    # the per-bar code path beyond what the baseline already does.
+    async def _stub_evaluate(*args, **kwargs):
+        return RobustnessReport(
+            overall_passed=True,
+            gates=[],
+            summary="stubbed pass for code-type integration",
+            baseline_sharpe=1.0,
+            baseline_trades=0,
+        )
+
+    gate.evaluate = _stub_evaluate  # type: ignore[assignment]
+
+    return FeedbackLoop(
+        improver=improver,
+        backtester=backtester,
+        analyzer=analyzer,
+        gate=gate,
+        audit_log=AuditLog(path=audit_path),
+        experimental_dir=tmp_path / "experimental",
+        active_dir=tmp_path / "active",
+        state_dir=tmp_path / "state",
+    )
+
+
+@pytest.mark.asyncio
+async def test_code_type_pick_runs_without_per_bar_claude_calls(
+    tmp_path: Path,
+) -> None:
+    """**Critical Phase 17.5 invariant.**
+
+    A ``Pick(code_type=True)`` must:
+
+    1. Trigger the improver's code-generation prompt (one
+       ``ClaudeCLI.complete`` call total).
+    2. Land on disk as a ``.py`` file under
+       ``strategies/experimental/<slug>_<ts>.py``.
+    3. Load cleanly via ``src.strategy.loader.load_strategy`` (the
+       loader's ``.py`` dispatch path).
+    4. Run end-to-end through ``Backtester.run_for_strategy`` against
+       synthetic OHLCV with **zero** ``ClaudeCLI.analyze`` calls — the
+       per-bar hot path is local Python, not an LLM round-trip.
+
+    If invariant (4) ever fails the backtest is back to per-bar Claude
+    calls, which is the exact failure DEBT-019 was filed to eliminate.
+    The assertion ``analyze.call_count == 0`` is the load-bearing
+    contract Phase 17.5 establishes.
+    """
+    from src.ai.claude import ClaudeCLI
+
+    claude = AsyncMock(spec=ClaudeCLI)
+    claude.complete.return_value = GOOD_PYTHON_STRATEGY
+    # ``analyze`` is the per-bar entry point on PromptStrategy. A
+    # code-type strategy must NEVER reach it. We track the call count
+    # on this mock — anything > 0 means the per-bar LLM hot path is
+    # back, and Phase 17.5 has regressed.
+    claude.analyze = AsyncMock(return_value={})
+
+    candles = _synthetic_ohlcv(300)
+    exchange = _FakeExchange({"1h": candles})
+    loop = _make_code_type_loop(
+        tmp_path, audit_path=tmp_path / "audit.jsonl", claude_mock=claude
+    )
+
+    pick = Pick(
+        slug="donchian_codepath",
+        context="Donchian breakout, code-type integration test",
+        timeframe="1h",
+        candles=300,
+        code_type=True,
+    )
+
+    results = await run_picks([pick], symbol="BTC/USDT", loop=loop, exchange=exchange)
+
+    assert len(results) == 1
+    result = results[0]
+    assert result.status == LoopStatus.AWAITING_APPROVAL.value, (
+        f"code-type pick should pass the (stubbed) gate; got {result.status} "
+        f"with reason {result.decision_reason}"
+    )
+    assert result.technique_name == "donchian_codepath_fixture"
+
+    # 1. Improver was called exactly once for code generation.
+    assert claude.complete.call_count == 1, (
+        "Expected exactly one ClaudeCLI.complete call (the code-"
+        f"generation step); got {claude.complete.call_count}"
+    )
+    # The generation prompt steered toward the code branch — sanity-
+    # check the canonical baseline references made it into the prompt.
+    generation_prompt = claude.complete.call_args.args[0]
+    assert "BaseStrategy" in generation_prompt
+    assert "strategies/rsi.py" in generation_prompt
+
+    # 2 + 3. The .py file landed under experimental/, was loaded by the
+    # loader's .py dispatch path, and the loaded class is what ran.
+    assert result.saved_path is not None
+    saved_path = Path(result.saved_path)
+    assert (
+        saved_path.suffix == ".py"
+    ), f"code-type generation must produce a .py file; got {saved_path}"
+    assert saved_path.exists()
+    # Loader reload sanity — independent of the loop's internal load.
+    from src.strategy.loader import load_strategy
+
+    reloaded = load_strategy(saved_path)
+    assert reloaded.name == "donchian_codepath_fixture"
+    assert reloaded.info.technique_type == "code"
+
+    # 4. **The load-bearing assertion.** Per-bar ClaudeCLI.analyze was
+    # never reached. If this trips, the backtest is silently routing
+    # through an LLM hot path and Phase 17.5 has regressed.
+    assert claude.analyze.call_count == 0, (
+        "ClaudeCLI.analyze was invoked during the code-type backtest "
+        f"({claude.analyze.call_count} calls). The whole point of "
+        "code-type strategies is no LLM in the hot path. Phase 17.5 "
+        "regression."
+    )

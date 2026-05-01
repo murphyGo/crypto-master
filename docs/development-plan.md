@@ -66,7 +66,7 @@
 | Portfolio Snapshot Recording in Runtime Cycle | ✅ Complete | 17 |
 | Closed-Trade Performance Records | ✅ Complete | 17 |
 | Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker | ✅ Complete | 17 |
-| Code-Type Steering for Deterministic Catalog Picks | ❌ Missing | 17 |
+| Code-Type Steering for Deterministic Catalog Picks | ✅ Complete | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
 | Trade-Quality Diagnostic | ❌ Missing | 18 |
 | Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
@@ -1936,12 +1936,12 @@ Claude call entirely), NFR-001 (operational maturity — eliminates the
 LLM-in-hot-path failure surface for deterministic strategies). No new
 FR/NFR introduced.
 
-- [ ] Decide steering signal: explicit boolean flag on `Pick` (the
+- [x] Decide steering signal: explicit boolean flag on `Pick` (the
   cleanest test, no fragile heuristic) versus context-keyword
   detection (e.g. "close > N-bar high") versus always-code for catalog
   picks. Recommended: explicit flag on `Pick`, defaulting to `False`
   so non-flagged picks retain the 17.4-hardened prompt path.
-- [ ] `src/ai/improver.py` — branch `_build_new_idea_prompt` (or add a
+- [x] `src/ai/improver.py` — branch `_build_new_idea_prompt` (or add a
   sibling `_build_new_idea_code_prompt`) on the steering signal. The
   code branch instructs Claude to produce a Python file containing a
   `BaseStrategy` subclass with a synchronous `signal()` method,
@@ -1950,14 +1950,14 @@ FR/NFR introduced.
   block + class + parameter constants). The catalog injection from
   Phase 17.1 is retained on this branch (Claude still benefits from
   the taxonomy when picking implementation choices).
-- [ ] `scripts/auto_research_candidates.py::TOP_PICKS` — flag the
+- [x] `scripts/auto_research_candidates.py::TOP_PICKS` — flag the
   deterministic picks for code-type generation. Likely all 9 default
   picks qualify (Donchian, Supertrend, Z-score, Larry Williams, NR7,
   Connors RSI(2), BB %B+RSI, Golden Cross, plus whichever ninth the
   matrix ranks); confirm against
   `docs/research/strategies/00-priority-matrix.md` at implementation
   time.
-- [ ] Tests:
+- [x] Tests:
   - `tests/test_ai_improver.py` — new cases asserting the code-type
     prompt path emits the `BaseStrategy` / `signal()` instruction
     string and references the canonical example files; the prompt
@@ -1973,7 +1973,7 @@ FR/NFR introduced.
   that load cleanly via `load_strategy` and run through `Backtester` +
   `RobustnessGate` with no per-bar Claude calls. Wallclock for the
   whole batch is dominated by OHLCV fetches, not LLM round-trips.
-- [ ] Write unit tests.
+- [x] Write unit tests.
 
 **Parent Debt**: DEBT-019 Option B (Auto-research script hangs
 indefinitely on prompt-type technique backtest, High, 2026-04-30). 17.4
@@ -3513,3 +3513,5 @@ requirements; no new FR/NFR introduced.
 | 26.4 | 2026-05-01 | Phase 26.4 sealed 2026-05-01 — Backtester Liquidation Parity (DEBT-047 Resolved). Closes asymmetry with Phase 22.2's `LIQUIDATED` ActivityEvent on PaperTrader. New `BacktestConfig.liquidation_threshold: Decimal = Decimal("0")` (default literal-zero per lead policy; docstring recommends positive value `~10%` of initial as operationally useful setting). New `BacktestTrade.liquidated: bool` structural marker (set when post-close balance ≤ threshold — intra-trade dips remain MDD's job). New `BacktestResult.liquidated: bool` rollup. `Backtester._mark_if_liquidated` helper wired into all 4 trade-close sites (single-TF + multi-TF × intra-candle + end-of-data). Equity curve truncated at first liquidating trade's `exit_time` so analyzer MDD/Sharpe don't compute against post-liquidation phantom bars. PnL math unchanged — observability only; backtester continues simulating after threshold crossing. `ActivityLog` deliberately NOT wired (backtester is offline; Phase 22.2 covers live paper). 4 regression tests pin marker, solvent run, positive threshold, default. pytest 1357 → 1361 (+4); ruff/mypy/black clean. Quant verdict: 🟢 ship (sizing-cap interaction docstring-polished — literal-zero default rarely fires with `risk_percent ≤ 5%`; positive threshold is operationally useful). QA verdict: 🟢 ship. | docs-auditor (lead-orchestrated) |
 | 26.5 | 2026-05-01 | Phase 26.5 sealed 2026-05-01 — Black Sweep (DEBT-042 Resolved). One-shot `black src tests scripts` reformatted 21 files (5 src + 1 scripts + 15 tests). pytest 1361 → 1361 (zero delta — pure formatter). ruff/mypy clean. `black --check` was failing pre-sweep (21 file delta) and is now passing post-sweep (115 files clean) — the gate is now **enforceable** when invoked manually. QA spot-checked 3 random files: every diff is line-wrapping / paren-style collapse / whitespace; no conditional restructuring, operator changes, string-content edits, or parameter reordering. Two adjacent f-string-concat warts (`src/trading/live.py:356`, `src/tools/purge_proposals.py`) noted as cosmetic-only follow-up; behaviour unchanged. Project has no `.github/workflows/` or `.pre-commit-config.yaml`, so the gate is enforceable but still manual; CI infrastructure for automated regression blocking is a separate phase. | docs-auditor (lead-orchestrated) |
 | 26.0 | 2026-05-01 | Phase 26 sealed (26.1 ✅, 26.2 ✅, 26.3 ✅, 26.4 ✅, 26.5 ✅) — 11 DEBT items closed in one cohesive bundle (DEBT-035, 036, 038, 039, 040, 041, 042, 044, 045, 047, 048). Active TECH-DEBT 22 → 11 (-11); Resolved (All Time) 26 → 37 (+11); Medium 6 → 5; Low 16 → 6. pytest 1348 → 1361 (+13 net). All sub-task reviewers 🟢. Phase 26 cross-check `docs/cross-checks/2026-05-01-phase-26-hygiene-and-polish-bundle.md` PASS — FR-007 / FR-014 / FR-015 / FR-025 / NFR-001 / NFR-006 / NFR-008 all ✅; 0 ⚠️ partial; 0 ❌ gap. Carry-overs (not Phase 26 concerns): DEBT-046 hard prereq for Phase 19.2 sub-account fan-out; Phase 25.3 Part B operator follow-up; Phase 17.5 still open. | docs-auditor |
+| 17.5 | 2026-05-02 | Phase 17.5 sealed 2026-05-02 — Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B; FR-023 / FR-025 / NFR-001 extending). Eliminates Claude CLI from the hot path for deterministic catalog strategies — generated as Python `BaseStrategy` subclasses (executable locally per bar) instead of markdown prompts (per-bar Claude CLI invocation). `Pick.code_type: bool = False` field on `auto_research_candidates.py:145`; all 9 TOP_PICKS flagged `code_type=True` (Donchian System 2, Supertrend, Connors RSI(2), Z-score, Larry Williams, TTM Squeeze, BB %B+RSI, Golden Cross, NR7). New `improver._build_new_idea_code_prompt` branch (line 676) instructs Claude to emit Python file with `class XxxStrategy(BaseStrategy)` + `async def analyze` (NOT sync `signal()` as spec text said — implementation correctly matches `BaseStrategy.analyze` async abstract; spec drift surfaced as cosmetic-only). Catalog injection from Phase 17.1 retained on code branch. File extension dispatch: `.py` for code-type, `.md` otherwise. Loader (`src/strategy/loader.py`) already supported `.py` via existing `load_technique_info_from_py` — no loader changes. 6 new tests: 4 prompt-branch unit tests + 1 TOP_PICKS regression guard + 1 load-bearing integration test (`test_code_type_pick_runs_without_per_bar_claude_calls` — real `Backtester.run_for_strategy` over 300 synthetic candles, asserts `claude.complete.call_count == 1` AND `claude.analyze.call_count == 0`). pytest 1361 → 1367 (+6); ruff/mypy/black clean. Quant verdict: 🟡 ship-with-note (catalog flags / interface / invariant all correct; non-blocking note that fixture's `signal="neutral"` doesn't exercise real-trade path → recorded as DEBT-049 Low). QA verdict: 🟢 ship. Acceptance checkbox left for operator (real Claude run + 5 generated `.py` files) per Phase 17.4 precedent. Session log: `docs/sessions/2026-05-02-phase-17.5-and-phase-17-seal.md`. | docs-auditor (lead-orchestrated) |
+| 17.0 | 2026-05-02 | Phase 17 sealed (17.1 ✅, 17.2 ✅, 17.3 ✅, 17.4 ✅, 17.5 ✅) — strategy-evolution operator workflow now complete end-to-end. DEBT-019 (the original audit's most operationally painful debt — 9-hour hang on prompt-type catalog picks) closed at root: deterministic strategies bypass LLM hot path entirely (17.5 Option B); fallback prompt path hardened with per-bar circuit breakers (17.4 Options A+C). Auto-research generates candidates → backtester runs deterministic ones in seconds (not 9 hours) → robustness gate evaluates → operator promotes. Phase 17 cross-check `docs/cross-checks/2026-05-02-phase-17-strategy-evolution-operator.md` PASS — FR-021 / FR-022 / FR-023 / FR-025 / FR-027 / FR-031 / FR-005 / NFR-001 / NFR-008 all ✅; 0 partial; 0 gap. New TECH-DEBT: DEBT-049 (Low — fixture trade-producing path). DEBT-026 (Donchian truncated artefact) becomes obsolete on next operator regenerate. | docs-auditor |

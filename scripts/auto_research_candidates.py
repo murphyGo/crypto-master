@@ -126,12 +126,23 @@ class Pick:
             so the regime gate sees both bull and bear conditions.
             Tests can pass an explicit smaller value to keep runtimes
             tight.
+        code_type: Phase 17.5 / DEBT-019 Option B — when ``True``, the
+            improver generates a Python ``BaseStrategy`` subclass for
+            this pick instead of a markdown prompt template. Catalog
+            picks (Donchian, Supertrend, Z-score, Connors RSI(2), NR7,
+            BB %B+RSI, Larry Williams, Golden Cross, TTM Squeeze) are
+            deterministic and ship the ``code_type=True`` flag so
+            backtests run locally per bar with no Claude CLI in the
+            hot path. Defaults to ``False`` so any future operator-
+            authored prompt-type pick keeps the 17.4-hardened markdown
+            path.
     """
 
     slug: str
     context: str
     timeframe: Literal["15m", "1h", "4h"]
     candles: int = 0
+    code_type: bool = False
 
     def __post_init__(self) -> None:
         # Frozen dataclasses can't reassign normally; use object.__setattr__.
@@ -154,6 +165,7 @@ TOP_PICKS: list[Pick] = [
             "Donchian System 2."
         ),
         timeframe="4h",
+        code_type=True,
     ),
     Pick(
         slug="supertrend",
@@ -166,6 +178,7 @@ TOP_PICKS: list[Pick] = [
             "Supertrend."
         ),
         timeframe="1h",
+        code_type=True,
     ),
     Pick(
         slug="connors_rsi2",
@@ -177,6 +190,7 @@ TOP_PICKS: list[Pick] = [
             "Connors RSI(2)."
         ),
         timeframe="4h",
+        code_type=True,
     ),
     Pick(
         slug="zscore_mean_reversion",
@@ -188,6 +202,7 @@ TOP_PICKS: list[Pick] = [
             "reversion.md Z-score / Standard Deviation Mean Reversion."
         ),
         timeframe="1h",
+        code_type=True,
     ),
     Pick(
         slug="larry_williams_volatility",
@@ -200,6 +215,7 @@ TOP_PICKS: list[Pick] = [
             "Volatility Breakout (Larry Williams)."
         ),
         timeframe="1h",
+        code_type=True,
     ),
     Pick(
         slug="ttm_squeeze",
@@ -212,6 +228,7 @@ TOP_PICKS: list[Pick] = [
             "strategies/03-breakout-range.md TTM Squeeze."
         ),
         timeframe="1h",
+        code_type=True,
     ),
     Pick(
         slug="bb_pct_b_rsi_combo",
@@ -224,6 +241,7 @@ TOP_PICKS: list[Pick] = [
             "Bollinger %B + RSI Combo."
         ),
         timeframe="1h",
+        code_type=True,
     ),
     Pick(
         slug="golden_cross",
@@ -235,6 +253,7 @@ TOP_PICKS: list[Pick] = [
             "Moving Average Crossover."
         ),
         timeframe="4h",
+        code_type=True,
     ),
     Pick(
         slug="nr7_breakout",
@@ -247,6 +266,7 @@ TOP_PICKS: list[Pick] = [
             "03-breakout-range.md NR7 Breakout."
         ),
         timeframe="1h",
+        code_type=True,
     ),
 ]
 
@@ -395,7 +415,9 @@ async def run_picks(
             try:
                 if dry_run:
                     generated = await loop.improver.generate_idea(
-                        context=pick.context, save=True
+                        context=pick.context,
+                        save=True,
+                        code_type=pick.code_type,
                     )
                     logger.info(
                         f"  dry-run: generated technique '{generated.name}' at "
@@ -421,6 +443,10 @@ async def run_picks(
                     ohlcv=ohlcv,
                     symbol=symbol,
                     timeframe=pick.timeframe,
+                    # Phase 17.5 / DEBT-019 Option B — deterministic
+                    # picks ride the code-type path so the resulting
+                    # backtest never invokes Claude per bar.
+                    code_type=pick.code_type,
                 )
                 results.append(PickResult.from_record(pick.slug, pick.context, record))
                 logger.info(

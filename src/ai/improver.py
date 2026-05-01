@@ -15,6 +15,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 from typing import Literal
@@ -42,6 +43,13 @@ _MARKDOWN_BLOCK_PATTERN = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
+# Matches a fenced code block whose info string is ``python`` / ``py``.
+# Captures the body for the Phase 17.5 code-type generation path.
+_PYTHON_BLOCK_PATTERN = re.compile(
+    r"```(?:python|py)\s*\n(.*?)\n```",
+    re.DOTALL | re.IGNORECASE,
+)
+
 # Matches YAML frontmatter at the start of a markdown document.
 _FRONTMATTER_PATTERN = re.compile(
     r"\A---\s*\n(.*?)\n---\s*\n",
@@ -49,6 +57,13 @@ _FRONTMATTER_PATTERN = re.compile(
 )
 
 GenerationKind = Literal["improvement", "new_idea", "user_idea"]
+
+# Phase 17.5 / DEBT-019 Option B — file kind the improver should write.
+# ``markdown`` is the historical path (prompt-type ``.md`` techniques);
+# ``python`` is the code-type ``BaseStrategy`` subclass path used for
+# deterministic catalog picks (Donchian, Supertrend, Z-score, …) so the
+# resulting backtest never invokes the Claude CLI per bar.
+OutputKind = Literal["markdown", "python"]
 
 
 class StrategyImproverError(Exception):
@@ -91,6 +106,11 @@ class GeneratedTechnique(BaseModel):
     suggested_filename: str
     saved_path: Path | None = None
     raw_response: str = Field(default="", repr=False)
+    # Phase 17.5: ``markdown`` for the historical prompt-type ``.md``
+    # path; ``python`` for the code-type ``.py`` (``BaseStrategy``
+    # subclass) path. Defaults to ``markdown`` to keep all existing call
+    # sites byte-identical.
+    output_kind: OutputKind = "markdown"
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -185,6 +205,8 @@ class StrategyImprover:
         self,
         context: str = "",
         save: bool = True,
+        *,
+        code_type: bool = False,
     ) -> GeneratedTechnique:
         """Ask Claude to invent a brand-new technique.
 
@@ -192,17 +214,33 @@ class StrategyImprover:
             context: Optional steering context (e.g. "focus on mean
                 reversion on 1h timeframes"). Empty = fully open.
             save: If True, write to ``experimental_dir``.
+            code_type: Phase 17.5 / DEBT-019 Option B — when ``True``,
+                instruct Claude to produce a Python ``BaseStrategy``
+                subclass (``.py`` file) rather than a markdown prompt
+                template (``.md`` file). Code-type strategies run
+                locally per bar with no LLM in the hot path —
+                deterministic and immune to JSON-contract drift, the
+                cleanest path for catalog picks like Donchian /
+                Supertrend / Z-score / NR7 / Connors RSI(2). Defaults
+                to ``False`` so the historical prompt-type path is the
+                default.
 
         Returns:
             The parsed ``GeneratedTechnique``.
         """
-        prompt = self._build_new_idea_prompt(context)
+        if code_type:
+            prompt = self._build_new_idea_code_prompt(context)
+            output_kind: OutputKind = "python"
+        else:
+            prompt = self._build_new_idea_prompt(context)
+            output_kind = "markdown"
         return await self._run(
             prompt=prompt,
             kind="new_idea",
             parent=None,
             fallback_name="new_idea",
             save=save,
+            output_kind=output_kind,
         )
 
     async def generate_from_user_idea(
@@ -244,6 +282,7 @@ class StrategyImprover:
         parent: str | None,
         fallback_name: str,
         save: bool,
+        output_kind: OutputKind = "markdown",
     ) -> GeneratedTechnique:
         """Execute a prompt + parse + optionally save."""
         raw = await self.claude.complete(prompt)
@@ -252,6 +291,7 @@ class StrategyImprover:
             kind=kind,
             parent=parent,
             fallback_name=fallback_name,
+            output_kind=output_kind,
         )
         if save:
             path = self._save(generated)
@@ -267,26 +307,49 @@ class StrategyImprover:
         kind: GenerationKind,
         parent: str | None,
         fallback_name: str,
+        output_kind: OutputKind = "markdown",
     ) -> GeneratedTechnique:
-        """Extract the markdown block and parse frontmatter."""
-        match = _MARKDOWN_BLOCK_PATTERN.search(raw)
-        if match is None:
-            # Fall back to using the whole body verbatim if there's no
-            # fenced block — Claude sometimes replies with bare markdown.
-            content = raw.strip()
+        """Extract the response block and metadata.
+
+        For ``markdown`` output_kind the response is a fenced markdown
+        block with YAML frontmatter at the top. For ``python`` output
+        (Phase 17.5) the response is a fenced Python block whose source
+        defines a ``TECHNIQUE_INFO`` dict and a ``BaseStrategy``
+        subclass — metadata is read from the ``TECHNIQUE_INFO`` literal
+        via :mod:`ast`, so no module is ever executed at parse time.
+        """
+        if output_kind == "python":
+            match = _PYTHON_BLOCK_PATTERN.search(raw)
+            if match is None:
+                # Claude sometimes replies with bare Python and no
+                # fence; treat the whole body as the source. Best-
+                # effort: the loader will raise a clean error if it's
+                # genuinely not Python.
+                content = raw.strip()
+            else:
+                content = match.group(1).strip()
+            if not content:
+                raise GeneratedTechniqueError("Claude returned no technique content")
+            metadata = self._extract_technique_info_from_python(content)
         else:
-            content = match.group(1).strip()
+            match = _MARKDOWN_BLOCK_PATTERN.search(raw)
+            if match is None:
+                # Fall back to using the whole body verbatim if there's
+                # no fenced block — Claude sometimes replies with bare
+                # markdown.
+                content = raw.strip()
+            else:
+                content = match.group(1).strip()
+            if not content:
+                raise GeneratedTechniqueError("Claude returned no technique content")
+            metadata = self._parse_frontmatter(content)
 
-        if not content:
-            raise GeneratedTechniqueError("Claude returned no technique content")
+        name = str(metadata.get("name") or fallback_name)
+        version = str(metadata.get("version", "0.1.0"))
+        description = str(metadata.get("description", ""))
+        hypothesis = str(metadata.get("hypothesis", ""))
 
-        fm = self._parse_frontmatter(content)
-        name = str(fm.get("name") or fallback_name)
-        version = str(fm.get("version", "0.1.0"))
-        description = str(fm.get("description", ""))
-        hypothesis = str(fm.get("hypothesis", ""))
-
-        suggested_filename = self._build_filename(name)
+        suggested_filename = self._build_filename(name, output_kind=output_kind)
 
         return GeneratedTechnique(
             name=name,
@@ -298,7 +361,43 @@ class StrategyImprover:
             content=content,
             suggested_filename=suggested_filename,
             raw_response=raw,
+            output_kind=output_kind,
         )
+
+    @staticmethod
+    def _extract_technique_info_from_python(source: str) -> dict[str, object]:
+        """Pull the ``TECHNIQUE_INFO`` dict literal out of a Python source.
+
+        Uses :mod:`ast` so the file is *parsed*, never *executed* —
+        there's no risk of a malformed (or hostile) generated file
+        running side effects at metadata-extraction time. Returns an
+        empty dict if the assignment is absent or its value is not a
+        literal dict; the improver falls back to ``fallback_name`` /
+        defaults in that case, mirroring the existing markdown
+        frontmatter behavior.
+        """
+        try:
+            tree = ast.parse(source)
+        except SyntaxError as e:
+            logger.warning(f"Failed to parse generated Python source: {e}")
+            return {}
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            if not any(t.id == "TECHNIQUE_INFO" for t in targets):
+                continue
+            try:
+                value = ast.literal_eval(node.value)
+            except (ValueError, SyntaxError):
+                logger.warning(
+                    "TECHNIQUE_INFO is not a literal dict; metadata "
+                    "extraction fell back to defaults."
+                )
+                return {}
+            if isinstance(value, dict):
+                return {str(k): v for k, v in value.items()}
+        return {}
 
     @staticmethod
     def _parse_frontmatter(content: str) -> dict[str, object]:
@@ -320,16 +419,20 @@ class StrategyImprover:
             return {}
         return parsed
 
-    def _build_filename(self, name: str) -> str:
+    def _build_filename(self, name: str, output_kind: OutputKind = "markdown") -> str:
         """Build a filesystem-safe filename for a generated technique.
 
         Includes a UTC timestamp so repeated generations don't clobber
         earlier outputs. Slugification strips everything except
-        alphanumerics, hyphens, and underscores.
+        alphanumerics, hyphens, and underscores. Phase 17.5 — the
+        extension is ``.py`` for code-type output, ``.md`` otherwise,
+        so :func:`src.strategy.loader.load_strategy`'s suffix dispatch
+        picks the right loader without any extra plumbing.
         """
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", name).strip("_") or "technique"
         timestamp = now_utc().strftime("%Y%m%d_%H%M%S")
-        return f"{slug}_{timestamp}.md"
+        extension = ".py" if output_kind == "python" else ".md"
+        return f"{slug}_{timestamp}{extension}"
 
     def _save(self, generated: GeneratedTechnique) -> Path:
         """Write a generated technique to disk."""
@@ -568,6 +671,113 @@ class StrategyImprover:
             + self._catalog_section()
             + self._new_idea_output_contract()
             + self._output_format_instructions()
+        )
+
+    def _build_new_idea_code_prompt(self, context: str) -> str:
+        """Construct the code-type new-idea prompt (Phase 17.5 / DEBT-019 B).
+
+        The code-generation branch instructs Claude to emit a Python
+        ``BaseStrategy`` subclass whose ``analyze`` coroutine computes
+        the per-bar signal from OHLCV alone — no Claude CLI in the hot
+        path. Used for deterministic catalog picks (Donchian,
+        Supertrend, Z-score, Connors RSI(2), NR7, BB %B+RSI, Larry
+        Williams, Golden Cross, TTM Squeeze) so backtests are orders
+        of magnitude faster, deterministic, and immune to JSON-contract
+        drift entirely.
+
+        References ``strategies/rsi.py``, ``strategies/ma_crossover.py``
+        and ``strategies/bollinger_bands.py`` as the canonical shape
+        Claude must mirror: ``TECHNIQUE_INFO`` dict + module-level
+        parameter constants + ``class XxxStrategy(BaseStrategy)`` with
+        an async ``analyze`` method (NOT a sync ``signal()`` — the
+        ``BaseStrategy`` interface is async per
+        :class:`src.strategy.base.BaseStrategy.analyze`).
+        """
+        context_line = (
+            f"Context / steering: {context.strip()}\n\n" if context.strip() else ""
+        )
+        return (
+            "You are a quantitative trading strategy engineer. The "
+            "operator has selected a deterministic technique from the "
+            "catalog and wants it implemented as a Python "
+            "``BaseStrategy`` subclass — NOT a Claude-driven prompt "
+            "template. The strategy will run locally per bar with no "
+            "LLM in the hot path: this is the only acceptable shape "
+            "for catalog picks because it is deterministic, fast, and "
+            "immune to JSON-contract drift.\n\n"
+            "## Required file shape\n"
+            "Mirror the canonical baselines under the project's "
+            "``strategies/`` directory:\n"
+            "- ``strategies/rsi.py``\n"
+            "- ``strategies/ma_crossover.py``\n"
+            "- ``strategies/bollinger_bands.py``\n\n"
+            "Concretely, the file MUST contain:\n"
+            "1. A module docstring describing the strategy.\n"
+            "2. Imports from the project (`from src.models import "
+            "OHLCV, AnalysisResult`, `from src.strategy.base import "
+            "BaseStrategy, StrategyExecutionError, TechniqueInfo`). "
+            "You may also import indicators from "
+            "``src.strategy.indicators`` (``rsi``, ``sma``, "
+            "``bollinger_bands``, etc.) — prefer these over reinventing "
+            "the math.\n"
+            "3. A module-level ``TECHNIQUE_INFO`` dict with keys "
+            "``name``, ``version``, ``description``, ``author``, "
+            "``symbols``, ``timeframes``, ``status``, ``changelog``. "
+            "Use a short snake_case ``name``, semantic ``version`` "
+            '(e.g. ``"1.0.0"``), and one-line ``description``. The '
+            "``technique_type`` key is set automatically by the loader "
+            "— do NOT include it.\n"
+            "4. Module-level parameter constants (period lengths, "
+            "thresholds, SL/TP percentages) so a future tuning pass is "
+            "a one-line change.\n"
+            "5. A class ``class XxxStrategy(BaseStrategy)`` whose "
+            "``__init__`` accepts ``info: TechniqueInfo`` plus the "
+            "tunables (with the module-level constants as defaults), "
+            "and whose ``analyze`` method matches the abstract "
+            "signature exactly:\n\n"
+            "```python\n"
+            "async def analyze(\n"
+            "    self,\n"
+            "    ohlcv: list[OHLCV],\n"
+            "    symbol: str,\n"
+            '    timeframe: str = "1h",\n'
+            ") -> AnalysisResult:\n"
+            "    ...\n"
+            "```\n\n"
+            "The body computes the signal from ``ohlcv`` alone and "
+            "returns an ``AnalysisResult`` with ``signal`` "
+            '(``"long" | "short" | "neutral"``), ``confidence``, '
+            "``entry_price``, ``stop_loss``, ``take_profit``, and "
+            "``reasoning``. It MUST NOT import or call ``ClaudeCLI``, "
+            "``subprocess``, ``requests``, or any other I/O — all "
+            "decisions come from OHLCV.\n\n"
+            "## Hard constraints\n"
+            "- Stay deterministic. No randomness, no wall-clock-"
+            "dependent branches, no network calls.\n"
+            "- Use ``Decimal`` for prices in the returned "
+            "``AnalysisResult`` (the engine and risk model assume "
+            "``Decimal`` money math).\n"
+            "- Validate input via ``self.validate_input(ohlcv, "
+            "min_candles=...)`` at the top of ``analyze``, with "
+            "``min_candles`` set high enough for the longest lookback "
+            "the strategy needs.\n"
+            "- Surface unexpected failures by raising "
+            '``StrategyExecutionError(f"…: {e}", '
+            "strategy_name=self.name)``; surface insufficient-history "
+            "cases by returning a neutral ``AnalysisResult`` with "
+            "valid placeholder prices (mirror the canonical "
+            "``_neutral_result`` helper in the baseline files).\n"
+            "- ``hypothesis`` is still required as a brief docstring "
+            "comment near the top of the file — one falsifiable "
+            "sentence stating the structural inefficiency the "
+            "technique exploits.\n\n"
+            f"{context_line}" + self._catalog_section() + "## Output format\n"
+            "Respond ONLY with a single fenced code block labeled "
+            "``python`` containing the full ``.py`` file body. No "
+            "prose around the block, no markdown frontmatter, no "
+            "additional commentary — the operator pipeline writes the "
+            "block verbatim to ``strategies/experimental/<slug>.py`` "
+            "and loads it with ``src.strategy.loader.load_strategy``."
         )
 
     def _build_user_idea_prompt(self, user_idea: str) -> str:
