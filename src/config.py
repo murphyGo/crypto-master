@@ -220,6 +220,15 @@ class Settings(BaseSettings):
     engine_backtest_per_bar_timeout: float = Field(default=600.0, ge=1.0)
     engine_backtest_max_parse_failures: int = Field(default=5, ge=1)
 
+    # Phase 25.2: active-use freshness window for the snapshot-pinned
+    # baseline regenerator (``scripts/backtest_baselines.py``). A
+    # snapshot whose ``fetched_at`` is older than this fails the run
+    # loud unless the operator opts in to ``--refresh-snapshot``. 30
+    # days matches the quant-recommended promotion-gate window;
+    # ``src.backtest.snapshot.DEFAULT_MAX_AGE_DAYS`` (90) stays as the
+    # absolute stale ceiling for general-purpose snapshot consumers.
+    engine_baseline_max_snapshot_age_days: int = Field(default=30, ge=1)
+
     # Log Retention (Phase 10.4)
     # ``JsonlRotator`` keeps the active month + this many archive
     # months merged into ``read_all``. Older rotated files stay on

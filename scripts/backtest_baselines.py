@@ -1,8 +1,7 @@
 """Backtest the bundled baseline strategies and write reference numbers.
 
-Phase 10.3 operator script. Pulls historical OHLCV from Binance's
-public klines endpoint (no API keys needed — public market data),
-runs each baseline strategy through :class:`Backtester` and
+Phase 10.3 operator script, Phase 25.2 snapshot-pinned. Runs each
+baseline strategy through :class:`Backtester` and
 :class:`PerformanceAnalyzer`, and persists three artefacts per
 baseline under ``data/backtest/baselines/<technique_name>/``:
 
@@ -15,22 +14,36 @@ Idempotent: re-running the script overwrites the previous artefacts
 cleanly. The script does not commit or push; the operator reviews
 the diff and commits manually.
 
+**Phase 25.2 snapshot-pinned mode.** The default, recommended,
+reproducible path is ``--snapshot``: OHLCV reads route through
+:class:`src.backtest.snapshot.SnapshotExchange` instead of
+mainnet, so two operators on different days produce byte-identical
+baseline numbers. The live-fetch path stays available behind
+``--refresh-snapshot`` (operator-gated; the only path that touches
+mainnet) for the rare case where the snapshot needs refreshing.
+
 Usage::
 
-    # From the project root, with the venv active:
-    python -m scripts.backtest_baselines
+    # Reproducible run from the committed snapshot dataset.
+    python -m scripts.backtest_baselines --snapshot
+
+    # Refresh the snapshot from live Binance (operator-gated).
+    python -m scripts.backtest_baselines --refresh-snapshot
+
+    # Tighten the active-baseline freshness window (default 30 days).
+    python -m scripts.backtest_baselines --snapshot \\
+        --max-snapshot-age-days 14
 
     # Skip the docs update (just re-run the backtests):
-    python -m scripts.backtest_baselines --no-update-doc
+    python -m scripts.backtest_baselines --snapshot --no-update-doc
 
-The script makes real network calls to Binance's public klines API.
-There is no automated CI invocation — that's why this lives in
-``scripts/`` rather than ``src/``. The smoke test in
-``tests/test_scripts_backtest_baselines.py`` mocks the exchange and
-verifies the artefact layout without hitting the network.
+The smoke test in ``tests/test_scripts_backtest_baselines.py``
+exercises every path against synthetic OHLCV without hitting the
+network.
 
 Related Requirements:
-- FR-025: Backtesting Execution (consumed)
+- FR-025: Backtesting Execution (consumed; Phase 25 extends with
+  snapshot-pinned reproducibility)
 - NFR-006: Backtesting Result Storage
 """
 
@@ -42,17 +55,27 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
 from src.backtest.engine import Backtester, BacktestResult
-from src.config import BinanceConfig
+from src.backtest.snapshot import (
+    Snapshot,
+    SnapshotExchange,
+    SnapshotMetadata,
+    baseline_directory,
+    is_snapshot_fresh,
+    save_snapshot,
+)
+from src.config import BinanceConfig, get_settings
 from src.exchange.binance import BinanceExchange
 from src.logger import get_logger
 from src.models import OHLCV
 from src.strategy.base import BaseStrategy
 from src.strategy.loader import load_strategy
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.scripts.backtest_baselines")
 
@@ -62,6 +85,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STRATEGIES_DIR = PROJECT_ROOT / "strategies"
 DEFAULT_BASELINE_DIR = PROJECT_ROOT / "data" / "backtest" / "baselines"
 DEFAULT_BASELINES_DOC = PROJECT_ROOT / "docs" / "baselines.md"
+# Phase 25.2: snapshot-pinned dataset root. ``SnapshotExchange``
+# resolves the conventional ``baselines/<SYMBOL>__<timeframe>/``
+# layout underneath this root.
+DEFAULT_SNAPSHOT_ROOT = PROJECT_ROOT / "data" / "backtest" / "snapshots"
+# Per quant carry-over from 25.1: the operator path runs against a
+# tighter 30-day window than the absolute 90-day stale ceiling
+# defined in ``src.backtest.snapshot.DEFAULT_MAX_AGE_DAYS``. 30 days
+# is the active-use limit for promotion-gate baselines; 90 is the
+# absolute ceiling beyond which the snapshot is unambiguously stale.
+DEFAULT_MAX_SNAPSHOT_AGE_DAYS = 30
 
 # Binance public API caps a single ``fetch_ohlcv`` call at 1500 bars,
 # so longer windows (3mo × 1h ≈ 2160 bars; 1mo × 15m ≈ 2880 bars) need
@@ -105,6 +138,15 @@ class BaselineSpec:
 # Phase 10.3 spec: 3 months for swing baselines, 1 month for the 15m
 # scalp variant. Exact candle counts approximate calendar months
 # (30 days = 720 hours = 2880 fifteen-minute candles).
+#
+# Phase 25.2 reconciliation note. The 25 plan referred to "4 baselines"
+# (matching docs/baselines.md's narrative count) while the script ships
+# 5. Decision: KEEP ``rsi_universal``. It's a deliberate fallback
+# variant (Phase 9.4; see strategies/rsi.py module docstring) that
+# represents the "universal-cadence" RSI run alongside the explicit-
+# cadence ``rsi_4h`` and ``rsi_15m`` siblings. Dropping it would
+# silently lose the universal baseline's edge history. Phase 25.3 will
+# update the docs/baselines.md table to enumerate all five rows.
 BASELINES: tuple[BaselineSpec, ...] = (
     BaselineSpec(
         technique_name="rsi_universal",
@@ -483,13 +525,158 @@ def update_baselines_doc(
 # ---------------------------------------------------------------------------
 
 
+def _build_snapshot_exchange(
+    snapshot_root: Path,
+    max_snapshot_age_days: int,
+    *,
+    now: datetime | None = None,
+) -> SnapshotExchange:
+    """Load every BASELINES snapshot off disk and freshness-check.
+
+    Phase 25.2 read path. Loads one snapshot per (symbol, timeframe)
+    pair declared in :data:`BASELINES` and refuses to proceed if any
+    of them was fetched more than ``max_snapshot_age_days`` ago — the
+    operator must explicitly opt in to refreshing via
+    ``--refresh-snapshot`` rather than silently consuming stale data.
+
+    Args:
+        snapshot_root: Snapshot dataset root (typically
+            ``data/backtest/snapshots``); the conventional
+            ``baselines/<SYMBOL>__<timeframe>/`` layout from
+            :func:`baseline_directory` is resolved underneath.
+        max_snapshot_age_days: Active-use freshness window (default
+            30 per quant). Tighter than the 90-day absolute ceiling
+            in :data:`src.backtest.snapshot.DEFAULT_MAX_AGE_DAYS`.
+        now: Override the wall clock for tests.
+
+    Returns:
+        Loaded :class:`SnapshotExchange` ready for injection.
+
+    Raises:
+        RuntimeError: If any required snapshot is older than
+            ``max_snapshot_age_days``. The message names the offending
+            (symbol, timeframe) and the snapshot's ``fetched_at`` so
+            the operator can spot the mis-aged file directly.
+    """
+    pairs = sorted({(spec.symbol, spec.timeframe) for spec in BASELINES})
+    exchange = SnapshotExchange.from_directory(snapshot_root, pairs)
+
+    # Freshness check. Use the script's tighter active-use window
+    # (default 30) rather than the snapshot module's 90-day default.
+    for (symbol, timeframe), metadata in exchange.loaded_metadata().items():
+        if not is_snapshot_fresh(
+            metadata,
+            max_age_days=max_snapshot_age_days,
+            now=now,
+        ):
+            raise RuntimeError(
+                f"snapshot for ({symbol}, {timeframe}) is older than "
+                f"{max_snapshot_age_days} days "
+                f"(fetched_at={metadata.fetched_at.isoformat()}); "
+                "re-run with --refresh-snapshot to fetch a fresh one."
+            )
+    return exchange
+
+
+async def refresh_snapshots(
+    *,
+    snapshot_root: Path = DEFAULT_SNAPSHOT_ROOT,
+    exchange: BinanceExchange | None = None,
+) -> list[Path]:
+    """Fetch fresh OHLCV from live Binance and overwrite the snapshots.
+
+    Phase 25.2 operator-gated refresh path. This is the ONLY path
+    that touches Binance mainnet; the rest of the script consumes
+    the persisted snapshots. Each unique (symbol, timeframe) pair in
+    :data:`BASELINES` is fetched (paginated past the 1500-bar cap if
+    needed), wrapped in a :class:`Snapshot` with a fresh
+    :class:`SnapshotMetadata` sidecar (``fetched_at=now_utc()``,
+    ``fetcher_version="phase-25.2"``), and written via
+    :func:`save_snapshot` to ``baseline_directory(snapshot_root, ...)``.
+
+    Args:
+        snapshot_root: Snapshot dataset root.
+        exchange: Pre-built exchange (mainly for tests). When ``None``,
+            a fresh :class:`BinanceExchange` is constructed against
+            mainnet and disconnected on completion.
+
+    Returns:
+        List of snapshot directories written, one per refreshed
+        (symbol, timeframe) pair.
+    """
+    # Per-pair candle count: the ``BASELINES`` list may contain
+    # multiple specs for the same (symbol, timeframe) pair; fetch
+    # the longest window so every spec is covered by one snapshot.
+    per_pair_candles: dict[tuple[str, str], int] = {}
+    for spec in BASELINES:
+        key = (spec.symbol, spec.timeframe)
+        per_pair_candles[key] = max(per_pair_candles.get(key, 0), spec.candles)
+
+    owns_exchange = exchange is None
+    if exchange is None:
+        # Same construction as the legacy live path: mainnet, no keys
+        # (public OHLCV endpoint).
+        exchange = BinanceExchange(
+            BinanceConfig(api_key="", api_secret=""), testnet=False
+        )
+        await exchange.connect()
+
+    written: list[Path] = []
+    try:
+        for (symbol, timeframe), candles in per_pair_candles.items():
+            logger.warning(
+                "FETCHING FROM LIVE BINANCE: %s %s (%d candles)",
+                symbol,
+                timeframe,
+                candles,
+            )
+            ohlcv = await fetch_ohlcv_window(
+                exchange=exchange,
+                symbol=symbol,
+                timeframe=timeframe,
+                total_candles=candles,
+            )
+            if not ohlcv:
+                raise RuntimeError(
+                    f"refresh: no OHLCV returned for {symbol} {timeframe}"
+                )
+            metadata = SnapshotMetadata(
+                symbol=symbol,
+                timeframe=timeframe,
+                source="binance",
+                fetched_at=now_utc(),
+                candle_count=len(ohlcv),
+                first_timestamp=ohlcv[0].timestamp,
+                last_timestamp=ohlcv[-1].timestamp,
+                fetcher_version="phase-25.2",
+            )
+            snapshot = Snapshot(metadata=metadata, ohlcv=ohlcv)
+            target = baseline_directory(snapshot_root, symbol, timeframe)
+            save_snapshot(snapshot, target)
+            written.append(target)
+            logger.info(
+                "Wrote snapshot %s (%d rows, first=%s, last=%s)",
+                target,
+                len(ohlcv),
+                ohlcv[0].timestamp.isoformat(),
+                ohlcv[-1].timestamp.isoformat(),
+            )
+    finally:
+        if owns_exchange:
+            await exchange.disconnect()
+
+    return written
+
+
 async def run_all(
     *,
     output_root: Path = DEFAULT_BASELINE_DIR,
     update_doc: bool = True,
     doc_path: Path = DEFAULT_BASELINES_DOC,
-    exchange: BinanceExchange | None = None,
+    exchange: BinanceExchange | SnapshotExchange | None = None,
     strategies_dir: Path = STRATEGIES_DIR,
+    snapshot_root: Path | None = None,
+    max_snapshot_age_days: int = DEFAULT_MAX_SNAPSHOT_AGE_DAYS,
 ) -> list[dict]:
     """Run every baseline and (optionally) update the docs table.
 
@@ -497,10 +684,19 @@ async def run_all(
         output_root: Where to write per-baseline artefacts.
         update_doc: If True, rewrite the table in ``doc_path``.
         doc_path: Path to the baselines doc.
-        exchange: Pre-built exchange (mainly for tests). When ``None``,
-            a fresh :class:`BinanceExchange` is constructed and
-            connected against Binance mainnet (public endpoints only).
+        exchange: Pre-built exchange (mainly for tests). When ``None``
+            and ``snapshot_root`` is set, the script loads a
+            :class:`SnapshotExchange` from disk; when both are
+            ``None``, a fresh :class:`BinanceExchange` is constructed
+            and connected against Binance mainnet (public endpoints
+            only). Direct exchange injection wins over ``snapshot_root``.
         strategies_dir: Where the baseline strategy files live.
+        snapshot_root: Phase 25.2 snapshot root. When set (and
+            ``exchange`` is None), OHLCV reads route through a
+            :class:`SnapshotExchange` loaded from this directory
+            instead of live Binance.
+        max_snapshot_age_days: Active-use freshness window (default
+            :data:`DEFAULT_MAX_SNAPSHOT_AGE_DAYS`).
 
     Returns:
         Ordered summary dicts (one per baseline, in :data:`BASELINES`
@@ -510,19 +706,25 @@ async def run_all(
 
     owns_exchange = exchange is None
     if exchange is None:
-        # Public OHLCV endpoint — no keys needed. Mainnet (testnet=False)
-        # because Binance testnet historical data is sparse / synthetic.
-        exchange = BinanceExchange(
-            BinanceConfig(api_key="", api_secret=""), testnet=False
-        )
-        await exchange.connect()
+        if snapshot_root is not None:
+            # Phase 25.2 reproducible path: load the snapshot dataset.
+            exchange = _build_snapshot_exchange(snapshot_root, max_snapshot_age_days)
+            await exchange.connect()
+        else:
+            # Legacy live path. Public OHLCV endpoint — no keys needed.
+            # Mainnet (testnet=False) because Binance testnet historical
+            # data is sparse / synthetic.
+            exchange = BinanceExchange(
+                BinanceConfig(api_key="", api_secret=""), testnet=False
+            )
+            await exchange.connect()
 
     summaries: list[dict] = []
     try:
         for spec in BASELINES:
             summary = await run_baseline(
                 spec=spec,
-                exchange=exchange,
+                exchange=exchange,  # type: ignore[arg-type]
                 output_root=output_root,
                 strategies_dir=strategies_dir,
             )
@@ -539,7 +741,23 @@ async def run_all(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point. Returns a process exit code."""
+    """CLI entry point. Returns a process exit code.
+
+    Phase 25.2 added three flags:
+
+    * ``--snapshot [path]`` — read OHLCV from the snapshot dataset
+      under ``path`` (default :data:`DEFAULT_SNAPSHOT_ROOT`). The
+      reproducible path: same snapshot in, same baseline numbers out.
+    * ``--refresh-snapshot`` — fetch fresh OHLCV from live Binance
+      and overwrite the snapshot dataset. Operator-gated: this is the
+      ONLY flag that touches mainnet. Mutually exclusive with
+      ``--snapshot``.
+    * ``--max-snapshot-age-days`` — active-use freshness window
+      (default :data:`DEFAULT_MAX_SNAPSHOT_AGE_DAYS`, currently 30).
+      A snapshot older than this fails the run loud unless
+      ``--refresh-snapshot`` was passed. Tighter than the absolute
+      90-day stale ceiling enforced inside ``snapshot.py``.
+    """
     parser = argparse.ArgumentParser(
         description="Backtest the bundled baseline strategies."
     )
@@ -554,16 +772,78 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_BASELINE_DIR,
         help="Where per-baseline artefacts go " "(default: data/backtest/baselines).",
     )
+    # Phase 25.2 flags. ``--snapshot`` and ``--refresh-snapshot`` are
+    # mutually exclusive: one consumes the snapshot dataset, the other
+    # rebuilds it.
+    snapshot_group = parser.add_mutually_exclusive_group()
+    snapshot_group.add_argument(
+        "--snapshot",
+        type=Path,
+        nargs="?",
+        const=DEFAULT_SNAPSHOT_ROOT,
+        default=None,
+        help=(
+            "Read OHLCV from the snapshot dataset rooted at this path "
+            "(default: data/backtest/snapshots). Reproducible mode: "
+            "same snapshot → same baseline numbers."
+        ),
+    )
+    snapshot_group.add_argument(
+        "--refresh-snapshot",
+        action="store_true",
+        help=(
+            "Fetch fresh OHLCV from live Binance and overwrite the "
+            "snapshot dataset. Operator-gated: this is the only path "
+            "that touches mainnet. Skips the baseline run."
+        ),
+    )
+    # Default reads from settings so ``ENGINE_BASELINE_MAX_SNAPSHOT_AGE_DAYS``
+    # in ``.env`` overrides the 30-day quant default without an
+    # explicit CLI flag.
+    parser.add_argument(
+        "--max-snapshot-age-days",
+        type=int,
+        default=get_settings().engine_baseline_max_snapshot_age_days,
+        help=(
+            f"Active-use freshness window in days (default: "
+            f"{DEFAULT_MAX_SNAPSHOT_AGE_DAYS}, env-overridable via "
+            "ENGINE_BASELINE_MAX_SNAPSHOT_AGE_DAYS). A snapshot older "
+            "than this fails loud unless --refresh-snapshot is set."
+        ),
+    )
+    parser.add_argument(
+        "--snapshot-root",
+        type=Path,
+        default=DEFAULT_SNAPSHOT_ROOT,
+        help=(
+            "Snapshot dataset root for --refresh-snapshot writes "
+            "(default: data/backtest/snapshots)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     # Bring the script's logs to the operator's terminal. The library
     # logger defaults to WARNING for non-root namespaces.
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
+    if args.refresh_snapshot:
+        # Operator-gated live path. Loud warning so the operator
+        # knows mainnet is being hit; refresh exits without running
+        # the baselines (a follow-up ``--snapshot`` invocation
+        # consumes the freshly-written dataset).
+        print("WARNING: --refresh-snapshot fetches OHLCV from LIVE " "Binance mainnet.")
+        written = asyncio.run(refresh_snapshots(snapshot_root=args.snapshot_root))
+        print(f"Refreshed {len(written)} snapshots:")
+        for path in written:
+            print(f"  {path}")
+        return 0
+
     summaries = asyncio.run(
         run_all(
             output_root=args.output_dir,
             update_doc=not args.no_update_doc,
+            snapshot_root=args.snapshot,
+            max_snapshot_age_days=args.max_snapshot_age_days,
         )
     )
     print(f"Ran {len(summaries)} baselines:")

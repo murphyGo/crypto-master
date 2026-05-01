@@ -124,8 +124,10 @@ __all__ = [
     "DEFAULT_MAX_AGE_DAYS",
     "FETCHER_VERSION",
     "Snapshot",
+    "SnapshotExchange",
     "SnapshotMetadata",
     "SnapshotValidationError",
+    "baseline_directory",
     "is_snapshot_fresh",
     "load_snapshot",
     "save_snapshot",
@@ -433,3 +435,169 @@ def is_snapshot_fresh(
     current = ensure_utc(current)
     age = current - metadata.fetched_at
     return age <= timedelta(days=max_age_days)
+
+
+class SnapshotExchange:
+    """Snapshot-backed read-only stand-in for :class:`BinanceExchange`.
+
+    Phase 25.2 adapter. Wraps a collection of preloaded
+    :class:`Snapshot` objects keyed by ``(symbol, timeframe)`` and
+    exposes the narrow exchange surface that
+    ``scripts/backtest_baselines.py`` actually consumes:
+    :meth:`connect`, :meth:`disconnect`, :meth:`get_ohlcv`. Every
+    other ``BaseExchange`` method is intentionally absent — the
+    baseline regenerator never touches them, and the snapshot
+    dataset has no notion of live tickers, balances, or orders.
+
+    **Slice-bounds enforcement** (quant carry-over from 25.1):
+
+    * ``limit`` is clamped to ``len(ohlcv)`` so a caller asking for
+      more bars than the snapshot holds gets the whole snapshot
+      rather than an out-of-range slice.
+    * ``since`` past ``last_timestamp`` returns an empty list — the
+      snapshot CANNOT extrapolate past the data it captured. Callers
+      that paginate forward will see the empty page and stop.
+    * Pagination semantics match the Phase 10.3 fake exchange: with
+      no ``since`` we return the most-recent ``limit`` rows; with a
+      ``since`` cursor we return up to ``limit`` rows starting at the
+      first row with ``timestamp >= since``.
+
+    Use the ``exchange=`` injection point on
+    :func:`scripts.backtest_baselines.run_all` to swap this in for
+    the live ``BinanceExchange``.
+    """
+
+    name: str = "snapshot"
+
+    def __init__(self, snapshots: dict[tuple[str, str], Snapshot]) -> None:
+        """Build the adapter from a preloaded snapshot map.
+
+        Args:
+            snapshots: Mapping ``(symbol, timeframe) -> Snapshot``.
+                Symbols use the canonical slash form (``BTC/USDT``),
+                matching :attr:`SnapshotMetadata.symbol`.
+        """
+        self._snapshots = dict(snapshots)
+        self.connected = False
+
+    @classmethod
+    def from_directory(
+        cls,
+        root: Path,
+        pairs: list[tuple[str, str]],
+    ) -> SnapshotExchange:
+        """Build an adapter by loading every requested snapshot off disk.
+
+        Args:
+            root: Snapshot root directory (typically
+                ``data/backtest/snapshots``). The conventional
+                ``baselines/<SYMBOL>__<timeframe>/`` layout from
+                :func:`baseline_directory` is resolved underneath.
+            pairs: ``(symbol, timeframe)`` pairs to load. Each must
+                map to an existing snapshot directory; otherwise
+                :class:`SnapshotValidationError` propagates from
+                :func:`load_snapshot` and the operator gets a
+                descriptive failure naming the missing path.
+
+        Returns:
+            Fully-loaded :class:`SnapshotExchange`. Connect/disconnect
+            are no-ops for parity with the live exchange contract.
+        """
+        loaded: dict[tuple[str, str], Snapshot] = {}
+        for symbol, timeframe in pairs:
+            directory = baseline_directory(root, symbol, timeframe)
+            loaded[(symbol, timeframe)] = load_snapshot(directory)
+        return cls(loaded)
+
+    async def connect(self) -> None:
+        """No-op for parity with :class:`BaseExchange`."""
+        self.connected = True
+
+    async def disconnect(self) -> None:
+        """No-op for parity with :class:`BaseExchange`."""
+        self.connected = False
+
+    def loaded_metadata(self) -> dict[tuple[str, str], SnapshotMetadata]:
+        """Return the metadata sidecar for every loaded snapshot.
+
+        Useful for the operator-level freshness check in
+        ``scripts/backtest_baselines.py``: the script iterates every
+        ``(symbol, timeframe) -> SnapshotMetadata`` pair to enforce
+        its tighter active-use window without poking at private
+        state. The returned dict is a fresh copy; mutating it does
+        not affect the adapter.
+        """
+        return {key: snap.metadata for key, snap in self._snapshots.items()}
+
+    async def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+        since: int | None = None,
+    ) -> list[OHLCV]:
+        """Return snapshot rows for ``(symbol, timeframe)``.
+
+        Mirrors :meth:`BinanceExchange.get_ohlcv` semantics for the
+        two access patterns the baseline script uses:
+
+        * No ``since``: return the most recent ``limit`` rows.
+        * With ``since``: return up to ``limit`` rows whose
+          ``timestamp`` is at or after the given UTC millisecond
+          cursor.
+
+        Slice bounds are clamped (quant carry-over from 25.1):
+        ``limit`` cannot exceed ``len(ohlcv)``, and a ``since`` past
+        ``last_timestamp`` yields an empty list — the snapshot
+        refuses to extrapolate beyond the data it captured.
+
+        Args:
+            symbol: Trading pair in canonical slash form
+                (``BTC/USDT``).
+            timeframe: Candle timeframe label.
+            limit: Maximum bars to return; clamped to the snapshot's
+                row count.
+            since: Optional UTC milliseconds cursor; rows with
+                ``timestamp.timestamp() * 1000 >= since`` are returned.
+
+        Returns:
+            Matching OHLCV rows, ascending by timestamp. Empty when
+            ``since`` is past ``last_timestamp``.
+
+        Raises:
+            KeyError: If no snapshot is loaded for the requested
+                ``(symbol, timeframe)`` pair. The script's
+                ``run_baseline`` surfaces this directly so the
+                operator sees which snapshot is missing.
+        """
+        key = (symbol, timeframe)
+        if key not in self._snapshots:
+            raise KeyError(
+                f"no snapshot loaded for ({symbol!r}, {timeframe!r}); "
+                f"available: {sorted(self._snapshots.keys())}"
+            )
+        rows = self._snapshots[key].ohlcv
+        if not rows:
+            return []
+
+        # Quant carry-over: clamp ``limit`` to the snapshot's actual
+        # length so a caller asking for more bars than we hold gets
+        # the whole snapshot rather than a confusing partial slice.
+        clamped_limit = min(limit, len(rows))
+
+        if since is None:
+            # Most-recent page (matches BinanceExchange default shape).
+            return list(rows[-clamped_limit:])
+
+        # Quant carry-over: a ``since`` cursor past ``last_timestamp``
+        # is an extrapolation request — return empty rather than the
+        # tail page so paginators stop instead of looping forever.
+        last_ts_ms = int(rows[-1].timestamp.timestamp() * 1000)
+        if since > last_ts_ms:
+            return []
+
+        for i, candle in enumerate(rows):
+            ts_ms = int(candle.timestamp.timestamp() * 1000)
+            if ts_ms >= since:
+                return list(rows[i : i + clamped_limit])
+        return []
