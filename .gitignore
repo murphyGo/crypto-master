@@ -34,7 +34,19 @@ Thumbs.db
 htmlcov/
 
 # Runtime data (logs, trades, backtests, performance, audit, feedback state)
-data/
+# NOTE: ``data/*`` (not ``data/``) so that re-includes for the
+# Phase 25 snapshot subtree below can take effect — gitignore can't
+# re-include children of an excluded *directory*, but it can carve
+# back paths under an excluded *glob*.
+data/*
+
+# Phase 25.1 / DEBT-043: snapshot-pinned baseline datasets MUST travel
+# with the repo for reproducibility. Carve the snapshots/ subtree back
+# in; the rest of data/ stays ignored.
+!data/backtest/
+data/backtest/*
+!data/backtest/snapshots/
+!data/backtest/snapshots/**
 
 # Dry-run output from scripts/auto_research_candidates.py — these
 # files are generated for prompt-validation only and never gated.
