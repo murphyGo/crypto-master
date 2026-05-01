@@ -19,7 +19,9 @@ from src.ai.exceptions import (
 )
 
 
-def _make_popen_success(stdout: str, stderr: str = "", returncode: int = 0) -> MagicMock:
+def _make_popen_success(
+    stdout: str, stderr: str = "", returncode: int = 0
+) -> MagicMock:
     """Build a Popen mock whose ``communicate`` returns ``(stdout, stderr)``.
 
     Phase 16.1: ``_execute_cli_once`` uses ``subprocess.Popen`` (run
@@ -632,8 +634,7 @@ class TestParseResponseRobustness:
         # ``record.message`` is pre-format; ``getMessage()`` resolves
         # the %s args we passed to ``logger.warning``.
         assert any(
-            "I can't help with that" in record.getMessage()
-            for record in caplog.records
+            "I can't help with that" in record.getMessage() for record in caplog.records
         )
 
 

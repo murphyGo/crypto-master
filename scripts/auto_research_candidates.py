@@ -136,9 +136,7 @@ class Pick:
     def __post_init__(self) -> None:
         # Frozen dataclasses can't reassign normally; use object.__setattr__.
         if self.candles == 0:
-            object.__setattr__(
-                self, "candles", _default_candles_for(self.timeframe)
-            )
+            object.__setattr__(self, "candles", _default_candles_for(self.timeframe))
 
 
 # Top OHLCV-only picks from docs/research/strategies/00-priority-matrix.md
@@ -277,7 +275,9 @@ class PickResult:
     error: str | None = None
 
     @classmethod
-    def from_record(cls, slug: str, context: str, record: CandidateRecord) -> PickResult:
+    def from_record(
+        cls, slug: str, context: str, record: CandidateRecord
+    ) -> PickResult:
         return cls(
             slug=slug,
             context_preview=context[:80] + ("…" if len(context) > 80 else ""),
@@ -383,9 +383,7 @@ async def run_picks(
         # ungated and gated files in `strategies/experimental/`.
         # Re-pointing the improver is safe: nothing else in run_picks
         # writes to its experimental_dir.
-        loop.improver.experimental_dir = (
-            loop.improver.experimental_dir / "dry_runs"
-        )
+        loop.improver.experimental_dir = loop.improver.experimental_dir / "dry_runs"
 
     try:
         cache = await fetch_for_picks(exchange, symbol, picks)
@@ -460,11 +458,7 @@ def render_summary(results: list[PickResult]) -> str:
     ]
     for r in results:
         passed = (
-            "✓"
-            if r.robustness_passed
-            else "✗"
-            if r.robustness_passed is False
-            else "—"
+            "✓" if r.robustness_passed else "✗" if r.robustness_passed is False else "—"
         )
         failed = ", ".join(r.failed_gates) if r.failed_gates else "—"
         tech = r.technique_name or "—"
@@ -511,9 +505,7 @@ async def run_async(
     artifact = write_run_artifacts(results, results_dir=results_dir)
     print(f"\nFull results: {artifact}")
 
-    awaiting = sum(
-        1 for r in results if r.status == LoopStatus.AWAITING_APPROVAL.value
-    )
+    awaiting = sum(1 for r in results if r.status == LoopStatus.AWAITING_APPROVAL.value)
     print(
         f"\n{awaiting}/{len(results)} candidates passed the gate and are "
         "AWAITING_APPROVAL. Review in the dashboard or call "
@@ -544,9 +536,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Where to write the run snapshot (default data/research_runs)",
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Verbose logging"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -556,11 +546,11 @@ def main(argv: list[str] | None = None) -> int:
 
     n = max(1, min(args.picks, len(TOP_PICKS)))
     picks = TOP_PICKS[:n]
-    logger.info(
-        f"Running {n} picks against {args.symbol} (dry_run={args.dry_run})"
-    )
+    logger.info(f"Running {n} picks against {args.symbol} (dry_run={args.dry_run})")
     return asyncio.run(
-        run_async(picks, args.symbol, dry_run=args.dry_run, results_dir=args.results_dir)
+        run_async(
+            picks, args.symbol, dry_run=args.dry_run, results_dir=args.results_dir
+        )
     )
 
 

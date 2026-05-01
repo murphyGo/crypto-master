@@ -74,9 +74,7 @@ class TestListProfiles:
     ) -> None:
         """Non-YAML/JSON files are skipped."""
         (profiles_dir / "readme.txt").write_text("not a profile")
-        (profiles_dir / "valid.yaml").write_text(
-            "name: valid\nrisk_percent: 1.0\n"
-        )
+        (profiles_dir / "valid.yaml").write_text("name: valid\nrisk_percent: 1.0\n")
         assert loader.list_profiles() == ["valid"]
 
 
@@ -88,9 +86,7 @@ class TestListProfiles:
 class TestLoadProfile:
     """Tests for ProfileLoader.load_profile."""
 
-    def test_load_yaml(
-        self, loader: ProfileLoader, profiles_dir: Path
-    ) -> None:
+    def test_load_yaml(self, loader: ProfileLoader, profiles_dir: Path) -> None:
         """A well-formed YAML profile loads successfully."""
         write_yaml(
             profiles_dir / "moderate.yaml",
@@ -116,9 +112,7 @@ require_confirmation: true
         assert profile.default_leverage == 5
         assert profile.order_type == "market"
 
-    def test_load_json(
-        self, loader: ProfileLoader, profiles_dir: Path
-    ) -> None:
+    def test_load_json(self, loader: ProfileLoader, profiles_dir: Path) -> None:
         """A well-formed JSON profile loads successfully."""
         (profiles_dir / "aggressive.json").write_text(
             json.dumps(
@@ -163,9 +157,7 @@ require_confirmation: true
         profile = loader.load_profile("stemmed")
         assert profile.name == "stemmed"
 
-    def test_missing_profile_raises(
-        self, loader: ProfileLoader
-    ) -> None:
+    def test_missing_profile_raises(self, loader: ProfileLoader) -> None:
         """Requesting a non-existent profile raises ProfileNotFoundError."""
         with pytest.raises(ProfileNotFoundError):
             loader.load_profile("missing")
@@ -224,9 +216,7 @@ class TestLoadProfileFromFile:
         profile = loader.load_profile_from_file(path)
         assert profile.name == "custom"
 
-    def test_missing_file_raises(
-        self, loader: ProfileLoader, tmp_path: Path
-    ) -> None:
+    def test_missing_file_raises(self, loader: ProfileLoader, tmp_path: Path) -> None:
         with pytest.raises(ProfileNotFoundError):
             loader.load_profile_from_file(tmp_path / "missing.yaml")
 
@@ -239,9 +229,7 @@ class TestLoadProfileFromFile:
 class TestLoadAllProfiles:
     """Tests for bulk loading."""
 
-    def test_loads_all(
-        self, loader: ProfileLoader, profiles_dir: Path
-    ) -> None:
+    def test_loads_all(self, loader: ProfileLoader, profiles_dir: Path) -> None:
         """Every well-formed file is loaded into the result dict."""
         write_yaml(
             profiles_dir / "a.yaml",
@@ -256,9 +244,7 @@ class TestLoadAllProfiles:
         assert result["a"].risk_percent == 0.5
         assert result["b"].risk_percent == 1.5
 
-    def test_skips_bad_files(
-        self, loader: ProfileLoader, profiles_dir: Path
-    ) -> None:
+    def test_skips_bad_files(self, loader: ProfileLoader, profiles_dir: Path) -> None:
         """One bad file doesn't block the rest."""
         write_yaml(
             profiles_dir / "good.yaml",

@@ -130,7 +130,9 @@ class TestLoadRealStrategies:
 
     def test_strategies_directory_exists(self, strategies_dir: Path) -> None:
         """Test that strategies directory exists."""
-        assert strategies_dir.exists(), f"Strategies directory not found: {strategies_dir}"
+        assert (
+            strategies_dir.exists()
+        ), f"Strategies directory not found: {strategies_dir}"
 
     def test_load_ma_crossover_strategy(self, strategies_dir: Path) -> None:
         """Test loading the MA crossover baseline strategy."""

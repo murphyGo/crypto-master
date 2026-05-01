@@ -143,9 +143,7 @@ class TestLiveTraderInit:
         )
         assert trader._confirmation_callback is callback
 
-    def test_exchange_property(
-        self, mock_exchange: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_exchange_property(self, mock_exchange: MagicMock, tmp_path: Path) -> None:
         """exchange property returns injected instance."""
         trader = LiveTrader(exchange=mock_exchange, data_dir=tmp_path)
         assert trader.exchange is mock_exchange
@@ -705,8 +703,6 @@ class TestExceptionHierarchy:
         assert issubclass(LiveOrderRejectedError, LiveTradingError)
 
     def test_live_order_rejected_carries_metadata(self) -> None:
-        err = LiveOrderRejectedError(
-            "x", order_id="oid", status=OrderStatus.REJECTED
-        )
+        err = LiveOrderRejectedError("x", order_id="oid", status=OrderStatus.REJECTED)
         assert err.order_id == "oid"
         assert err.status == OrderStatus.REJECTED

@@ -360,9 +360,7 @@ class TestSettings:
 
     def test_get_configured_exchanges_binance(self) -> None:
         """Test get_configured_exchanges includes binance when configured."""
-        settings = Settings(
-            binance=BinanceConfig(api_key="key", api_secret="secret")
-        )
+        settings = Settings(binance=BinanceConfig(api_key="key", api_secret="secret"))
         assert settings.get_configured_exchanges() == ["binance"]
 
     def test_get_configured_exchanges_both(self) -> None:
@@ -418,12 +416,8 @@ class TestEngineSettings:
         assert settings.engine_altcoin_top_k == ec.altcoin_top_k
         assert settings.engine_actor == ec.actor
         # Phase 18.1: stale-quote sanity gate fields.
-        assert (
-            settings.engine_fill_slippage_tolerance == ec.fill_slippage_tolerance
-        )
-        assert (
-            settings.engine_reject_if_past_stop_loss == ec.reject_if_past_stop_loss
-        )
+        assert settings.engine_fill_slippage_tolerance == ec.fill_slippage_tolerance
+        assert settings.engine_reject_if_past_stop_loss == ec.reject_if_past_stop_loss
 
     def test_engine_cycle_interval_loads_from_env(self) -> None:
         with patch.dict(os.environ, {"ENGINE_CYCLE_INTERVAL": "120"}):
@@ -525,20 +519,13 @@ class TestBacktestEngineSettings:
         settings = Settings()
         bc = BacktestConfig()
 
-        assert (
-            settings.engine_backtest_per_bar_timeout == bc.per_bar_timeout
-        )
-        assert (
-            settings.engine_backtest_max_parse_failures
-            == bc.max_parse_failures
-        )
+        assert settings.engine_backtest_per_bar_timeout == bc.per_bar_timeout
+        assert settings.engine_backtest_max_parse_failures == bc.max_parse_failures
 
     def test_per_bar_timeout_default_and_env(self) -> None:
         """Default 600.0 (DEBT-020); env override propagates."""
         assert Settings().engine_backtest_per_bar_timeout == 600.0
-        with patch.dict(
-            os.environ, {"ENGINE_BACKTEST_PER_BAR_TIMEOUT": "180.0"}
-        ):
+        with patch.dict(os.environ, {"ENGINE_BACKTEST_PER_BAR_TIMEOUT": "180.0"}):
             assert Settings().engine_backtest_per_bar_timeout == 180.0
 
     def test_per_bar_timeout_minimum_enforced(self) -> None:
@@ -549,9 +536,7 @@ class TestBacktestEngineSettings:
     def test_max_parse_failures_default_and_env(self) -> None:
         """Default 5; env override propagates."""
         assert Settings().engine_backtest_max_parse_failures == 5
-        with patch.dict(
-            os.environ, {"ENGINE_BACKTEST_MAX_PARSE_FAILURES": "20"}
-        ):
+        with patch.dict(os.environ, {"ENGINE_BACKTEST_MAX_PARSE_FAILURES": "20"}):
             assert Settings().engine_backtest_max_parse_failures == 20
 
     def test_max_parse_failures_minimum_enforced(self) -> None:

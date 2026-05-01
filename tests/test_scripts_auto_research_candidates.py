@@ -193,13 +193,11 @@ async def test_dry_run_skips_backtest(tmp_path: Path) -> None:
         # File was still written, and lives under the dry-runs subdir,
         # not the main experimental dir.
         assert saved_path.exists()
-        assert saved_path.parent == dry_subdir, (
-            f"dry-run file landed at {saved_path}; expected under {dry_subdir}"
-        )
+        assert (
+            saved_path.parent == dry_subdir
+        ), f"dry-run file landed at {saved_path}; expected under {dry_subdir}"
     # Real experimental dir holds nothing; only the dry-runs subdir does.
-    assert not any(
-        p for p in real_experimental.iterdir() if p.is_file()
-    )
+    assert not any(p for p in real_experimental.iterdir() if p.is_file())
 
 
 @pytest.mark.asyncio
@@ -293,9 +291,7 @@ def test_render_summary_surfaces_decision_reason_and_gate_summary() -> None:
     assert "1 evaluable regime" in rendered
     # Continuation line is indented so it visually attaches to its row.
     continuation_lines = [
-        line
-        for line in rendered.splitlines()
-        if line.startswith("    ")
+        line for line in rendered.splitlines() if line.startswith("    ")
     ]
     assert continuation_lines, "expected at least one indented detail line"
     assert all(
@@ -392,12 +388,12 @@ def test_top_picks_are_ohlcv_only() -> None:
     supports natively (no funding/OI/on-chain dependencies)."""
     allowed = {"15m", "1h", "4h"}
     for pick in script.TOP_PICKS:
-        assert pick.timeframe in allowed, (
-            f"Pick {pick.slug} timeframe {pick.timeframe} not in allowed set"
-        )
-        assert "funding" not in pick.context.lower(), (
-            f"Pick {pick.slug} references funding rate — needs data layer first"
-        )
-        assert "on-chain" not in pick.context.lower(), (
-            f"Pick {pick.slug} references on-chain data — needs data layer first"
-        )
+        assert (
+            pick.timeframe in allowed
+        ), f"Pick {pick.slug} timeframe {pick.timeframe} not in allowed set"
+        assert (
+            "funding" not in pick.context.lower()
+        ), f"Pick {pick.slug} references funding rate — needs data layer first"
+        assert (
+            "on-chain" not in pick.context.lower()
+        ), f"Pick {pick.slug} references on-chain data — needs data layer first"

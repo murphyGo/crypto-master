@@ -173,9 +173,7 @@ class TestSuggestImprovement:
     """Tests for the improvement flow (FR-022)."""
 
     @pytest.mark.asyncio
-    async def test_returns_generated_technique(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_returns_generated_technique(self, tmp_path: Path) -> None:
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
         generated = await improver.suggest_improvement(
             technique=sample_technique(),
@@ -194,9 +192,7 @@ class TestSuggestImprovement:
         assert "RSI Divergence v2" in generated.content
 
     @pytest.mark.asyncio
-    async def test_prompt_includes_performance_data(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_prompt_includes_performance_data(self, tmp_path: Path) -> None:
         """The improvement prompt must carry perf stats and source."""
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
         await improver.suggest_improvement(
@@ -216,9 +212,7 @@ class TestSuggestImprovement:
         assert "fenced markdown code block" in prompt
 
     @pytest.mark.asyncio
-    async def test_no_records_still_works(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_no_records_still_works(self, tmp_path: Path) -> None:
         """Records list is optional; prompt uses a fallback line."""
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
         await improver.suggest_improvement(
@@ -287,9 +281,7 @@ class TestGenerateFromUserIdea:
     @pytest.mark.asyncio
     async def test_user_idea_in_prompt(self, tmp_path: Path) -> None:
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
-        await improver.generate_from_user_idea(
-            "Scalp ETH on RSI(3) oversold bounces"
-        )
+        await improver.generate_from_user_idea("Scalp ETH on RSI(3) oversold bounces")
         prompt = claude.complete.await_args.args[0]
         assert "Scalp ETH on RSI(3)" in prompt
 
@@ -317,9 +309,7 @@ class TestResponseParsing:
     """Tests for the markdown / frontmatter parser."""
 
     @pytest.mark.asyncio
-    async def test_bare_markdown_without_fence(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_bare_markdown_without_fence(self, tmp_path: Path) -> None:
         """Claude sometimes replies with no fence; improver accepts it."""
         improver, _ = make_improver(tmp_path, RAW_RESPONSE)
         generated = await improver.generate_idea()
@@ -327,9 +317,7 @@ class TestResponseParsing:
         assert generated.version == "0.2.0"
 
     @pytest.mark.asyncio
-    async def test_missing_frontmatter_uses_fallback_name(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_missing_frontmatter_uses_fallback_name(self, tmp_path: Path) -> None:
         improver, _ = make_improver(tmp_path, NO_FRONTMATTER_RESPONSE)
         generated = await improver.generate_idea()
         # Fallback name for new_idea flow is "new_idea"
@@ -345,18 +333,9 @@ class TestResponseParsing:
             await improver.generate_idea()
 
     @pytest.mark.asyncio
-    async def test_malformed_frontmatter_ignored(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_malformed_frontmatter_ignored(self, tmp_path: Path) -> None:
         """Broken YAML in frontmatter → use fallback instead of crashing."""
-        response = (
-            "```markdown\n"
-            "---\n"
-            "name: [unclosed\n"
-            "---\n"
-            "body\n"
-            "```"
-        )
+        response = "```markdown\n" "---\n" "name: [unclosed\n" "---\n" "body\n" "```"
         improver, _ = make_improver(tmp_path, response)
         generated = await improver.generate_idea()
         assert generated.name == "new_idea"  # fallback
@@ -369,9 +348,7 @@ class TestResponseParsing:
 
 class TestPersistence:
     @pytest.mark.asyncio
-    async def test_saved_filename_includes_timestamp(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_saved_filename_includes_timestamp(self, tmp_path: Path) -> None:
         """Filename has a timestamp suffix so repeat saves don't clash."""
         improver, _ = make_improver(tmp_path, GOOD_RESPONSE)
         gen = await improver.generate_idea()
@@ -391,9 +368,7 @@ class TestPersistence:
         assert "rsi_divergence_v2" in content
 
     @pytest.mark.asyncio
-    async def test_filename_slug_strips_unsafe_chars(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_filename_slug_strips_unsafe_chars(self, tmp_path: Path) -> None:
         """Names with spaces / slashes become safe filename stems."""
         response = (
             "```markdown\n"
@@ -452,14 +427,10 @@ class TestPromptQualityGuards:
         assert "falsifiable" in prompt.lower()
         assert "funding rate" in prompt.lower()  # one of the example kinds
         # Explicitly warns off generic indicator combos.
-        assert "indicator mashup" in prompt.lower() or (
-            "RSI + MACD" in prompt
-        )
+        assert "indicator mashup" in prompt.lower() or ("RSI + MACD" in prompt)
 
     @pytest.mark.asyncio
-    async def test_user_idea_prompt_extracts_hypothesis(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_user_idea_prompt_extracts_hypothesis(self, tmp_path: Path) -> None:
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
         await improver.generate_from_user_idea("buy when RSI < 30")
         prompt = claude.complete.await_args.args[0]
@@ -477,17 +448,13 @@ class TestPromptQualityGuards:
         assert "falsifi" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_hypothesis_field_parsed_into_model(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_hypothesis_field_parsed_into_model(self, tmp_path: Path) -> None:
         improver, _ = make_improver(tmp_path, HYPOTHESIS_RESPONSE)
         gen = await improver.generate_idea()
         assert "Funding rate above 0.05%" in gen.hypothesis
 
     @pytest.mark.asyncio
-    async def test_hypothesis_defaults_empty_when_missing(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_hypothesis_defaults_empty_when_missing(self, tmp_path: Path) -> None:
         """Existing techniques without hypothesis still parse cleanly."""
         improver, _ = make_improver(tmp_path, GOOD_RESPONSE)
         gen = await improver.generate_idea()
@@ -540,25 +507,19 @@ class TestCatalogInjection:
     @pytest.mark.asyncio
     async def test_catalog_injected_in_new_idea(self, tmp_path: Path) -> None:
         catalog = _write_catalog(tmp_path)
-        improver, claude = make_improver(
-            tmp_path, GOOD_RESPONSE, catalog_path=catalog
-        )
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE, catalog_path=catalog)
         await improver.generate_idea(context="anything")
         prompt = claude.complete.await_args.args[0]
         assert CATALOG_MARKER in prompt
         assert "Reference Catalog" in prompt
 
     @pytest.mark.asyncio
-    async def test_catalog_not_in_user_idea_prompt(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_catalog_not_in_user_idea_prompt(self, tmp_path: Path) -> None:
         """User-idea is anchored on the user's text; injecting the
         catalog would push Claude toward catalog entries instead of
         the user's intent. Regression guard."""
         catalog = _write_catalog(tmp_path)
-        improver, claude = make_improver(
-            tmp_path, GOOD_RESPONSE, catalog_path=catalog
-        )
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE, catalog_path=catalog)
         await improver.generate_from_user_idea("scalp BTC")
         prompt = claude.complete.await_args.args[0]
         assert CATALOG_MARKER not in prompt
@@ -578,15 +539,11 @@ class TestCatalogInjection:
         assert CATALOG_MARKER not in prompt
 
     @pytest.mark.asyncio
-    async def test_catalog_not_in_improvement_prompt(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_catalog_not_in_improvement_prompt(self, tmp_path: Path) -> None:
         """Improvement is targeted at one technique; the catalog menu
         would be off-topic and waste the prompt budget."""
         catalog = _write_catalog(tmp_path)
-        improver, claude = make_improver(
-            tmp_path, GOOD_RESPONSE, catalog_path=catalog
-        )
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE, catalog_path=catalog)
         await improver.suggest_improvement(
             technique=sample_technique(),
             original_source="ORIGINAL_SOURCE_MARKER",
@@ -598,14 +555,10 @@ class TestCatalogInjection:
         assert "Reference Catalog" not in prompt
 
     @pytest.mark.asyncio
-    async def test_catalog_cached_on_repeated_calls(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_catalog_cached_on_repeated_calls(self, tmp_path: Path) -> None:
         """The catalog file is read at most once per improver instance."""
         catalog = _write_catalog(tmp_path)
-        improver, claude = make_improver(
-            tmp_path, GOOD_RESPONSE, catalog_path=catalog
-        )
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE, catalog_path=catalog)
         await improver.generate_idea()
         # Mutate the file on disk; cache should still serve old content.
         catalog.write_text("MUTATED_CONTENT", encoding="utf-8")
@@ -651,9 +604,7 @@ class TestNewIdeaOutputContract:
         assert '"take_profit"' in prompt
 
     @pytest.mark.asyncio
-    async def test_user_idea_prompt_omits_output_contract(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_user_idea_prompt_omits_output_contract(self, tmp_path: Path) -> None:
         """User-idea is anchored on the user's text; injecting the
         Output Contract framing would push Claude toward a JSON-
         contract template instead of expanding the user's intent.

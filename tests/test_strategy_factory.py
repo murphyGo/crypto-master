@@ -37,7 +37,9 @@ class TestRegisterStrategy:
                 pass
 
         # Force load to include registered strategies
-        strategies = load_strategies_from_directory(Path("nonexistent"), force_reload=True)
+        strategies = load_strategies_from_directory(
+            Path("nonexistent"), force_reload=True
+        )
         assert "test_registered" in strategies
 
     def test_register_strategy_case_insensitive(self) -> None:
@@ -48,7 +50,9 @@ class TestRegisterStrategy:
             async def analyze(self, ohlcv, symbol, timeframe="1h"):
                 pass
 
-        strategies = load_strategies_from_directory(Path("nonexistent"), force_reload=True)
+        strategies = load_strategies_from_directory(
+            Path("nonexistent"), force_reload=True
+        )
         assert "testmixed" in strategies
 
     def test_register_strategy_returns_class(self) -> None:

@@ -116,9 +116,7 @@ async def default_confirmation(position: Position, action: str) -> bool:
     lines.append("================================")
     print("\n".join(lines))
 
-    response = await asyncio.to_thread(
-        input, "Proceed with live trade? (yes/no): "
-    )
+    response = await asyncio.to_thread(input, "Proceed with live trade? (yes/no): ")
     return response.strip().lower() in ("yes", "y")
 
 
@@ -184,9 +182,7 @@ class LiveTrader:
         # trade_id -> Position (so monitor_positions can check SL/TP)
         self._open_positions: dict[str, Position] = {}
 
-        logger.info(
-            f"LiveTrader initialized on exchange {exchange.name} (mainnet)"
-        )
+        logger.info(f"LiveTrader initialized on exchange {exchange.name} (mainnet)")
 
     @property
     def exchange(self) -> BaseExchange:
@@ -296,9 +292,7 @@ class LiveTrader:
         if reason == "manual":
             approved = await self._confirmation_callback(position, "close")
             if not approved:
-                logger.info(
-                    f"Live close rejected by user: trade_id={trade_id}"
-                )
+                logger.info(f"Live close rejected by user: trade_id={trade_id}")
                 raise LiveConfirmationRejectedError(
                     f"User declined to close trade {trade_id}"
                 )
@@ -351,9 +345,7 @@ class LiveTrader:
             try:
                 ticker = await self._exchange.get_ticker(position.symbol)
             except Exception as e:
-                logger.warning(
-                    f"Ticker fetch failed for {position.symbol}: {e}"
-                )
+                logger.warning(f"Ticker fetch failed for {position.symbol}: {e}")
                 continue
 
             reason = self._check_exit_reason(position, ticker.price)
@@ -361,8 +353,7 @@ class LiveTrader:
                 continue
 
             logger.info(
-                f"Auto-exit triggered ({reason}) for {trade_id} "
-                f"at {ticker.price}"
+                f"Auto-exit triggered ({reason}) for {trade_id} " f"at {ticker.price}"
             )
             try:
                 result = await self._execute_close(
@@ -372,9 +363,7 @@ class LiveTrader:
                     exit_price=ticker.price,
                 )
             except LiveOrderRejectedError as e:
-                logger.error(
-                    f"Auto-exit order rejected for {trade_id}: {e}"
-                )
+                logger.error(f"Auto-exit order rejected for {trade_id}: {e}")
                 continue
 
             if result is not None:
@@ -383,9 +372,7 @@ class LiveTrader:
         return closed
 
     @staticmethod
-    def _check_exit_reason(
-        position: Position, current_price: Decimal
-    ) -> str | None:
+    def _check_exit_reason(position: Position, current_price: Decimal) -> str | None:
         """Return the exit reason if SL/TP is hit, else None."""
         if position.stop_loss is not None:
             if position.side == "long" and current_price <= position.stop_loss:

@@ -324,9 +324,7 @@ def load_technique_info_from_md(file_path: Path) -> tuple[TechniqueInfo, str]:
     try:
         metadata = yaml.safe_load(frontmatter_yaml)
     except yaml.YAMLError as e:
-        raise StrategyLoadError(
-            f"Invalid YAML frontmatter: {e}", str(file_path)
-        ) from e
+        raise StrategyLoadError(f"Invalid YAML frontmatter: {e}", str(file_path)) from e
 
     if not isinstance(metadata, dict):
         raise StrategyLoadError("Frontmatter must be a YAML mapping", str(file_path))
@@ -376,9 +374,7 @@ def load_technique_info_from_py(
     try:
         spec.loader.exec_module(module)
     except Exception as e:
-        raise StrategyLoadError(
-            f"Failed to execute module: {e}", str(file_path)
-        ) from e
+        raise StrategyLoadError(f"Failed to execute module: {e}", str(file_path)) from e
 
     # Get TECHNIQUE_INFO
     if not hasattr(module, "TECHNIQUE_INFO"):

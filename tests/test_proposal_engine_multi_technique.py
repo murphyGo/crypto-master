@@ -262,9 +262,7 @@ async def test_top_k_after_per_symbol_dedup() -> None:
     engine = _engine(
         {"big_winner": big_winner, "small_winner": small_winner},
         {
-            "big_winner": make_perf(
-                "big_winner", total_trades=20, avg_pnl_percent=3.0
-            ),
+            "big_winner": make_perf("big_winner", total_trades=20, avg_pnl_percent=3.0),
             "small_winner": make_perf(
                 "small_winner", total_trades=20, avg_pnl_percent=1.0
             ),
@@ -457,9 +455,7 @@ async def test_legacy_path_also_uses_cache() -> None:
         multi_technique_per_symbol=False,
     )
 
-    await engine.propose_altcoins(
-        symbols=["ETH/USDT", "SOL/USDT", "ADA/USDT"], top_k=3
-    )
+    await engine.propose_altcoins(symbols=["ETH/USDT", "SOL/USDT", "ADA/USDT"], top_k=3)
 
     # 3 symbols × 1 technique × 1 TF = 3 fetches. Cache present in the
     # legacy path means a re-run within the same call wouldn't refetch

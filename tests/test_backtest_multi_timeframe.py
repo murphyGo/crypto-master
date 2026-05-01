@@ -243,9 +243,7 @@ class TestRunMultiTimeframeValidation:
 
 class TestRunMultiTimeframeSemantics:
     @pytest.mark.asyncio
-    async def test_no_future_leakage_in_higher_tf_slice(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_no_future_leakage_in_higher_tf_slice(self, tmp_path: Path) -> None:
         """At every analyze call, no higher-TF candle is ahead of the
         primary candle's timestamp."""
         primary = make_5m(40)
@@ -321,9 +319,7 @@ class TestRunMultiTimeframeSemantics:
         assert result.symbol == "BTC/USDT"
 
     @pytest.mark.asyncio
-    async def test_current_price_comes_from_primary_close(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_current_price_comes_from_primary_close(self, tmp_path: Path) -> None:
         primary = make_5m(20)
         # Mutate one close so we can verify it propagated.
         primary[10] = OHLCV(
@@ -407,9 +403,7 @@ class TestRunForStrategy:
         assert all(c["by_tf_keys"] == ["20m", "5m"] for c in strat.calls)
 
     @pytest.mark.asyncio
-    async def test_multi_tf_strategy_without_dict_raises(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_multi_tf_strategy_without_dict_raises(self, tmp_path: Path) -> None:
         primary = make_5m(20)
         strat = StaticStrategy(requires_multi_tf=True)
         bt = make_backtester(tmp_path, warmup=3)

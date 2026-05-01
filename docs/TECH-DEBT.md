@@ -500,40 +500,6 @@ suggests an exception is warranted).
 - `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
-### DEBT-042: `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 1.1 (origin); surfaced 2026-04-30 |
-| **Component** | `pyproject.toml` + project-wide `src/` + `tests/` |
-
-**Description:**
-`pyproject.toml` configures `black` as a dev dependency and the
-`scripts/lint.sh` flow runs `ruff format`, but the project never
-ran `black --check` end to end — 47 files would change under
-black's default rules (line length, string-quote consistency,
-trailing comma placement). The dormant gate means a future
-"flip black on" lands as a 47-file diff in one commit.
-
-**Impact:**
-Operational hygiene — the formatter discrepancy is visible
-under `black --check src tests` (47 files). Choosing whether
-to commit to ruff format or black format is the prerequisite;
-neither is wrong, but mixing the two is the worst outcome.
-
-**Suggested Resolution:**
-Decide canonical formatter (`ruff format` vs `black`); run the
-chosen formatter once across `src/` and `tests/`; remove the
-other from `pyproject.toml` dev extras. CI lint script enforces
-the chosen one only.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `pyproject.toml` (dev extras + tool config)
-
----
 
 ### DEBT-046: Atomic write does not protect against concurrent-mutation loss; Phase 19.2 prereq
 
@@ -949,18 +915,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 26.4 added structural marker + rollup with **no PnL math change** (observability only; backtester continues simulating after threshold crossing so existing analysis tools don't break, but downstream consumers can detect and surface "this strategy would have been liquidated at trade N"). New `BacktestConfig.liquidation_threshold: Decimal = Decimal("0")` field with rationale docstring (literal-zero default per lead policy; recommends `Decimal("1000")`-against-`Decimal("10000")`-initial = ~10% maintenance-margin proxy as the operationally useful setting). `BacktestTrade.liquidated: bool = False` structural marker (set when `balance_after_close ≤ threshold` per quant invariant — intra-trade dips are MDD's job, not liquidation). `BacktestResult.liquidated: bool = False` rollup (`any(t.liquidated for t in trades)`). New `Backtester._mark_if_liquidated(trade, balance)` helper wired into all 4 trade-close sites (single-TF + multi-TF × intra-candle + end-of-data). Equity curve **truncated** at first liquidating trade's `exit_time` so analyzer MDD/Sharpe don't compute against post-liquidation phantom bars (cleaner than per-point `liquidated` field on `EquityPoint` which is `frozen=True` and would break back-compat). `ActivityLog` deliberately not wired into the backtester — backtester is offline simulation; Phase 22.2's `LIQUIDATED` ActivityEvent already covers the live paper-trader path. 4 new regression tests in `TestBacktesterLiquidationParity`: liquidating trade marks (with `risk_percent=100 + slippage_bps=20 + fee_rate=0.001` to force literal-zero crossing), solvent run leaves no marker + preserves full equity-curve length, positive threshold (1000 of 10000) catches earlier than zero, default pin. pytest 1357 → 1361 (+4); ruff/mypy/black clean. Quant verdict: 🟢 ship (sizing-cap concern flagged: with `risk_percent ≤ 5%` literal-zero default rarely fires, positive threshold is operationally useful — addressed by docstring polish). QA verdict: 🟢 ship. |
 
+### DEBT-042: `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.5 ran `black src tests scripts` as a one-shot sweep + commit (lead chose this path over dropping black from `pyproject.toml`). 21 files reformatted (5 src + 1 scripts + 15 tests; the original "47 files" count cited in the audit had reduced through Phase 22-24 cycles which black-formatted some of the affected files inline as part of their touched-file gate). pytest 1361 → 1361 (zero delta — pure formatter, exactly as expected). ruff/mypy clean. `black --check src tests scripts` was **failing pre-sweep** (21 file delta) and is now **passing post-sweep** (115 files clean) — the gate is now enforceable. QA verdict: 🟢 ship — spot-checked 3 random files for logic-change smell, every diff is line-wrapping / paren-style collapse / whitespace; no conditional restructuring, no operator changes, no string-content edits, no parameter reordering. Two adjacent f-string concat warts at `src/trading/live.py:356` and `src/tools/purge_proposals.py` (purge message) noted as cosmetic-only follow-up; behaviour unchanged. Observational note for future planning: project has no `.github/workflows/` or `.pre-commit-config.yaml`, so the gate is *enforceable* (passes when run) but is still a *manual* gate; CI infrastructure is a separate phase if the lead wants automated regression blocking. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 12 |
+| Total Active | 11 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 5 |
-| Low | 7 |
-| Resolved (All Time) | 36 |
+| Low | 6 |
+| Resolved (All Time) | 37 |
 
 ---
 
@@ -1055,3 +1030,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-038 Notifier failure swallowed — Phase 26.3 added `NOTIFICATION_FAILED` ActivityEvent with 5-field structured payload; emit-then-swallow at runtime/engine.py:451; behavior preserved + observability added |
 | 2026-05-01 | Resolved | DEBT-039 Logger reset for test isolation — Phase 26.3 wired existing `reset_loggers()` into autouse pytest fixture (`tests/conftest.py`); 1 contract test |
 | 2026-05-01 | Resolved | DEBT-047 Backtester leverage-liquidation parity — Phase 26.4 added `BacktestConfig.liquidation_threshold` (default `Decimal("0")`), `BacktestTrade.liquidated` marker, `BacktestResult.liquidated` rollup, `_mark_if_liquidated` wired to 4 close sites, equity-curve truncation at first liquidating trade; 4 regression tests; PnL math unchanged |
+| 2026-05-01 | Resolved | DEBT-042 Black formatter gate dormant — Phase 26.5 ran one-shot `black src tests scripts` sweep; 21 files reformatted; pytest 1361 → 1361 (zero delta — pure formatter); gate now enforceable (115 files clean) |

@@ -17,7 +17,9 @@ from pathlib import Path
 from src.models import OHLCV
 from src.strategy.loader import PromptStrategy, load_strategy
 
-CHASULANG_PATH = Path(__file__).resolve().parent.parent / "strategies" / "chasulang_ict_smc.md"
+CHASULANG_PATH = (
+    Path(__file__).resolve().parent.parent / "strategies" / "chasulang_ict_smc.md"
+)
 
 
 def _make_candles(n: int, base: int) -> list[OHLCV]:

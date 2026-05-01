@@ -107,9 +107,7 @@ class ProfileLoader:
             if path.exists():
                 return self._load_from_path(path, fallback_name=name)
 
-        raise ProfileNotFoundError(
-            f"Profile '{name}' not found in {self.profiles_dir}"
-        )
+        raise ProfileNotFoundError(f"Profile '{name}' not found in {self.profiles_dir}")
 
     def load_profile_from_file(self, path: Path) -> TradingProfile:
         """Load a profile directly from an explicit file path.
@@ -145,9 +143,7 @@ class ProfileLoader:
                 logger.error(f"Skipping profile '{name}': {e}")
         return result
 
-    def _load_from_path(
-        self, path: Path, fallback_name: str
-    ) -> TradingProfile:
+    def _load_from_path(self, path: Path, fallback_name: str) -> TradingProfile:
         """Parse and validate a profile file.
 
         Args:
@@ -172,9 +168,7 @@ class ProfileLoader:
                         f"Unsupported profile file extension: {path.suffix}"
                     )
         except (OSError, yaml.YAMLError, json.JSONDecodeError) as e:
-            raise ProfileValidationError(
-                f"Failed to parse {path}: {e}"
-            ) from e
+            raise ProfileValidationError(f"Failed to parse {path}: {e}") from e
 
         if data is None:
             raise ProfileValidationError(f"Profile file is empty: {path}")
@@ -189,9 +183,7 @@ class ProfileLoader:
         try:
             profile = TradingProfile(**data)
         except Exception as e:
-            raise ProfileValidationError(
-                f"Invalid profile in {path}: {e}"
-            ) from e
+            raise ProfileValidationError(f"Invalid profile in {path}: {e}") from e
 
         logger.debug(f"Loaded profile '{profile.name}' from {path}")
         return profile

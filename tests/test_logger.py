@@ -107,9 +107,7 @@ class TestSetupLogger:
         with patch("src.logger.get_settings") as mock_settings:
             mock_settings.return_value.log_file = log_file
             mock_settings.return_value.log_level = "INFO"
-            logger = setup_logger(
-                "test_no_file", log_file=log_file, file_output=False
-            )
+            logger = setup_logger("test_no_file", log_file=log_file, file_output=False)
 
         # Should only have stream handler
         handler_types = [type(h).__name__ for h in logger.handlers]

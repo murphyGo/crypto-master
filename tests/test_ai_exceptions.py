@@ -114,9 +114,7 @@ class TestClaudeTimeoutError:
 
     def test_attempt_number_is_set(self) -> None:
         """Phase 14.1: explicit attempt_number is preserved."""
-        error = ClaudeTimeoutError(
-            "timeout", timeout_seconds=180.0, attempt_number=2
-        )
+        error = ClaudeTimeoutError("timeout", timeout_seconds=180.0, attempt_number=2)
         assert error.attempt_number == 2
 
 

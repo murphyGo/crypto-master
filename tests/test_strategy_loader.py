@@ -412,8 +412,7 @@ class TestPromptStrategy:
         strategy = PromptStrategy(
             info=technique_info,
             prompt_content=(
-                "Symbol={symbol} TF={timeframe}\n"
-                "4h: {ohlcv_4h}\n15m: {ohlcv_15m}\n"
+                "Symbol={symbol} TF={timeframe}\n" "4h: {ohlcv_4h}\n15m: {ohlcv_15m}\n"
             ),
         )
         candle = OHLCV(

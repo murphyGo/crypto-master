@@ -181,11 +181,12 @@ def test_build_engine_logs_trading_mode(tmp_path: Any) -> None:
     exchange = build_exchange(settings)
 
     # Avoid persisting to the real data dir.
-    with patch(
-        "src.main.load_all_strategies", return_value={}
-    ), patch("src.main.PerformanceTracker"), patch(
-        "src.main.ProposalHistory"
-    ), patch("src.main.ActivityLog"):
+    with (
+        patch("src.main.load_all_strategies", return_value={}),
+        patch("src.main.PerformanceTracker"),
+        patch("src.main.ProposalHistory"),
+        patch("src.main.ActivityLog"),
+    ):
         engine = build_engine(settings, exchange)
 
     assert isinstance(engine.trader, PaperTrader)
@@ -225,11 +226,12 @@ class TestBuildEngineEnvOverride:
         settings = Settings(trading_mode="paper", binance=bn)
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         assert engine.config.auto_approve_threshold == 2.5
@@ -260,11 +262,12 @@ class TestBuildEngineEnvOverride:
         settings = Settings(trading_mode="paper", binance=bn)
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         notifiers = engine.notification_dispatcher._notifiers
@@ -296,11 +299,12 @@ class TestBuildEngineEnvOverride:
         )
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         notifiers = engine.notification_dispatcher._notifiers
@@ -328,11 +332,12 @@ class TestBuildEngineEnvOverride:
         settings = Settings(trading_mode="paper", binance=bn)
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         notifiers = engine.notification_dispatcher._notifiers
@@ -375,11 +380,12 @@ class TestBuildEngineEnvOverride:
             )
             exchange = build_exchange(settings)
 
-            with patch(
-                "src.main.load_all_strategies", return_value={}
-            ), patch("src.main.PerformanceTracker"), patch(
-                "src.main.ProposalHistory"
-            ), patch("src.main.ActivityLog"):
+            with (
+                patch("src.main.load_all_strategies", return_value={}),
+                patch("src.main.PerformanceTracker"),
+                patch("src.main.ProposalHistory"),
+                patch("src.main.ActivityLog"),
+            ):
                 engine = build_engine(settings, exchange)
 
             notifiers = engine.notification_dispatcher._notifiers
@@ -413,11 +419,12 @@ class TestBuildEngineEnvOverride:
         settings = Settings(trading_mode="paper", binance=bn)
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         notifiers = engine.notification_dispatcher._notifiers
@@ -475,11 +482,12 @@ class TestBuildEngineEnvOverride:
             )
             exchange = build_exchange(settings)
 
-            with patch(
-                "src.main.load_all_strategies", return_value={}
-            ), patch("src.main.PerformanceTracker"), patch(
-                "src.main.ProposalHistory"
-            ), patch("src.main.ActivityLog"):
+            with (
+                patch("src.main.load_all_strategies", return_value={}),
+                patch("src.main.PerformanceTracker"),
+                patch("src.main.ProposalHistory"),
+                patch("src.main.ActivityLog"),
+            ):
                 engine = build_engine(settings, exchange)
 
             notifiers = engine.notification_dispatcher._notifiers
@@ -510,11 +518,12 @@ class TestBuildEngineEnvOverride:
         settings = Settings(trading_mode="paper", binance=bn)
         exchange = build_exchange(settings)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange)
 
         assert engine.config.monitor_interval_seconds == 90
@@ -543,11 +552,12 @@ class TestBuildEngineEnvOverride:
         exchange = build_exchange(settings)
         explicit = EngineConfig(auto_approve_threshold=3.0)
 
-        with patch(
-            "src.main.load_all_strategies", return_value={}
-        ), patch("src.main.PerformanceTracker"), patch(
-            "src.main.ProposalHistory"
-        ), patch("src.main.ActivityLog"):
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
             engine = build_engine(settings, exchange, config=explicit)
 
         assert engine.config.auto_approve_threshold == 3.0
@@ -614,8 +624,7 @@ class TestPurgeOldProposalsHook:
             history.purge_old.return_value = []
             _purge_old_proposals(history, retention_months=12)
             assert not any(
-                "Purged" in record.getMessage()
-                and "proposal" in record.getMessage()
+                "Purged" in record.getMessage() and "proposal" in record.getMessage()
                 for record in caplog.records
             )
 
@@ -656,10 +665,10 @@ class TestPurgeOldProposalsHook:
             )
             exchange = build_exchange(settings)
 
-            with patch(
-                "src.main.load_all_strategies", return_value={}
-            ), patch("src.main.PerformanceTracker"), patch(
-                "src.main.ActivityLog"
+            with (
+                patch("src.main.load_all_strategies", return_value={}),
+                patch("src.main.PerformanceTracker"),
+                patch("src.main.ActivityLog"),
             ):
                 build_engine(settings, exchange)
 

@@ -83,8 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     else:
         print(
-            f"No proposal records older than {retention} months; "
-            "nothing to purge."
+            f"No proposal records older than {retention} months; " "nothing to purge."
         )
     return 0
 

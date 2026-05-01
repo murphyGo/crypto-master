@@ -65,20 +65,17 @@ def test_main_calls_purge_old_with_settings_retention(
     """Without ``--retention-months``, the CLI reads the value from
     :class:`Settings` and forwards it to
     :meth:`ProposalHistory.purge_old`."""
-    with patch(
-        "src.tools.purge_proposals.ProposalHistory"
-    ) as history_cls, patch(
-        "src.tools.purge_proposals.get_settings"
-    ) as get_settings:
+    with (
+        patch("src.tools.purge_proposals.ProposalHistory") as history_cls,
+        patch("src.tools.purge_proposals.get_settings") as get_settings,
+    ):
         get_settings.return_value.log_retention_months = 9
         history_cls.return_value.purge_old.return_value = []
 
         rc = main([])
 
         assert rc == 0
-        history_cls.return_value.purge_old.assert_called_once_with(
-            retention_months=9
-        )
+        history_cls.return_value.purge_old.assert_called_once_with(retention_months=9)
 
     captured = capsys.readouterr()
     assert "9 months" in captured.out
@@ -89,11 +86,10 @@ def test_main_explicit_retention_flag_overrides_settings(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``--retention-months`` wins over Settings."""
-    with patch(
-        "src.tools.purge_proposals.ProposalHistory"
-    ) as history_cls, patch(
-        "src.tools.purge_proposals.get_settings"
-    ) as get_settings:
+    with (
+        patch("src.tools.purge_proposals.ProposalHistory") as history_cls,
+        patch("src.tools.purge_proposals.get_settings") as get_settings,
+    ):
         get_settings.return_value.log_retention_months = 12
         history_cls.return_value.purge_old.return_value = [
             Path("a.json"),
@@ -103,9 +99,7 @@ def test_main_explicit_retention_flag_overrides_settings(
         rc = main(["--retention-months", "6"])
 
         assert rc == 0
-        history_cls.return_value.purge_old.assert_called_once_with(
-            retention_months=6
-        )
+        history_cls.return_value.purge_old.assert_called_once_with(retention_months=6)
 
     captured = capsys.readouterr()
     assert "Purged 2 proposal record(s)" in captured.out
@@ -126,12 +120,8 @@ def test_main_archives_old_records_against_real_history(
     try:
         proposals_dir = tmp_path / "proposals"
         history = ProposalHistory(data_dir=proposals_dir)
-        history.save(
-            _make_record("old", datetime(2024, 1, 15, 10, 0, 0))
-        )
-        history.save(
-            _make_record("fresh", datetime.now())
-        )
+        history.save(_make_record("old", datetime(2024, 1, 15, 10, 0, 0)))
+        history.save(_make_record("fresh", datetime.now()))
 
         rc = main(["--retention-months", "1"])
         assert rc == 0
@@ -156,11 +146,10 @@ def test_main_prints_nothing_purged_when_empty(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The CLI's empty-result print is informative, not blank."""
-    with patch(
-        "src.tools.purge_proposals.ProposalHistory"
-    ) as history_cls, patch(
-        "src.tools.purge_proposals.get_settings"
-    ) as get_settings:
+    with (
+        patch("src.tools.purge_proposals.ProposalHistory") as history_cls,
+        patch("src.tools.purge_proposals.get_settings") as get_settings,
+    ):
         get_settings.return_value.log_retention_months = 12
         history_cls.return_value.purge_old.return_value = []
 
