@@ -96,15 +96,14 @@ Classic golden / death cross. Promoted from the original
 
 ## How to backtest these
 
-Phase 10.3 ships an operator script that handles fetching historical
-OHLCV from Binance's public klines endpoint, running each baseline
-through `Backtester` + `PerformanceAnalyzer`, and persisting the
-artefacts the dashboard's Strategies page consumes. From the project
-root with the venv active:
-
-```bash
-python -m scripts.backtest_baselines
-```
+Phase 10.3 shipped an operator script that fetches historical OHLCV
+from Binance's public klines endpoint, runs each baseline through
+`Backtester` + `PerformanceAnalyzer`, and persists the artefacts the
+dashboard's Strategies page consumes. **Phase 25 added snapshot-pinned
+reproducibility**: by default the script reads OHLCV from a committed
+snapshot dataset under `data/backtest/snapshots/baselines/` rather
+than calling Binance live, so two operators on different days produce
+byte-identical metrics + ledgers.
 
 The script writes three files per baseline under
 `data/backtest/baselines/<technique_name>/`:
@@ -117,14 +116,131 @@ It then rewrites the **Reference numbers** table below from the new
 `summary.json` files. Re-running is idempotent — artefacts are
 overwritten cleanly. Pass `--no-update-doc` to skip the table rewrite.
 
-The script makes real network calls; CI does not run it. The smoke
-test in `tests/test_scripts_backtest_baselines.py` mocks the exchange
-and verifies the artefact layout.
+The smoke test in `tests/test_scripts_backtest_baselines.py` mocks the
+exchange (or uses an in-memory `SnapshotExchange`) and verifies the
+artefact layout. CI never calls Binance live.
 
-## Reference numbers (TBD)
+## Operator runbook — first-time fetch + run
 
-Until an operator runs `scripts/backtest_baselines.py`, these stay
-TBD. The script fills them in from real Binance OHLCV.
+Phase 25.3 Part B. Until an operator runs through the steps below,
+every metric cell in the **Reference numbers** table reads as the
+legacy unpopulated marker — semantically "awaiting operator first
+run" — signalling the snapshot infrastructure is ready but no
+operator has executed the one-time fetch yet.
+
+1. **Set Binance credentials.** A read-only API key is acceptable
+   (no order placement, no withdrawal scopes). Either export them
+   in the shell or write them to `.env` (gitignored):
+
+   ```bash
+   export BINANCE_API_KEY=...
+   export BINANCE_API_SECRET=...
+   ```
+
+2. **Refresh the snapshot.** This is the only path that touches
+   Binance mainnet — the script prints two operator-visible warnings
+   when it runs:
+
+   ```bash
+   python -m scripts.backtest_baselines \
+       --refresh-snapshot \
+       --snapshot-root data/backtest/snapshots/
+   ```
+
+3. **Verify the snapshot directories.** You should see five
+   `<SYMBOL>__<timeframe>/` subdirectories under
+   `data/backtest/snapshots/baselines/`, each containing
+   `ohlcv.csv` + `metadata.json`:
+
+   ```bash
+   ls data/backtest/snapshots/baselines/
+   # BTCUSDT__15m  BTCUSDT__1h  BTCUSDT__4h
+   ```
+
+   (Three directories, not five — `rsi_universal`,
+   `bollinger_band_reversion`, and `ma_crossover` all share the
+   `BTC/USDT 1h` snapshot.)
+
+4. **Run the baselines off the committed snapshot.** No network
+   calls; deterministic from the snapshot dataset:
+
+   ```bash
+   python -m scripts.backtest_baselines \
+       --snapshot data/backtest/snapshots/
+   ```
+
+   This populates `data/backtest/baselines/<technique_name>/`
+   (`result.json` + `analysis.md` + `summary.json`) and rewrites
+   the **Reference numbers** table below in place.
+
+5. **Commit the snapshot + artefacts.** The snapshot directory is
+   the contract for reproducibility — it must travel with the repo.
+   The artefacts under `data/backtest/baselines/` are the
+   operator-facing reference numbers the dashboard reads:
+
+   ```bash
+   git add data/backtest/snapshots/baselines/ \
+           data/backtest/baselines/ \
+           docs/baselines.md
+   git commit -m "Phase 25.3 Part B: first baseline snapshot + figures"
+   ```
+
+## Snapshot freshness policy
+
+Two windows govern snapshot age:
+
+- **30-day active-use window** — `--max-snapshot-age-days` default
+  (env-overridable via `ENGINE_BASELINE_MAX_SNAPSHOT_AGE_DAYS`).
+  This is the **operator-facing cadence**: refresh the snapshot
+  every 30 days for active-use comparisons (LLM strategy promotion
+  gates, dashboard reference numbers). Older than 30 days and the
+  baseline script will refuse to proceed without
+  `--refresh-snapshot`.
+- **90-day absolute stale ceiling** — `DEFAULT_MAX_AGE_DAYS` in
+  `src/backtest/snapshot.py`. This is the hard floor in
+  `is_snapshot_fresh`: any snapshot older than 90 days is
+  unambiguously stale and the loader-level freshness check will
+  refuse it regardless of the active-use override.
+
+In practice: **refresh on a 30-day cadence**. The 90-day ceiling is
+the safety net for the case where an operator forgets and tries to
+run with a 6-month-old snapshot.
+
+## Reproducibility note
+
+The snapshot dataset is the contract for cross-operator
+determinism. Two operators running
+
+```bash
+python -m scripts.backtest_baselines --snapshot data/backtest/snapshots/
+```
+
+against the same committed snapshot produce identical metrics and
+identical trade-level numbers — entry / exit prices, PnL, Sharpe,
+MDD, win rate are byte-identical. Only the run-level UUIDs differ:
+`BacktestResult.run_id` and each `Trade.trade_id` use `uuid.uuid4()`
+(operator-trace IDs, not strategy state). Phase 25.2's
+`test_cross_operator_determinism_byte_identical` exercises this
+contract by running `run_all` twice and asserting byte equality
+after scrubbing those two UUID fields.
+
+## Reference numbers
+
+Snapshot-pinned figures from the committed dataset under
+`data/backtest/snapshots/baselines/`. Until Phase 25.3 Part B
+runs, every metric cell below shows the legacy unpopulated marker;
+semantically that marker reads as **awaiting operator first run**.
+Once an operator runs the runbook above, these cells get rewritten
+in place by `scripts/backtest_baselines.py`.
+
+(Two minor deviations from the Phase 25.3 Part A spec, both
+deferred to keep this sub-task strictly docs-only and tracked as
+Low-priority TECH-DEBT for a follow-up docs-polish sub-task:
+[a] 9-column table kept at 6 columns — the autonomous rewriter
+`_TABLE_PATTERN` + `render_table` is hard-wired to the legacy
+shape; [b] the placeholder token kept as the legacy marker
+because existing rewriter tests assert it pre-rewrite. See the
+senior-developer report.)
 
 | Strategy | Symbol | Period | Win Rate | Sharpe | MDD |
 |----------|--------|--------|----------|--------|-----|

@@ -732,82 +732,6 @@ the chosen one only.
 
 ---
 
-### DEBT-043: Baseline regenerator is non-deterministic — live Binance, no snapshot mode
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 5.4 onward (origin); surfaced 2026-05-01 during Phase 20.3 deferral |
-| **Component** | `scripts/backtest_baselines.py:26-30` (module docstring), `:511-518` (live exchange construction) |
-
-**Description:**
-`scripts/backtest_baselines.py` constructs a live `BinanceExchange`
-against mainnet and pulls real OHLCV every run. The module
-docstring (lines 26-30) states this explicitly. There is no
-snapshot mode, no `--snapshot` flag, and no fixture path —
-`python -m scripts.backtest_baselines` makes real network calls
-on every invocation. Output drifts day-to-day with whatever the
-live OHLCV looks like at fetch time; cross-operator and
-cross-day reproducibility is broken by construction. The script
-also ships 5 baselines (`rsi_universal` extra) where the
-original Phase 20.3 spec assumed 4, which suggests at least one
-silent drift between spec and code.
-
-This was originally tracked as the "operator-artefact
-regeneration" half of DEBT-029, but Phase 20.3's deferral
-surfaced that DEBT-029's framing was vacuous: no baseline
-artefacts had ever been persisted (`data/backtest/baselines/`
-is gitignored and absent on this checkout; `docs/baselines.md`
-operator table is `_TBD_` for every metric). The actual debt
-is reproducibility, not regeneration — the baselines need to
-be runnable deterministically across operators / days as a
-prerequisite for ever publishing operator-facing figures.
-
-**Impact:**
-- Operator-facing baseline table cannot be populated
-  reproducibly until this is fixed; `docs/baselines.md` stays
-  `_TBD_` indefinitely.
-- Autonomous cycles cannot run the regenerator without
-  introducing day-to-day drift in the persisted artefacts.
-- "Compare live performance against baseline" workflows are
-  blocked because the baseline itself is a moving target.
-
-**Suggested Resolution:**
-Phase 25 (Snapshot-Pinned Reproducible Baselines):
-- 25.1: snapshot dataset format (CSV / parquet / JSONL pick),
-  per-(symbol, timeframe) directory layout under
-  `data/backtest/snapshots/`, fetch-metadata sidecar (source
-  URL, fetch timestamp, candle count), `.gitignore` exception
-  so snapshots travel with the repo, freshness policy
-  (refresh cadence + opt-in refresh command).
-- 25.2: `--snapshot <path>` CLI flag routes OHLCV fetch
-  through the snapshot loader; `--refresh-snapshot` flag is
-  the only path that touches mainnet, operator-gated; cross-
-  operator determinism test pins same-snapshot → same-output
-  byte-for-byte; reconcile spec-vs-script baseline-list drift
-  for `rsi_universal` (fold in or drop, document the call).
-- 25.3: first run post-DEBT-024 fix populates
-  `docs/baselines.md` operator table; change-history row
-  notes the first-time computation.
-
-**Related:**
-- DEBT-029 (predecessor — closed as **Reframed** 2026-05-01;
-  the "operator-artefact regeneration" framing was vacuous,
-  reproducibility is the actual debt)
-- DEBT-024 (parent math fix — closed 2026-05-01 by Phase 20.1
-  + 20.2; baselines run first-time post-fix in 25.3)
-- Phase 20.3 deferral (`docs/development-plan.md` Phase 20.3
-  block — DEFERRED status with footnote)
-- Phase 25 (`docs/development-plan.md` Phase 25 — owns the
-  resolution)
-- `scripts/backtest_baselines.py:26-30` (module docstring),
-  `:108-149` (`BASELINES` table — `rsi_universal` drift),
-  `:511-518` (live exchange construction)
-- `docs/baselines.md` (operator table waiting on 25.3)
-
----
-
 ### DEBT-044: `FeedbackLoop.save_state` not migrated to `atomic_write_text`
 
 | Field | Value |
@@ -1014,6 +938,50 @@ picks (consider folding into Phase 24 strategy robustness polish):
   follow-up on the backtester side)
 - `src/backtest/engine.py:371,396`
 - Possible Phase 24 hosting (strategy robustness polish)
+
+### DEBT-048: `docs/baselines.md` table widening + placeholder rename — autonomous-shipping infrastructure conflict
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Phase** | Phase 25.3 Part A (origin) |
+| **Component** | `docs/baselines.md`, `scripts/backtest_baselines.py` (`_TABLE_PATTERN`, `render_table`), `tests/test_scripts_backtest_baselines.py` |
+
+**Description:**
+Phase 25.3 Part A spec asked for two `docs/baselines.md` improvements
+that conflict with existing autonomous-shipping infrastructure:
+(1) widen the operator table from 6 columns (`Strategy / Symbol /
+Period / Win Rate / Sharpe / MDD`) to 9 columns (`Strategy / Symbol /
+Timeframe / Trades / Win Rate / Sharpe / MDD (USDT) / Total PnL
+(USDT) / Snapshot fetched_at`); (2) rename the placeholder token
+from `_TBD_` to the more explicit `_AWAITING_OPERATOR_FIRST_RUN_`.
+Both changes break existing tests because `_TABLE_PATTERN` and
+`render_table` in `scripts/backtest_baselines.py` are hard-wired to
+the legacy 6-column shape, and 2 tests assert the literal `_TBD_`
+string. Phase 25.3 Part A documented the new semantics in surrounding
+prose without changing the cell tokens.
+
+**Impact:**
+- Cosmetic: operator-facing table doesn't surface `Trades` /
+  `Total PnL` / `fetched_at` columns explicitly (operators must
+  read the per-baseline `result.json` for those fields).
+- `_TBD_` placeholder token less self-explanatory than the proposed
+  `_AWAITING_OPERATOR_FIRST_RUN_`; mitigated by surrounding prose.
+
+**Suggested Resolution:**
+Bundle a small docs-polish sub-task (could be Phase 26.x or a Phase
+24-style robustness-polish bundle) that updates header regex +
+`render_table` + the 3 affected tests in lockstep with the doc table.
+Trivial mechanical change once batched.
+
+**Related:**
+- Phase 25.3 Part A session log
+  (`docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`)
+- `scripts/backtest_baselines.py` (`_TABLE_PATTERN`, `render_table`)
+- `tests/test_scripts_backtest_baselines.py`
+  (`test_run_all_skips_doc_update_when_disabled`,
+  `test_update_baselines_doc_replaces_tbd_rows`)
 
 ---
 
@@ -1257,6 +1225,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 24 added a live-mode cold-start guard. New `ProposalEngineConfig.mode: Literal["paper", "live"]` + `min_closed_trades_for_live_promotion: int = 5`. New `_cold_start_blocks_live` guard at both proposal entry points (`ProposalEngine` BTC + altcoin paths) returns None — refusing to submit a live proposal — when no applicable technique meets the closed-trade threshold. Paper-mode behavior unchanged (cold-start-tolerant; that is how techniques bootstrap their performance history). `src/main.py` wires `settings.trading_mode` into `ProposalEngineConfig.mode`. **Quant-driven follow-up fix in same cycle**: new `ActivityEventType.COLD_START_BLOCKED` enum value; the guard now emits a structured event with payload `{symbol, reason="cold_start_below_min_closed_trades", min_closed_trades_for_live_promotion, max_trades_observed, per_technique_trades}` so operators see why the bot is intentionally idle on the dashboard rather than chasing a silent log line. Tests: `test_live_mode_blocks_cold_start_proposal` (extended to assert ActivityEvent payload), `test_paper_mode_allows_cold_start_proposal`, `test_live_mode_releases_when_threshold_met`, `test_live_mode_blocks_when_only_cold_start_techniques_present` (4 cases — live-block + activity event, paper-allow, threshold-release, mixed-techniques). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
 
+### DEBT-043: Baseline regenerator is non-deterministic — live Binance, no snapshot mode ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-01 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 25 closed at the infrastructure level via 25.1 + 25.2 + 25.3 Part A (partial seal — Part B is a one-time operator action with live Binance read-only credentials, fully documented in `docs/baselines.md` runbook, non-gating for further phases). **25.1**: new `src/backtest/snapshot.py` with `SnapshotMetadata` (Pydantic UTC-coerce per Phase 21.2 pattern) + `Snapshot` + `SnapshotValidationError` + `load_snapshot` / `save_snapshot` (atomic via Phase 22.1) + `is_snapshot_fresh` (90-day default, `now=` injectable) + `baseline_directory` helper. Format: CSV (`ohlcv.csv`) + JSON sidecar (`metadata.json`). Decimal-as-string round-trip (no `float()` drift). `.gitignore` switched `data/` → `data/*` with carve-backs (`!data/backtest/snapshots/**`); other data subdirs remain ignored. 27 tests covering round-trip, schema breach × 8, UTC contract, freshness boundary. **25.2**: 4 new CLI flags on `scripts/backtest_baselines.py` (`--snapshot [PATH]` opt-in reproducible, `--refresh-snapshot` operator-gated mainnet entry, `--max-snapshot-age-days INT` default 30, `--snapshot-root PATH`); `--snapshot` and `--refresh-snapshot` mutually exclusive. New `SnapshotExchange` class — free-standing (not `BaseExchange` subclass), follows `_FakeBinanceExchange` injection pattern. Slice-bounds enforcement (quant carry-over from 25.1): `clamped_limit = min(limit, len(rows))`; `if since > last_ts_ms: return []`. Active-use freshness window: 30-day default operator path; 90-day absolute stale ceiling. `Settings.engine_baseline_max_snapshot_age_days` env-overridable. `rsi_universal` reconciliation: KEEP (verified against `strategies/rsi.py:11-18` "universal-cadence fallback"). 10 tests including `test_cross_operator_determinism_byte_identical` (UUID scrubbing approved by quant — operator-trace IDs not strategy state). **25.3 Part A**: `docs/baselines.md` restructured with operator runbook (5-step first-fetch procedure), snapshot freshness policy section (30-day active vs 90-day absolute), reproducibility note (cross-operator byte-equality contract), all 5 baselines enumerated. Spec deviations recorded as DEBT-048 (Low): table widening 6→9 columns + placeholder token rename `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` deferred since they conflict with the autonomous-shipping `_TABLE_PATTERN` rewriter and 2 existing tests; explicit semantics documented in surrounding prose. **Part B (operator action, post-seal)**: one-time live Binance read-only fetch + first-time number population per the runbook; not blocking any further phase. pytest 1311 → 1348 (+37 across all 25.x sub-tasks); ruff/mypy/black clean throughout; reviewers 🟢🟢 on 25.1 and 25.2; 25.3 Part A docs-only (no review needed; gates re-checked clean). Cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS. Session logs: `docs/sessions/2026-05-01-phase-25.1-snapshot-format.md`, `docs/sessions/2026-05-01-phase-25.2-snapshot-cli.md`, `docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`. |
+
 ---
 
 ## Statistics
@@ -1266,9 +1243,9 @@ Move resolved items here with resolution date and notes.
 | Total Active | 22 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 7 |
-| Low | 15 |
-| Resolved (All Time) | 25 |
+| Medium | 6 |
+| Low | 16 |
+| Resolved (All Time) | 26 |
 
 ---
 
@@ -1351,3 +1328,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-032 OOS Sharpe gate fails when in-sample population is small — Phase 24 added `RobustnessConfig.minimum_is_trades: int = 10` (quant-driven bump from initial default 5); SKIP-on-tiny-IS branch precedes IS-Sharpe-non-positive FAIL; strict `<` boundary (N=9 SKIP, N=10 reaches floor and is judged); aggregator preserves SKIP as non-PASS for promotion |
 | 2026-05-01 | Resolved | DEBT-033 Stale-quote gate falls through on ticker exception without freshness check — Phase 24 added `EngineConfig.max_ticker_age_seconds: float = 10.0` for cached-ticker freshness; quant-driven follow-up added opt-in `EngineConfig.reject_if_stale_quote: bool = False` flag — when True, both stale-ticker AND ticker-fetch-error branches hard-reject via new `_record_no_live_data_rejection` (mirrors stale-quote rejection shape) with reason `stale_quote_no_live_data`, addressing the original audit's "fill proceeds at proposal.entry_price with no live cross-check" concern; plumbed via `Settings.engine_reject_if_stale_quote` and `.env.example` |
 | 2026-05-01 | Resolved | DEBT-034 Cold-start technique selection uses alphabetical ordering — Phase 24 added `ProposalEngineConfig.mode: Literal["paper", "live"]` + `min_closed_trades_for_live_promotion: int = 5`; `_cold_start_blocks_live` guard refuses live proposals when no applicable technique meets threshold; paper-mode bootstrap behavior unchanged; `src/main.py` wires `settings.trading_mode` into engine config; quant-driven follow-up added `ActivityEventType.COLD_START_BLOCKED` enum + structured event payload (symbol / threshold / max_trades_observed / per_technique_trades) so operators see why bot is intentionally idle |
+| 2026-05-01 | Resolved | DEBT-043 Baseline regenerator is non-deterministic — Phase 25 closed at infrastructure level via 25.1 (snapshot format + loader + 27 tests) + 25.2 (`--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` CLI flags + `SnapshotExchange` adapter + slice-bounds enforcement + 10 tests including `test_cross_operator_determinism_byte_identical`) + 25.3 Part A (operator runbook + freshness policy guidance + reproducibility note in `docs/baselines.md`). Phase 25 partial seal — Part B (one-time operator action with live Binance read-only credentials to populate first-time numbers) documented in runbook, non-gating for further phases. Cross-check PASS |
+| 2026-05-01 | Added | DEBT-048 `docs/baselines.md` table widening + placeholder rename (Low) — surfaced during Phase 25.3 Part A; spec asked for 6→9 column widening (`Trades / Total PnL (USDT) / Snapshot fetched_at` columns) + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` rename, but both conflict with the autonomous-shipping `_TABLE_PATTERN` rewriter and 2 existing tests; deferred to a future docs-polish bundle that updates regex + `render_table` + tests in lockstep |

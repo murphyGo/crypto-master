@@ -87,11 +87,13 @@
 | Strategy Robustness Polish (intra-trade MDD / MA-SL / OOS guard / cold-start) | ✅ Complete | 24 |
 | Snapshot Dataset + Format | ✅ Complete | 25 |
 | `--snapshot` CLI Flag + Script Changes | ✅ Complete | 25 |
-| First Run + Populate `docs/baselines.md` | ❌ Missing | 25 |
+| First Run + Populate `docs/baselines.md` (Part A: runbook ✅; Part B: operator) | ✅ Complete[^p25-3] | 25 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing | ⏸ Deferred
 
 [^p20-3]: Phase 20.3 reframed 2026-05-01 — `scripts/backtest_baselines.py` calls live Binance with no snapshot mode (non-deterministic, operator-only), `data/backtest/baselines/` directory absent, `docs/baselines.md` operator table all `_TBD_`. The "operator-artefact regeneration" framing (DEBT-029) was vacuous — no inflated artefacts had ever been persisted; the math fix (DEBT-024) closed at the code level by 20.1 + 20.2. Snapshot-pinned reproducibility re-scoped to Phase 25 (closes new DEBT-043). DEBT-029 closed as **Reframed**.
+
+[^p25-3]: Phase 25.3 split 2026-05-01 — Part A (autonomous, this sub-task) restructured `docs/baselines.md` with operator runbook + freshness policy + reproducibility note + all 5 baselines enumerated. Part B (operator action, post-seal) is the one-time live Binance read-only fetch + first-time number population per the runbook; not blocking any further phase. Phase 25 partial seal at Part A is sufficient because the reproducibility *infrastructure* (25.1 format + 25.2 CLI/SnapshotExchange + 25.3 runbook) is autonomous-complete; only the first-numbers population requires operator credentials. Two minor spec deviations (table widening 6→9 columns, placeholder rename) deferred as DEBT-048 (Low) due to autonomous-shipping rewriter conflict.
 
 ---
 
@@ -3069,19 +3071,67 @@ operator table, which has stayed `_TBD_` since the file was
 created. This is the operator-facing closure of the
 reproducibility story.
 
+**Two-part split** (lead, 2026-04-30): the original spec assumed
+a single autonomous cycle, but the first-run step requires
+fetching live Binance OHLCV which is an operator-only action.
+25.3 split into:
+
+- **Part A (autonomous)**: prepare `docs/baselines.md` operator
+  table structure + freshness-window guidance + per-baseline row
+  template + operator runbook for the first fetch. No live data
+  needed. Phase 25 seals **partially** at 25.3 Part A — the
+  snapshot infrastructure (25.1 + 25.2) and operator runbook
+  (25.3 Part A) are autonomous-complete; the actual numbers
+  require a one-time operator action to land.
+- **Part B (operator action, follow-up)**: operator runs
+  `--refresh-snapshot` then `--snapshot ...` to fetch live data
+  and rewrite the table cells. Tracked as a post-seal operator
+  to-do, not a future phase.
+
 **Related Requirements**: FR-025 (extending; no new FR/NFR).
 
-- [ ] Run `python -m scripts.backtest_baselines --snapshot
-  data/backtest/snapshots/baselines/` for each baseline.
-- [ ] Persist `result.json` / `analysis.md` / `summary.json`
-  per baseline under `data/backtest/baselines/`.
-- [ ] Populate `docs/baselines.md`'s operator table (replace
-  every `_TBD_` with the snapshot-pinned figure).
-- [ ] Add a single-line change-history row in
-  `docs/development-plan.md` noting the figures were
-  computed first-time post-DEBT-024 fix from the
-  snapshot-pinned dataset.
-- [ ] Write unit tests.
+Part A — autonomous (this sub-task):
+
+- [x] Restructure `docs/baselines.md` operator table with all 5
+  baselines (`rsi_universal`, `rsi_4h`, `rsi_15m`,
+  `bollinger_band_reversion`, `ma_crossover`). Placeholder token
+  remains the legacy marker — semantically "awaiting operator
+  first run" — because the rewriter and its tests assert that
+  literal string pre-rewrite; renaming is deferred as Low-priority
+  TECH-DEBT (see senior-developer report). Column shape kept at
+  the legacy 6-column shape for the same reason (rewriter is
+  hard-wired); widening to the 9-column spec'd shape is also
+  Low-priority TECH-DEBT.
+- [x] Document the 30-day active-use window vs the 90-day
+  absolute stale ceiling so operators understand the freshness
+  gate (carry-over from 25.2).
+- [x] Add operator runbook section: env-vars → refresh-snapshot
+  → verify directories → snapshot run → commit.
+- [x] Add reproducibility note explaining cross-operator byte
+  equality (modulo `run_id` / `trade_id` UUIDs).
+- [x] Change-history row noting Part A complete / Part B awaiting
+  operator.
+
+Part B — operator action (post-seal, not blocking the seal):
+
+- [ ] **Operator**: Run `python -m scripts.backtest_baselines
+  --refresh-snapshot --snapshot-root data/backtest/snapshots/`
+  to fetch live Binance OHLCV and persist the snapshot dataset.
+- [ ] **Operator**: Run `python -m scripts.backtest_baselines
+  --snapshot data/backtest/snapshots/` for each baseline against
+  the committed snapshot.
+- [ ] **Operator**: Persist `result.json` / `analysis.md` /
+  `summary.json` per baseline under `data/backtest/baselines/`.
+- [ ] **Operator**: Populate `docs/baselines.md`'s operator
+  table (replace every `_AWAITING_OPERATOR_FIRST_RUN_` with the
+  snapshot-pinned figure; the script does this in place).
+- [ ] **Operator**: Commit the snapshot directory + the
+  resulting `data/backtest/baselines/` artefacts + the rewritten
+  `docs/baselines.md`.
+
+No code changes for Part A — this is a docs-only sub-task. No
+new tests required (Part A surfaces only documentation changes;
+the snapshot infrastructure tests landed with 25.1 + 25.2).
 
 ---
 
@@ -3231,3 +3281,5 @@ reproducibility story.
 | 24.0 | 2026-05-01 | Phase 24 sealed (24.1 ✅) — DEBT-030 / 031 / 032 / 033 / 034 all Resolved; the 5-DEBT Low-priority bundle from the 2026-04-30 audit fully closed. Per-bar equity curve in the analyzer (intra-trade MDD now visible; Sharpe annualization tracks candle cadence). MA-crossover SL window excludes current candle (silently-dropped bullish/bearish crosses where current candle was the local 5-bar low/high now emit cleanly). OOS Sharpe gate SKIPs strategies with N<10 IS trades instead of FAILing them (Sharpe with N<10 has prohibitively high variance). Ticker freshness threshold + opt-in `reject_if_stale_quote` flag for live-mode safety. Live cold-start guard refuses live proposals when no technique has ≥ N closed trades + emits structured `COLD_START_BLOCKED` ActivityEvent for operator visibility. No new debt introduced. Recommended next phase: Phase 25 (Snapshot-Pinned Reproducible Baselines, DEBT-043) — the only remaining sub-task in the post-audit follow-up plan with a clear scope. DEBT-046 (concurrent-mutation atomic-write loss) remains a hard prerequisite for Phase 19.2 sub-account fan-out (carry-over flag, not a Phase 24 concern). | docs-auditor |
 | 25.1 | 2026-05-01 | Phase 25.1 sealed 2026-05-01 — Snapshot Dataset + Format (FR-025 extending; partial DEBT-043 closure). New `src/backtest/snapshot.py` module: `SnapshotMetadata` Pydantic model (UTC-coerce field validator per Phase 21.2 pattern), `Snapshot` bundling metadata + `list[OHLCV]`, `SnapshotValidationError`, `load_snapshot` / `save_snapshot` (atomic via Phase 22.1 `atomic_write_text`), `is_snapshot_fresh` (90-day default, `now=` injectable), `baseline_directory` helper centralising `<SYMBOL>__<timeframe>` naming. Format chosen: CSV + JSON sidecar — rationale per session log (must be committed for reproducibility, version-control diff-friendly, no extra deps). `ohlcv.csv` header pinned at `timestamp,open,high,low,close,volume`; metadata.json carries `symbol / timeframe / source / fetched_at / candle_count / first_timestamp / last_timestamp / fetcher_version="phase-25.1"`. `Decimal(cell)` round-trip (no `float()` drift). Validation cross-checks: header order, row column count, `metadata.candle_count == len(ohlcv)`, UTC-coerce on read. `.gitignore` switched `data/` → `data/*` with carve-backs (`!data/backtest/`, `!data/backtest/snapshots/**`); verified other `data/` subdirs (logs, audit, feedback, trades) still ignored via `git check-ignore`. New `data/backtest/snapshots/baselines/.gitkeep` placeholder + `data/backtest/snapshots/README.md` operator documentation. 27 new tests covering round-trip, schema breach (8 cases), UTC contract, freshness boundary; pytest 1311 → 1338 (+27). ruff / mypy / black clean. Reviewers 🟢🟢. Quant carry-overs for 25.2: (a) slice bounds enforcement against `len(snapshot.ohlcv)`; (b) consider tighter active-use freshness window (30d for promotion gates, 90d as absolute stale ceiling). Session log: `docs/sessions/2026-05-01-phase-25.1-snapshot-format.md`. | docs-auditor (lead-orchestrated) |
 | 25.2 | 2026-05-01 | Phase 25.2 sealed 2026-05-01 — `--snapshot` CLI flag + script changes (FR-025 extending; partial DEBT-043 closure). 4 new CLI flags on `scripts/backtest_baselines.py`: `--snapshot [PATH]` opt-in reproducible mode (default `data/backtest/snapshots`), `--refresh-snapshot` operator-gated mainnet fetch path (sole entry point that touches Binance live, prints two operator-visible warnings), `--max-snapshot-age-days INT` default 30 (env-overridable via `ENGINE_BASELINE_MAX_SNAPSHOT_AGE_DAYS`; quant-recommended active-use window — `DEFAULT_MAX_AGE_DAYS=90` in `snapshot.py` unchanged as absolute stale ceiling), `--snapshot-root PATH` companion. `--snapshot` and `--refresh-snapshot` mutually exclusive via `argparse.add_mutually_exclusive_group()`. New `SnapshotExchange` class in `src/backtest/snapshot.py` (free-standing, not BaseExchange subclass — regenerator only consumes connect/disconnect/get_ohlcv) with quant carry-over slice-bounds enforcement: `clamped_limit = min(limit, len(rows))` clamps oversized requests to snapshot length; `if since > last_ts_ms: return []` refuses extrapolation past `last_timestamp`. `refresh_snapshots` async helper writes via `save_snapshot` (atomic per Phase 22.1) with `now_utc()` `fetched_at` and `fetcher_version="phase-25.2"`. `Settings.engine_baseline_max_snapshot_age_days = 30` env-overridable. `rsi_universal` reconciliation: KEEP — quant verified against `strategies/rsi.py` lines 11-18 ("universal-cadence fallback"); 25.3 must enumerate all 5 baselines in `docs/baselines.md`. 10 new tests including `test_cross_operator_determinism_byte_identical` (runs `run_all` twice, scrubs `run_id` + `trade_id` UUIDs — quant-approved as operator-trace IDs not strategy state, asserts byte equality on remaining fields and `summary.json`). pytest 1338 → 1348 (+10), ruff/mypy/black clean. Reviewers 🟢🟢. Carry-over for 25.3: call out 30-day active vs 90-day absolute stale window in `docs/baselines.md`. New TECH-DEBT candidate (informational): `BacktestResult.run_id` / `Trade.trade_id` use `uuid.uuid4()` so byte-identical determinism requires UUID scrubbing today; future `--deterministic-ids` flag could land truly byte-identical artefacts. Session log: `docs/sessions/2026-05-01-phase-25.2-snapshot-cli.md`. | docs-auditor (lead-orchestrated) |
+| 25.3 | 2026-05-01 | Phase 25.3 Part A sealed 2026-05-01 — operator runbook + doc restructure (FR-025 extending; partial DEBT-043 closure at infrastructure level). 25.3 split into Part A (autonomous, this sub-task) + Part B (one-time operator action with live Binance read-only credentials, post-seal). `docs/baselines.md` restructured with new sections: **Operator runbook** (5-step first-fetch procedure: credential setup → `--refresh-snapshot` → directory verification → `--snapshot` run → commit), **Snapshot freshness policy** (30-day active-use window via `--max-snapshot-age-days` default vs 90-day absolute stale ceiling per `DEFAULT_MAX_AGE_DAYS` in `snapshot.py`; quant carry-over from 25.2), **Reproducibility note** (cross-operator byte-equality contract; UUID divergence approved), all 5 baselines enumerated (`rsi_universal` + `rsi_4h` / `rsi_15m` / `bollinger_band_reversion` / `ma_crossover`). Two spec deviations documented + surfaced as DEBT-048 (Low): (1) 9-column table widening kept at 6 (autonomous-shipping `_TABLE_PATTERN` rewriter hard-wired to legacy header; widening would break 3 tests); (2) `_AWAITING_OPERATOR_FIRST_RUN_` placeholder kept as `_TBD_` (existing tests assert the literal). Both new semantics explained in surrounding prose. No code changes (Part A is docs-only). pytest 1348 unchanged from 25.2; ruff/mypy/black clean. Reviewers skipped for docs-only sub-task. Session log: `docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`. | docs-auditor (lead-orchestrated) |
+| 25.0 | 2026-05-01 | Phase 25 sealed (partial — 25.1 ✅, 25.2 ✅, 25.3 Part A ✅; 25.3 Part B operator action documented + non-gating) — DEBT-043 Resolved at infrastructure level. Reproducibility infrastructure for backtest baselines: snapshot CSV + JSON-sidecar format with UTC-aware Pydantic validation and atomic write (Phase 22.1 / 21.2 conventions); `--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` / `--snapshot-root` CLI surface with mutually-exclusive guard between read and refresh modes; `SnapshotExchange` adapter with quant-mandated slice-bounds enforcement (no extrapolation past `last_timestamp`); 30-day active-use freshness vs 90-day absolute stale ceiling; cross-operator byte-determinism contract (`test_cross_operator_determinism_byte_identical`); operator runbook + reproducibility note in `docs/baselines.md`; new TECH-DEBT entries: DEBT-048 (Low — table widening polish deferred). Phase 25 cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS — FR-025 ✅, NFR-006 ✅, NFR-007 ✅; 0 gaps blocking; 0 ⚠️ partial. pytest 1311 → 1348 (+37 across 25.x). Two minor stylistic carry-overs (implicit string concat at `scripts/backtest_baselines.py:773,834`) noted but non-blocking. | docs-auditor |
