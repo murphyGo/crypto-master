@@ -119,6 +119,27 @@ class ActivityEventType(str, Enum):
     # so the activity timeline shows the deliberate idle state.
     COLD_START_BLOCKED = "cold_start_blocked"
 
+    # Notification dispatch failure (Phase 26.3 / DEBT-038). Emitted by
+    # :class:`~src.runtime.engine.TradingEngine._handle_proposal` when
+    # ``NotificationDispatcher.notify_proposal`` raises. The dispatcher
+    # already isolates per-notifier failures internally; this event
+    # surfaces failures of the dispatcher call itself (e.g. unexpected
+    # programming errors, invalid proposal data) so the dashboard has
+    # a structural signal that notifications are not landing. The
+    # engine's policy is **emit-then-swallow**: the cycle continues so
+    # one broken notifier path can't silence the trading loop. The
+    # ``details`` payload (structured-fields contract — pinned by
+    # ``test_notifier_failure_emits_notification_failed_event``):
+    #
+    #     proposal_id (str)        proposal whose notification failed
+    #     symbol (str)             trading symbol on the proposal
+    #     dispatcher_name (str)    ``type(dispatcher).__name__`` so
+    #                              operators distinguish dispatcher
+    #                              implementations across envs
+    #     error_type (str)         exception class name
+    #     error_message (str)      ``str(exception)`` — short
+    NOTIFICATION_FAILED = "notification_failed"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

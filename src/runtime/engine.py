@@ -449,8 +449,28 @@ class TradingEngine:
 
         try:
             await self.notification_dispatcher.notify_proposal(proposal)
-        except Exception as e:  # pragma: no cover - notifier isolated by dispatcher
+        except Exception as e:
+            # Phase 26.3 / DEBT-038: emit-then-swallow. The dispatcher
+            # already isolates per-notifier failures (see
+            # ``NotificationDispatcher.notify_proposal``); this branch
+            # only fires when the dispatcher call itself raises (e.g.
+            # programming error, invalid proposal data). Lead policy:
+            # surface to the activity log so operators see the failure
+            # in the dashboard, but continue the cycle — one broken
+            # notification path must not silence the trading loop.
             logger.warning(f"Notification dispatch failed: {e}")
+            self.activity_log.append(
+                ActivityEventType.NOTIFICATION_FAILED,
+                f"Notification dispatch failed for {proposal.symbol}: {e}",
+                details={
+                    "proposal_id": proposal.proposal_id,
+                    "symbol": proposal.symbol,
+                    "dispatcher_name": type(self.notification_dispatcher).__name__,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+                cycle_id=cycle_id,
+            )
 
         record = await self.proposal_interaction.present(
             proposal, actor=self.config.actor

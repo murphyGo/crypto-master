@@ -209,3 +209,36 @@ class TestResetLoggers:
             logger = setup_logger("test_reinit", log_file=log_file)
 
         assert len(logger.handlers) > 0
+
+    def test_clears_initialized_loggers_set_and_is_idempotent(
+        self, tmp_path: Path
+    ) -> None:
+        """Phase 26.3 / DEBT-039 contract.
+
+        ``reset_loggers()`` must (a) attach no handlers to any tracked
+        logger and (b) leave the ``_initialized_loggers`` cache empty,
+        so a subsequent ``setup_logger`` call rewires handlers cleanly.
+        Calling reset twice in a row is a no-op (idempotent).
+        """
+        from src.logger import _initialized_loggers
+
+        log_file = tmp_path / "test.log"
+        with patch("src.logger.get_settings") as mock_settings:
+            mock_settings.return_value.log_file = log_file
+            mock_settings.return_value.log_level = "INFO"
+            logger = setup_logger("test_idempotent_reset", log_file=log_file)
+
+        assert len(logger.handlers) > 0
+        assert "test_idempotent_reset" in _initialized_loggers
+
+        reset_loggers()
+        # Handlers cleared on the same logger object …
+        live_logger = logging.getLogger("test_idempotent_reset")
+        assert live_logger.handlers == []
+        # … and the module cache is fully cleared.
+        assert _initialized_loggers == set()
+
+        # Second call is a no-op — does not raise, leaves state empty.
+        reset_loggers()
+        assert _initialized_loggers == set()
+        assert logging.getLogger("test_idempotent_reset").handlers == []

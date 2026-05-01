@@ -90,7 +90,7 @@
 | First Run + Populate `docs/baselines.md` (Part A: runbook ✅; Part B: operator) | ✅ Complete[^p25-3] | 25 |
 | Atomic-Write Completion (DEBT-044, 045) | ✅ Complete | 26 |
 | Code Hygiene Sweep (DEBT-035, 036, 040, 041, 048) | ✅ Complete | 26 |
-| Observability + Logger Test-Friendliness (DEBT-038, 039) | ❌ Missing | 26 |
+| Observability + Logger Test-Friendliness (DEBT-038, 039) | ✅ Complete | 26 |
 | Backtester Liquidation Parity (DEBT-047) | ❌ Missing | 26 |
 | Black Sweep (DEBT-042) | ❌ Missing | 26 |
 
@@ -3260,27 +3260,27 @@ NFR-001 (Python 3.10+ test-friendliness — DEBT-039 logger
 helper). Extending existing requirements; no new FR/NFR
 introduced.
 
-- [ ] DEBT-038: `src/runtime/activity_log.py::ActivityEventType`
+- [x] DEBT-038: `src/runtime/activity_log.py::ActivityEventType`
   — new member `NOTIFICATION_FAILED` with structured-fields
   contract documented in the docstring (`channel`, `subject`,
   `error`).
-- [ ] DEBT-038: `src/runtime/engine.py:410` — wrap the notifier
+- [x] DEBT-038: `src/runtime/engine.py:410` — wrap the notifier
   dispatch in a try/except that emits `NOTIFICATION_FAILED`
   with the structured payload before swallowing the exception
   (or re-raises if policy demands; planner defers the
   swallow-vs-raise call to senior-developer based on existing
   notifier policy).
-- [ ] DEBT-039: `src/logger.py` — expose
+- [x] DEBT-039: `src/logger.py` — expose
   `reset_loggers() -> None` (idempotent — clears
   `_initialized_loggers` and removes installed handlers; safe
   to call multiple times).
-- [ ] DEBT-039: `tests/conftest.py` — add a `pytest` fixture
+- [x] DEBT-039: `tests/conftest.py` — add a `pytest` fixture
   (autouse or explicit) that calls `reset_loggers()` between
   tests so handler state doesn't leak across the suite.
-- [ ] Regression test on the notifier-failure path — assert the
+- [x] Regression test on the notifier-failure path — assert the
   `NOTIFICATION_FAILED` event is emitted with the expected
   structured fields when the notifier raises.
-- [ ] Write unit tests.
+- [x] Write unit tests.
 
 ### 26.4 Backtester Liquidation Parity
 
@@ -3509,3 +3509,4 @@ requirements; no new FR/NFR introduced.
 | 25.0 | 2026-05-01 | Phase 25 sealed (partial — 25.1 ✅, 25.2 ✅, 25.3 Part A ✅; 25.3 Part B operator action documented + non-gating) — DEBT-043 Resolved at infrastructure level. Reproducibility infrastructure for backtest baselines: snapshot CSV + JSON-sidecar format with UTC-aware Pydantic validation and atomic write (Phase 22.1 / 21.2 conventions); `--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` / `--snapshot-root` CLI surface with mutually-exclusive guard between read and refresh modes; `SnapshotExchange` adapter with quant-mandated slice-bounds enforcement (no extrapolation past `last_timestamp`); 30-day active-use freshness vs 90-day absolute stale ceiling; cross-operator byte-determinism contract (`test_cross_operator_determinism_byte_identical`); operator runbook + reproducibility note in `docs/baselines.md`; new TECH-DEBT entries: DEBT-048 (Low — table widening polish deferred). Phase 25 cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS — FR-025 ✅, NFR-006 ✅, NFR-007 ✅; 0 gaps blocking; 0 ⚠️ partial. pytest 1311 → 1348 (+37 across 25.x). Two minor stylistic carry-overs (implicit string concat at `scripts/backtest_baselines.py:773,834`) noted but non-blocking. | docs-auditor |
 | 26.1 | 2026-05-01 | Phase 26.1 sealed 2026-05-01 — Atomic-Write Completion (DEBT-044 + DEBT-045 Resolved). `FeedbackLoop.save_state` (line 440) and `Backtester.save_result` (line 1106) migrated from direct `Path.write_text` / `json.dump(f, ...)` to `atomic_write_text(path, json.dumps(payload, indent=2))` from Phase 22.1. Output bytes byte-identical pre/post (CPython `json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. 3 new regression tests inject `OSError` mid-write and assert prior bytes intact (or no half-written file when no prior). pytest 1348 → 1351 (+3); ruff/mypy/black clean. QA verdict: 🟢 ship. No new debt; no quant review needed (mechanical persistence, not trading logic). Phase 22.1 atomic-write coverage now extends to all known load-mutate-save and single-write JSON sites in src/. | docs-auditor (lead-orchestrated) |
 | 26.2 | 2026-05-01 | Phase 26.2 sealed 2026-05-01 — Code Hygiene Sweep (DEBT-035 + 036 + 040 + 041 + 048 Resolved). Bundle of 5 isolated low-priority fixes: (1) deleted dead `Trade` model from `src/models.py` (regression test pins ImportError); (2) replaced 30-day approximation with `relativedelta(months=N)` for calendar-correct cutoffs in `src/proposal/interaction.py:438` (added `python-dateutil>=2.8.2` runtime + `types-python-dateutil>=2.8` dev deps; 2 calendar-boundary tests); (3) documented both `# type: ignore[arg-type]` sites at `src/proposal/engine.py:519,555` with upstream-type-mismatch rationale; (4) added public `ProposalInteraction.set_decision_callback` setter; runtime engine uses it; dropped `# type: ignore[attr-defined]` (2 setter tests); (5) widened `docs/baselines.md` operator table 6→9 columns (added `Trades / Total PnL (USDT) / Snapshot fetched_at`; renamed `Period` → `Timeframe`) + placeholder token `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (exposed as `PLACEHOLDER_TOKEN` constant); `_TABLE_HEADER`, `_TABLE_PATTERN`, `render_table`, `build_summary`, `write_baseline_artifacts`, `run_baseline`, `run_all` updated in lockstep — `run_all` now threads `SnapshotMetadata.fetched_at` through to the docs table when running off `--snapshot`. 3 existing tests rewritten + 2 new (9-column layout pinned). pytest 1351 → 1355 (+4 net; -2 from `TestTrade` removal + 7 new across the 5 fixes). ruff/mypy/black clean. QA verdict: 🟢 ship. (Note: 3 pre-existing mypy errors in `scripts/backtest_baselines.py:684,693` — `Literal['15m','1h','4h']` typing — not introduced by 26.2; `scripts/` excluded from project gate per CLAUDE.md.) | docs-auditor (lead-orchestrated) |
+| 26.3 | 2026-05-01 | Phase 26.3 sealed 2026-05-01 — Observability + Logger Test-Friendliness (DEBT-038 + 039 Resolved). DEBT-038: new `ActivityEventType.NOTIFICATION_FAILED` enum with structured-payload docstring contract; notifier `try/except` at `src/runtime/engine.py:451` now emits the event with `{proposal_id, symbol, dispatcher_name, error_type, error_message}` + cycle_id, then swallows (lead policy — preserves existing semantics, adds dashboard signal). Operators see notifier reliability the same way they see `LLM_TIMEOUT`. DEBT-039: wired existing public `reset_loggers()` helper into pytest isolation via new autouse `tests/conftest.py` fixture (clears `_initialized_loggers` + handlers between tests); idempotent, no collision with per-file `clean_loggers` fixture. 2 new regression tests (`test_notifier_failure_emits_notification_failed_event` injects real-raise `AsyncMock` and asserts payload + behavior preservation; `test_clears_initialized_loggers_set_and_is_idempotent` pins reset contract). pytest 1355 → 1357 (+2); ruff/mypy/black clean. QA verdict: 🟢 ship. (Note: pre-existing black failure in `tests/test_logger.py:105-109` deferred to Phase 26.5 black sweep.) | docs-auditor (lead-orchestrated) |

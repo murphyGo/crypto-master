@@ -500,75 +500,6 @@ suggests an exception is warranted).
 - `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
-### DEBT-038: Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 6.3 (origin); surfaced 2026-04-30 |
-| **Component** | `src/runtime/engine.py` (notifier dispatch + activity-log emission) |
-
-**Description:**
-`src/runtime/engine.py:410` (and the dispatcher's per-channel
-`try/except`) swallow notifier failures so a single bad webhook
-doesn't crash the engine — correct shape per Phase 6.3 contract.
-But the swallowing emits no activity-log row, so an operator
-seeing "no Slack alert came through" has no log evidence the
-attempt was even made. The Telegram / Email / Slack notifiers
-all share the same blind-failure surface.
-
-**Impact:**
-Operationally invisible failures: a misconfigured `SLACK_
-WEBHOOK_URL` is indistinguishable from a missing one. Only the
-log-level WARN line in the dispatcher records the attempt.
-Visibility-cost only; no data-correctness consequence.
-
-**Suggested Resolution:**
-Add `ActivityEventType.NOTIFICATION_FAILED` and emit one row
-per failed channel from the dispatcher's `except` branch with
-structured fields (`channel`, `notifier_class`, `error_class`,
-`error_message`, `proposal_id`). Dashboard's activity-log view
-surfaces it as a sibling of `LLM_TIMEOUT` / `PROPOSAL_REJECTED`.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/runtime/engine.py:410`
-- `src/proposal/notification.py` (dispatcher)
-
-### DEBT-039: Logger module global `_initialized_loggers` blocks handler reset
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 1.3 (origin); surfaced 2026-04-30 |
-| **Component** | `src/logger.py` |
-
-**Description:**
-`src/logger.py:18` keeps `_initialized_loggers: set[str]` at
-module scope; `setup_logger` (lines 56-86) returns the cached
-logger if the name is already in the set, refusing to attach
-fresh handlers. Tests that need a clean handler stack (per-test
-caplog isolation) have to monkeypatch the global, which is
-fragile.
-
-**Impact:**
-Test ergonomics only — tests that interact with logger handlers
-end up patching a module global, which is flaky across test
-ordering. No production impact.
-
-**Suggested Resolution:**
-Replace the module-global set with per-call idempotence: check
-the logger's existing handlers and skip duplicate attachment.
-Drop the `_initialized_loggers` global entirely. Tests gain a
-fresh handler stack via `logger.handlers.clear()` rather than
-patching internals.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/logger.py:18,56-86`
-
 ### DEBT-042: `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted
 
 | Field | Value |
@@ -1050,18 +981,36 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 26.2 closed both spec deviations from Phase 25.3 Part A in lockstep. (1) `docs/baselines.md` table widened from 6 columns (`Strategy / Symbol / Period / Win Rate / Sharpe / MDD`) to 9 columns (`Strategy / Symbol / Timeframe / Trades / Win Rate / Sharpe / MDD / Total PnL (USDT) / Snapshot fetched_at`). (2) Placeholder token renamed `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_`, exposed as `PLACEHOLDER_TOKEN` constant in `scripts/backtest_baselines.py:473` so future authors don't hard-code the literal. `_TABLE_HEADER`, `_TABLE_PATTERN`, `render_table`, `build_summary`, `write_baseline_artifacts`, `run_baseline`, and `run_all` updated in lockstep — `run_all` now threads `SnapshotMetadata.fetched_at` through to the docs table when running off `--snapshot`. Three pre-existing tests rewritten (`test_run_all_skips_doc_update_when_disabled`, `test_update_baselines_doc_replaces_tbd_rows`, period-startswith assertion); two new tests pin the 9-column layout (one all-fields-populated, one with `total_pnl`/`fetched_at` missing → graceful `PLACEHOLDER_TOKEN` fallback). pytest 1351 → 1355 (+4 net across 26.2 fixes); ruff/mypy/black clean. |
 
+### DEBT-038: Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.3 added `ActivityEventType.NOTIFICATION_FAILED` (`src/runtime/activity_log.py`) with structured-fields docstring contract (`proposal_id`, `symbol`, `dispatcher_name`, `error_type`, `error_message`). The notifier `try/except` at `src/runtime/engine.py:451` now follows **emit-then-swallow** policy (lead's decision to preserve existing semantics — re-raising would change behavior beyond observability scope): logs warning (existing), appends `NOTIFICATION_FAILED` event with the structured payload + cycle_id, continues. Operators see notifier-reliability on the dashboard the same way they see `LLM_TIMEOUT`. Regression test `test_notifier_failure_emits_notification_failed_event` injects an `AsyncMock(side_effect=RuntimeError(...))` notifier (real raise, not stub), runs full `engine.run_cycle()`, asserts the event lands once with all 5 payload fields AND that proposal still flows through accept/open (behavior preservation pinned). pytest 1355 → 1356 (+1); ruff/mypy/black clean. QA verdict: 🟢 ship. |
+
+### DEBT-039: Logger module global `_initialized_loggers` blocks handler reset ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.3 wired the public, idempotent `reset_loggers()` helper (already present in `src/logger.py`) into pytest test isolation. New `tests/conftest.py` autouse fixture calls `reset_loggers()` before and after each test (clears `_initialized_loggers` set + removes handlers from each tracked logger). Idempotent — does not collide with the per-file `clean_loggers` fixture in `tests/test_logger.py`. New regression test `test_clears_initialized_loggers_set_and_is_idempotent` pins the contract (handlers cleared on the same logger object, `_initialized_loggers == set()` after reset, second call is a no-op). `propagate = False` left untouched — out of scope (would require auditing all log-routing assumptions). pytest 1356 → 1357 (+1); ruff/mypy/black clean. QA verdict: 🟢 ship. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 15 |
+| Total Active | 13 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 6 |
-| Low | 9 |
-| Resolved (All Time) | 33 |
+| Low | 7 |
+| Resolved (All Time) | 35 |
 
 ---
 
@@ -1153,3 +1102,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-040 Undocumented `# type: ignore[arg-type]` — Phase 26.2 documented both sites at `src/proposal/engine.py:519,555` with upstream-type-mismatch rationale; tightening deferred (wider refactor) |
 | 2026-05-01 | Resolved | DEBT-041 `_decision_callback` private access — Phase 26.2 added public `ProposalInteraction.set_decision_callback`; runtime engine uses it; `# type: ignore[attr-defined]` dropped; 2 setter tests |
 | 2026-05-01 | Resolved | DEBT-048 baselines table widening + placeholder rename — Phase 26.2 widened to 9 columns + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (`PLACEHOLDER_TOKEN` constant); rewriter + 3 tests updated in lockstep |
+| 2026-05-01 | Resolved | DEBT-038 Notifier failure swallowed — Phase 26.3 added `NOTIFICATION_FAILED` ActivityEvent with 5-field structured payload; emit-then-swallow at runtime/engine.py:451; behavior preserved + observability added |
+| 2026-05-01 | Resolved | DEBT-039 Logger reset for test isolation — Phase 26.3 wired existing `reset_loggers()` into autouse pytest fixture (`tests/conftest.py`); 1 contract test |

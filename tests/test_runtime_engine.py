@@ -1437,3 +1437,54 @@ async def test_portfolio_snapshot_balance_failure_does_not_break_cycle(
 
     assert result is not None
     assert portfolio_tracker.load_snapshots("paper") == []
+
+
+# =============================================================================
+# Phase 26.3 / DEBT-038: notifier failure visibility
+# =============================================================================
+
+
+async def test_notifier_failure_emits_notification_failed_event(
+    tmp_path: Path,
+) -> None:
+    """When the dispatcher call raises, the engine emits NOTIFICATION_FAILED
+    with the structured payload and continues the cycle (emit-then-swallow).
+
+    Pins the Phase 26.3 / DEBT-038 contract: the dispatcher already
+    isolates per-notifier failures internally, but if the dispatcher
+    call itself raises we surface a single ``NOTIFICATION_FAILED``
+    activity event so operators see the failure in the dashboard.
+    """
+    btc = make_proposal(proposal_id="btc-notify-fail", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=btc,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    # Dispatcher itself raises (not a per-notifier failure — that's
+    # already isolated inside NotificationDispatcher).
+    mocks["notification_dispatcher"].notify_proposal = AsyncMock(
+        side_effect=RuntimeError("dispatcher exploded")
+    )
+
+    result = await engine.run_cycle()
+
+    # Cycle still completes; the proposal still moves through the
+    # accept + open path (emit-then-swallow policy preserves existing
+    # behaviour).
+    assert result.proposals_generated == 1
+    assert result.proposals_accepted == 1
+    assert result.positions_opened == 1
+
+    failed = mocks["activity_log"].filter(
+        event_type=ActivityEventType.NOTIFICATION_FAILED
+    )
+    assert len(failed) == 1
+    event = failed[0]
+    assert event.cycle_id == result.cycle_id
+    # Structured payload contract — pinned per the Phase 26.3 docstring.
+    assert event.details["proposal_id"] == "btc-notify-fail"
+    assert event.details["symbol"] == "BTC/USDT"
+    assert event.details["dispatcher_name"] == "MagicMock"
+    assert event.details["error_type"] == "RuntimeError"
+    assert event.details["error_message"] == "dispatcher exploded"
