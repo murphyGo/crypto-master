@@ -607,65 +607,6 @@ Two viable shapes; Phase 19.2 planner picks:
 
 ---
 
-### DEBT-047: Backtester has no leverage-liquidation modeling — `balance` can go arbitrarily negative without LIQUIDATED analogue
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 22.2 (origin — surfaced during quant review as backtester / paper-trader asymmetry) |
-| **Component** | `src/backtest/engine.py:371,396` |
-
-**Description:**
-`Backtester` (`src/backtest/engine.py:371,396`) advances the
-simulated balance via `balance += pnl_delta` after each closed
-trade — no margin lock, no clamp, no liquidation event. The
-balance can run arbitrarily negative across a leveraged drawdown
-sequence without producing any structural marker that "this
-strategy would have been liquidated" before the recovery began.
-Asymmetric with `PaperTrader` post-Phase 22.2: paper mode now
-emits a structured `LIQUIDATED` activity event on the under-water
-close branch (and round-trips true negative equity), but the
-backtester treats path-equity as if margin doesn't exist.
-
-**Impact:**
-Operators reading backtest equity curves to forecast live
-behaviour now see a *paper-faithful* picture from `PaperTrader`
-(LIQUIDATED event + true-negative-equity round-trip) and a
-*liquidation-blind* picture from `Backtester` (continuous equity
-through a region that would have been a margin call live). A
-strategy that "would have been liquidated mid-backtest" cannot
-be distinguished from one that drew down deeply but recovered;
-the equity curve hides the fact that the recovery isn't reachable
-under live margin rules. Historical baselines built from the
-backtester systematically understate downside risk for any
-leveraged strategy whose simulated path crosses a liquidation
-threshold.
-
-**Suggested Resolution:**
-Two viable shapes; either the team-lead or Phase 24 planner
-picks (consider folding into Phase 24 strategy robustness polish):
-- **`BacktestConfig.liquidation_threshold` + structural marker**:
-  add a config knob (e.g. `balance ≤ 0` or `balance / initial <
-  0.1`) and emit a structural marker on `BacktestTrade` /
-  `BacktestResult` summary when the threshold is crossed.
-  Operators reading the result can distinguish "would have been
-  liquidated" from "deep drawdown but recovered". Trade-off:
-  requires a downstream consumer (PerformanceAnalyzer, dashboard)
-  to render the marker meaningfully.
-- **Conservative clamp + log at threshold**: when balance crosses
-  the threshold, clamp + log + halt the simulated run with a
-  recorded `LIQUIDATED` analogue on the result. Trade-off: more
-  invasive, changes the equity curve shape for affected runs
-  (but that's the point — the existing curve shape is the bug).
-
-**Related:**
-- Phase 22.2 quant-trader-expert review
-- DEBT-027 (sibling — paper-trader liquidation visibility,
-  Resolved 2026-05-01 by Phase 22.2; this DEBT is the symmetric
-  follow-up on the backtester side)
-- `src/backtest/engine.py:371,396`
-- Possible Phase 24 hosting (strategy robustness polish)
 
 ---
 
@@ -999,18 +940,27 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 26.3 wired the public, idempotent `reset_loggers()` helper (already present in `src/logger.py`) into pytest test isolation. New `tests/conftest.py` autouse fixture calls `reset_loggers()` before and after each test (clears `_initialized_loggers` set + removes handlers from each tracked logger). Idempotent — does not collide with the per-file `clean_loggers` fixture in `tests/test_logger.py`. New regression test `test_clears_initialized_loggers_set_and_is_idempotent` pins the contract (handlers cleared on the same logger object, `_initialized_loggers == set()` after reset, second call is a no-op). `propagate = False` left untouched — out of scope (would require auditing all log-routing assumptions). pytest 1356 → 1357 (+1); ruff/mypy/black clean. QA verdict: 🟢 ship. |
 
+### DEBT-047: Backtester has no leverage-liquidation modeling — `balance` can go arbitrarily negative without LIQUIDATED analogue ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-01 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.4 added structural marker + rollup with **no PnL math change** (observability only; backtester continues simulating after threshold crossing so existing analysis tools don't break, but downstream consumers can detect and surface "this strategy would have been liquidated at trade N"). New `BacktestConfig.liquidation_threshold: Decimal = Decimal("0")` field with rationale docstring (literal-zero default per lead policy; recommends `Decimal("1000")`-against-`Decimal("10000")`-initial = ~10% maintenance-margin proxy as the operationally useful setting). `BacktestTrade.liquidated: bool = False` structural marker (set when `balance_after_close ≤ threshold` per quant invariant — intra-trade dips are MDD's job, not liquidation). `BacktestResult.liquidated: bool = False` rollup (`any(t.liquidated for t in trades)`). New `Backtester._mark_if_liquidated(trade, balance)` helper wired into all 4 trade-close sites (single-TF + multi-TF × intra-candle + end-of-data). Equity curve **truncated** at first liquidating trade's `exit_time` so analyzer MDD/Sharpe don't compute against post-liquidation phantom bars (cleaner than per-point `liquidated` field on `EquityPoint` which is `frozen=True` and would break back-compat). `ActivityLog` deliberately not wired into the backtester — backtester is offline simulation; Phase 22.2's `LIQUIDATED` ActivityEvent already covers the live paper-trader path. 4 new regression tests in `TestBacktesterLiquidationParity`: liquidating trade marks (with `risk_percent=100 + slippage_bps=20 + fee_rate=0.001` to force literal-zero crossing), solvent run leaves no marker + preserves full equity-curve length, positive threshold (1000 of 10000) catches earlier than zero, default pin. pytest 1357 → 1361 (+4); ruff/mypy/black clean. Quant verdict: 🟢 ship (sizing-cap concern flagged: with `risk_percent ≤ 5%` literal-zero default rarely fires, positive threshold is operationally useful — addressed by docstring polish). QA verdict: 🟢 ship. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 13 |
+| Total Active | 12 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 6 |
+| Medium | 5 |
 | Low | 7 |
-| Resolved (All Time) | 35 |
+| Resolved (All Time) | 36 |
 
 ---
 
@@ -1104,3 +1054,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-048 baselines table widening + placeholder rename — Phase 26.2 widened to 9 columns + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (`PLACEHOLDER_TOKEN` constant); rewriter + 3 tests updated in lockstep |
 | 2026-05-01 | Resolved | DEBT-038 Notifier failure swallowed — Phase 26.3 added `NOTIFICATION_FAILED` ActivityEvent with 5-field structured payload; emit-then-swallow at runtime/engine.py:451; behavior preserved + observability added |
 | 2026-05-01 | Resolved | DEBT-039 Logger reset for test isolation — Phase 26.3 wired existing `reset_loggers()` into autouse pytest fixture (`tests/conftest.py`); 1 contract test |
+| 2026-05-01 | Resolved | DEBT-047 Backtester leverage-liquidation parity — Phase 26.4 added `BacktestConfig.liquidation_threshold` (default `Decimal("0")`), `BacktestTrade.liquidated` marker, `BacktestResult.liquidated` rollup, `_mark_if_liquidated` wired to 4 close sites, equity-curve truncation at first liquidating trade; 4 regression tests; PnL math unchanged |

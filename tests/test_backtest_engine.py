@@ -1159,3 +1159,167 @@ class TestPnLConventionAlignment:
         assert bt_trade.pnl == expected
         assert persisted.pnl == expected
         assert bt_trade.pnl == persisted.pnl
+
+
+# =============================================================================
+# Phase 26.4 / DEBT-047: backtester liquidation parity
+# =============================================================================
+
+
+class TestBacktesterLiquidationParity:
+    """The backtester must mirror PaperTrader's Phase 22.2 liquidation
+    visibility: an under-water close emits a structural marker on the
+    affected ``BacktestTrade`` and rolls up to ``BacktestResult.
+    liquidated``. PnL math is unchanged — the marker is purely
+    observational so operators can distinguish "would have been
+    liquidated" from "deep drawdown but recovered".
+    """
+
+    @pytest.mark.asyncio
+    async def test_liquidating_trade_marks_trade_and_result(
+        self, tmp_path: Path
+    ) -> None:
+        """A risk-sized SL hit on a max-risk position with adversarial
+        slippage + fees pushes the balance below zero. Fires
+        ``liquidated=True`` on the trade and on the result summary.
+
+        Sizing geometry (DEBT-024 / Phase 20.1 helper formula):
+            risk_amt = 100 * 1.0 = 100
+            risk_per_unit = |50000 - 45000| = 5000
+            qty = 100 / 5000 = 0.02
+        Entry at the candle close 50000 + 20 bps long slippage = 50100,
+        entry_fee 50100 * 0.02 * 0.001 = 1.002 → balance ≈ 98.998 with
+        the trade open. SL hit at 45000 with 20 bps long-exit slippage
+        = 44910, raw_pnl = (44910 - 50100) * 0.02 = -103.8, exit_fee
+        ≈ 0.898 → balance ≈ -5.7. The risk-sized cap (-100) is
+        breached purely by the friction terms — exactly the asymmetry
+        with PaperTrader's Phase 22.2 LIQUIDATED branch we're closing.
+        """
+        bt = Backtester(
+            config=BacktestConfig(
+                initial_balance=Decimal("100"),
+                fee_rate=Decimal("0.001"),
+                slippage_bps=20,
+                warmup_candles=2,
+                leverage=10,
+                risk_percent=100.0,
+                max_position_size_percent=100.0,
+                min_risk_reward_ratio=1.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        candles = make_flat_candles(5)
+        # SL-breaking candle at index 3.
+        candles[3] = make_candle(
+            timestamp=candles[3].timestamp,
+            open_price=Decimal("50000"),
+            high=Decimal("50100"),
+            low=Decimal("44000"),  # crosses SL 45000
+            close=Decimal("44500"),
+        )
+        strategy = ControllableStrategy(
+            signals={2: long_analysis(entry="50000", stop="45000", take="60000")}
+        )
+        result = await bt.run(strategy, candles, "BTC/USDT")
+
+        assert result.total_trades == 1
+        trade = result.trades[0]
+        assert trade.close_reason == "stop_loss"
+        # Balance after the close is < 0 (literal liquidation, default
+        # threshold = Decimal("0")).
+        assert result.final_balance < Decimal("0")
+        assert trade.liquidated is True
+        assert result.liquidated is True
+        # PnL math unchanged: the trade still records the full loss.
+        assert trade.pnl < 0
+        # Equity curve is truncated at the liquidating trade's exit so
+        # downstream MDD / Sharpe don't compute against post-
+        # liquidation phantom bars.
+        assert result.equity_curve  # not empty
+        assert result.equity_curve[-1].timestamp == trade.exit_time
+
+    @pytest.mark.asyncio
+    async def test_solvent_run_leaves_no_marker(self, tmp_path: Path) -> None:
+        """A profitable / mild-loss run never crosses the threshold,
+        so no trade nor the result is marked. Regression guard against
+        the marker firing on the no-leverage / shallow-drawdown path."""
+        bt = make_backtester(
+            tmp_path,
+            initial_balance=Decimal("10000"),
+            leverage=1,
+            risk_percent=1.0,
+        )
+        candles = make_flat_candles(5)
+        # Make the SL-bearing candle move favourably (TP hit).
+        candles[3] = make_candle(
+            timestamp=candles[3].timestamp,
+            open_price=Decimal("50000"),
+            high=Decimal("51500"),
+            low=Decimal("49900"),
+            close=Decimal("51200"),
+        )
+        strategy = ControllableStrategy(signals={2: long_analysis()})
+        result = await bt.run(strategy, candles, "BTC/USDT")
+
+        assert result.total_trades == 1
+        assert result.trades[0].pnl > 0
+        assert result.trades[0].liquidated is False
+        assert result.liquidated is False
+        # Default behaviour preserved: equity curve length matches
+        # candle count when no liquidation fires.
+        assert len(result.equity_curve) == len(candles)
+
+    @pytest.mark.asyncio
+    async def test_positive_threshold_catches_earlier(self, tmp_path: Path) -> None:
+        """A 10% maintenance-margin floor (1000 against 10000 initial)
+        catches a drawdown that a literal-zero default would miss.
+        Pins the configurability of ``liquidation_threshold``."""
+        # Same geometry as the first test, but scaled up so the loss
+        # lands the balance well above 0 yet below 1000.
+        bt = Backtester(
+            config=BacktestConfig(
+                initial_balance=Decimal("10000"),
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                warmup_candles=2,
+                leverage=10,
+                risk_percent=95.0,
+                max_position_size_percent=100.0,
+                min_risk_reward_ratio=1.0,
+                liquidation_threshold=Decimal("1000"),
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        # Sizing: risk_amt = 10000 * 0.95 = 9500. risk_per_unit = 5000.
+        # qty = 9500 / 5000 = 1.9 → notional 95000, margin 9500 ≤ 10000.
+        # SL hit at 45000 with no slippage / fees → raw_pnl = -9500 →
+        # final_balance = 500. Between 0 and 1000, so the literal-zero
+        # default would NOT fire but a 1000 maintenance-margin floor
+        # does.
+        candles = make_flat_candles(5)
+        candles[3] = make_candle(
+            timestamp=candles[3].timestamp,
+            open_price=Decimal("50000"),
+            high=Decimal("50100"),
+            low=Decimal("44000"),
+            close=Decimal("44500"),
+        )
+        strategy = ControllableStrategy(
+            signals={2: long_analysis(entry="50000", stop="45000", take="60000")}
+        )
+        result = await bt.run(strategy, candles, "BTC/USDT")
+
+        assert result.total_trades == 1
+        # Final balance is positive but under the 1000 threshold.
+        assert Decimal("0") < result.final_balance <= Decimal("1000")
+        # Threshold > 0 still fires the marker.
+        assert result.trades[0].liquidated is True
+        assert result.liquidated is True
+
+    @pytest.mark.asyncio
+    async def test_default_threshold_is_zero(self, tmp_path: Path) -> None:
+        """Default ``BacktestConfig.liquidation_threshold`` is the
+        literal-liquidation floor (``Decimal("0")``). Pins the
+        decision-point default agreed with the lead."""
+        config = BacktestConfig()
+        assert config.liquidation_threshold == Decimal("0")

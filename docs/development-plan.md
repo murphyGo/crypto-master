@@ -91,7 +91,7 @@
 | Atomic-Write Completion (DEBT-044, 045) | ✅ Complete | 26 |
 | Code Hygiene Sweep (DEBT-035, 036, 040, 041, 048) | ✅ Complete | 26 |
 | Observability + Logger Test-Friendliness (DEBT-038, 039) | ✅ Complete | 26 |
-| Backtester Liquidation Parity (DEBT-047) | ❌ Missing | 26 |
+| Backtester Liquidation Parity (DEBT-047) | ✅ Complete | 26 |
 | Black Sweep (DEBT-042) | ❌ Missing | 26 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing | ⏸ Deferred
@@ -3303,30 +3303,30 @@ NFR-006 (Backtesting Result Storage — structural marker on
 `BacktestResult` summary). Extending existing requirements;
 no new FR/NFR introduced.
 
-- [ ] `src/backtest/engine.py::BacktestConfig` — add
+- [x] `src/backtest/engine.py::BacktestConfig` — add
   `liquidation_threshold: Decimal = Decimal("0")` (literal
   liquidation default; lead-decision-pending whether to default
   tighter, e.g. 10% of initial balance — see "Decision points
   for the lead").
-- [ ] `src/backtest/engine.py:371,396` — after the `balance +=
+- [x] `src/backtest/engine.py:371,396` — after the `balance +=
   pnl_delta` mutation, branch on `balance ≤ liquidation_
   threshold`: emit a "would have been liquidated" annotation
   on the affected `BacktestTrade` (or accumulate on the
   `BacktestResult` summary — pin the convention with the test).
-- [ ] `src/backtest/engine.py::BacktestTrade` or
+- [x] `src/backtest/engine.py::BacktestTrade` or
   `BacktestResult` — add a structural marker field
   (e.g. `liquidated: bool` per-trade, plus
   `liquidation_count: int` on the result summary) so
   downstream consumers (PerformanceAnalyzer, dashboard) can
   surface the marker meaningfully.
-- [ ] Regression test on a leveraged drawdown fixture that
+- [x] Regression test on a leveraged drawdown fixture that
   crosses the threshold — pin: marker fires, equity curve
   records the crossing, baseline of the no-leverage path is
   unchanged.
-- [ ] Regression test on a deep-drawdown-but-recovered path
+- [x] Regression test on a deep-drawdown-but-recovered path
   with the threshold *not* crossed — pin: no marker, no
   behaviour change vs. pre-26.4.
-- [ ] Write unit tests.
+- [x] Write unit tests.
 
 ### 26.5 Black Sweep
 
@@ -3510,3 +3510,4 @@ requirements; no new FR/NFR introduced.
 | 26.1 | 2026-05-01 | Phase 26.1 sealed 2026-05-01 — Atomic-Write Completion (DEBT-044 + DEBT-045 Resolved). `FeedbackLoop.save_state` (line 440) and `Backtester.save_result` (line 1106) migrated from direct `Path.write_text` / `json.dump(f, ...)` to `atomic_write_text(path, json.dumps(payload, indent=2))` from Phase 22.1. Output bytes byte-identical pre/post (CPython `json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. 3 new regression tests inject `OSError` mid-write and assert prior bytes intact (or no half-written file when no prior). pytest 1348 → 1351 (+3); ruff/mypy/black clean. QA verdict: 🟢 ship. No new debt; no quant review needed (mechanical persistence, not trading logic). Phase 22.1 atomic-write coverage now extends to all known load-mutate-save and single-write JSON sites in src/. | docs-auditor (lead-orchestrated) |
 | 26.2 | 2026-05-01 | Phase 26.2 sealed 2026-05-01 — Code Hygiene Sweep (DEBT-035 + 036 + 040 + 041 + 048 Resolved). Bundle of 5 isolated low-priority fixes: (1) deleted dead `Trade` model from `src/models.py` (regression test pins ImportError); (2) replaced 30-day approximation with `relativedelta(months=N)` for calendar-correct cutoffs in `src/proposal/interaction.py:438` (added `python-dateutil>=2.8.2` runtime + `types-python-dateutil>=2.8` dev deps; 2 calendar-boundary tests); (3) documented both `# type: ignore[arg-type]` sites at `src/proposal/engine.py:519,555` with upstream-type-mismatch rationale; (4) added public `ProposalInteraction.set_decision_callback` setter; runtime engine uses it; dropped `# type: ignore[attr-defined]` (2 setter tests); (5) widened `docs/baselines.md` operator table 6→9 columns (added `Trades / Total PnL (USDT) / Snapshot fetched_at`; renamed `Period` → `Timeframe`) + placeholder token `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (exposed as `PLACEHOLDER_TOKEN` constant); `_TABLE_HEADER`, `_TABLE_PATTERN`, `render_table`, `build_summary`, `write_baseline_artifacts`, `run_baseline`, `run_all` updated in lockstep — `run_all` now threads `SnapshotMetadata.fetched_at` through to the docs table when running off `--snapshot`. 3 existing tests rewritten + 2 new (9-column layout pinned). pytest 1351 → 1355 (+4 net; -2 from `TestTrade` removal + 7 new across the 5 fixes). ruff/mypy/black clean. QA verdict: 🟢 ship. (Note: 3 pre-existing mypy errors in `scripts/backtest_baselines.py:684,693` — `Literal['15m','1h','4h']` typing — not introduced by 26.2; `scripts/` excluded from project gate per CLAUDE.md.) | docs-auditor (lead-orchestrated) |
 | 26.3 | 2026-05-01 | Phase 26.3 sealed 2026-05-01 — Observability + Logger Test-Friendliness (DEBT-038 + 039 Resolved). DEBT-038: new `ActivityEventType.NOTIFICATION_FAILED` enum with structured-payload docstring contract; notifier `try/except` at `src/runtime/engine.py:451` now emits the event with `{proposal_id, symbol, dispatcher_name, error_type, error_message}` + cycle_id, then swallows (lead policy — preserves existing semantics, adds dashboard signal). Operators see notifier reliability the same way they see `LLM_TIMEOUT`. DEBT-039: wired existing public `reset_loggers()` helper into pytest isolation via new autouse `tests/conftest.py` fixture (clears `_initialized_loggers` + handlers between tests); idempotent, no collision with per-file `clean_loggers` fixture. 2 new regression tests (`test_notifier_failure_emits_notification_failed_event` injects real-raise `AsyncMock` and asserts payload + behavior preservation; `test_clears_initialized_loggers_set_and_is_idempotent` pins reset contract). pytest 1355 → 1357 (+2); ruff/mypy/black clean. QA verdict: 🟢 ship. (Note: pre-existing black failure in `tests/test_logger.py:105-109` deferred to Phase 26.5 black sweep.) | docs-auditor (lead-orchestrated) |
+| 26.4 | 2026-05-01 | Phase 26.4 sealed 2026-05-01 — Backtester Liquidation Parity (DEBT-047 Resolved). Closes asymmetry with Phase 22.2's `LIQUIDATED` ActivityEvent on PaperTrader. New `BacktestConfig.liquidation_threshold: Decimal = Decimal("0")` (default literal-zero per lead policy; docstring recommends positive value `~10%` of initial as operationally useful setting). New `BacktestTrade.liquidated: bool` structural marker (set when post-close balance ≤ threshold — intra-trade dips remain MDD's job). New `BacktestResult.liquidated: bool` rollup. `Backtester._mark_if_liquidated` helper wired into all 4 trade-close sites (single-TF + multi-TF × intra-candle + end-of-data). Equity curve truncated at first liquidating trade's `exit_time` so analyzer MDD/Sharpe don't compute against post-liquidation phantom bars. PnL math unchanged — observability only; backtester continues simulating after threshold crossing. `ActivityLog` deliberately NOT wired (backtester is offline; Phase 22.2 covers live paper). 4 regression tests pin marker, solvent run, positive threshold, default. pytest 1357 → 1361 (+4); ruff/mypy/black clean. Quant verdict: 🟢 ship (sizing-cap interaction docstring-polished — literal-zero default rarely fires with `risk_percent ≤ 5%`; positive threshold is operationally useful). QA verdict: 🟢 ship. | docs-auditor (lead-orchestrated) |

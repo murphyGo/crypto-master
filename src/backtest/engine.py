@@ -131,6 +131,12 @@ class BacktestConfig(BaseModel):
             resets the counter, so transient blips don't trip the
             breaker. Defaults mirror
             ``Settings.engine_backtest_max_parse_failures`` (5).
+        liquidation_threshold: Phase 26.4 / DEBT-047 — equity floor at
+            which the backtester emits a ``liquidated`` marker on the
+            trade and stops adding to the equity curve. Default 0 =
+            literal liquidation (free balance ≤ 0). For
+            maintenance-margin parity with real exchanges, set to a
+            positive fraction of initial balance.
     """
 
     initial_balance: Decimal = Decimal("10000")
@@ -149,6 +155,27 @@ class BacktestConfig(BaseModel):
     # don't change behaviour without an explicit env setting.
     per_bar_timeout: float = Field(default=600.0, ge=1.0)
     max_parse_failures: int = Field(default=5, ge=1)
+    # Phase 26.4 / DEBT-047: backtester liquidation parity with the
+    # post-Phase-22.2 ``PaperTrader``. Default 0 = literal liquidation
+    # (balance ≤ 0); operators wanting maintenance-margin parity can
+    # set this to a positive fraction of ``initial_balance`` (e.g.
+    # ``Decimal("1000")`` against a 10k starting balance approximates
+    # a 10% maintenance-margin floor).
+    liquidation_threshold: Decimal = Field(
+        default=Decimal("0"),
+        description=(
+            "Equity floor at which the backtester emits a `liquidated` "
+            "marker on the trade and stops adding to the equity curve. "
+            "Default 0 = literal liquidation (free balance ≤ 0). For "
+            "maintenance-margin parity with real exchanges, set to a "
+            "positive fraction of initial balance — e.g. "
+            "`Decimal('1000')` against `Decimal('10000')` initial = "
+            "~10% maintenance-margin proxy. With proper risk-based "
+            "sizing (`risk_percent ≤ 5%`), the literal-zero default "
+            "rarely fires; a positive threshold is the operationally "
+            "useful setting."
+        ),
+    )
 
     model_config = {"validate_assignment": True}
 
@@ -174,6 +201,13 @@ class BacktestTrade(BaseModel):
             the levered ``quantity``; leverage is not re-multiplied (see
             DEBT-024 / Phase 20.1).
         close_reason: "take_profit", "stop_loss", or "end_of_data".
+        liquidated: Phase 26.4 / DEBT-047 — True if this trade's close
+            pushed the simulated equity ``≤ BacktestConfig.
+            liquidation_threshold``. Structural marker only; PnL math
+            is unchanged. The backtester continues simulating after
+            the liquidation point so existing analysis tools still
+            see the full trade list, but this flag tells operators
+            "this strategy would have been liquidated at trade N".
     """
 
     trade_id: str
@@ -191,6 +225,7 @@ class BacktestTrade(BaseModel):
     exit_fee: Decimal
     pnl: Decimal
     close_reason: Literal["take_profit", "stop_loss", "end_of_data"]
+    liquidated: bool = False
 
 
 class EquityPoint(BaseModel):
@@ -238,6 +273,13 @@ class BacktestResult(BaseModel):
             analyzer consumes this for intra-trade-aware MDD / Sharpe
             (DEBT-030 / Phase 24.1). Empty list for back-compat with
             tests that build ``BacktestResult`` directly.
+        liquidated: Phase 26.4 / DEBT-047 — True if any trade in the
+            run hit the ``BacktestConfig.liquidation_threshold``
+            (equivalent to ``any(t.liquidated for t in trades)``).
+            Structural marker only; PnL math is unchanged.
+            Downstream consumers (PerformanceAnalyzer, dashboard) can
+            surface this so operators can distinguish "would have
+            been liquidated" from "deep drawdown but recovered".
     """
 
     run_id: str
@@ -260,6 +302,7 @@ class BacktestResult(BaseModel):
     return_percent: float
     trades: list[BacktestTrade] = Field(default_factory=list)
     equity_curve: list[EquityPoint] = Field(default_factory=list)
+    liquidated: bool = False
 
 
 @dataclass
@@ -412,8 +455,14 @@ class Backtester:
                         target_exit_price=target_exit_price,
                         reason=reason,
                     )
-                    trades.append(trade)
                     balance += pnl_delta
+                    # Phase 26.4 / DEBT-047: liquidation parity with
+                    # ``PaperTrader``. Structural marker only — PnL
+                    # math is unchanged; the backtester keeps
+                    # simulating so existing analysis tools still see
+                    # the full trade list.
+                    trade = self._mark_if_liquidated(trade, balance)
+                    trades.append(trade)
                     open_trade = None
 
             # 2. Not enough history yet? skip analysis.
@@ -535,8 +584,11 @@ class Backtester:
                 reason="end_of_data",
                 skip_slippage=True,  # already applied above
             )
-            trades.append(trade)
             balance += pnl_delta
+            # Phase 26.4 / DEBT-047: also mark end-of-data closes that
+            # land below the liquidation threshold.
+            trade = self._mark_if_liquidated(trade, balance)
+            trades.append(trade)
             open_trade = None
 
         return self._build_result(
@@ -632,8 +684,11 @@ class Backtester:
                         target_exit_price=target_exit_price,
                         reason=reason,
                     )
-                    trades.append(trade)
                     balance += pnl_delta
+                    # Phase 26.4 / DEBT-047: liquidation parity (multi-TF
+                    # mirror of the single-TF path).
+                    trade = self._mark_if_liquidated(trade, balance)
+                    trades.append(trade)
                     open_trade = None
 
             # 2. Build the multi-TF slice through the current bar.
@@ -766,8 +821,11 @@ class Backtester:
                 reason="end_of_data",
                 skip_slippage=True,
             )
-            trades.append(trade)
             balance += pnl_delta
+            # Phase 26.4 / DEBT-047: liquidation parity for end-of-data
+            # close in the multi-TF path.
+            trade = self._mark_if_liquidated(trade, balance)
+            trades.append(trade)
             open_trade = None
 
         return self._build_result(
@@ -979,6 +1037,35 @@ class Backtester:
         balance_delta = raw_pnl - exit_fee
         return trade, balance_delta
 
+    def _mark_if_liquidated(
+        self, trade: BacktestTrade, balance_after_close: Decimal
+    ) -> BacktestTrade:
+        """Return a copy of ``trade`` with ``liquidated=True`` if the
+        post-close balance crossed the configured threshold.
+
+        Phase 26.4 / DEBT-047 — backtester liquidation parity with the
+        post-Phase-22.2 ``PaperTrader``. Structural marker only; we
+        deliberately do *not* alter PnL or stop the simulation. Once
+        the marker is set, ``BacktestResult.liquidated`` will roll up
+        to True, the equity curve helper masks subsequent points, and
+        downstream consumers (analyzer, dashboard) can surface the
+        crossing without the rest of the run silently disappearing.
+
+        Args:
+            trade: The just-closed trade.
+            balance_after_close: Balance state immediately after the
+                trade's PnL was added to the running balance. The
+                backtester does not (yet) hold concurrent positions on
+                its sizing path, so balance == equity at this point.
+
+        Returns:
+            ``trade`` if balance is above the threshold, otherwise a
+            copy with ``liquidated=True``.
+        """
+        if balance_after_close <= self.config.liquidation_threshold:
+            return trade.model_copy(update={"liquidated": True})
+        return trade
+
     @staticmethod
     def _build_equity_curve(
         ohlcv: list[OHLCV],
@@ -1066,6 +1153,17 @@ class Backtester:
         # the analyzer can compute intra-trade-aware MDD / Sharpe.
         equity_curve = self._build_equity_curve(ohlcv, trades, initial)
 
+        # Phase 26.4 / DEBT-047: liquidation parity rollup. The
+        # backtester continues simulating after the liquidation
+        # crossing so existing analysis tools still see the full
+        # trade list, but the equity curve is truncated at the first
+        # liquidating trade's exit timestamp so MDD / Sharpe don't
+        # compute against a post-liquidation phantom.
+        liquidated = any(t.liquidated for t in trades)
+        if liquidated:
+            first_liq_exit = min(t.exit_time for t in trades if t.liquidated)
+            equity_curve = [p for p in equity_curve if p.timestamp <= first_liq_exit]
+
         return BacktestResult(
             run_id=f"bt-{uuid.uuid4().hex[:12]}",
             technique_name=info.name,
@@ -1087,6 +1185,7 @@ class Backtester:
             return_percent=return_pct,
             trades=trades,
             equity_curve=equity_curve,
+            liquidated=liquidated,
         )
 
     # ------------------------------------------------------------------
