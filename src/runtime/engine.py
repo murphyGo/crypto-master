@@ -257,9 +257,11 @@ class TradingEngine:
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
-        # attachment stays the single persistence path.
+        # attachment stays the single persistence path. DEBT-041
+        # (Phase 26.2): use the public setter rather than reaching
+        # into ``_decision_callback`` directly.
         self.proposal_interaction = proposal_interaction
-        self.proposal_interaction._decision_callback = self._auto_decide  # type: ignore[attr-defined]
+        self.proposal_interaction.set_decision_callback(self._auto_decide)
 
         self._stop_event = asyncio.Event()
         self._cycle_index = 0

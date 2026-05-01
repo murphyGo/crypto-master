@@ -313,12 +313,22 @@ def serialize_result(result: BacktestResult) -> dict:
 def build_summary(
     spec: BaselineSpec,
     metrics: PerformanceMetrics,
+    *,
+    result: BacktestResult | None = None,
+    fetched_at: datetime | None = None,
 ) -> dict:
     """Build the flat ``summary.json`` row for the docs table.
 
     Sharpe is reported as ``None`` (rendered as "n/a") when the run
     produced fewer than two trades — mirroring
     :class:`PerformanceAnalyzer`'s contract.
+
+    DEBT-048 (Phase 26.2): the docs table widened to 9 columns; the
+    summary now also carries ``total_pnl`` (from the
+    :class:`BacktestResult` when available) and ``fetched_at`` (from
+    the snapshot metadata when running with ``--snapshot``). Both are
+    optional — callers that don't have them pass ``None`` and the
+    table cell renders the ``_AWAITING_OPERATOR_FIRST_RUN_`` token.
     """
     return {
         "technique_name": spec.technique_name,
@@ -329,6 +339,8 @@ def build_summary(
         "sharpe_ratio": metrics.sharpe_ratio,
         "max_drawdown_percent": metrics.max_drawdown_percent,
         "total_trades": metrics.total_trades,
+        "total_pnl": str(result.total_pnl) if result is not None else None,
+        "fetched_at": fetched_at.isoformat() if fetched_at is not None else None,
     }
 
 
@@ -337,6 +349,8 @@ def write_baseline_artifacts(
     result: BacktestResult,
     metrics: PerformanceMetrics,
     output_root: Path,
+    *,
+    fetched_at: datetime | None = None,
 ) -> Path:
     """Persist ``result.json`` + ``analysis.md`` + ``summary.json``.
 
@@ -365,7 +379,10 @@ def write_baseline_artifacts(
     )
 
     (baseline_dir / "summary.json").write_text(
-        json.dumps(build_summary(spec, metrics), indent=2),
+        json.dumps(
+            build_summary(spec, metrics, result=result, fetched_at=fetched_at),
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -387,6 +404,7 @@ async def run_baseline(
     output_root: Path,
     *,
     strategies_dir: Path = STRATEGIES_DIR,
+    fetched_at: datetime | None = None,
 ) -> dict:
     """Run a single baseline end-to-end and persist its artefacts.
 
@@ -395,6 +413,10 @@ async def run_baseline(
         exchange: A connected :class:`BinanceExchange`.
         output_root: Root dir for per-baseline output.
         strategies_dir: Where the strategy file lives.
+        fetched_at: Snapshot ``fetched_at`` ISO timestamp (DEBT-048,
+            Phase 26.2). Threaded through to the docs table when
+            running off ``--snapshot``; ``None`` when running off
+            live Binance.
 
     Returns:
         The summary dict (same content as ``summary.json``).
@@ -430,8 +452,8 @@ async def run_baseline(
         profile=None,
     )
     metrics = PerformanceAnalyzer().analyze(result)
-    write_baseline_artifacts(spec, result, metrics, output_root)
-    return build_summary(spec, metrics)
+    write_baseline_artifacts(spec, result, metrics, output_root, fetched_at=fetched_at)
+    return build_summary(spec, metrics, result=result, fetched_at=fetched_at)
 
 
 # ---------------------------------------------------------------------------
@@ -443,12 +465,22 @@ async def run_baseline(
 # (``| Strategy | Symbol | ...``) and the separator row are matched
 # verbatim; everything between the separator and the next blank line
 # is replaced with rows assembled from per-baseline ``summary.json``s.
+#
+# DEBT-048 (Phase 26.2): widened from 6 to 9 columns — added
+# ``Trades``, ``Total PnL (USDT)``, ``Snapshot fetched_at``; renamed
+# ``Period`` → ``Timeframe``. Placeholder token swapped from ``_TBD_``
+# to the more semantic ``_AWAITING_OPERATOR_FIRST_RUN_``.
+PLACEHOLDER_TOKEN = "_AWAITING_OPERATOR_FIRST_RUN_"
+
 _TABLE_HEADER = (
-    "| Strategy | Symbol | Period | Win Rate | Sharpe | MDD |\n"
-    "|----------|--------|--------|----------|--------|-----|\n"
+    "| Strategy | Symbol | Timeframe | Trades | Win Rate | Sharpe | "
+    "MDD | Total PnL (USDT) | Snapshot fetched_at |\n"
+    "|----------|--------|-----------|--------|----------|--------|"
+    "-----|------------------|---------------------|\n"
 )
 _TABLE_PATTERN = re.compile(
-    r"(\| Strategy \| Symbol \| Period \| Win Rate \| Sharpe \| MDD \|\n"
+    r"(\| Strategy \| Symbol \| Timeframe \| Trades \| Win Rate \| Sharpe \| "
+    r"MDD \| Total PnL \(USDT\) \| Snapshot fetched_at \|\n"
     r"\|[\-\| ]+\|\n)"
     r"(?:\|[^\n]*\n)+",
     re.MULTILINE,
@@ -456,7 +488,7 @@ _TABLE_PATTERN = re.compile(
 
 
 def _format_metric(value: float | None, suffix: str = "") -> str:
-    """Render a metric for the docs table, falling back to ``_TBD_``."""
+    """Render a metric for the docs table, falling back to ``n/a``."""
     if value is None:
         return "n/a"
     return f"{value:.2f}{suffix}"
@@ -467,10 +499,23 @@ def render_table(summaries: list[dict]) -> str:
 
     Rows preserve the order of ``summaries``. The caller is expected to
     pass them in the canonical baseline order (matches :data:`BASELINES`).
+
+    DEBT-048 (Phase 26.2): each summary row may carry ``total_pnl`` and
+    ``fetched_at`` (snapshot ISO-8601 timestamp). When either is absent
+    or ``None`` the cell renders as the placeholder token to signal
+    the operator first run still needs to land for that field.
     """
     lines = [_TABLE_HEADER.rstrip("\n")]
     for s in summaries:
         win_rate_pct = s["win_rate"] * 100 if s.get("win_rate") is not None else None
+        total_pnl = s.get("total_pnl")
+        if total_pnl is None:
+            total_pnl_cell = PLACEHOLDER_TOKEN
+        else:
+            total_pnl_cell = f"{float(total_pnl):.2f}"
+        fetched_at = s.get("fetched_at") or PLACEHOLDER_TOKEN
+        trades = s.get("total_trades")
+        trades_cell = str(trades) if trades is not None else PLACEHOLDER_TOKEN
         lines.append(
             "| "
             + " | ".join(
@@ -478,9 +523,12 @@ def render_table(summaries: list[dict]) -> str:
                     f"`{s['technique_name']}`",
                     s["symbol"],
                     s["period_label"],
+                    trades_cell,
                     _format_metric(win_rate_pct, "%"),
                     _format_metric(s.get("sharpe_ratio")),
                     _format_metric(s.get("max_drawdown_percent"), "%"),
+                    total_pnl_cell,
+                    fetched_at,
                 ]
             )
             + " |"
@@ -719,6 +767,17 @@ async def run_all(
             )
             await exchange.connect()
 
+    # DEBT-048 (Phase 26.2): when running off the snapshot dataset,
+    # surface ``SnapshotMetadata.fetched_at`` for each (symbol,
+    # timeframe) so the docs table records *when* the figures were
+    # pinned. Live runs leave it None — the operator runbook is the
+    # only path that produces meaningful timestamps anyway.
+    metadata_by_pair: dict[tuple[str, str], datetime] = {}
+    if isinstance(exchange, SnapshotExchange):
+        metadata_by_pair = {
+            pair: meta.fetched_at for pair, meta in exchange.loaded_metadata().items()
+        }
+
     summaries: list[dict] = []
     try:
         for spec in BASELINES:
@@ -727,6 +786,7 @@ async def run_all(
                 exchange=exchange,  # type: ignore[arg-type]
                 output_root=output_root,
                 strategies_dir=strategies_dir,
+                fetched_at=metadata_by_pair.get((spec.symbol, spec.timeframe)),
             )
             summaries.append(summary)
     finally:

@@ -19,6 +19,13 @@ from pydantic import BaseModel, Field
 
 from src.utils.time import now_utc
 
+# DEBT-035 (Phase 26.2): the legacy ``Trade`` Pydantic model lived here
+# but was never instantiated anywhere in ``src/``. The live and paper
+# trading layers persist :class:`src.strategy.performance.TradeHistory`,
+# the backtester emits :class:`src.backtest.engine.BacktestTrade`, and
+# nothing ever consumed the generic ``Trade`` shape. Removed in 26.2 to
+# stop the dead-code drift; re-introduce only with a real consumer.
+
 
 class OrderStatus(str, Enum):
     """Status of an order in the exchange."""
@@ -202,34 +209,3 @@ class AnalysisResult(BaseModel):
         if risk == 0:
             return None
         return float(reward / risk)
-
-
-class Trade(BaseModel):
-    """A completed trade (entry + exit).
-
-    Records the full lifecycle of a trade for history and analysis.
-    """
-
-    id: str
-    symbol: str
-    side: Literal["long", "short"]
-    entry_price: Decimal
-    exit_price: Decimal
-    quantity: Decimal
-    leverage: int = 1
-    entry_time: datetime
-    exit_time: datetime
-    pnl: Decimal
-    pnl_percentage: float
-    fees: Decimal = Decimal("0")
-
-    @property
-    def is_profitable(self) -> bool:
-        """Check if the trade was profitable."""
-        return self.pnl > 0
-
-    @property
-    def duration(self) -> float:
-        """Calculate trade duration in hours."""
-        delta = self.exit_time - self.entry_time
-        return delta.total_seconds() / 3600

@@ -19,6 +19,10 @@ numpy>=1.24.0
 # Strategy / profile / candidate frontmatter parsing
 pyyaml>=6.0
 
+# Calendar-month math (DEBT-036 / Phase 26.2): proposal-history retention
+# uses true calendar months instead of the legacy 30-day approximation.
+python-dateutil>=2.8.2
+
 # Development dependencies (optional)
 # Install with: pip install -r requirements.txt && pip install -e ".[dev]"
 # pytest>=8.0.0

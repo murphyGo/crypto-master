@@ -500,71 +500,6 @@ suggests an exception is warranted).
 - `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
-### DEBT-035: `Trade` model in `src/models.py` is dead code
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 1.3 (origin); surfaced 2026-04-30 |
-| **Component** | `src/models.py` |
-
-**Description:**
-`src/models.py:199-227` defines a `Trade` Pydantic model that no
-caller in the codebase ever instantiates. `TradeHistory` in
-`src/strategy/performance.py` is the live model used for trade
-records; `Trade` in `src/models.py` is leftover from an early
-design pass.
-
-**Impact:**
-Cosmetic only — the unused model carries no behavioural weight,
-but it clutters `src/models.py` and risks confusing newcomers
-("which `Trade` should I use?"). mypy and ruff are silent on
-unused-class.
-
-**Suggested Resolution:**
-Delete the model and its imports. Search for stale imports across
-the codebase first (none expected; pin with `grep -r "from
-src.models import Trade"`). Trivial removal.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/models.py:199-227`
-
-### DEBT-036: Calendar-month math approximated via `30 * months`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 6.2 (origin); surfaced 2026-04-30 |
-| **Component** | `src/proposal/interaction.py` |
-
-**Description:**
-`src/proposal/interaction.py:413` computes the retention cutoff
-as `now - timedelta(days=30 * months)`, which is wrong for any
-month other than April / June / September / November. Over a
-12-month retention window the error compounds to ~5 days; over
-a 36-month window, ~16 days. Operationally invisible because
-nobody reads the exact-day boundary, but the contract reads
-"12 months" and means "365 days".
-
-**Impact:**
-Edge of the retention window is fuzzy by ~5–16 days depending
-on horizon. No operator-visible behaviour today. The same shape
-in `ProposalHistory.purge_old` would surface this if anyone
-queried "exactly 365 days ago".
-
-**Suggested Resolution:**
-Use `dateutil.relativedelta(months=months)` (already in the
-dependency tree via pandas) instead of `timedelta(days=30 *
-months)`. One-line change; add a regression test against
-February → March transitions.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/proposal/interaction.py:413`
-
 ### DEBT-038: Notification dispatch failures swallowed without `NOTIFICATION_FAILED` event
 
 | Field | Value |
@@ -633,69 +568,6 @@ patching internals.
 **Related:**
 - 3-agent comprehensive audit 2026-04-30
 - `src/logger.py:18,56-86`
-
-### DEBT-040: Two `# type: ignore[arg-type]` comments in `proposal/engine.py` undocumented
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 6.1 (origin); surfaced 2026-04-30 |
-| **Component** | `src/proposal/engine.py` |
-
-**Description:**
-`src/proposal/engine.py:496` and `:532` carry
-`# type: ignore[arg-type]` with no comment explaining the
-typing-system gap. Standard project practice (per DEBT-006 /
-DEBT-008 resolutions) is to attach a one-line comment explaining
-which typing-system limitation the ignore is closing.
-
-**Impact:**
-Cosmetic; mypy is clean. New contributors hitting the line
-during a refactor have no signal whether the ignore is still
-needed.
-
-**Suggested Resolution:**
-Investigate both ignore sites; either drop the ignore (if mypy
-no longer reports the original error) or attach a one-line
-comment naming the typing-system limitation (Pydantic generic
-variance / asyncio callback shape / etc.).
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/proposal/engine.py:496,532`
-
-### DEBT-041: `RuntimeEngine` accesses `ProposalInteraction._decision_callback` privately
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 8.1 (origin); surfaced 2026-04-30 |
-| **Component** | `src/runtime/engine.py` + `src/proposal/interaction.py` |
-
-**Description:**
-`src/runtime/engine.py:222` reaches into
-`ProposalInteraction._decision_callback` to install the auto-
-decide hook. `_decision_callback` is a single-underscore
-attribute — Python convention for "internal" — so the access is
-a tight coupling that breaks if the interaction module
-restructures.
-
-**Impact:**
-Refactor-fragility only. Today's code works; a maintenance pass
-on `ProposalInteraction` (e.g. promoting the callback to a
-strategy pattern) silently breaks the engine.
-
-**Suggested Resolution:**
-Add a public `set_decision_callback(callback)` method on
-`ProposalInteraction`; `RuntimeEngine` calls it instead of
-poking the private attribute.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/runtime/engine.py:222`
-- `src/proposal/interaction.py`
 
 ### DEBT-042: `pyproject.toml` `black --check` formatter gate dormant; 47 files unformatted
 
@@ -863,50 +735,6 @@ picks (consider folding into Phase 24 strategy robustness polish):
   follow-up on the backtester side)
 - `src/backtest/engine.py:371,396`
 - Possible Phase 24 hosting (strategy robustness polish)
-
-### DEBT-048: `docs/baselines.md` table widening + placeholder rename — autonomous-shipping infrastructure conflict
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 25.3 Part A (origin) |
-| **Component** | `docs/baselines.md`, `scripts/backtest_baselines.py` (`_TABLE_PATTERN`, `render_table`), `tests/test_scripts_backtest_baselines.py` |
-
-**Description:**
-Phase 25.3 Part A spec asked for two `docs/baselines.md` improvements
-that conflict with existing autonomous-shipping infrastructure:
-(1) widen the operator table from 6 columns (`Strategy / Symbol /
-Period / Win Rate / Sharpe / MDD`) to 9 columns (`Strategy / Symbol /
-Timeframe / Trades / Win Rate / Sharpe / MDD (USDT) / Total PnL
-(USDT) / Snapshot fetched_at`); (2) rename the placeholder token
-from `_TBD_` to the more explicit `_AWAITING_OPERATOR_FIRST_RUN_`.
-Both changes break existing tests because `_TABLE_PATTERN` and
-`render_table` in `scripts/backtest_baselines.py` are hard-wired to
-the legacy 6-column shape, and 2 tests assert the literal `_TBD_`
-string. Phase 25.3 Part A documented the new semantics in surrounding
-prose without changing the cell tokens.
-
-**Impact:**
-- Cosmetic: operator-facing table doesn't surface `Trades` /
-  `Total PnL` / `fetched_at` columns explicitly (operators must
-  read the per-baseline `result.json` for those fields).
-- `_TBD_` placeholder token less self-explanatory than the proposed
-  `_AWAITING_OPERATOR_FIRST_RUN_`; mitigated by surrounding prose.
-
-**Suggested Resolution:**
-Bundle a small docs-polish sub-task (could be Phase 26.x or a Phase
-24-style robustness-polish bundle) that updates header regex +
-`render_table` + the 3 affected tests in lockstep with the doc table.
-Trivial mechanical change once batched.
-
-**Related:**
-- Phase 25.3 Part A session log
-  (`docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`)
-- `scripts/backtest_baselines.py` (`_TABLE_PATTERN`, `render_table`)
-- `tests/test_scripts_backtest_baselines.py`
-  (`test_run_all_skips_doc_update_when_disabled`,
-  `test_update_baselines_doc_replaces_tbd_rows`)
 
 ---
 
@@ -1177,18 +1005,63 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 26.1 migrated `Backtester.save_result` (`src/backtest/engine.py:1106`) from `open(path, "w") + json.dump(payload, f, indent=2)` to `atomic_write_text(path, json.dumps(payload, indent=2))`. Output bytes byte-identical pre/post per CPython stdlib guarantee (`json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. Two regression tests pin the contract: `test_save_result_crash_leaves_no_half_written_file` (no prior file → fresh write injected with `OSError` → asserts no half-written file present) and `test_save_result_crash_preserves_prior_result` (prior file → mid-write injected → asserts prior bytes intact). pytest 1349 → 1351 (+2); ruff/mypy/black clean. QA verdict: 🟢 ship. Session log shared with DEBT-044 (Phase 26.1). |
 
+### DEBT-035: `Trade` model in `src/models.py` is dead code ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.2 deleted the `Trade` Pydantic class from `src/models.py` (lines 199-227). Verified no instantiations or imports across `src/` or `tests/` (`grep -rn "from src.models import.*Trade\b"` and `grep -rn "models\.Trade\b"` both returned only `TradeHistory` / `BacktestTrade` siblings). Replaced 3 prior `TestTrade` test cases with single `TestTradeRemoved::test_trade_symbol_no_longer_resolves` regression that asserts `from src.models import Trade` raises `ImportError` (pinning the deletion against accidental reintroduction). Live / paper / backtest layers all use `TradeHistory` (`src/strategy/performance.py`) or `BacktestTrade` (`src/backtest/engine.py`); no callers needed to be updated. pytest 1351 → 1349 (-2 net from removing the 3 `TestTrade` tests + adding 1 regression; offset later in 26.2 cycle). |
+
+### DEBT-036: Calendar-month math approximated via `30 * months` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.2 replaced `cutoff = now - timedelta(days=30 * retention_months)` at `src/proposal/interaction.py:438` with `cutoff = now - relativedelta(months=retention_months)` from `dateutil.relativedelta`. Calendar-correct cutoff (no ~5-day-per-year drift). `python-dateutil>=2.8.2` added to runtime deps; `types-python-dateutil>=2.8` to dev deps. Two new regression tests pin the calendar boundary: `test_purge_old_uses_calendar_months_not_30_day_approximation` (record dated `2025-01-17` with `retention_months=12` from `2026-01-15` is *kept* — inside true calendar cutoff, would have archived under legacy `30*12=360 day` cutoff) and `test_purge_old_calendar_cutoff_archives_record_just_outside` (record dated `2025-01-14` is archived). pytest unchanged on calendar correctness; ruff/mypy/black clean. |
+
+### DEBT-040: Two `# type: ignore[arg-type]` comments in `proposal/engine.py` undocumented ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.2 documented both `# type: ignore[arg-type]` sites at `src/proposal/engine.py:519,555` with the underlying-type-mismatch rationale: `tf` / `timeframe` are `str` in the calling layer (multi-technique scan) but `BaseExchange.get_ohlcv(timeframe: Literal[...])` is stricter. Strategy authors are trusted to declare valid timeframes via frontmatter; runtime validation happens at the exchange call site. Tightening the type properly would require a wider refactor (`StrategyInfo.timeframes` + every strategy frontmatter loader); deferred. The comment at each ignore site names the upstream type and the "out of scope for 26.2" boundary so future reviewers can act on the underlying drift if it ever fires in production. mypy clean on `src/proposal/engine.py`. |
+
+### DEBT-041: `RuntimeEngine` accesses `ProposalInteraction._decision_callback` privately ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.2 added public `ProposalInteraction.set_decision_callback(callback: ProposalDecisionCallback)` setter (`src/proposal/interaction.py:516`) with docstring citing DEBT-041 rationale. `RuntimeEngine.__init__` (`src/runtime/engine.py:264`) now calls `proposal_interaction.set_decision_callback(self._auto_decide)` instead of mutating the private `_decision_callback` attribute; the `# type: ignore[attr-defined]` was dropped. Two new regression tests pin the contract: `test_set_decision_callback_swaps_callback_used_by_present` (setter overrides the constructor-injected callback at runtime) and `test_set_decision_callback_is_idempotent_with_default_constructor` (works on a default-constructed instance with no prior callback). mypy clean (no `[attr-defined]` ignore needed). |
+
+### DEBT-048: `docs/baselines.md` table widening + placeholder rename ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.2 closed both spec deviations from Phase 25.3 Part A in lockstep. (1) `docs/baselines.md` table widened from 6 columns (`Strategy / Symbol / Period / Win Rate / Sharpe / MDD`) to 9 columns (`Strategy / Symbol / Timeframe / Trades / Win Rate / Sharpe / MDD / Total PnL (USDT) / Snapshot fetched_at`). (2) Placeholder token renamed `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_`, exposed as `PLACEHOLDER_TOKEN` constant in `scripts/backtest_baselines.py:473` so future authors don't hard-code the literal. `_TABLE_HEADER`, `_TABLE_PATTERN`, `render_table`, `build_summary`, `write_baseline_artifacts`, `run_baseline`, and `run_all` updated in lockstep — `run_all` now threads `SnapshotMetadata.fetched_at` through to the docs table when running off `--snapshot`. Three pre-existing tests rewritten (`test_run_all_skips_doc_update_when_disabled`, `test_update_baselines_doc_replaces_tbd_rows`, period-startswith assertion); two new tests pin the 9-column layout (one all-fields-populated, one with `total_pnl`/`fetched_at` missing → graceful `PLACEHOLDER_TOKEN` fallback). pytest 1351 → 1355 (+4 net across 26.2 fixes); ruff/mypy/black clean. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 20 |
+| Total Active | 15 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 6 |
-| Low | 14 |
-| Resolved (All Time) | 28 |
+| Low | 9 |
+| Resolved (All Time) | 33 |
 
 ---
 
@@ -1275,3 +1148,8 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Added | DEBT-048 `docs/baselines.md` table widening + placeholder rename (Low) — surfaced during Phase 25.3 Part A; spec asked for 6→9 column widening (`Trades / Total PnL (USDT) / Snapshot fetched_at` columns) + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` rename, but both conflict with the autonomous-shipping `_TABLE_PATTERN` rewriter and 2 existing tests; deferred to a future docs-polish bundle that updates regex + `render_table` + tests in lockstep |
 | 2026-05-01 | Resolved | DEBT-044 `FeedbackLoop.save_state` not migrated to `atomic_write_text` — Phase 26.1 routed through Phase 22.1 helper; output bytes byte-identical, only durability semantics changed; 1 regression test |
 | 2026-05-01 | Resolved | DEBT-045 `Backtester._save_result` single-write not atomic — Phase 26.1 routed through `atomic_write_text`; CPython `json.dump` ≡ `json.dumps` so bytes identical; 2 regression tests |
+| 2026-05-01 | Resolved | DEBT-035 `Trade` model dead code — Phase 26.2 deleted from `src/models.py:199-227`; regression test pins ImportError on attempted re-import |
+| 2026-05-01 | Resolved | DEBT-036 Calendar-month math — Phase 26.2 swapped `timedelta(days=30*N)` for `relativedelta(months=N)`; `python-dateutil` added; 2 calendar-boundary regression tests |
+| 2026-05-01 | Resolved | DEBT-040 Undocumented `# type: ignore[arg-type]` — Phase 26.2 documented both sites at `src/proposal/engine.py:519,555` with upstream-type-mismatch rationale; tightening deferred (wider refactor) |
+| 2026-05-01 | Resolved | DEBT-041 `_decision_callback` private access — Phase 26.2 added public `ProposalInteraction.set_decision_callback`; runtime engine uses it; `# type: ignore[attr-defined]` dropped; 2 setter tests |
+| 2026-05-01 | Resolved | DEBT-048 baselines table widening + placeholder rename — Phase 26.2 widened to 9 columns + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (`PLACEHOLDER_TOKEN` constant); rewriter + 3 tests updated in lockstep |

@@ -89,7 +89,7 @@
 | `--snapshot` CLI Flag + Script Changes | ✅ Complete | 25 |
 | First Run + Populate `docs/baselines.md` (Part A: runbook ✅; Part B: operator) | ✅ Complete[^p25-3] | 25 |
 | Atomic-Write Completion (DEBT-044, 045) | ✅ Complete | 26 |
-| Code Hygiene Sweep (DEBT-035, 036, 040, 041, 048) | ❌ Missing | 26 |
+| Code Hygiene Sweep (DEBT-035, 036, 040, 041, 048) | ✅ Complete | 26 |
 | Observability + Logger Test-Friendliness (DEBT-038, 039) | ❌ Missing | 26 |
 | Backtester Liquidation Parity (DEBT-047) | ❌ Missing | 26 |
 | Black Sweep (DEBT-042) | ❌ Missing | 26 |
@@ -3208,27 +3208,27 @@ sub-task is arbitrary.
 table), NFR-001 (Python 3.10+ — type-correctness for DEBT-035 /
 040). Extending existing requirements; no new FR/NFR introduced.
 
-- [ ] DEBT-035: `src/models.py` — delete the unused `Trade`
+- [x] DEBT-035: `src/models.py` — delete the unused `Trade`
   model; sweep imports across `src/` and `tests/`; pin the
   removal with a regression that the symbol no longer resolves
   (or the import-sweep grep is empty).
-- [ ] DEBT-036: `src/proposal/interaction.py:413` — replace
+- [x] DEBT-036: `src/proposal/interaction.py:413` — replace
   `now + timedelta(days=30 * months)` with
   `now + dateutil.relativedelta.relativedelta(months=months)`
   (or equivalent stdlib `calendar`-based helper); add `python-
   dateutil` to `pyproject.toml` dependencies if not already
   present; regression test on a month-boundary case (e.g. Jan
   31 + 1 month should land Feb 28/29, not Mar 2/3).
-- [ ] DEBT-040: `src/proposal/engine.py:496,532` — fix the
+- [x] DEBT-040: `src/proposal/engine.py:496,532` — fix the
   underlying type issue at each `# type: ignore[arg-type]` site
   OR add a comment explaining why the ignore is correct (with
   the upstream type that drives the mismatch).
-- [ ] DEBT-041: `src/proposal/interaction.py` — add a public
+- [x] DEBT-041: `src/proposal/interaction.py` — add a public
   `set_decision_callback(self, cb)` setter on
   `ProposalInteraction`; `src/runtime/engine.py:222` switches
   from `proposal_interaction._decision_callback = ...` to
   the setter; regression pins the setter contract.
-- [ ] DEBT-048: `docs/baselines.md` — widen operator table from
+- [x] DEBT-048: `docs/baselines.md` — widen operator table from
   6 columns to 9 (`Strategy / Symbol / Timeframe / Trades /
   Win Rate / Sharpe / MDD (USDT) / Total PnL (USDT) / Snapshot
   fetched_at`); rename placeholder `_TBD_` →
@@ -3237,7 +3237,7 @@ table), NFR-001 (Python 3.10+ — type-correctness for DEBT-035 /
   `render_table` to match the new column shape and token; the
   3 affected tests in `tests/test_scripts_backtest_baselines.py`
   switch to the new shape and token in lockstep.
-- [ ] Write unit tests.
+- [x] Write unit tests.
 
 ### 26.3 Observability + Logger Test-Friendliness
 
@@ -3508,3 +3508,4 @@ requirements; no new FR/NFR introduced.
 | 25.3 | 2026-05-01 | Phase 25.3 Part A sealed 2026-05-01 — operator runbook + doc restructure (FR-025 extending; partial DEBT-043 closure at infrastructure level). 25.3 split into Part A (autonomous, this sub-task) + Part B (one-time operator action with live Binance read-only credentials, post-seal). `docs/baselines.md` restructured with new sections: **Operator runbook** (5-step first-fetch procedure: credential setup → `--refresh-snapshot` → directory verification → `--snapshot` run → commit), **Snapshot freshness policy** (30-day active-use window via `--max-snapshot-age-days` default vs 90-day absolute stale ceiling per `DEFAULT_MAX_AGE_DAYS` in `snapshot.py`; quant carry-over from 25.2), **Reproducibility note** (cross-operator byte-equality contract; UUID divergence approved), all 5 baselines enumerated (`rsi_universal` + `rsi_4h` / `rsi_15m` / `bollinger_band_reversion` / `ma_crossover`). Two spec deviations documented + surfaced as DEBT-048 (Low): (1) 9-column table widening kept at 6 (autonomous-shipping `_TABLE_PATTERN` rewriter hard-wired to legacy header; widening would break 3 tests); (2) `_AWAITING_OPERATOR_FIRST_RUN_` placeholder kept as `_TBD_` (existing tests assert the literal). Both new semantics explained in surrounding prose. No code changes (Part A is docs-only). pytest 1348 unchanged from 25.2; ruff/mypy/black clean. Reviewers skipped for docs-only sub-task. Session log: `docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`. | docs-auditor (lead-orchestrated) |
 | 25.0 | 2026-05-01 | Phase 25 sealed (partial — 25.1 ✅, 25.2 ✅, 25.3 Part A ✅; 25.3 Part B operator action documented + non-gating) — DEBT-043 Resolved at infrastructure level. Reproducibility infrastructure for backtest baselines: snapshot CSV + JSON-sidecar format with UTC-aware Pydantic validation and atomic write (Phase 22.1 / 21.2 conventions); `--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` / `--snapshot-root` CLI surface with mutually-exclusive guard between read and refresh modes; `SnapshotExchange` adapter with quant-mandated slice-bounds enforcement (no extrapolation past `last_timestamp`); 30-day active-use freshness vs 90-day absolute stale ceiling; cross-operator byte-determinism contract (`test_cross_operator_determinism_byte_identical`); operator runbook + reproducibility note in `docs/baselines.md`; new TECH-DEBT entries: DEBT-048 (Low — table widening polish deferred). Phase 25 cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS — FR-025 ✅, NFR-006 ✅, NFR-007 ✅; 0 gaps blocking; 0 ⚠️ partial. pytest 1311 → 1348 (+37 across 25.x). Two minor stylistic carry-overs (implicit string concat at `scripts/backtest_baselines.py:773,834`) noted but non-blocking. | docs-auditor |
 | 26.1 | 2026-05-01 | Phase 26.1 sealed 2026-05-01 — Atomic-Write Completion (DEBT-044 + DEBT-045 Resolved). `FeedbackLoop.save_state` (line 440) and `Backtester.save_result` (line 1106) migrated from direct `Path.write_text` / `json.dump(f, ...)` to `atomic_write_text(path, json.dumps(payload, indent=2))` from Phase 22.1. Output bytes byte-identical pre/post (CPython `json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. 3 new regression tests inject `OSError` mid-write and assert prior bytes intact (or no half-written file when no prior). pytest 1348 → 1351 (+3); ruff/mypy/black clean. QA verdict: 🟢 ship. No new debt; no quant review needed (mechanical persistence, not trading logic). Phase 22.1 atomic-write coverage now extends to all known load-mutate-save and single-write JSON sites in src/. | docs-auditor (lead-orchestrated) |
+| 26.2 | 2026-05-01 | Phase 26.2 sealed 2026-05-01 — Code Hygiene Sweep (DEBT-035 + 036 + 040 + 041 + 048 Resolved). Bundle of 5 isolated low-priority fixes: (1) deleted dead `Trade` model from `src/models.py` (regression test pins ImportError); (2) replaced 30-day approximation with `relativedelta(months=N)` for calendar-correct cutoffs in `src/proposal/interaction.py:438` (added `python-dateutil>=2.8.2` runtime + `types-python-dateutil>=2.8` dev deps; 2 calendar-boundary tests); (3) documented both `# type: ignore[arg-type]` sites at `src/proposal/engine.py:519,555` with upstream-type-mismatch rationale; (4) added public `ProposalInteraction.set_decision_callback` setter; runtime engine uses it; dropped `# type: ignore[attr-defined]` (2 setter tests); (5) widened `docs/baselines.md` operator table 6→9 columns (added `Trades / Total PnL (USDT) / Snapshot fetched_at`; renamed `Period` → `Timeframe`) + placeholder token `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` (exposed as `PLACEHOLDER_TOKEN` constant); `_TABLE_HEADER`, `_TABLE_PATTERN`, `render_table`, `build_summary`, `write_baseline_artifacts`, `run_baseline`, `run_all` updated in lockstep — `run_all` now threads `SnapshotMetadata.fetched_at` through to the docs table when running off `--snapshot`. 3 existing tests rewritten + 2 new (9-column layout pinned). pytest 1351 → 1355 (+4 net; -2 from `TestTrade` removal + 7 new across the 5 fixes). ruff/mypy/black clean. QA verdict: 🟢 ship. (Note: 3 pre-existing mypy errors in `scripts/backtest_baselines.py:684,693` — `Literal['15m','1h','4h']` typing — not introduced by 26.2; `scripts/` excluded from project gate per CLAUDE.md.) | docs-auditor (lead-orchestrated) |

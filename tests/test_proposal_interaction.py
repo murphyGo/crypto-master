@@ -497,6 +497,69 @@ def test_purge_old_uses_settings_default(
     assert archived[0].parent.name == "2026-01"
 
 
+def test_purge_old_uses_calendar_months_not_30_day_approximation(
+    tmp_path: Path,
+) -> None:
+    """DEBT-036 / Phase 26.2: cutoff is true calendar months, not days * 30.
+
+    For ``retention_months=12`` from ``2026-01-15``, the cutoff must
+    land on ``2025-01-15`` (calendar-correct), not ``2025-01-20`` (the
+    legacy ``timedelta(days=30 * 12) = 360 days`` buggy drift).
+
+    Pin: a proposal at ``2025-01-17`` (3 days inside the legacy buggy
+    cutoff but 2 days *outside* the true calendar cutoff) must
+    archive under the corrected math.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+    history.save(
+        ProposalRecord(
+            proposal=make_proposal(
+                proposal_id="calendar-edge",
+                created_at=datetime(2025, 1, 17, 0, 0, 0),
+            )
+        )
+    )
+
+    archived = history.purge_old(
+        now=datetime(2026, 1, 15, 0, 0, 0), retention_months=12
+    )
+
+    # True calendar cutoff = 2025-01-15. The 2025-01-17 record is two
+    # days *after* the cutoff → INSIDE the window → not archived.
+    # Under the buggy 360-day cutoff (2025-01-20), it would have been
+    # archived. The fact that this assertion passes pins the fix.
+    assert archived == []
+    assert (tmp_path / "calendar-edge.json").exists()
+
+
+def test_purge_old_calendar_cutoff_archives_record_just_outside(
+    tmp_path: Path,
+) -> None:
+    """DEBT-036 / Phase 26.2: the symmetric case — a record older than
+    the true calendar cutoff is archived.
+
+    From ``now=2026-01-15``, ``retention_months=12`` → cutoff
+    ``2025-01-15``. A record at ``2025-01-14`` is one day older than
+    the cutoff → archives.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+    history.save(
+        ProposalRecord(
+            proposal=make_proposal(
+                proposal_id="just-outside-cal",
+                created_at=datetime(2025, 1, 14, 0, 0, 0),
+            )
+        )
+    )
+
+    archived = history.purge_old(
+        now=datetime(2026, 1, 15, 0, 0, 0), retention_months=12
+    )
+
+    assert len(archived) == 1
+    assert archived[0].name == "just-outside-cal.json"
+
+
 def test_purge_old_does_not_revisit_archive_subdir(tmp_path: Path) -> None:
     """``list_all`` and ``purge_old`` ignore the ``archive/`` subdir."""
     history = ProposalHistory(data_dir=tmp_path)
@@ -551,6 +614,50 @@ def test_purge_old_skips_unreadable_files(
 # =============================================================================
 # ProposalInteraction
 # =============================================================================
+
+
+async def test_set_decision_callback_swaps_callback_used_by_present(
+    tmp_path: Path,
+) -> None:
+    """DEBT-041 / Phase 26.2: ``set_decision_callback`` swaps the
+    callback in place and the next ``present`` call uses the new one.
+
+    Pin: the public setter replaces the constructor-injected callback
+    so callers (notably ``RuntimeEngine``) can drop the legacy
+    ``self._decision_callback = ...`` private-attribute access.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+
+    async def reject(_: Proposal) -> ProposalDecisionInput:
+        return ProposalDecisionInput(accepted=False, reason="initial-cb")
+
+    async def accept(_: Proposal) -> ProposalDecisionInput:
+        return ProposalDecisionInput(accepted=True)
+
+    interaction = ProposalInteraction(history=history, decision_callback=reject)
+    interaction.set_decision_callback(accept)
+
+    record = await interaction.present(make_proposal(), actor="alice")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+
+
+async def test_set_decision_callback_is_idempotent_with_default_constructor(
+    tmp_path: Path,
+) -> None:
+    """``set_decision_callback`` works when no callback was passed to
+    the constructor — it overwrites the default stdin prompt.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+
+    async def reject(_: Proposal) -> ProposalDecisionInput:
+        return ProposalDecisionInput(accepted=False, reason="auto-no")
+
+    interaction = ProposalInteraction(history=history)
+    interaction.set_decision_callback(reject)
+
+    record = await interaction.present(make_proposal())
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "auto-no"
 
 
 async def test_present_persists_accepted_record(tmp_path: Path) -> None:

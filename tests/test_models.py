@@ -1,6 +1,6 @@
 """Tests for the data models module."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -15,7 +15,6 @@ from src.models import (
     OrderStatus,
     Position,
     Ticker,
-    Trade,
 )
 
 
@@ -431,77 +430,21 @@ class TestAnalysisResult:
         assert before <= result.timestamp <= after
 
 
-class TestTrade:
-    """Tests for Trade model."""
+class TestTradeRemoved:
+    """DEBT-035 (Phase 26.2): the legacy ``Trade`` model was deleted.
 
-    def test_create_trade(self) -> None:
-        """Test creating a Trade instance."""
-        entry_time = datetime.now() - timedelta(hours=2)
-        exit_time = datetime.now()
-        trade = Trade(
-            id="trade_001",
-            symbol="BTC/USDT",
-            side="long",
-            entry_price=Decimal("50000"),
-            exit_price=Decimal("52000"),
-            quantity=Decimal("0.1"),
-            leverage=10,
-            entry_time=entry_time,
-            exit_time=exit_time,
-            pnl=Decimal("200"),
-            pnl_percentage=4.0,
-            fees=Decimal("1.0"),
-        )
-        assert trade.id == "trade_001"
-        assert trade.pnl == Decimal("200")
+    Pin the removal so a future re-introduction is forced through a
+    deliberate decision (with a real consumer) rather than slipping
+    back in unnoticed.
+    """
 
-    def test_is_profitable(self) -> None:
-        """Test is_profitable property."""
-        profitable_trade = Trade(
-            id="1",
-            symbol="BTC/USDT",
-            side="long",
-            entry_price=Decimal("50000"),
-            exit_price=Decimal("52000"),
-            quantity=Decimal("0.1"),
-            entry_time=datetime.now(),
-            exit_time=datetime.now(),
-            pnl=Decimal("200"),
-            pnl_percentage=4.0,
-        )
-        assert profitable_trade.is_profitable is True
+    def test_trade_symbol_no_longer_resolves(self) -> None:
+        """``from src.models import Trade`` must fail."""
+        import src.models as models
 
-        losing_trade = Trade(
-            id="2",
-            symbol="BTC/USDT",
-            side="long",
-            entry_price=Decimal("50000"),
-            exit_price=Decimal("48000"),
-            quantity=Decimal("0.1"),
-            entry_time=datetime.now(),
-            exit_time=datetime.now(),
-            pnl=Decimal("-200"),
-            pnl_percentage=-4.0,
-        )
-        assert losing_trade.is_profitable is False
-
-    def test_duration(self) -> None:
-        """Test duration calculation in hours."""
-        entry_time = datetime.now() - timedelta(hours=3, minutes=30)
-        exit_time = datetime.now()
-        trade = Trade(
-            id="1",
-            symbol="BTC/USDT",
-            side="long",
-            entry_price=Decimal("50000"),
-            exit_price=Decimal("52000"),
-            quantity=Decimal("0.1"),
-            entry_time=entry_time,
-            exit_time=exit_time,
-            pnl=Decimal("200"),
-            pnl_percentage=4.0,
-        )
-        assert trade.duration == pytest.approx(3.5, rel=0.01)
+        assert not hasattr(models, "Trade")
+        with pytest.raises(ImportError):
+            from src.models import Trade  # noqa: F401
 
 
 class TestDecimalPrecision:

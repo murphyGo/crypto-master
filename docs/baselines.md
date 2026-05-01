@@ -233,21 +233,21 @@ semantically that marker reads as **awaiting operator first run**.
 Once an operator runs the runbook above, these cells get rewritten
 in place by `scripts/backtest_baselines.py`.
 
-(Two minor deviations from the Phase 25.3 Part A spec, both
-deferred to keep this sub-task strictly docs-only and tracked as
-Low-priority TECH-DEBT for a follow-up docs-polish sub-task:
-[a] 9-column table kept at 6 columns — the autonomous rewriter
-`_TABLE_PATTERN` + `render_table` is hard-wired to the legacy
-shape; [b] the placeholder token kept as the legacy marker
-because existing rewriter tests assert it pre-rewrite. See the
-senior-developer report.)
+(Phase 26.2 / DEBT-048 closed the two deviations from the
+Phase 25.3 Part A spec: the table is now 9 columns wide
+(`Strategy / Symbol / Timeframe / Trades / Win Rate / Sharpe /
+MDD / Total PnL (USDT) / Snapshot fetched_at`) and the placeholder
+token is the operator-first-run marker referenced by
+`PLACEHOLDER_TOKEN` in `scripts/backtest_baselines.py` — both
+`_TABLE_PATTERN` and `render_table` in that script track the new
+shape.)
 
-| Strategy | Symbol | Period | Win Rate | Sharpe | MDD |
-|----------|--------|--------|----------|--------|-----|
-| `rsi_universal` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
-| `rsi_4h` | BTC/USDT | 3mo 4h | _TBD_ | _TBD_ | _TBD_ |
-| `rsi_15m` | BTC/USDT | 1mo 15m | _TBD_ | _TBD_ | _TBD_ |
-| `bollinger_band_reversion` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
-| `ma_crossover` | BTC/USDT | 3mo 1h | _TBD_ | _TBD_ | _TBD_ |
+| Strategy | Symbol | Timeframe | Trades | Win Rate | Sharpe | MDD | Total PnL (USDT) | Snapshot fetched_at |
+|----------|--------|-----------|--------|----------|--------|-----|------------------|---------------------|
+| `rsi_universal` | BTC/USDT | 3mo 1h | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
+| `rsi_4h` | BTC/USDT | 3mo 4h | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
+| `rsi_15m` | BTC/USDT | 1mo 15m | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
+| `bollinger_band_reversion` | BTC/USDT | 3mo 1h | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
+| `ma_crossover` | BTC/USDT | 3mo 1h | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
 
 These numbers are the bar each LLM-driven technique needs to clear.

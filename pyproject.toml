@@ -29,6 +29,7 @@ dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "pyyaml>=6.0",
+    "python-dateutil>=2.8.2",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +41,7 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "types-PyYAML>=6.0",
+    "types-python-dateutil>=2.8",
 ]
 
 [project.urls]

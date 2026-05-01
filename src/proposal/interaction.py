@@ -27,10 +27,11 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+from dateutil.relativedelta import relativedelta
 from pydantic import BaseModel
 
 from src.config import get_settings
@@ -395,7 +396,10 @@ class ProposalHistory:
 
         Walks ``<data_dir>/*.json``, parses each proposal's
         ``created_at``, and for any record older than
-        ``now - 30 * retention_months`` days moves the file to
+        ``now - relativedelta(months=retention_months)`` (true calendar
+        months — DEBT-036 / Phase 26.2 — not the legacy ``30 *
+        retention_months`` day approximation, which drifted ~5 days
+        per year) moves the file to
         ``<data_dir>/archive/<YYYY-MM>/<original_filename>`` where
         ``YYYY-MM`` is the proposal's *own* creation month (so the
         archive is naturally bucketed alongside the matching audit /
@@ -435,7 +439,12 @@ class ProposalHistory:
             now = now.replace(tzinfo=timezone.utc)
         if retention_months is None:
             retention_months = get_settings().log_retention_months
-        cutoff = now - timedelta(days=30 * retention_months)
+        # DEBT-036 (Phase 26.2): true calendar months. The legacy
+        # ``timedelta(days=30 * retention_months)`` approximation
+        # drifted ~5 days/year — for ``retention_months=12`` from
+        # 2026-01-15 it produced 2025-01-20 instead of the calendar-
+        # correct 2025-01-15.
+        cutoff = now - relativedelta(months=retention_months)
 
         archived: list[Path] = []
         for path in sorted(self.data_dir.glob("*.json")):
@@ -503,6 +512,21 @@ class ProposalInteraction:
         self._decision_callback: ProposalDecisionCallback = (
             decision_callback or default_decision_prompt
         )
+
+    def set_decision_callback(self, callback: ProposalDecisionCallback) -> None:
+        """Swap the decision callback in place.
+
+        DEBT-041 (Phase 26.2): the ``RuntimeEngine`` previously reached
+        into ``self._decision_callback`` directly to inject its
+        auto-decide path. This public setter pins the contract so the
+        engine (and any future caller) can swap the callback without
+        a private-attribute access + ``# type: ignore[attr-defined]``.
+
+        Args:
+            callback: Async callable returning a
+                :class:`ProposalDecisionInput` for a given proposal.
+        """
+        self._decision_callback = callback
 
     async def present(
         self,

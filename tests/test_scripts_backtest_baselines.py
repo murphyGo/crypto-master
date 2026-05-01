@@ -164,12 +164,81 @@ def test_render_table_includes_every_baseline_row() -> None:
     assert "55.00%" in text
     assert "48.00%" in text
     assert "n/a" in text
-    # Header preserved verbatim — the regex relies on it.
-    assert text.startswith("| Strategy | Symbol | Period |")
+    # Header preserved verbatim — the regex relies on it. DEBT-048
+    # (Phase 26.2): widened to 9 columns, ``Period`` → ``Timeframe``.
+    assert text.startswith("| Strategy | Symbol | Timeframe | Trades |")
+
+
+def test_render_table_widened_to_nine_columns_with_placeholder_for_missing(
+    baselines_doc: Path,
+) -> None:
+    """DEBT-048 / Phase 26.2: the new table is 9 columns wide.
+
+    Pin: ``Trades``, ``Total PnL (USDT)``, and ``Snapshot fetched_at``
+    are present; ``Period`` is renamed to ``Timeframe``; missing
+    optional fields render as ``PLACEHOLDER_TOKEN``.
+    """
+    summaries = [
+        {
+            "technique_name": "rsi_universal",
+            "symbol": "BTC/USDT",
+            "period_label": "3mo 1h",
+            "win_rate": 0.55,
+            "total_return_percent": 12.34,
+            "sharpe_ratio": 1.23,
+            "max_drawdown_percent": 8.45,
+            "total_trades": 20,
+            # total_pnl + fetched_at intentionally absent — the row
+            # should render with the operator-first-run placeholder
+            # for those two cells only.
+        },
+    ]
+    text = backtest_baselines.render_table(summaries)
+    # New header columns.
+    assert "Timeframe" in text
+    assert "Trades" in text
+    assert "Total PnL (USDT)" in text
+    assert "Snapshot fetched_at" in text
+    # Trades cell populated; total_pnl + fetched_at fall back to token.
+    assert " 20 " in text
+    assert text.count(backtest_baselines.PLACEHOLDER_TOKEN) == 2
+
+
+def test_render_table_renders_total_pnl_and_fetched_at_when_present() -> None:
+    """When ``total_pnl`` and ``fetched_at`` are populated they appear
+    verbatim (or appropriately formatted) in the rendered row.
+    """
+    summaries = [
+        {
+            "technique_name": "rsi_4h",
+            "symbol": "BTC/USDT",
+            "period_label": "3mo 4h",
+            "win_rate": 0.4,
+            "total_return_percent": 5.0,
+            "sharpe_ratio": 0.8,
+            "max_drawdown_percent": 3.0,
+            "total_trades": 5,
+            "total_pnl": "42.7",
+            "fetched_at": "2026-04-15T00:00:00+00:00",
+        },
+    ]
+    text = backtest_baselines.render_table(summaries)
+    # total_pnl rendered to two decimal places.
+    assert "42.70" in text
+    # fetched_at rendered verbatim as ISO-8601.
+    assert "2026-04-15T00:00:00+00:00" in text
+    # No placeholder token in this fully-populated row.
+    assert backtest_baselines.PLACEHOLDER_TOKEN not in text
 
 
 def test_update_baselines_doc_replaces_tbd_rows(baselines_doc: Path) -> None:
-    """A populated table replaces the TBD rows but leaves prose intact."""
+    """A populated table replaces the placeholder rows but leaves prose intact.
+
+    DEBT-048 (Phase 26.2): the table widened to 9 columns. A populated
+    summary now also carries ``total_pnl`` and ``fetched_at``; when
+    every metric is populated, the placeholder token is gone from the
+    rewritten doc.
+    """
     summaries = [
         {
             "technique_name": "rsi_universal",
@@ -180,15 +249,22 @@ def test_update_baselines_doc_replaces_tbd_rows(baselines_doc: Path) -> None:
             "sharpe_ratio": 0.7,
             "max_drawdown_percent": 4.2,
             "total_trades": 10,
+            "total_pnl": "12.34",
+            "fetched_at": "2026-04-15T00:00:00+00:00",
         }
     ]
     new_text = backtest_baselines.update_baselines_doc(
         summaries, doc_path=baselines_doc
     )
-    # TBD rows gone, real numbers in.
-    assert "_TBD_" not in new_text
+    # Placeholder rows gone, real numbers in. DEBT-048 (Phase 26.2):
+    # placeholder token rebranded ``_TBD_`` →
+    # ``_AWAITING_OPERATOR_FIRST_RUN_`` and table widened to 9 cols.
+    assert backtest_baselines.PLACEHOLDER_TOKEN not in new_text
     assert "50.00%" in new_text
     assert "0.70" in new_text
+    # New columns surface the threaded values.
+    assert "12.34" in new_text
+    assert "2026-04-15T00:00:00+00:00" in new_text
     # Prose surrounding the table is preserved.
     assert "Reference numbers" in new_text
     assert (
@@ -276,11 +352,19 @@ async def test_run_all_writes_expected_artifacts(
         report = (baseline_dir / "analysis.md").read_text()
         assert report.startswith("# Backtest Report:")
 
-    # docs table was rewritten — TBDs gone, baseline names present.
+    # docs table was rewritten — baseline names present. DEBT-048
+    # (Phase 26.2): widened to 9 cols and renamed token. The
+    # ``fetched_at`` column legitimately shows the placeholder token
+    # for live (non-snapshot) runs like this fake-exchange path; what
+    # we verify here is that the baseline rows themselves are real
+    # (populated trade counts, win rates) — i.e. the rewriter ran.
     doc_text = baselines_doc.read_text()
-    assert "_TBD_" not in doc_text
     for spec in backtest_baselines.BASELINES:
         assert f"`{spec.technique_name}`" in doc_text
+    # New header is in place — pin the column rename + widening.
+    assert "Timeframe" in doc_text
+    assert "Snapshot fetched_at" in doc_text
+    assert "Total PnL (USDT)" in doc_text
 
 
 async def test_run_all_idempotent_overwrites_artifacts(
@@ -332,9 +416,10 @@ async def test_run_all_skips_doc_update_when_disabled(
         exchange=fake_exchange,  # type: ignore[arg-type]
     )
 
-    # Doc untouched — still has the TBD placeholders.
+    # Doc untouched — still has the operator-first-run placeholders.
+    # DEBT-048 (Phase 26.2): token renamed.
     assert baselines_doc.read_text() == original
-    assert "_TBD_" in baselines_doc.read_text()
+    assert backtest_baselines.PLACEHOLDER_TOKEN in baselines_doc.read_text()
 
 
 # ---------------------------------------------------------------------------

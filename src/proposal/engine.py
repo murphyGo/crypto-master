@@ -514,6 +514,15 @@ class ProposalEngine:
                 key = (symbol, tf)
                 cached = ohlcv_cache.get(key)
                 if cached is None:
+                    # DEBT-040 (Phase 26.2): ``tf`` comes from
+                    # ``StrategyInfo.timeframes: list[str]`` (free-form
+                    # string per the strategy frontmatter), but
+                    # ``BaseExchange.get_ohlcv`` types ``timeframe`` as
+                    # ``Literal["1m","5m","15m","1h","4h","1d","1w"]``.
+                    # Strategy authors are trusted to declare valid
+                    # timeframes; an invalid one fails loud at the
+                    # exchange call. Tightening the upstream type is
+                    # tracked separately and out of scope for 26.2.
                     cached = await self.exchange.get_ohlcv(
                         symbol=symbol,
                         timeframe=tf,  # type: ignore[arg-type]
@@ -550,6 +559,13 @@ class ProposalEngine:
             key = (symbol, timeframe)
             ohlcv = ohlcv_cache.get(key)
             if ohlcv is None:
+                # DEBT-040 (Phase 26.2): same str-vs-Literal mismatch
+                # as the multi-TF branch above. ``timeframe`` is typed
+                # ``str`` here because callers (``propose_bitcoin`` /
+                # ``propose_altcoins``) accept the engine's
+                # ``ProposalEngineConfig.timeframe`` override as a
+                # plain string; the exchange call validates it at
+                # runtime.
                 ohlcv = await self.exchange.get_ohlcv(
                     symbol=symbol,
                     timeframe=timeframe,  # type: ignore[arg-type]
