@@ -25,6 +25,7 @@ from src.runtime.engine import (
     TradingEngine,
 )
 from src.strategy.performance import TradeHistory
+from src.utils.time import now_utc
 
 # =============================================================================
 # Helpers
@@ -109,16 +110,23 @@ def build_engine(
     open_trades: list[TradeHistory] | None = None,
     ticker_price: Decimal = Decimal("50000"),
     ticker_error: Exception | None = None,
+    ticker_timestamp: datetime | None = None,
 ) -> tuple[TradingEngine, dict[str, MagicMock]]:
     """Build a TradingEngine with mock dependencies wired together."""
     exchange = AsyncMock(spec=BaseExchange)
     if ticker_error is not None:
         exchange.get_ticker.side_effect = ticker_error
     else:
+        # Phase 24.1 / DEBT-033: ticker timestamp must be fresh
+        # relative to ``now_utc()`` so the freshness gate falls
+        # through to the stale-quote sanity checks. Tests that
+        # exercise the freshness gate itself override this via
+        # ``ticker_timestamp``.
+        ts = ticker_timestamp if ticker_timestamp is not None else now_utc()
         exchange.get_ticker.return_value = Ticker(
             symbol="BTC/USDT",
             price=ticker_price,
-            timestamp=datetime(2026, 4, 27, 12, 5, 0),
+            timestamp=ts,
         )
 
     proposal_engine = MagicMock(spec=ProposalEngine)
@@ -975,6 +983,245 @@ async def test_stale_quote_gate_falls_through_on_ticker_failure(
 
 
 # =============================================================================
+# Phase 24.1 / DEBT-033: ticker freshness threshold
+# =============================================================================
+
+
+async def test_stale_quote_gate_falls_through_when_ticker_age_exceeds_threshold(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Phase 24.1 / DEBT-033: ticker older than ``max_ticker_age_seconds``
+    triggers the same WARN-and-fall-through path as a ticker-fetch
+    exception.
+
+    A successfully-fetched but stale ticker is no better than a failed
+    fetch for the slippage / past-SL checks: silently using one would
+    defeat the gate's purpose. The fix surfaces the staleness via the
+    ``stale_quote_check_failed`` marker so the operator can see the
+    gate was effectively a no-op for that proposal.
+
+    The test puts the ticker at a clearly-stale timestamp (one hour
+    ago) and a price that WOULD have rejected the proposal (past-SL on
+    a long: live=49000, SL=49500). The gate must NOT consult that
+    price; the fill must proceed.
+    """
+    import logging
+    from datetime import timedelta
+
+    proposal = make_proposal(proposal_id="stale-ticker-1", composite=2.0)
+    # One hour old > default max_ticker_age_seconds=10.0.
+    stale_ts = now_utc() - timedelta(hours=1)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        # Live below SL would normally reject, but we should never
+        # reach the price-comparison branch on a stale ticker.
+        ticker_price=Decimal("49000"),
+        ticker_timestamp=stale_ts,
+    )
+
+    target_logger = logging.getLogger("crypto_master.runtime.engine")
+    target_logger.addHandler(caplog.handler)
+    previous_level = target_logger.level
+    target_logger.setLevel(logging.WARNING)
+    try:
+        result = await engine.run_cycle()
+    finally:
+        target_logger.removeHandler(caplog.handler)
+        target_logger.setLevel(previous_level)
+
+    # Fall-through behavior: fill proceeded, no rejection.
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    mocks["trader"].open_position.assert_called_once()
+    record = mocks["history"].load("stale-ticker-1")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+
+    # WARN log carries the marker + the stale-ticker error_type tag.
+    warn_messages = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "stale_quote_check_failed" in r.getMessage()
+    ]
+    assert len(warn_messages) == 1
+    msg = warn_messages[0]
+    assert "BTC/USDT" in msg
+    assert "stale-ticker-1" in msg
+    assert "stale_ticker" in msg
+
+
+async def test_stale_quote_gate_uses_fresh_ticker_when_within_threshold(
+    tmp_path: Path,
+) -> None:
+    """Phase 24.1 / DEBT-033: a ticker within
+    ``max_ticker_age_seconds`` is considered fresh; the gate's
+    slippage / past-SL checks run normally.
+
+    Pinned regression: a ticker timestamped two seconds ago (well
+    inside the 10-second default) must NOT short-circuit the gate.
+    Past-SL ticker → past-SL rejection.
+    """
+    from datetime import timedelta
+
+    proposal = make_proposal(proposal_id="fresh-ticker-1", composite=2.0)
+    fresh_ts = now_utc() - timedelta(seconds=2)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        ticker_price=Decimal("49000"),  # past SL=49500 on a long
+        ticker_timestamp=fresh_ts,
+    )
+
+    result = await engine.run_cycle()
+
+    # Fresh ticker → past-SL rejection fires, fill blocked.
+    assert result.positions_opened == 0
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("fresh-ticker-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_past_sl"
+
+
+# =============================================================================
+# Phase 24.2 / DEBT-033 follow-up: opt-in reject_if_stale_quote
+# =============================================================================
+
+
+async def test_reject_if_stale_quote_true_blocks_fill_on_stale_ticker(
+    tmp_path: Path,
+) -> None:
+    """When ``reject_if_stale_quote=True``, a stale ticker triggers a
+    hard rejection with reason ``stale_quote_no_live_data`` instead of
+    falling through to the fill.
+
+    The audit's original concern: fall-through fills proceed at
+    ``proposal.entry_price`` with no live cross-check. The opt-in
+    reject path closes that hole for live mode without changing the
+    default (paper-mode-friendly) behaviour.
+    """
+    from datetime import timedelta
+
+    proposal = make_proposal(proposal_id="reject-stale-1", composite=2.0)
+    # One hour old > default max_ticker_age_seconds=10.0.
+    stale_ts = now_utc() - timedelta(hours=1)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_stale_quote=True,
+        ),
+        # Live below SL would normally reject via past-SL gate, but
+        # the freshness check fires first on a stale ticker.
+        ticker_price=Decimal("49000"),
+        ticker_timestamp=stale_ts,
+    )
+
+    result = await engine.run_cycle()
+
+    # Hard rejection: no fill, reason is the new no-live-data marker.
+    assert result.positions_opened == 0
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("reject-stale-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_no_live_data"
+
+
+async def test_reject_if_stale_quote_false_preserves_fall_through_warn(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When ``reject_if_stale_quote=False`` (default), the existing
+    WARN-and-fall-through behaviour is preserved on a stale ticker.
+
+    Pin the back-compat path. The fix must not silently break paper-
+    mode deployments that rely on fall-through to keep trading during
+    transient ticker staleness.
+    """
+    import logging
+    from datetime import timedelta
+
+    proposal = make_proposal(proposal_id="fall-through-1", composite=2.0)
+    stale_ts = now_utc() - timedelta(hours=1)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        # Default reject_if_stale_quote=False; stated explicitly to
+        # make the contract obvious to readers.
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_stale_quote=False,
+        ),
+        ticker_price=Decimal("49000"),
+        ticker_timestamp=stale_ts,
+    )
+
+    target_logger = logging.getLogger("crypto_master.runtime.engine")
+    target_logger.addHandler(caplog.handler)
+    previous_level = target_logger.level
+    target_logger.setLevel(logging.WARNING)
+    try:
+        result = await engine.run_cycle()
+    finally:
+        target_logger.removeHandler(caplog.handler)
+        target_logger.setLevel(previous_level)
+
+    # Fall-through: fill proceeded at proposal.entry_price.
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    mocks["trader"].open_position.assert_called_once()
+    record = mocks["history"].load("fall-through-1")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+
+    # WARN log carries the stale-ticker marker so operators can see
+    # the gate was effectively a no-op for that proposal.
+    warn_messages = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "stale_quote_check_failed" in r.getMessage()
+    ]
+    assert len(warn_messages) == 1
+    assert "stale_ticker" in warn_messages[0]
+
+
+async def test_reject_if_stale_quote_true_blocks_fill_on_ticker_fetch_error(
+    tmp_path: Path,
+) -> None:
+    """When ``reject_if_stale_quote=True``, a ticker fetch failure also
+    triggers the hard rejection (no live data ≡ stale quote for the
+    purpose of the cross-check).
+
+    The two paths share the same opt-in safety: if the gate cannot
+    consult a live tape, the fill is blocked rather than falling
+    through to ``proposal.entry_price``.
+    """
+    proposal = make_proposal(proposal_id="reject-fetch-fail-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_stale_quote=True,
+        ),
+        ticker_error=ExchangeAPIError("transient outage"),
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 0
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("reject-fetch-fail-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_no_live_data"
+
+
+# =============================================================================
 # Phase 21.3: Stale-Quote Payload Timestamp Coherence (DEBT-025)
 # =============================================================================
 #
@@ -1054,10 +1301,15 @@ async def test_stale_quote_rejection_decision_at_minus_candle_ts_is_aware_math(
         ticker_price=Decimal("49400"),
     )
 
-    # Override the default fixture ticker (which uses a naive datetime
-    # for backward compatibility with older tests) with an adapter-shaped
-    # one: ``from_unix_ms`` is the canonical Phase 21.1 source.
-    aware_ts = from_unix_ms(1_761_580_000_000)  # 2025-10-27 12:26:40 UTC
+    # Override the default fixture ticker with an adapter-shaped one
+    # (``from_unix_ms`` is the canonical Phase 21.1 UTC-aware source).
+    # Phase 24.1 / DEBT-033: timestamp must stay within
+    # ``max_ticker_age_seconds`` so the freshness gate passes and the
+    # past-SL rejection is the path under test. Using a millisecond
+    # epoch derived from ``now_utc()`` keeps the cross-source
+    # aware-comparability assertion that this test cares about.
+    now = now_utc()
+    aware_ts = from_unix_ms(int(now.timestamp() * 1000))
     assert aware_ts.tzinfo == timezone.utc
     mocks["exchange"].get_ticker.return_value = Ticker(
         symbol="BTC/USDT",

@@ -82,7 +82,14 @@ class MACrossoverStrategy(BaseStrategy):
             signal: str = "long"
             # Confidence proportional to the cross magnitude (capped).
             confidence = min(0.8, abs(short_ma - long_ma) / current_price * 100)
-            stop_loss = Decimal(str(round(min(closes[-5:]), 2)))
+            # Phase 24.1 / DEBT-031: SL look-back EXCLUDES the current
+            # candle (closes[-6:-1] = the 5 closes ending at i-1). On a
+            # bullish cross where the current close is itself the 5-bar
+            # low, including it would put SL at-or-above entry,
+            # ``validate_prices`` would raise, and the signal would
+            # silently drop. Exclusion preserves the "structural support
+            # below entry" semantic the SL is meant to encode.
+            stop_loss = Decimal(str(round(min(closes[-6:-1]), 2)))
             take_profit = Decimal(str(round(current_price * 1.05, 2)))
             reasoning = (
                 f"Bullish cross: SMA({self.short_period})={short_ma:.2f} "
@@ -91,7 +98,11 @@ class MACrossoverStrategy(BaseStrategy):
         elif short_ma < long_ma and prev_short_ma >= prev_long_ma:
             signal = "short"
             confidence = min(0.8, abs(short_ma - long_ma) / current_price * 100)
-            stop_loss = Decimal(str(round(max(closes[-5:]), 2)))
+            # Phase 24.1 / DEBT-031: symmetric fix on the short side —
+            # SL look-back excludes the current candle so a current
+            # close that is itself the 5-bar high cannot collapse the
+            # SL onto entry.
+            stop_loss = Decimal(str(round(max(closes[-6:-1]), 2)))
             take_profit = Decimal(str(round(current_price * 0.95, 2)))
             reasoning = (
                 f"Bearish cross: SMA({self.short_period})={short_ma:.2f} "

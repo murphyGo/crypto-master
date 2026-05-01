@@ -108,6 +108,17 @@ class ActivityEventType(str, Enum):
     #                                 clamp is in effect)
     LIQUIDATED = "liquidated"
 
+    # Cold-start guard (Phase 24.2 / DEBT-034 follow-up). Emitted by
+    # :class:`~src.proposal.engine.ProposalEngine._cold_start_blocks_live`
+    # when live mode is configured but no applicable technique on the
+    # symbol has accumulated enough closed trades to be promotable.
+    # Without this event the dashboard sees no trace of why the bot
+    # is intentionally idle on a fresh deployment — operators flip on
+    # ``mode=live`` and the bot just goes quiet. The event payload
+    # carries ``symbol`` and ``reason="cold_start_below_min_closed_trades"``
+    # so the activity timeline shows the deliberate idle state.
+    COLD_START_BLOCKED = "cold_start_blocked"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

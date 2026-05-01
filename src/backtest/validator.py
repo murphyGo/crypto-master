@@ -146,6 +146,12 @@ class RobustnessConfig(BaseModel):
             of IS Sharpe. 0.7 = "OOS may be up to 30% worse than IS".
         oos_min_trades: Minimum trade count required in *each* split
             for the gate to evaluate. Below this, status is SKIPPED.
+        minimum_is_trades: Independent floor (Phase 24.1 / DEBT-032)
+            below which a non-positive in-sample Sharpe is treated as
+            sampling noise and the gate SKIPs rather than FAILs the
+            strategy. Catches the case where ``oos_min_trades`` is
+            relaxed below the level at which Sharpe is statistically
+            meaningful.
         walk_forward_windows: Number of equal-size chronological
             windows the timeline is sliced into.
         walk_forward_positive_fraction: Fraction of windows that must
@@ -175,6 +181,29 @@ class RobustnessConfig(BaseModel):
     oos_fraction: float = Field(default=0.3, gt=0, lt=1)
     oos_sharpe_retention: float = Field(default=0.7, gt=0, le=2)
     oos_min_trades: int = Field(default=10, ge=1)
+    # Phase 24.1 / DEBT-032: independent floor on the IS-sample size
+    # before the IS-Sharpe-non-positive branch can FAIL the gate. Below
+    # this floor, IS Sharpe is dominated by sampling noise and a
+    # non-positive value is no evidence of "no edge" — convert the
+    # would-be FAIL into a SKIPPED so the strategy survives the gate
+    # the same way ``oos_min_trades`` already SKIPs the verdict on
+    # under-populated splits.
+    #
+    # Phase 24.2 (DEBT-032 follow-up): default bumped 5 → 10 per
+    # quant-trader-expert review. Sharpe estimates with N<10 trades
+    # have prohibitively high variance; the strict statistical floor
+    # would be N=20 but 10 balances "no false-fail on noise" against
+    # practical feasibility for nascent strategies on short windows.
+    minimum_is_trades: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Independent floor on the IS-sample size before the "
+            "IS-Sharpe-non-positive branch can FAIL the gate. Sharpe "
+            "estimates with N<10 trades have prohibitively high variance; "
+            "SKIP rather than judge."
+        ),
+    )
 
     # Walk-forward
     walk_forward_windows: int = Field(default=5, ge=2)
@@ -297,17 +326,23 @@ class RobustnessGate:
             profile,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
         )
-        baseline_sharpe = _sharpe_from_trades(
-            baseline.trades, baseline.initial_balance
-        )
+        baseline_sharpe = _sharpe_from_trades(baseline.trades, baseline.initial_balance)
 
         gates: list[GateResult] = [
             await self._gate_oos(
-                strategy, ohlcv, symbol, timeframe, profile,
+                strategy,
+                ohlcv,
+                symbol,
+                timeframe,
+                profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
             ),
             await self._gate_walk_forward(
-                strategy, ohlcv, symbol, timeframe, profile,
+                strategy,
+                ohlcv,
+                symbol,
+                timeframe,
+                profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
             ),
             await self._gate_regime(baseline, ohlcv),
@@ -373,11 +408,19 @@ class RobustnessGate:
             )
 
         is_run = await self._run_subset(
-            strategy, is_data, symbol, timeframe, profile,
+            strategy,
+            is_data,
+            symbol,
+            timeframe,
+            profile,
             ohlcv_by_timeframe=is_mtf,
         )
         oos_run = await self._run_subset(
-            strategy, oos_data, symbol, timeframe, profile,
+            strategy,
+            oos_data,
+            symbol,
+            timeframe,
+            profile,
             ohlcv_by_timeframe=oos_mtf,
         )
 
@@ -400,9 +443,31 @@ class RobustnessGate:
             )
 
         is_sharpe = _sharpe_from_trades(is_run.trades, is_run.initial_balance)
-        oos_sharpe = _sharpe_from_trades(
-            oos_run.trades, oos_run.initial_balance
-        )
+        oos_sharpe = _sharpe_from_trades(oos_run.trades, oos_run.initial_balance)
+
+        # Phase 24.1 / DEBT-032: an under-populated IS sample makes a
+        # non-positive Sharpe meaningless (noise-dominated). SKIP rather
+        # than FAIL so a strategy with positive expected value but only
+        # a handful of IS trades is not hard-killed by sampling
+        # variance. ``oos_min_trades`` already covers the "verdict
+        # under-populated" case at default settings; this guard is
+        # specifically for operators who relax that floor.
+        if is_run.total_trades < cfg.minimum_is_trades:
+            return GateResult(
+                name="oos",
+                status=GateStatus.SKIPPED,
+                reason=(
+                    f"Insufficient IS trades for Sharpe verdict: "
+                    f"IS={is_run.total_trades} "
+                    f"(min {cfg.minimum_is_trades})"
+                ),
+                details={
+                    "is_trades": is_run.total_trades,
+                    "oos_trades": oos_run.total_trades,
+                    "is_sharpe": is_sharpe,
+                    "oos_sharpe": oos_sharpe,
+                },
+            )
 
         # If IS Sharpe is None or non-positive, the strategy isn't even
         # working in-sample — there is nothing for OOS to "retain."
@@ -489,7 +554,11 @@ class RobustnessGate:
                 ohlcv, ohlcv_by_timeframe, start, end
             )
             result = await self._run_subset(
-                strategy, window, symbol, timeframe, profile,
+                strategy,
+                window,
+                symbol,
+                timeframe,
+                profile,
                 ohlcv_by_timeframe=window_mtf,
             )
             results.append(result)
@@ -628,15 +697,13 @@ class RobustnessGate:
                 else f"Negative expectancy in: {', '.join(evaluable_failures)}"
             )
         else:
-            avg = sum(
-                v["expectancy"]
-                for v in per_regime.values()
-                if v["evaluable"]
-            ) / evaluable_count
+            avg = (
+                sum(v["expectancy"] for v in per_regime.values() if v["evaluable"])
+                / evaluable_count
+            )
             passed = avg >= 0
             reason = (
-                f"Average expectancy across {evaluable_count} regimes: "
-                f"{avg:.4f}"
+                f"Average expectancy across {evaluable_count} regimes: " f"{avg:.4f}"
             )
 
         return GateResult(
@@ -719,7 +786,11 @@ class RobustnessGate:
             built = factory(**params)
             variant = await built if isinstance(built, Awaitable) else built
             run = await self._run_subset(
-                variant, ohlcv, symbol, timeframe, profile,
+                variant,
+                ohlcv,
+                symbol,
+                timeframe,
+                profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
             )
             sharpe = _sharpe_from_trades(run.trades, run.initial_balance)
@@ -811,9 +882,7 @@ class RobustnessGate:
         failed = [g.name for g in gates if g.status == GateStatus.FAILED]
         skipped = [g.name for g in gates if g.status == GateStatus.SKIPPED]
 
-        sharpe_str = (
-            f"{baseline_sharpe:.3f}" if baseline_sharpe is not None else "n/a"
-        )
+        sharpe_str = f"{baseline_sharpe:.3f}" if baseline_sharpe is not None else "n/a"
         verdict = "PASSED" if not failed else "FAILED"
         return (
             f"Robustness verdict: {verdict}. "

@@ -83,9 +83,7 @@ class BacktestAbortedError(Exception):
                 ``"consecutive_parse_failures"``.
             candle_index: The candle index where the breaker tripped.
         """
-        super().__init__(
-            f"Backtest aborted at candle {candle_index}: {reason}"
-        )
+        super().__init__(f"Backtest aborted at candle {candle_index}: {reason}")
         self.reason = reason
         self.candle_index = candle_index
 
@@ -194,6 +192,23 @@ class BacktestTrade(BaseModel):
     close_reason: Literal["take_profit", "stop_loss", "end_of_data"]
 
 
+class EquityPoint(BaseModel):
+    """A single (timestamp, equity) sample on the per-bar equity curve.
+
+    The equity curve is the bar-by-bar mark-to-market of the account
+    balance: closed-trade P&L plus the unrealized P&L of any currently-
+    open position evaluated against the current bar's close. It is the
+    correct surface for intra-trade drawdown (DEBT-030 / Phase 24.1) —
+    a closed-trade-only equity walk misses every drawdown that occurs
+    while a trade is still open and recovers before exit.
+    """
+
+    timestamp: datetime
+    equity: Decimal
+
+    model_config = {"frozen": True}
+
+
 class BacktestResult(BaseModel):
     """Summary of a complete backtest run.
 
@@ -217,6 +232,11 @@ class BacktestResult(BaseModel):
         win_rate: wins / total_trades (0 if none).
         return_percent: (final - initial) / initial * 100.
         trades: Ordered list of all trades.
+        equity_curve: Per-bar mark-to-market equity samples. Populated
+            by :meth:`Backtester.run` and ``run_multi_timeframe``; the
+            analyzer consumes this for intra-trade-aware MDD / Sharpe
+            (DEBT-030 / Phase 24.1). Empty list for back-compat with
+            tests that build ``BacktestResult`` directly.
     """
 
     run_id: str
@@ -238,6 +258,7 @@ class BacktestResult(BaseModel):
     win_rate: float
     return_percent: float
     trades: list[BacktestTrade] = Field(default_factory=list)
+    equity_curve: list[EquityPoint] = Field(default_factory=list)
 
 
 @dataclass
@@ -381,9 +402,7 @@ class Backtester:
         for i, current_candle in enumerate(ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
             if open_trade is not None:
-                exit_hit = self._check_intra_candle_exit(
-                    open_trade, current_candle
-                )
+                exit_hit = self._check_intra_candle_exit(open_trade, current_candle)
                 if exit_hit is not None:
                     target_exit_price, reason = exit_hit
                     trade, pnl_delta = self._close_trade(
@@ -401,10 +420,7 @@ class Backtester:
                 continue
 
             # 3. Concurrent positions gate.
-            if (
-                open_trade is not None
-                and not self.config.allow_concurrent_positions
-            ):
+            if open_trade is not None and not self.config.allow_concurrent_positions:
                 continue
 
             # 4. Run the technique on candles 0..i (inclusive).
@@ -481,9 +497,7 @@ class Backtester:
                     risk_percent=risk_percent,
                 )
             except TradingValidationError as e:
-                logger.debug(
-                    f"Position rejected on candle {i}: {e}; skipping"
-                )
+                logger.debug(f"Position rejected on candle {i}: {e}; skipping")
                 continue
 
             # 7. Simulate fill at current candle close with slippage.
@@ -492,13 +506,9 @@ class Backtester:
                 side=position.side,
                 is_entry=True,
             )
-            entry_fee = (
-                actual_entry * position.quantity * self.config.fee_rate
-            )
+            entry_fee = actual_entry * position.quantity * self.config.fee_rate
             if entry_fee > balance:
-                logger.debug(
-                    f"Insufficient balance for entry fee on candle {i}"
-                )
+                logger.debug(f"Insufficient balance for entry fee on candle {i}")
                 continue
 
             balance -= entry_fee
@@ -576,9 +586,7 @@ class Backtester:
                 missing, or primary series empty.
         """
         if not ohlcv_by_timeframe:
-            raise BacktestError(
-                "Cannot backtest with empty ohlcv_by_timeframe dict"
-            )
+            raise BacktestError("Cannot backtest with empty ohlcv_by_timeframe dict")
         if primary_timeframe not in ohlcv_by_timeframe:
             raise BacktestError(
                 f"primary_timeframe {primary_timeframe!r} not in "
@@ -588,8 +596,7 @@ class Backtester:
         primary_ohlcv = ohlcv_by_timeframe[primary_timeframe]
         if not primary_ohlcv:
             raise BacktestError(
-                f"Primary timeframe {primary_timeframe!r} has empty "
-                "candle list"
+                f"Primary timeframe {primary_timeframe!r} has empty " "candle list"
             )
 
         trading_strategy = self._build_trading_strategy(profile)
@@ -599,9 +606,7 @@ class Backtester:
         # bisect is O(log n). Cursors monotonically advance with the
         # primary index, but we still use bisect_right for correctness
         # when timestamps don't align cleanly to higher-TF candle opens.
-        higher_timeframes = [
-            tf for tf in ohlcv_by_timeframe if tf != primary_timeframe
-        ]
+        higher_timeframes = [tf for tf in ohlcv_by_timeframe if tf != primary_timeframe]
         higher_timestamps: dict[str, list[datetime]] = {
             tf: [c.timestamp for c in ohlcv_by_timeframe[tf]]
             for tf in higher_timeframes
@@ -617,9 +622,7 @@ class Backtester:
         for i, current_candle in enumerate(primary_ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
             if open_trade is not None:
-                exit_hit = self._check_intra_candle_exit(
-                    open_trade, current_candle
-                )
+                exit_hit = self._check_intra_candle_exit(open_trade, current_candle)
                 if exit_hit is not None:
                     target_exit_price, reason = exit_hit
                     trade, pnl_delta = self._close_trade(
@@ -648,10 +651,7 @@ class Backtester:
                 continue
 
             # 4. Concurrent positions gate.
-            if (
-                open_trade is not None
-                and not self.config.allow_concurrent_positions
-            ):
+            if open_trade is not None and not self.config.allow_concurrent_positions:
                 continue
 
             # 5. Run the technique with the full multi-TF context.
@@ -728,9 +728,7 @@ class Backtester:
                     risk_percent=risk_percent,
                 )
             except TradingValidationError as e:
-                logger.debug(
-                    f"Position rejected on candle {i}: {e}; skipping"
-                )
+                logger.debug(f"Position rejected on candle {i}: {e}; skipping")
                 continue
 
             # 8. Simulate fill at current candle close with slippage.
@@ -739,13 +737,9 @@ class Backtester:
                 side=position.side,
                 is_entry=True,
             )
-            entry_fee = (
-                actual_entry * position.quantity * self.config.fee_rate
-            )
+            entry_fee = actual_entry * position.quantity * self.config.fee_rate
             if entry_fee > balance:
-                logger.debug(
-                    f"Insufficient balance for entry fee on candle {i}"
-                )
+                logger.debug(f"Insufficient balance for entry fee on candle {i}")
                 continue
 
             balance -= entry_fee
@@ -842,9 +836,7 @@ class Backtester:
             )
         )
 
-    def _resolve_sizing(
-        self, profile: TradingProfile | None
-    ) -> tuple[float, int]:
+    def _resolve_sizing(self, profile: TradingProfile | None) -> tuple[float, int]:
         """Pick risk_percent and leverage for the run."""
         if profile is not None:
             return profile.risk_percent, profile.default_leverage
@@ -986,6 +978,65 @@ class Backtester:
         balance_delta = raw_pnl - exit_fee
         return trade, balance_delta
 
+    @staticmethod
+    def _build_equity_curve(
+        ohlcv: list[OHLCV],
+        trades: list[BacktestTrade],
+        initial_balance: Decimal,
+    ) -> list[EquityPoint]:
+        """Reconstruct the per-bar mark-to-market equity curve.
+
+        Phase 24.1 / DEBT-030. The closed-trade equity walk used by
+        :meth:`PerformanceAnalyzer._max_drawdown` misses every drawdown
+        that occurs *while a trade is open* and recovers (partially or
+        fully) before the trade exits — a textbook intra-trade
+        drawdown. This helper replays the closed trades over the candle
+        stream and emits one ``EquityPoint`` per bar:
+
+        * **Realised P&L** — sum of ``trade.pnl`` for every trade that
+          has already exited as of this candle.
+        * **Unrealised P&L** — for the (at most one) trade that is open
+          at this candle, mark to ``candle.close`` via
+          :func:`pnl_for_trade`. Fees are *not* deducted again on the
+          unrealised leg; entry/exit fees are already baked into the
+          closed trade's ``pnl`` once the trade exits, so the realised
+          line picks them up the candle the trade closes.
+
+        Equity at bar i = ``initial_balance + realised + unrealised``.
+        Concurrent positions are not supported by the engine's current
+        sizing path; if they ever land, this helper still produces a
+        single best-effort sample per bar (sums every still-open trade's
+        unrealised mark) and the analyzer's MDD remains conservative.
+        """
+        if not ohlcv:
+            return []
+
+        # Sort trades by entry / exit time once so we can scan linearly
+        # through the candle series.
+        ordered = sorted(trades, key=lambda t: (t.entry_time, t.exit_time))
+
+        curve: list[EquityPoint] = []
+        for candle in ohlcv:
+            ts = candle.timestamp
+            close = candle.close
+            realised = Decimal("0")
+            unrealised = Decimal("0")
+            for trade in ordered:
+                if trade.exit_time <= ts:
+                    realised += trade.pnl
+                elif trade.entry_time <= ts:
+                    # Trade is open at this bar — mark to close.
+                    unrealised += pnl_for_trade(
+                        entry=trade.entry_price,
+                        exit=close,
+                        qty=trade.quantity,
+                        side=trade.side,
+                    )
+                # else: trade hasn't entered yet — contributes 0.
+            equity = initial_balance + realised + unrealised
+            curve.append(EquityPoint(timestamp=ts, equity=equity))
+        return curve
+
     def _build_result(
         self,
         strategy: BaseStrategy,
@@ -1002,15 +1053,17 @@ class Backtester:
         losses = sum(1 for t in trades if t.pnl < 0)
         breakevens = sum(1 for t in trades if t.pnl == 0)
         total_pnl = sum((t.pnl for t in trades), Decimal("0"))
-        total_fees = sum(
-            (t.entry_fee + t.exit_fee for t in trades), Decimal("0")
-        )
+        total_fees = sum((t.entry_fee + t.exit_fee for t in trades), Decimal("0"))
         total = len(trades)
         win_rate = (wins / total) if total else 0.0
         initial = self.config.initial_balance
         return_pct = (
             float((final_balance - initial) / initial * 100) if initial > 0 else 0.0
         )
+
+        # Phase 24.1 / DEBT-030: per-bar mark-to-market equity curve so
+        # the analyzer can compute intra-trade-aware MDD / Sharpe.
+        equity_curve = self._build_equity_curve(ohlcv, trades, initial)
 
         return BacktestResult(
             run_id=f"bt-{uuid.uuid4().hex[:12]}",
@@ -1032,6 +1085,7 @@ class Backtester:
             win_rate=win_rate,
             return_percent=return_pct,
             trades=trades,
+            equity_curve=equity_curve,
         )
 
     # ------------------------------------------------------------------
@@ -1131,4 +1185,8 @@ class Backtester:
             ):
                 if trade.get(key) is not None:
                     trade[key] = str(trade[key])
+        # Phase 24.1 / DEBT-030: equity curve (timestamp + Decimal equity).
+        for point in data.get("equity_curve", []):
+            point["timestamp"] = point["timestamp"].isoformat()
+            point["equity"] = str(point["equity"])
         return data

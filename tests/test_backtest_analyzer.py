@@ -63,9 +63,7 @@ def _make_result(
     """Build a BacktestResult that's internally consistent with trades."""
     initial_dec = Decimal(initial)
     total_pnl = sum((t.pnl for t in trades), Decimal("0"))
-    total_fees = sum(
-        (t.entry_fee + t.exit_fee for t in trades), Decimal("0")
-    )
+    total_fees = sum((t.entry_fee + t.exit_fee for t in trades), Decimal("0"))
     final_dec = Decimal(final) if final is not None else initial_dec + total_pnl
 
     wins = sum(1 for t in trades if t.pnl > 0)
@@ -73,9 +71,7 @@ def _make_result(
     breakevens = sum(1 for t in trades if t.pnl == 0)
     win_rate = wins / len(trades) if trades else 0.0
     return_pct = (
-        float((final_dec - initial_dec) / initial_dec * 100)
-        if initial_dec > 0
-        else 0.0
+        float((final_dec - initial_dec) / initial_dec * 100) if initial_dec > 0 else 0.0
     )
 
     return BacktestResult(
@@ -138,9 +134,7 @@ class TestNoTrades:
 class TestTradeCounts:
     """Win / loss / breakeven counts and win rate."""
 
-    def test_mixed_trades_counts(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_mixed_trades_counts(self, analyzer: PerformanceAnalyzer) -> None:
         trades = [
             _make_trade("100"),
             _make_trade("-50"),
@@ -196,9 +190,7 @@ class TestAveragesAndExtremes:
         assert metrics.gross_profit == Decimal("400")
         assert metrics.gross_loss == Decimal("-200")
 
-    def test_no_wins_yields_zero_avg_win(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_no_wins_yields_zero_avg_win(self, analyzer: PerformanceAnalyzer) -> None:
         trades = [_make_trade("-50")]
         metrics = analyzer.analyze(_make_result(trades))
         assert metrics.avg_win == Decimal("0")
@@ -222,9 +214,7 @@ class TestProfitFactor:
         metrics = analyzer.analyze(_make_result(trades))
         assert metrics.profit_factor == 2.0
 
-    def test_no_losses_returns_none(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_no_losses_returns_none(self, analyzer: PerformanceAnalyzer) -> None:
         metrics = analyzer.analyze(
             _make_result([_make_trade("100"), _make_trade("200")])
         )
@@ -244,9 +234,7 @@ class TestReturns:
         assert metrics.total_return == Decimal("1000")
         assert metrics.return_percent == pytest.approx(10.0)
 
-    def test_annualized_return_30_days(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_annualized_return_30_days(self, analyzer: PerformanceAnalyzer) -> None:
         """30-day run with 10% return annualizes via compounding."""
         trades = [_make_trade("1000")]
         start = datetime(2026, 1, 1)
@@ -254,13 +242,9 @@ class TestReturns:
         metrics = analyzer.analyze(_make_result(trades, start=start, end=end))
         assert metrics.annualized_return_percent is not None
         # (1.1)^(365/30) - 1 ≈ 2.188 → ~218.87%
-        assert metrics.annualized_return_percent == pytest.approx(
-            218.87, rel=0.01
-        )
+        assert metrics.annualized_return_percent == pytest.approx(218.87, rel=0.01)
 
-    def test_annualized_none_for_short_run(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_annualized_none_for_short_run(self, analyzer: PerformanceAnalyzer) -> None:
         """< 1 day span → annualization is not meaningful."""
         trades = [_make_trade("100")]
         start = datetime(2026, 1, 1, 0, 0, 0)
@@ -275,9 +259,7 @@ class TestReturns:
 
 
 class TestMaxDrawdown:
-    def test_linear_profit_no_drawdown(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_linear_profit_no_drawdown(self, analyzer: PerformanceAnalyzer) -> None:
         trades = [
             _make_trade("100"),
             _make_trade("100"),
@@ -287,9 +269,7 @@ class TestMaxDrawdown:
         assert metrics.max_drawdown == Decimal("0")
         assert metrics.max_drawdown_percent == 0.0
 
-    def test_drawdown_from_peak(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_drawdown_from_peak(self, analyzer: PerformanceAnalyzer) -> None:
         """Equity: 10000 → 10500 → 10100 → 10300. MDD = 400."""
         t0 = datetime(2026, 1, 1)
         trades = [
@@ -326,9 +306,7 @@ class TestMaxDrawdown:
         assert metrics.max_drawdown == Decimal("300")
         assert metrics.max_drawdown_percent == pytest.approx(3.0, rel=0.01)
 
-    def test_drawdown_orders_by_exit_time(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_drawdown_orders_by_exit_time(self, analyzer: PerformanceAnalyzer) -> None:
         """MDD walk sorts by exit_time regardless of input order."""
         t0 = datetime(2026, 1, 1)
         # Same trades as test_drawdown_from_peak but passed reversed
@@ -371,9 +349,7 @@ class TestSharpe:
         metrics = analyzer.analyze(_make_result(trades))
         assert metrics.sharpe_ratio is None
 
-    def test_single_trade_yields_none(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_single_trade_yields_none(self, analyzer: PerformanceAnalyzer) -> None:
         metrics = analyzer.analyze(_make_result([_make_trade("100")]))
         assert metrics.sharpe_ratio is None
 
@@ -414,9 +390,7 @@ class TestSharpe:
 
 
 class TestExpectancy:
-    def test_expectancy_formula(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_expectancy_formula(self, analyzer: PerformanceAnalyzer) -> None:
         # 2 winners avg 200, 2 losers avg -100. WR=0.5, LR=0.5.
         # Expectancy = 0.5 * 200 + 0.5 * -100 = 50
         trades = [
@@ -435,9 +409,7 @@ class TestExpectancy:
 
 
 class TestFees:
-    def test_total_fees_summed(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_total_fees_summed(self, analyzer: PerformanceAnalyzer) -> None:
         trades = [
             _make_trade("100", entry_fee="1.5", exit_fee="1.5"),
             _make_trade("-50", entry_fee="2", exit_fee="2"),
@@ -473,15 +445,11 @@ class TestReport:
         )
         assert "moderate" in report
 
-    def test_report_marks_none_profile(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_report_marks_none_profile(self, analyzer: PerformanceAnalyzer) -> None:
         report = analyzer.generate_report(_make_result([_make_trade("100")]))
         assert "_none_" in report
 
-    def test_report_handles_zero_trades(
-        self, analyzer: PerformanceAnalyzer
-    ) -> None:
+    def test_report_handles_zero_trades(self, analyzer: PerformanceAnalyzer) -> None:
         report = analyzer.generate_report(_make_result([]))
         assert "**Total**: 0" in report
         # Sharpe n/a in the trades section header
@@ -496,3 +464,219 @@ class TestReport:
         content = path.read_text(encoding="utf-8")
         assert "Backtest Report" in content
         assert path.name == "report.md"
+
+
+# =============================================================================
+# Phase 24.1 / DEBT-030: per-bar (intra-trade) MDD + Sharpe
+# =============================================================================
+
+
+class TestEquityCurveMaxDrawdown:
+    """When the per-bar equity curve is populated, MDD reflects intra-trade
+    drawdowns the closed-trade walk would miss."""
+
+    def test_intra_trade_mdd_strictly_below_closed_trade_mdd(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """Long trade goes deep underwater mid-flight, then recovers to a
+        small loss at exit. Closed-trade MDD = abs(small loss); per-bar
+        MDD ≥ deep mid-trade drawdown.
+        """
+        from src.backtest.engine import EquityPoint
+
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        # Trade entered at t0, exited at t0+5h with pnl=-50 (small loss).
+        trade = _make_trade(
+            "-50",
+            entry_time=t0,
+            exit_time=t0 + timedelta(hours=5),
+            close_reason="end_of_data",
+        )
+
+        # Per-bar equity (initial 10000):
+        #   10000 → 9990 → 9500 → 9200 → 9700 → 9950
+        # mid-trade drawdown = 10000 - 9200 = 800, recovered to -50 at exit.
+        equity_curve = [
+            EquityPoint(timestamp=t0, equity=Decimal("10000")),
+            EquityPoint(timestamp=t0 + timedelta(hours=1), equity=Decimal("9990")),
+            EquityPoint(timestamp=t0 + timedelta(hours=2), equity=Decimal("9500")),
+            EquityPoint(timestamp=t0 + timedelta(hours=3), equity=Decimal("9200")),
+            EquityPoint(timestamp=t0 + timedelta(hours=4), equity=Decimal("9700")),
+            EquityPoint(timestamp=t0 + timedelta(hours=5), equity=Decimal("9950")),
+        ]
+        result = _make_result([trade])
+        # Inject the curve (Phase 24.1 contract — the analyzer prefers
+        # bar equity when present).
+        result_with_curve = result.model_copy(update={"equity_curve": equity_curve})
+
+        # Closed-trade-only MDD via the legacy path (no curve).
+        closed_metrics = analyzer.analyze(result)
+        # Per-bar MDD via the new path.
+        bar_metrics = analyzer.analyze(result_with_curve)
+
+        # Strict inequality is the regression invariant — bar MDD must
+        # exceed closed-trade MDD whenever an intra-trade drawdown
+        # exceeds the closed P&L.
+        assert closed_metrics.max_drawdown == Decimal("50")
+        assert bar_metrics.max_drawdown == Decimal("800")
+        assert bar_metrics.max_drawdown > closed_metrics.max_drawdown
+
+    def test_empty_equity_curve_falls_back_to_closed_trades(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """No curve → closed-trade walk (legacy back-compat surface)."""
+        trade = _make_trade("-50")
+        result = _make_result([trade])
+        assert result.equity_curve == []  # Default factory
+        metrics = analyzer.analyze(result)
+        # Closed-trade MDD on a single losing trade = abs(pnl).
+        assert metrics.max_drawdown == Decimal("50")
+
+    def test_sharpe_uses_bar_returns_when_curve_present(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """With an equity curve, Sharpe is computed from per-bar returns."""
+        from src.backtest.engine import EquityPoint
+
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        trade = _make_trade(
+            "100",
+            entry_time=t0,
+            exit_time=t0 + timedelta(hours=2),
+        )
+        curve = [
+            EquityPoint(timestamp=t0, equity=Decimal("10000")),
+            EquityPoint(timestamp=t0 + timedelta(hours=1), equity=Decimal("10050")),
+            EquityPoint(timestamp=t0 + timedelta(hours=2), equity=Decimal("10100")),
+        ]
+        result = _make_result([trade]).model_copy(update={"equity_curve": curve})
+        metrics = analyzer.analyze(result)
+        # Two bar returns: +0.005, +0.00497..; std non-zero, mean > 0
+        # → finite positive Sharpe.
+        assert metrics.sharpe_ratio is not None
+        assert metrics.sharpe_ratio > 0
+
+
+class TestEquityCurveSharpeAnnualization:
+    """Phase 24.2 fix (DEBT-030): bar-equity Sharpe annualization derives
+    its factor from the candle cadence, not the caller-supplied
+    ``trades_per_year``. Without this guard hourly bars would be
+    annualized at ``√252`` (the closed-trade default) and Sharpe would
+    silently scale ~5.9× larger than the bar-cadence-aware value.
+    """
+
+    def test_hourly_cadence_annualization_factor_matches_sqrt_8760(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """Hourly cadence → bars_per_year ≈ 8760 → factor ≈ √8760 ≈ 93.6.
+
+        Hand-computed scale: build an hourly equity curve with two
+        bar returns (+0.01, -0.005). Per-bar mean = 0.0025, sample
+        stdev ≈ 0.01060660; raw per-bar Sharpe ≈ 0.2357. Annualized
+        Sharpe = raw × √8760 ≈ 22.07. The annualization factor is the
+        load-bearing assertion; the absolute Sharpe is checked to
+        ±5% to absorb tiny rounding in the cadence calculation.
+        """
+        from src.backtest.engine import EquityPoint
+
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        # Hourly equity curve:
+        #   r1 = (10100 - 10000)/10000 = +0.01
+        #   r2 = (10049.5 - 10100)/10100 ≈ -0.005
+        curve = [
+            EquityPoint(timestamp=t0, equity=Decimal("10000")),
+            EquityPoint(timestamp=t0 + timedelta(hours=1), equity=Decimal("10100")),
+            EquityPoint(timestamp=t0 + timedelta(hours=2), equity=Decimal("10049.50")),
+        ]
+        # ``trade`` is required for ``_make_result`` to populate stats;
+        # the analyzer only consumes ``equity_curve`` for Sharpe.
+        trade = _make_trade(
+            "49.50",
+            entry_time=t0,
+            exit_time=t0 + timedelta(hours=2),
+        )
+        result = _make_result([trade]).model_copy(update={"equity_curve": curve})
+
+        # ``trades_per_year=252`` deliberately used as the *closed-
+        # trade* convention; the equity-curve path must IGNORE it and
+        # use the bar cadence instead. If the bug regresses, Sharpe
+        # would scale by √252 ≈ 15.87 instead of √8760 ≈ 93.6.
+        metrics = analyzer.analyze(result, trades_per_year=252)
+        assert metrics.sharpe_ratio is not None
+
+        # Hand-computed expected value:
+        #   r = [0.01, -0.005]
+        #   mean = 0.0025
+        #   variance (sample) = ((0.01-0.0025)^2 + (-0.005-0.0025)^2) / 1
+        #                     = 0.0001125
+        #   std = sqrt(0.0001125) ≈ 0.01060660
+        #   per-bar sharpe = 0.0025 / 0.01060660 ≈ 0.235702
+        #   bars/year = 365*24 = 8760
+        #   annualized = 0.235702 * sqrt(8760) ≈ 22.066
+        expected = 0.235702 * (8760**0.5)
+        assert metrics.sharpe_ratio == pytest.approx(expected, rel=0.01)
+
+        # Defense-in-depth: the annualization factor itself.
+        # bars_per_year is the public seam used by the analyzer.
+        bars_per_year = PerformanceAnalyzer._bars_per_year(curve)
+        assert bars_per_year == 8760
+
+    def test_daily_cadence_annualization_factor_matches_sqrt_365(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """Daily cadence → bars_per_year = 365 → factor ≈ √365 ≈ 19.1.
+
+        Pinned regression for the cadence-detection logic on a
+        timeframe other than hourly. The previous (broken) path would
+        have used ``trades_per_year`` (often 252) on this curve, off
+        by ~1.31× from the cadence-correct value.
+        """
+        from src.backtest.engine import EquityPoint
+
+        t0 = datetime(2026, 1, 1)
+        curve = [
+            EquityPoint(timestamp=t0 + timedelta(days=i), equity=Decimal("10000"))
+            for i in range(5)
+        ]
+        bars_per_year = PerformanceAnalyzer._bars_per_year(curve)
+        assert bars_per_year == 365
+
+    def test_bars_per_year_is_none_for_single_point_curve(self) -> None:
+        """A degenerate one-point curve has no cadence; return None."""
+        from src.backtest.engine import EquityPoint
+
+        curve = [EquityPoint(timestamp=datetime(2026, 1, 1), equity=Decimal("10000"))]
+        assert PerformanceAnalyzer._bars_per_year(curve) is None
+
+    def test_bar_sharpe_ignores_caller_trades_per_year(
+        self, analyzer: PerformanceAnalyzer
+    ) -> None:
+        """Bar-equity-curve path must NOT scale by ``trades_per_year``.
+
+        Sanity: with the same equity curve, two analyses passing
+        different ``trades_per_year`` values must produce identical
+        Sharpe ratios — the bar-cadence-derived factor is the only
+        scaler that applies.
+        """
+        from src.backtest.engine import EquityPoint
+
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        curve = [
+            EquityPoint(timestamp=t0, equity=Decimal("10000")),
+            EquityPoint(timestamp=t0 + timedelta(hours=1), equity=Decimal("10100")),
+            EquityPoint(timestamp=t0 + timedelta(hours=2), equity=Decimal("10049.50")),
+        ]
+        trade = _make_trade(
+            "49.50",
+            entry_time=t0,
+            exit_time=t0 + timedelta(hours=2),
+        )
+        result = _make_result([trade]).model_copy(update={"equity_curve": curve})
+
+        a = analyzer.analyze(result, trades_per_year=None).sharpe_ratio
+        b = analyzer.analyze(result, trades_per_year=252).sharpe_ratio
+        c = analyzer.analyze(result, trades_per_year=10_000).sharpe_ratio
+
+        assert a is not None and b is not None and c is not None
+        assert a == pytest.approx(b, rel=1e-9)
+        assert b == pytest.approx(c, rel=1e-9)

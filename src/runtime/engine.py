@@ -115,6 +115,37 @@ class EngineConfig(BaseModel):
     # smoking-gun bug closes without an env flip.
     fill_slippage_tolerance: Decimal = Field(default=Decimal("0.005"), ge=0)
     reject_if_past_stop_loss: bool = True
+    # Phase 24.1 / DEBT-033: freshness guard on the ticker that feeds
+    # the stale-quote sanity gate. If the live ticker's ``timestamp``
+    # is older than this threshold relative to ``now_utc()``, the gate
+    # falls through with the same WARN that the exception path emits —
+    # an old quote is no better than no quote, and silently using one
+    # for the slippage / past-SL checks would defeat the gate's
+    # purpose. Default 10 seconds gives normal exchange-poll latency
+    # plenty of slack while still catching stuck or rate-limited
+    # connections.
+    max_ticker_age_seconds: float = Field(default=10.0, gt=0)
+    # Phase 24.2 (DEBT-033 follow-up): when True, a stale ticker (age
+    # > ``max_ticker_age_seconds``) or a ticker fetch failure causes
+    # the proposal to be rejected outright with reason
+    # ``stale_quote_no_live_data`` instead of falling through to the
+    # fill at ``proposal.entry_price``. The original audit concern
+    # was that fall-through fills silently proceed without a live
+    # cross-check; this flag is the opt-in safety for live mode where
+    # that risk is unacceptable. Default False preserves the existing
+    # WARN-and-fall-through behaviour so paper / dev deployments are
+    # unaffected; flip to True (or set ``ENGINE_REJECT_IF_STALE_QUOTE=true``
+    # in the environment) to enforce the harder live-mode guarantee.
+    reject_if_stale_quote: bool = Field(
+        default=False,
+        description=(
+            "When True, reject the proposal entirely instead of falling "
+            "through if the ticker exceeds max_ticker_age_seconds (or the "
+            "ticker fetch fails). Default False preserves existing behavior; "
+            "set True for live-mode safety so a fill never proceeds without "
+            "a live cross-check."
+        ),
+    )
     # Phase 22.2 / DEBT-027 paper-trader liquidation visibility.
     # Default ``False`` lets ``PaperTrader.close_position`` record true
     # negative equity when an under-water close would push the free
@@ -576,6 +607,66 @@ class TradingEngine:
                 type(e).__name__,
                 e,
             )
+            # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection
+            # when there is no live data to cross-check against. Live
+            # mode operators flip this on so a fill never proceeds
+            # at ``proposal.entry_price`` without a fresh quote.
+            if self.config.reject_if_stale_quote:
+                reason = "stale_quote_no_live_data"
+                self._record_no_live_data_rejection(
+                    proposal=proposal,
+                    cycle_id=cycle_id,
+                    result=result,
+                    reason=reason,
+                    detail=f"ticker_fetch_failed:{type(e).__name__}",
+                )
+                return reason
+            return None
+
+        # Phase 24.1 / DEBT-033: ticker freshness threshold. A
+        # successfully-fetched but old ticker (rate-limited adapter,
+        # cached response, frozen connection) is no better than a
+        # failed fetch for the slippage / past-SL checks below. Fall
+        # through with the same WARN that the exception path emits so
+        # the gate's effectiveness is observable in the logs and the
+        # operator decides whether to harden the freshness threshold
+        # via ``EngineConfig.max_ticker_age_seconds``.
+        ticker_ts = ticker.timestamp
+        if ticker_ts.tzinfo is None:
+            # Phase 21 contract: exchange adapters produce UTC-aware
+            # timestamps via ``from_unix_ms``. Naive timestamps reach
+            # this code only from older fixtures; treat as UTC for the
+            # freshness comparison rather than crash the gate.
+            ticker_ts = ticker_ts.replace(tzinfo=now_utc().tzinfo)
+        age_seconds = (now_utc() - ticker_ts).total_seconds()
+        if age_seconds > self.config.max_ticker_age_seconds:
+            logger.warning(
+                "stale_quote_check_failed: symbol=%s proposal_id=%s "
+                "error_type=stale_ticker error=ticker age %.2fs "
+                "exceeds max_ticker_age_seconds=%.2f",
+                proposal.symbol,
+                proposal.proposal_id,
+                age_seconds,
+                self.config.max_ticker_age_seconds,
+            )
+            # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection
+            # on stale quote. Same reasoning as the exception branch
+            # above — when ``reject_if_stale_quote`` is True the gate
+            # blocks the fill rather than silently letting it proceed
+            # against a known-stale tape.
+            if self.config.reject_if_stale_quote:
+                reason = "stale_quote_no_live_data"
+                self._record_no_live_data_rejection(
+                    proposal=proposal,
+                    cycle_id=cycle_id,
+                    result=result,
+                    reason=reason,
+                    detail=(
+                        f"ticker_age_seconds={age_seconds:.2f} "
+                        f"max={self.config.max_ticker_age_seconds:.2f}"
+                    ),
+                )
+                return reason
             return None
 
         live_price = ticker.price
@@ -711,6 +802,66 @@ class TradingEngine:
                 "proposal_stop_loss": str(proposal.stop_loss),
                 "live_price": str(live_price),
                 "drift_bps": drift_bps,
+            },
+            cycle_id=cycle_id,
+        )
+
+    def _record_no_live_data_rejection(
+        self,
+        *,
+        proposal: Proposal,
+        cycle_id: str,
+        result: CycleResult,
+        reason: str,
+        detail: str,
+    ) -> None:
+        """Persist + log a rejection caused by missing live data.
+
+        Phase 24.2 / DEBT-033 follow-up. When
+        ``EngineConfig.reject_if_stale_quote`` is True, both the ticker
+        fetch failure path and the freshness-threshold path divert here
+        instead of falling through to the fill. The persisted record
+        and activity event mirror :meth:`_record_stale_quote_rejection`
+        but omit ``live_price`` / ``drift_bps`` (no live tape was
+        available to populate them) and carry a ``detail`` field
+        describing whether it was a fetch failure or a stale ticker so
+        post-mortems can distinguish the two.
+        """
+        try:
+            existing = self.proposal_history.load(proposal.proposal_id)
+            updated = existing.model_copy(
+                update={
+                    "decision": ProposalDecision.REJECTED.value,
+                    "rejection_reason": reason,
+                    "decision_at": now_utc(),
+                }
+            )
+            self.proposal_history.save(updated)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to overwrite proposal record %s with no-live-data "
+                "rejection: %s",
+                proposal.proposal_id,
+                e,
+            )
+
+        # Same accounting as ``_record_stale_quote_rejection``: the
+        # proposal was already counted as accepted by score; this
+        # rejection happens at the execution gate.
+        result.proposals_rejected += 1
+
+        self.activity_log.append(
+            ActivityEventType.PROPOSAL_REJECTED,
+            (
+                f"No-live-data rejected {proposal.symbol} {proposal.signal} "
+                f"({reason})"
+            ),
+            details={
+                **_proposal_summary(proposal),
+                "reason": reason,
+                "detail": detail,
+                "proposal_entry": str(proposal.entry_price),
+                "proposal_stop_loss": str(proposal.stop_loss),
             },
             cycle_id=cycle_id,
         )

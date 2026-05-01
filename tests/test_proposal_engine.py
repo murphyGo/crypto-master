@@ -736,3 +736,160 @@ async def test_engine_no_activity_log_means_no_crash_on_timeout() -> None:
     proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
 
     assert proposal is None
+
+
+# =============================================================================
+# Phase 24.1 / DEBT-034: live cold-start guard
+# =============================================================================
+
+
+async def test_live_mode_blocks_cold_start_proposal(tmp_path: Path) -> None:
+    """Phase 24.1 / DEBT-034: live mode + every technique below the
+    closed-trades threshold → no proposal.
+
+    Without the guard, real money would go to whichever technique
+    sorts first alphabetically since cold-start composites collapse to
+    ``confidence × no_history_score_factor``. The guard returns ``None``
+    so a fresh deployment cannot fire a live trade until at least one
+    technique has accumulated enough history to be promotable.
+
+    Phase 24.2 / DEBT-034 follow-up: assert the
+    :data:`ActivityEventType.COLD_START_BLOCKED` event lands so the
+    dashboard surfaces the deliberate idle state to operators.
+    """
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    a = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    b = make_strategy(
+        info=make_info("beta", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+    engine, _ = make_engine(
+        strategies={"alpha": a, "beta": b},
+        # No perf records → both techniques have total_trades=0.
+        config=ProposalEngineConfig(
+            mode="live",
+            min_closed_trades_for_live_promotion=5,
+        ),
+        activity_log=activity_log,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+
+    # Phase 24.2 / DEBT-034 follow-up: the dashboard-facing event must
+    # land with the canonical reason string + per-technique trade
+    # snapshot so operators can see *which* techniques fell short.
+    events = activity_log.tail(50)
+    cold_events = [
+        e for e in events if e.event_type == ActivityEventType.COLD_START_BLOCKED.value
+    ]
+    assert len(cold_events) == 1
+    event = cold_events[0]
+    assert event.details["symbol"] == "BTC/USDT"
+    assert event.details["reason"] == "cold_start_below_min_closed_trades"
+    assert event.details["min_closed_trades_for_live_promotion"] == 5
+    assert event.details["max_trades_observed"] == 0
+    assert event.details["per_technique_trades"] == {"alpha": 0, "beta": 0}
+
+
+async def test_paper_mode_allows_cold_start_proposal() -> None:
+    """Phase 24.1 / DEBT-034: paper mode is unaffected by the guard.
+
+    The guard only fires in live mode — paper mode continues to bootstrap
+    technique performance from cold-start since there's no real-money
+    exposure.
+    """
+    a = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    engine, _ = make_engine(
+        strategies={"alpha": a},
+        # Paper mode is the default — we set it explicitly to make the
+        # contract obvious to readers.
+        config=ProposalEngineConfig(
+            mode="paper",
+            min_closed_trades_for_live_promotion=5,
+        ),
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert proposal.technique_name == "alpha"
+    assert proposal.score.sample_size == 0  # Cold start
+
+
+async def test_live_mode_allows_proposal_when_one_technique_has_enough_trades() -> None:
+    """Phase 24.1 / DEBT-034: the guard releases as soon as ANY
+    applicable technique meets the threshold.
+
+    The single technique with sufficient closed trades is the live
+    candidate; cold-start techniques in the same population still
+    aren't picked (their composites are below the qualifying
+    technique's), but the guard itself is no longer a hard block.
+    """
+    qualified = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    cold = make_strategy(
+        info=make_info("beta", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    engine, _ = make_engine(
+        strategies={"alpha": qualified, "beta": cold},
+        perf_records={
+            "alpha": make_perf("alpha", total_trades=10, avg_pnl_percent=2.0),
+            # beta has no record → cold start.
+        },
+        config=ProposalEngineConfig(
+            mode="live",
+            min_closed_trades_for_live_promotion=5,
+            multi_technique_per_symbol=False,  # Use legacy single-best path
+        ),
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert proposal.technique_name == "alpha"
+
+
+async def test_live_mode_blocks_when_only_cold_start_techniques_present() -> None:
+    """Phase 24.1 / DEBT-034: multi-technique scan path also blocks.
+
+    The guard is enforced before either ``_select_best_technique``
+    (legacy path) or ``_select_all_techniques`` (Phase 10.6 multi-
+    technique path) runs, so both code paths return None / empty in
+    live mode when no technique qualifies.
+    """
+    a = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    engine, _ = make_engine(
+        strategies={"alpha": a},
+        perf_records={
+            "alpha": make_perf("alpha", total_trades=2, avg_pnl_percent=2.0),
+        },
+        config=ProposalEngineConfig(
+            mode="live",
+            min_closed_trades_for_live_promotion=5,
+            multi_technique_per_symbol=True,  # Phase 10.6 default
+        ),
+    )
+
+    # Single-symbol entry point.
+    bitcoin = await engine.propose_bitcoin()
+    assert bitcoin is None
+
+    # Multi-symbol scan entry point: the guard fires per-symbol.
+    altcoins = await engine.propose_altcoins(symbols=["BTC/USDT"], top_k=3)
+    assert altcoins == []

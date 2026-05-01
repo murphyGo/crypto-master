@@ -35,7 +35,7 @@ from src.exchange.base import BaseExchange
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
 from src.logger import get_logger
-from src.proposal.engine import ProposalEngine
+from src.proposal.engine import ProposalEngine, ProposalEngineConfig
 from src.proposal.interaction import ProposalHistory, ProposalInteraction
 from src.proposal.notification import (
     ConsoleNotifier,
@@ -190,6 +190,9 @@ def build_engine(
         # Phase 18.1 stale-quote sanity gate.
         fill_slippage_tolerance=settings.engine_fill_slippage_tolerance,
         reject_if_past_stop_loss=settings.engine_reject_if_past_stop_loss,
+        # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection when
+        # the stale-quote gate has no live data to cross-check against.
+        reject_if_stale_quote=settings.engine_reject_if_stale_quote,
         # Phase 22.2 / DEBT-027 paper-mode liquidation visibility.
         paper_auto_deposit_on_liquidation=(settings.paper_auto_deposit_on_liquidation),
     )
@@ -202,10 +205,15 @@ def build_engine(
     # engine (for everything else) so the dashboard sees all events on
     # the same rotated file.
     activity = ActivityLog()
+    # Phase 24.1 / DEBT-034: forward the trading mode so the proposal
+    # engine can apply the live cold-start guard (no real money to a
+    # technique with zero closed trades).
+    proposal_config = ProposalEngineConfig(mode=settings.trading_mode)
     proposal_engine = ProposalEngine(
         exchange=exchange,
         strategies=strategies,
         performance_tracker=perf,
+        config=proposal_config,
         activity_log=activity,
     )
     history = ProposalHistory()

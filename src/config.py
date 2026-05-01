@@ -193,6 +193,15 @@ class Settings(BaseSettings):
     # proposal's stop-loss in the trade direction. Default True
     # (closes the smoking-gun stale-quote bug without an env flip).
     engine_reject_if_past_stop_loss: bool = Field(default=True)
+    # Phase 24.2 (DEBT-033 follow-up): opt-in hard rejection when the
+    # stale-quote gate has no live data to cross-check against
+    # (ticker fetch failure or ticker older than
+    # ``ENGINE_MAX_TICKER_AGE_SECONDS``). Default False preserves the
+    # existing WARN-and-fall-through behaviour; flip to True for live
+    # mode where a fill at ``proposal.entry_price`` without a live
+    # cross-check is unacceptable. See
+    # ``EngineConfig.reject_if_stale_quote`` for the runtime semantics.
+    engine_reject_if_stale_quote: bool = Field(default=False)
 
     # Phase 17.2 (DEBT-019): backtest engine circuit breaker. Defaults
     # match ``src.backtest.engine.BacktestConfig``'s

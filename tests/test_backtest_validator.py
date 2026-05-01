@@ -251,7 +251,8 @@ class TestOOSGate:
     async def test_passes_when_oos_consistent_with_is(self) -> None:
         gate = make_gate(
             config=RobustnessConfig(
-                oos_min_trades=2, walk_forward_windows=2,
+                oos_min_trades=2,
+                walk_forward_windows=2,
                 regime_sma_period=20,
             )
         )
@@ -270,16 +271,15 @@ class TestOOSGate:
     async def test_fails_when_oos_collapses(self) -> None:
         gate = make_gate(
             config=RobustnessConfig(
-                oos_min_trades=2, walk_forward_windows=2,
-                regime_sma_period=20, oos_fraction=0.4,
+                oos_min_trades=2,
+                walk_forward_windows=2,
+                regime_sma_period=20,
+                oos_fraction=0.4,
             )
         )
         # First 60 candles: winning. Last 40: losing. OOS half = losing.
-        candles = (
-            make_candles(60, pattern="winning")
-            + make_candles(
-                40, pattern="losing", start=datetime(2026, 1, 1) + timedelta(hours=60)
-            )
+        candles = make_candles(60, pattern="winning") + make_candles(
+            40, pattern="losing", start=datetime(2026, 1, 1) + timedelta(hours=60)
         )
         strategy = PeriodicLongStrategy(period=5)
         report = await gate.evaluate(strategy, candles, "BTC/USDT")
@@ -294,6 +294,126 @@ class TestOOSGate:
         report = await gate.evaluate(strategy, candles, "BTC/USDT")
         oos = next(g for g in report.gates if g.name == "oos")
         assert oos.status == GateStatus.SKIPPED
+
+    @pytest.mark.asyncio
+    async def test_skipped_when_is_trades_below_minimum_floor(self) -> None:
+        """Phase 24.1 / DEBT-032: tiny IS with non-positive Sharpe → SKIPPED.
+
+        Regression for the over-eager FAIL: an operator who relaxes
+        ``oos_min_trades`` below the Sharpe-significance floor would
+        otherwise see a strategy with positive expected value but only
+        2-3 IS trades hard-failed by sampling noise. The IS-floor guard
+        converts that path to SKIPPED.
+
+        Phase 24.2 follow-up: relies on the default
+        ``minimum_is_trades=10`` (bumped from 5 per quant-trader-expert
+        review). Sharpe estimates with N<10 trades have prohibitively
+        high variance.
+        """
+        # ``oos_min_trades=2`` so the under-populated-split SKIP
+        # doesn't claim the verdict first — the IS-Sharpe-noise SKIP
+        # under test must take priority. The new default
+        # ``minimum_is_trades=10`` is the IS floor (Phase 24.2 /
+        # DEBT-032).
+        # 60-candle losing series, oos_fraction=0.5 → IS=30 / OOS=30.
+        # PeriodicLongStrategy(period=8) fires roughly 3 trades per
+        # split — above ``oos_min_trades=2`` (so the existing skip
+        # doesn't trigger) but below ``minimum_is_trades=10`` (so the
+        # new IS-floor skip is the path under test).
+        gate = make_gate(
+            config=RobustnessConfig(
+                oos_min_trades=2,
+                # Default minimum_is_trades=10 — left implicit to pin
+                # the new default contract.
+                walk_forward_windows=2,
+                regime_sma_period=20,
+                oos_fraction=0.5,
+            )
+        )
+        candles = make_candles(60, pattern="losing")
+        strategy = PeriodicLongStrategy(period=8)
+        report = await gate.evaluate(strategy, candles, "BTC/USDT")
+        oos = next(g for g in report.gates if g.name == "oos")
+        assert oos.status == GateStatus.SKIPPED
+        assert oos.details is not None
+        # IS trade count is the floor's discriminator.
+        assert oos.details["is_trades"] >= 2  # past the OOS-min-trades skip
+        assert oos.details["is_trades"] < 10  # below the IS-Sharpe-noise floor
+        assert "Insufficient IS trades" in (oos.reason or "")
+
+    @pytest.mark.asyncio
+    async def test_minimum_is_trades_default_is_ten(self) -> None:
+        """Phase 24.2 / DEBT-032 follow-up: the bumped default value
+        is the load-bearing contract.
+
+        Quant-trader-expert called out that N=5 Sharpe is "essentially
+        noise" — bumped to N=10 as a defensible compromise (strict
+        statistical floor would be N=20; 10 balances the floor with
+        practical feasibility for nascent strategies).
+        """
+        cfg = RobustnessConfig()
+        assert cfg.minimum_is_trades == 10
+
+    @pytest.mark.asyncio
+    async def test_below_floor_skips_but_at_or_above_floor_fails(self) -> None:
+        """Phase 24.2 / DEBT-032 follow-up: pin the floor's exclusive
+        boundary at the new default of 10.
+
+        The gate's SKIP guard reads ``is_trades < minimum_is_trades``,
+        so with the default ``minimum_is_trades=10``:
+
+        * IS=9  → below the floor → SKIPPED (Sharpe is noise-dominated).
+        * IS=10 → at the floor → execution falls through to the
+          IS-Sharpe-non-positive branch, which FAILs on a losing
+          candle stream.
+
+        This is the boundary that the bumped default (5 → 10) is
+        meant to enforce: strategies with N<10 IS trades are no
+        longer hard-killed by sampling variance.
+
+        Two configurations differ only in their candle stream length
+        (drives the IS trade count); everything else is held constant
+        so the boundary inequality is the load-bearing assertion.
+        """
+        # PeriodicLongStrategy(period=4) on a losing series, split
+        # 50/50 by ``oos_fraction=0.5``. Empirically calibrated:
+        #   total=78 candles → IS=39 candles → IS=9 trades  (below floor)
+        #   total=82 candles → IS=41 candles → IS=10 trades (at floor)
+        common = {
+            "oos_min_trades": 2,
+            "walk_forward_windows": 2,
+            "regime_sma_period": 20,
+            "oos_fraction": 0.5,
+        }
+
+        # N=9 → below default floor (10) → SKIPPED.
+        gate_skip = make_gate(config=RobustnessConfig(**common))  # type: ignore[arg-type]
+        candles_skip = make_candles(78, pattern="losing")
+        strategy = PeriodicLongStrategy(period=4)
+        report_skip = await gate_skip.evaluate(strategy, candles_skip, "BTC/USDT")
+        oos_skip = next(g for g in report_skip.gates if g.name == "oos")
+
+        # N=10 → at the floor → FAIL on the losing-IS-Sharpe branch.
+        gate_fail = make_gate(config=RobustnessConfig(**common))  # type: ignore[arg-type]
+        candles_fail = make_candles(82, pattern="losing")
+        report_fail = await gate_fail.evaluate(strategy, candles_fail, "BTC/USDT")
+        oos_fail = next(g for g in report_fail.gates if g.name == "oos")
+
+        # Floor boundary contract: below the floor → SKIPPED; at the
+        # floor → FAILED (since the candle stream is losing and IS
+        # Sharpe is non-positive). The two outcomes together pin the
+        # inequality direction (``<`` not ``<=``).
+        assert oos_skip.status == GateStatus.SKIPPED
+        assert oos_skip.details is not None
+        assert oos_skip.details["is_trades"] == 9  # below the floor
+        assert "Insufficient IS trades" in (oos_skip.reason or "")
+
+        assert oos_fail.status == GateStatus.FAILED
+        assert oos_fail.details is not None
+        # FAIL details carry is_sharpe / oos_sharpe (no is_trades — the
+        # FAIL branch is past the SKIP guards by definition).
+        is_sharpe = oos_fail.details["is_sharpe"]
+        assert is_sharpe is None or is_sharpe <= 0
 
 
 # =============================================================================
@@ -434,9 +554,7 @@ class TestSensitivityGate:
     @pytest.mark.asyncio
     async def test_fails_when_grid_exceeds_cap(self) -> None:
         gate = make_gate(
-            config=RobustnessConfig(
-                regime_sma_period=20, sensitivity_max_combos=2
-            )
+            config=RobustnessConfig(regime_sma_period=20, sensitivity_max_combos=2)
         )
         candles = make_candles(60, pattern="winning")
 

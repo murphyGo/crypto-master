@@ -182,6 +182,18 @@ class ProposalEngineConfig(BaseModel):
     would open N positions per symbol per cycle at N× the intended
     risk_percent."""
 
+    # Phase 24.1 / DEBT-034: cold-start guard on live promotion.
+    # When ``mode == "live"`` and no applicable technique has at least
+    # ``min_closed_trades_for_live_promotion`` closed trades, the
+    # engine returns no proposal for the symbol — real money does not
+    # go to a technique whose composite is the cold-start placeholder
+    # ``confidence × no_history_score_factor`` (where ties otherwise
+    # fall to alphabetical name order). In paper mode the behavior is
+    # unchanged so techniques can still bootstrap their performance
+    # history.
+    mode: Literal["paper", "live"] = "paper"
+    min_closed_trades_for_live_promotion: int = Field(default=5, ge=0)
+
 
 # =============================================================================
 # Helpers
@@ -409,6 +421,8 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
+        if self._cold_start_blocks_live(symbol):
+            return None
         selection = self._select_best_technique(symbol)
         if selection is None:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
@@ -444,6 +458,8 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
+        if self._cold_start_blocks_live(symbol):
+            return []
         selections = self._select_all_techniques(symbol)
         if not selections:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
@@ -676,6 +692,79 @@ class ProposalEngine:
         ranked.sort(key=key)
         best_strategy, best_perf = ranked[0]
         return (best_strategy, best_perf if best_perf.total_trades > 0 else None)
+
+    def _cold_start_blocks_live(self, symbol: str) -> bool:
+        """Phase 24.1 / DEBT-034: live mode + no qualifying technique → block.
+
+        Returns True iff:
+
+        * ``config.mode == "live"`` (paper mode is unaffected), AND
+        * No applicable technique for ``symbol`` has at least
+          ``min_closed_trades_for_live_promotion`` closed trades.
+
+        When True, the caller short-circuits and returns no proposal.
+        Without this guard, real money could go to whichever cold-start
+        technique sorts first alphabetically, since their composite
+        scores collapse to ``confidence × no_history_score_factor`` and
+        ``_select_best_technique`` falls back to lex-first by name on a
+        tie.
+        """
+        if self.config.mode != "live":
+            return False
+        threshold = self.config.min_closed_trades_for_live_promotion
+        if threshold <= 0:
+            return False
+        applicable = [
+            s
+            for s in self.strategies.values()
+            if not s.info.symbols or symbol in s.info.symbols
+        ]
+        if not applicable:
+            return False  # No-applicable-technique path is handled by callers.
+        # Build a per-technique trade-count snapshot up-front so the
+        # activity event payload can show operators *why* the bot is
+        # idle (which techniques fell short and by how much). The
+        # iteration is short (one record per applicable technique) so
+        # the loop fuses cleanly with the threshold short-circuit
+        # below.
+        per_technique: dict[str, int] = {}
+        max_trades = 0
+        for strategy in applicable:
+            perf = self.performance_tracker.get_performance(
+                strategy.name, strategy.version
+            )
+            per_technique[strategy.name] = perf.total_trades
+            if perf.total_trades > max_trades:
+                max_trades = perf.total_trades
+            if perf.total_trades >= threshold:
+                return False
+        logger.info(
+            "live cold-start guard: no applicable technique on %s has "
+            ">= %d closed trades; skipping proposal "
+            "(min_closed_trades_for_live_promotion)",
+            symbol,
+            threshold,
+        )
+        # Phase 24.2 / DEBT-034 follow-up: emit a structured activity
+        # event so the dashboard surfaces the deliberate idle state.
+        # ``logger.info`` alone is invisible to operators reading the
+        # dashboard timeline; the activity event closes that gap.
+        if self.activity_log is not None:
+            self.activity_log.append(
+                ActivityEventType.COLD_START_BLOCKED,
+                (
+                    f"Cold-start guard: no applicable technique on "
+                    f"{symbol} has >= {threshold} closed trades"
+                ),
+                details={
+                    "symbol": symbol,
+                    "reason": "cold_start_below_min_closed_trades",
+                    "min_closed_trades_for_live_promotion": threshold,
+                    "max_trades_observed": max_trades,
+                    "per_technique_trades": per_technique,
+                },
+            )
+        return True
 
     def _select_all_techniques(
         self,

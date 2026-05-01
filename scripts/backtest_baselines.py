@@ -261,6 +261,10 @@ def serialize_result(result: BacktestResult) -> dict:
         ):
             if trade.get(k) is not None:
                 trade[k] = str(trade[k])
+    # Phase 24.1 / DEBT-030: per-bar equity curve.
+    for point in data.get("equity_curve", []):
+        point["timestamp"] = point["timestamp"].isoformat()
+        point["equity"] = str(point["equity"])
     return data
 
 
@@ -328,9 +332,7 @@ def write_baseline_artifacts(
         spec.technique_name,
         metrics.total_trades,
         metrics.win_rate * 100,
-        f"{metrics.sharpe_ratio:.3f}"
-        if metrics.sharpe_ratio is not None
-        else "n/a",
+        f"{metrics.sharpe_ratio:.3f}" if metrics.sharpe_ratio is not None else "n/a",
         metrics.max_drawdown_percent,
         metrics.return_percent,
     )
@@ -426,9 +428,7 @@ def render_table(summaries: list[dict]) -> str:
     """
     lines = [_TABLE_HEADER.rstrip("\n")]
     for s in summaries:
-        win_rate_pct = (
-            s["win_rate"] * 100 if s.get("win_rate") is not None else None
-        )
+        win_rate_pct = s["win_rate"] * 100 if s.get("win_rate") is not None else None
         lines.append(
             "| "
             + " | ".join(
@@ -552,8 +552,7 @@ def main(argv: list[str] | None = None) -> int:
         "--output-dir",
         type=Path,
         default=DEFAULT_BASELINE_DIR,
-        help="Where per-baseline artefacts go "
-        "(default: data/backtest/baselines).",
+        help="Where per-baseline artefacts go " "(default: data/backtest/baselines).",
     )
     args = parser.parse_args(argv)
 
@@ -570,11 +569,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Ran {len(summaries)} baselines:")
     for s in summaries:
         wr = s["win_rate"] * 100 if s["win_rate"] is not None else 0.0
-        sharpe = (
-            f"{s['sharpe_ratio']:.3f}"
-            if s["sharpe_ratio"] is not None
-            else "n/a"
-        )
+        sharpe = f"{s['sharpe_ratio']:.3f}" if s["sharpe_ratio"] is not None else "n/a"
         print(
             f"  {s['technique_name']:<28} "
             f"trades={s['total_trades']:>4}  "

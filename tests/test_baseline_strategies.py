@@ -278,3 +278,69 @@ async def test_ma_neutral_when_no_cross(ma_module) -> None:
     result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
 
     assert result.signal == "neutral"
+
+
+async def test_ma_long_sl_excludes_current_candle_lookback(ma_module) -> None:
+    """Phase 24.1 / DEBT-031: SL window excludes the current candle.
+
+    Regression for the silent-drop bug: on a bullish cross where the
+    current close is itself the 5-bar low, the OLD code computed
+    ``stop_loss = min(closes[-5:])`` which equals the current close
+    (the entry), so ``validate_prices`` would raise downstream with
+    ``stop_loss >= entry_price`` and the signal silently disappeared.
+
+    Fixture closes [10, 20, 60, 75, 50, 100, 50] with short=2 / long=3:
+
+    * Bullish cross at the last bar: prev_short=75 == prev_long=75
+      flips to cur_short=75 > cur_long=66.67.
+    * ``closes[-5:]`` = [60, 75, 50, 100, 50], min = 50 = current → OLD
+      code SL == entry_price → silent drop.
+    * ``closes[-6:-1]`` = [20, 60, 75, 50, 100], min = 20 < entry=50 →
+      NEW code emits a valid long signal.
+    """
+    strategy = _build(ma_module, short_period=2, long_period=3)
+    closes = [10.0, 20.0, 60.0, 75.0, 50.0, 100.0, 50.0]
+    ohlcv = _make_ohlcv(closes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    # Signal must be emitted (not silently dropped) and SL must satisfy
+    # the long-side ``stop_loss < entry_price`` invariant that
+    # ``TradingStrategy.validate_prices`` enforces downstream.
+    assert result.signal == "long"
+    assert result.entry_price == Decimal("50.00")
+    assert result.stop_loss == Decimal("20.00")
+    assert result.stop_loss < result.entry_price
+
+
+async def test_ma_short_sl_excludes_current_candle_lookback(ma_module) -> None:
+    """Phase 24.1 / DEBT-031: short-side mirror of the SL fix.
+
+    On a bearish cross where the current close is the 5-bar high, the
+    OLD ``max(closes[-5:])`` collapses SL onto entry. NEW
+    ``max(closes[-6:-1])`` preserves a structural high above entry.
+
+    Mirror of the long fixture: closes [200, 100, 60, 50, 100, 30, 100]
+    with short=2 / long=3 forces a fresh bearish cross at the last bar
+    AND puts the current close at the 5-bar high (tied), with a
+    strictly higher prior-window bar so the new look-back yields a
+    valid SL strictly above entry.
+    """
+    strategy = _build(ma_module, short_period=2, long_period=3)
+    # Mirror of the long fixture (each level reflected around 100):
+    # long had [10, 20, 60, 75, 50, 100, 50] → mirror is
+    # [a, b, c, d, e, f, current] with cur=50 → 200-50=150 etc.
+    # SMA values mirror: prev_short=125, prev_long=125 (equality
+    # satisfies ≥), cur_short=125 < cur_long=133.33.
+    closes = [190.0, 180.0, 140.0, 125.0, 150.0, 100.0, 150.0]
+    ohlcv = _make_ohlcv(closes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "short"
+    assert result.entry_price == Decimal("150.00")
+    # OLD: max(closes[-5:]) = max([140,125,150,100,150]) = 150 = entry
+    # → invalid (short needs SL > entry).
+    # NEW: max(closes[-6:-1]) = max([180,140,125,150,100]) = 180 > 150.
+    assert result.stop_loss == Decimal("180.00")
+    assert result.stop_loss > result.entry_price

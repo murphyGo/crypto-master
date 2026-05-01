@@ -500,181 +500,6 @@ suggests an exception is warranted).
 - `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
-### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 5.2 (origin); surfaced 2026-04-30 |
-| **Component** | `src/backtest/analyzer.py` |
-
-**Description:**
-`PerformanceAnalyzer` (`src/backtest/analyzer.py:251-315`) builds
-the equity curve by stepping forward at each closed-trade exit,
-not at each bar. Intra-trade drawdown — the lowest equity point
-reached *while* a position is open — is invisible. Long-hold
-strategies (chasulang's multi-day swings, donchian turtle) report
-materially smaller MDD than they actually experienced.
-
-**Impact:**
-MDD figure understates worst-case drawdown for any strategy that
-holds across multi-bar drawdown periods. Robustness gate's MDD
-check (when used as a kill criterion in future) would let
-genuinely-painful strategies through. Sharpe is also slightly
-miscomputed because the return series uses trade-close timestamps
-rather than uniform bar-close intervals.
-
-**Suggested Resolution:**
-Replace the closed-trade equity curve with a per-bar equity curve
-that marks open positions to market each bar. Add a regression
-test on a long-hold scenario that pins the new MDD floor below
-the closed-trade-only value.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/backtest/analyzer.py:251-315`
-
-### DEBT-031: MA-crossover SL evaluation includes the current candle
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 9.2 (origin); surfaced 2026-04-30 |
-| **Component** | `strategies/ma_crossover.py` |
-
-**Description:**
-`strategies/ma_crossover.py:85` and `:94` compute the SL using a
-window that includes the current (signal) candle, so a fresh
-crossover whose entry is near a recent low gets a SL above the
-entry, which the backtester rejects as "stop ≥ entry on long" and
-silently drops the signal. Net effect: the strategy emits fewer
-trades than the underlying logic implies.
-
-**Impact:**
-Affected strategy ships its real signal density at less than
-expected. Phase 9.2 baselines under-report MA crossover trade
-counts. Operationally invisible — the strategy doesn't error,
-it just emits fewer signals than the spec describes.
-
-**Suggested Resolution:**
-Roll the SL window back by one bar (use `df.iloc[i-period:i]`
-rather than `df.iloc[i-period+1:i+1]`); add a regression test
-fixture that fires on this exact case and asserts the trade is
-emitted.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `strategies/ma_crossover.py:85,94`
-
-### DEBT-032: OOS Sharpe gate fails when in-sample population is small
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 5.4 (origin); surfaced 2026-04-30 |
-| **Component** | `src/backtest/validator.py` |
-
-**Description:**
-`RobustnessGate.run_oos_gate` (`src/backtest/validator.py:409-420`)
-computes IS-Sharpe / OOS-Sharpe ratio and fails the gate if the
-ratio is below threshold. When IS produces fewer than ~5 trades,
-the IS-Sharpe is statistically meaningless but the gate still
-applies the ratio rule, FAILING strategies that would have passed
-with a longer in-sample window. Strategies with naturally low
-trade frequency (chasulang on a 1-month window) bear the brunt.
-
-**Impact:**
-Some legitimately-good strategies fail the OOS gate due to a
-small-sample IS Sharpe. The robustness gate's pass-rate is
-artificially low for low-frequency strategies. Operationally
-visible only as "this strategy keeps DISCARDING with
-oos_sharpe_ratio_below_threshold even though it looks good".
-
-**Suggested Resolution:**
-Add a `minimum_is_trades: int = 5` config field; when the IS
-trade count is below the floor, mark the OOS gate `SKIPPED`
-(consistent with sensitivity-gate-skip pattern from DEBT-014)
-rather than failing. Surface the SKIP in the gate verdict so
-operators see why.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/backtest/validator.py:409-420`
-
-### DEBT-033: Stale-quote gate falls through on ticker exception without freshness check
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 (origin); surfaced 2026-04-30 |
-| **Component** | `src/runtime/engine.py` |
-
-**Description:**
-`_stale_quote_gate` (`src/runtime/engine.py:557-571`) catches any
-exception from `exchange.get_ticker(...)` and falls through to
-fill (logs WARN). The fall-through is correct on a transient
-exchange hiccup, but if the ticker cache returns a *stale* ticker
-silently (no exception), the gate runs against the stale price
-believing it's fresh. There's no max-cached-age threshold.
-
-**Impact:**
-Currently low — the exchange adapter doesn't aggressively cache —
-but the gate's correctness depends on a contract the adapter
-doesn't actually provide. A future caching layer (e.g. for
-rate-limit relief) would silently break the gate's freshness
-guarantee.
-
-**Suggested Resolution:**
-Add a `max_ticker_age_seconds: float = 10.0` config; check the
-ticker's `timestamp` against `time.time()` and fail the gate
-(treat as exception, fall through with the same WARN) if the
-ticker is older than the threshold. Pins the freshness contract.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/runtime/engine.py:557-571`
-
-### DEBT-034: Cold-start technique selection uses alphabetical ordering
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 6.1 (origin); surfaced 2026-04-30 |
-| **Component** | `src/proposal/engine.py` |
-
-**Description:**
-`ProposalEngine._select_best_technique` (`src/proposal/engine.py:
-655-659`) falls back to alphabetical sort when no technique has
-enough samples to compute a composite score. In live mode, this
-means the first cycle on a fresh deployment will run whatever
-strategy comes first alphabetically (`bollinger_band_reversion`)
-regardless of actual fit. The legacy single-technique path is
-guarded by Phase 10.6's `multi_technique_per_symbol=True`
-default, so this path is dormant in production but remains live
-code for op-emergency rollback.
-
-**Impact:**
-Dormant. If an operator rolls back to single-technique mode, the
-cold-start period (until ≥ N samples accumulate) runs the
-alphabetically-first technique, which may be a poor fit for the
-current regime.
-
-**Suggested Resolution:**
-Add a "minimum sample" guard: if no technique has ≥ N samples,
-skip the proposal entirely in live mode (return no proposal
-rather than picking blindly). Paper mode could fall through to
-the alphabetical default (cold-start-tolerant). Pin both branches
-with tests.
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `src/proposal/engine.py:655-659`
-
 ### DEBT-035: `Trade` model in `src/models.py` is dead code
 
 | Field | Value |
@@ -1387,18 +1212,63 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 23.1 closed all three drift items the 2026-04-30 audit named. (1) `CLAUDE.md`'s project-structure tree extended to include `src/runtime/` (engine, activity_log, jsonl_rotator), `src/tools/` (operator scripts), and `src/utils/` (`trading_math.py` from Phase 20.1, `time.py` from Phase 21.1, `io.py` from Phase 22.1) — three directories that had shipped without ever being listed in the contributor-facing tree. `src/main.py` also surfaced as a top-level entry point alongside the existing `config.py` / `logger.py` / `models.py` listing. (2) `DESIGN.md §2.3` rewritten end to end: `class ClaudeClient` (which never existed in code) replaced with the actual `class ClaudeCLI` from `src/ai/claude.py:46`, real method signatures listed verbatim (`__init__(timeout, claude_path, max_retries)`, `is_available()`, `async analyze(prompt) -> dict[str, Any]`, `async complete(prompt) -> str`); the parallel `class StrategyImprover` block from `src/ai/improver.py:98` added so the documentation matches the actual two-class shape (`generate_idea`, `generate_user_idea`, `improve`); the constraint line clarified to name the `analyze` / `complete` split. The DESIGN.md "ADR list" cross-reference flagged in the original spec did not need a corresponding edit (no ADR list exists in DESIGN.md; the project's ADRs would live as Markdown files under `docs/adr/` if any are written, and that directory is not present in the current checkout). (3) `docs/TECH-DEBT.md` ordering: DEBT-018 reordered above DEBT-021 (was below DEBT-019 / 20 / 21 / 22 / 23 separated by an internal `---` separator that the audit's traversal flagged as inconsistent); the stray `---` separator that had isolated DEBT-018 from the rest of the Active items removed. Statistics table recomputed by counting `### DEBT-` headings in Active vs Resolved sections (28 active → 27 active after DEBT-037 closes; 19 resolved → 20 resolved; Medium unchanged at 7; Low 21 → 20). Phase 23.1 also backfilled the missing artefacts the same audit surfaced (sessions for shipped Phase 17.2 portfolio-snapshot recording / 17.3 closed-trade performance records, the Phase 15 cross-check) — same audit finding, separate spec items, same cycle. Session log: `docs/sessions/2026-05-01-phase-23.1-docs-drift-backfill.md`. |
 
+### DEBT-030: Backtester MDD / Sharpe computed from closed-trade equity only ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 24 introduced a per-bar equity curve. New `EquityPoint` Pydantic model + `BacktestResult.equity_curve: list[EquityPoint]` field; `Backtester._build_equity_curve` walks every candle and marks every open position to bar-close via `pnl_for_trade`, summing realised + unrealised + initial. `PerformanceAnalyzer._max_drawdown` and `_sharpe` prefer the equity curve when available, fall back to the original closed-trade path when absent (back-compat with persisted `result.json` lacking the field). **Quant-driven follow-up fix in same cycle**: `_sharpe_from_equity_curve` now derives `bars_per_year` from median Δt of `EquityPoint` timestamps via new `_bars_per_year` helper (returns 8760 on hourly cadence, 365 on daily); ignores caller-supplied `trades_per_year` on the bar path so dashboard / persisted reports do not silently scale Sharpe by ~5.9× when comparing hourly-cadence baselines. Closed-trade fallback preserves prior `trades_per_year` semantics. Tests: `TestEquityCurveMaxDrawdown` (3 cases, intra-trade MDD strictly > closed-trade MDD on a fixture that drops 800 then recovers to a 50-loss close) + `TestEquityCurveSharpeAnnualization` (4 cases, hand-computed √8760 ≈ 22.066, hourly+daily cadences, single-point edge, caller-trades-per-year-ignored invariant). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
+
+### DEBT-031: MA-crossover SL evaluation includes the current candle ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 24 rolled the SL look-back back by one bar. `strategies/ma_crossover.py` long-side `min(closes[-5:])` → `min(closes[-6:-1])` (5-element slice indices -6 through -2, exclusive stop at -1, excludes the current candle); same pattern on the short-side `max(...)`. Quant sign-off granted as a strict signal-quality improvement: previously-suppressed valid bullish/bearish crosses where the entry candle was itself the local 5-bar low/high (which forced SL ≥ entry → `validate_prices` raised → signal silently dropped) now emit cleanly. Tests: `tests/test_baseline_strategies.py::test_ma_long_sl_excludes_current_candle_lookback` + `..._short_...` (2 cases, both pin a fixture where the current close is the 5-bar low/high and assert the trade is now emitted). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
+
+### DEBT-032: OOS Sharpe gate fails when in-sample population is small ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 24 added an IS-trade floor SKIP guard. New `RobustnessConfig.minimum_is_trades: int = 10` (quant-driven follow-up bumped from initial default 5 since "Sharpe estimates with N<10 trades have prohibitively high variance"; field `description=` cites the rationale). New SKIP branch in `RobustnessGate.run_oos_gate` ordered *before* the existing IS-Sharpe-non-positive FAIL: when `is_run.total_trades < cfg.minimum_is_trades`, gate returns SKIPPED with reason naming the floor. Strict `<` boundary semantics — N=9 SKIPs, N=10 reaches the documented floor and is allowed to be judged (quant sign-off: flipping to `<=` would contradict the field's "below the floor" semantics). Aggregator preserves SKIP as non-PASS for promotion (back-compat with sensitivity-gate-skip pattern from DEBT-014). Tests: `test_skipped_when_is_trades_below_minimum_floor` + `test_minimum_is_trades_default_is_ten` + `test_below_floor_skips_but_at_or_above_floor_fails` (3 cases — boundary, default-pin, semantic-direction). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
+
+### DEBT-033: Stale-quote gate falls through on ticker exception without freshness check ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 24 added a ticker-age freshness check + opt-in hard-rejection. New `EngineConfig.max_ticker_age_seconds: float = 10.0` defines the cached-ticker freshness threshold; when a fetched ticker is older than the threshold the gate emits `stale_quote_check_failed` WARN (observability). **Quant-driven follow-up fix in same cycle**: new `EngineConfig.reject_if_stale_quote: bool = False` (opt-in) — when True, both stale-ticker AND ticker-fetch-error branches hard-reject the proposal via new `_record_no_live_data_rejection` helper (mirrors existing `_record_stale_quote_rejection` shape) with `reason="stale_quote_no_live_data"`, addressing the original audit concern that "fill proceeds at proposal.entry_price with no live cross-check" — WARN-only is observability, the opt-in flag is enforcement. Plumbed via `Settings.engine_reject_if_stale_quote` and `.env.example`. Default False preserves prior fall-through behavior; live-mode operators set True. Tests: `test_stale_quote_gate_falls_through_when_ticker_age_exceeds_threshold`, `test_stale_quote_gate_uses_fresh_ticker_when_within_threshold`, `test_reject_if_stale_quote_true_blocks_fill_on_stale_ticker`, `test_reject_if_stale_quote_false_preserves_fall_through_warn`, `test_reject_if_stale_quote_true_blocks_fill_on_ticker_fetch_error` (5 cases — both branches × both flag values, plus the freshness threshold itself). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
+
+### DEBT-034: Cold-start technique selection uses alphabetical ordering ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 24 added a live-mode cold-start guard. New `ProposalEngineConfig.mode: Literal["paper", "live"]` + `min_closed_trades_for_live_promotion: int = 5`. New `_cold_start_blocks_live` guard at both proposal entry points (`ProposalEngine` BTC + altcoin paths) returns None — refusing to submit a live proposal — when no applicable technique meets the closed-trade threshold. Paper-mode behavior unchanged (cold-start-tolerant; that is how techniques bootstrap their performance history). `src/main.py` wires `settings.trading_mode` into `ProposalEngineConfig.mode`. **Quant-driven follow-up fix in same cycle**: new `ActivityEventType.COLD_START_BLOCKED` enum value; the guard now emits a structured event with payload `{symbol, reason="cold_start_below_min_closed_trades", min_closed_trades_for_live_promotion, max_trades_observed, per_technique_trades}` so operators see why the bot is intentionally idle on the dashboard rather than chasing a silent log line. Tests: `test_live_mode_blocks_cold_start_proposal` (extended to assert ActivityEvent payload), `test_paper_mode_allows_cold_start_proposal`, `test_live_mode_releases_when_threshold_met`, `test_live_mode_blocks_when_only_cold_start_techniques_present` (4 cases — live-block + activity event, paper-allow, threshold-release, mixed-techniques). Session log: `docs/sessions/2026-05-01-phase-24-and-phase-24-seal.md`. |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 27 |
+| Total Active | 22 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 7 |
-| Low | 20 |
-| Resolved (All Time) | 20 |
+| Low | 15 |
+| Resolved (All Time) | 25 |
 
 ---
 
@@ -1476,3 +1346,8 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-027 Paper trader silently zeroes balance instead of recording liquidation — Phase 22.2 rewrote `PaperTrader.close_position` under-water branch with projected-free predicate (`projected_free = balance.free + (pnl - exit_fee) < 0`); default behaviour records true negative equity AND emits structured `LIQUIDATED` activity event (`symbol`, `side`, `entry`, `exit`, `qty`, `realized_pnl`, `balance_before`, `balance_after`); legacy clamp-to-zero preserved behind opt-out flag `auto_deposit_on_liquidation` (still emits the event — flag controls balance treatment, not event semantics). New `ActivityEventType.LIQUIDATED` enum member; `PaperBalance.free` Pydantic constraint relaxed (lock / deduct / reserve paths still enforce overdraw protection); `PaperTrader.__init__` gained `activity_log` + `auto_deposit_on_liquidation` kwargs; `EngineConfig` / `Settings.paper_auto_deposit_on_liquidation` (env-overridable `PAPER_AUTO_DEPOSIT_ON_LIQUIDATION`); `.env.example` documented; `build_engine` plumbs through. 6 regression tests pin the contract; pytest 1284 → 1290 (+6); reviewers 🟢🟢. Backtester asymmetry surfaced as DEBT-047 (Medium). Plan-text drift noted (DEBT-027 cited `paper.py:619,626`; actual liquidation branch lives ~656-720). Phase 22 sealed (22.1 ✅, 22.2 ✅); cross-check `docs/cross-checks/2026-05-01-phase-22-persistence-atomicity-liquidation.md` PASS |
 | 2026-05-01 | Added | DEBT-047 Backtester has no leverage-liquidation modeling (Medium) — surfaced during Phase 22.2 quant-trader-expert review; `src/backtest/engine.py:371,396` does `balance += pnl_delta` with no margin lock / clamp / event; asymmetric with `PaperTrader` post-22.2 (paper now emits `LIQUIDATED`, backtester continues simulating against arbitrarily negative equity); operators reading backtest equity curves can't distinguish "would have been liquidated" from "deep drawdown but recovered"; resolution shapes: `BacktestConfig.liquidation_threshold` + structural marker on `BacktestTrade` / `BacktestResult` OR conservative clamp + log at threshold; consider folding into Phase 24 |
 | 2026-05-01 | Resolved | DEBT-037 Documentation drift — `CLAUDE.md` tree + `DESIGN.md` ClaudeClient + `TECH-DEBT.md` stats — Phase 23.1 backfilled `src/runtime/` / `src/tools/` / `src/utils/` directories + `src/main.py` entry point in `CLAUDE.md` project tree; renamed `class ClaudeClient` → actual `class ClaudeCLI` in `DESIGN.md §2.3` with verbatim method signatures from `src/ai/claude.py:46`, added parallel `class StrategyImprover` block from `src/ai/improver.py:98`; reordered DEBT-018 above DEBT-021 in TECH-DEBT.md (was below DEBT-019..23 separated by an internal `---` separator), removed the stray `---`; recomputed Statistics by counting Active vs Resolved `### DEBT-` headings (28 → 27 active; 19 → 20 resolved; Medium 7 unchanged; Low 21 → 20). Same-cycle Phase 23.1 also backfilled the missing session logs for shipped Phase 17.2 + 17.3 cycles and the Phase 15 cross-check (separate spec items, same audit finding) |
+| 2026-05-01 | Resolved | DEBT-030 Backtester MDD/Sharpe computed from closed-trade equity only — Phase 24 introduced per-bar equity curve (`EquityPoint` model + `BacktestResult.equity_curve` field; `Backtester._build_equity_curve` mark-to-market every bar); analyzer prefers equity curve, falls back to closed-trade for back-compat; quant-driven follow-up derives `bars_per_year` from `EquityPoint` median Δt so Sharpe annualization matches candle cadence (8760 hourly / 365 daily) instead of silently scaling by ~5.9× via fixed `trades_per_year` |
+| 2026-05-01 | Resolved | DEBT-031 MA-crossover SL evaluation includes the current candle — Phase 24 rolled SL look-back back by one bar (`min(closes[-5:])` → `min(closes[-6:-1])`, symmetric on short side); previously-suppressed bullish/bearish crosses where current candle was the local 5-bar low/high now emit cleanly; quant sign-off granted as strict signal-quality improvement |
+| 2026-05-01 | Resolved | DEBT-032 OOS Sharpe gate fails when in-sample population is small — Phase 24 added `RobustnessConfig.minimum_is_trades: int = 10` (quant-driven bump from initial default 5); SKIP-on-tiny-IS branch precedes IS-Sharpe-non-positive FAIL; strict `<` boundary (N=9 SKIP, N=10 reaches floor and is judged); aggregator preserves SKIP as non-PASS for promotion |
+| 2026-05-01 | Resolved | DEBT-033 Stale-quote gate falls through on ticker exception without freshness check — Phase 24 added `EngineConfig.max_ticker_age_seconds: float = 10.0` for cached-ticker freshness; quant-driven follow-up added opt-in `EngineConfig.reject_if_stale_quote: bool = False` flag — when True, both stale-ticker AND ticker-fetch-error branches hard-reject via new `_record_no_live_data_rejection` (mirrors stale-quote rejection shape) with reason `stale_quote_no_live_data`, addressing the original audit's "fill proceeds at proposal.entry_price with no live cross-check" concern; plumbed via `Settings.engine_reject_if_stale_quote` and `.env.example` |
+| 2026-05-01 | Resolved | DEBT-034 Cold-start technique selection uses alphabetical ordering — Phase 24 added `ProposalEngineConfig.mode: Literal["paper", "live"]` + `min_closed_trades_for_live_promotion: int = 5`; `_cold_start_blocks_live` guard refuses live proposals when no applicable technique meets threshold; paper-mode bootstrap behavior unchanged; `src/main.py` wires `settings.trading_mode` into engine config; quant-driven follow-up added `ActivityEventType.COLD_START_BLOCKED` enum + structured event payload (symbol / threshold / max_trades_observed / per_technique_trades) so operators see why bot is intentionally idle |
