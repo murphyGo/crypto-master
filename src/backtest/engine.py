@@ -39,6 +39,7 @@ from src.trading.strategy import (
     TradingStrategyConfig,
     TradingValidationError,
 )
+from src.utils.io import atomic_write_text
 from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.backtest.engine")
@@ -1108,8 +1109,11 @@ class Backtester:
         path = run_dir / "result.json"
 
         payload = self._result_to_dict(result)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+        # Phase 26.1 / DEBT-045: route through ``atomic_write_text`` so
+        # a crash during persistence leaves either the prior file (if
+        # this is a re-save) or no file at all — never a half-written
+        # ``result.json`` for downstream readers.
+        atomic_write_text(path, json.dumps(payload, indent=2))
 
         logger.info(
             f"Saved backtest result {result.run_id} to {path} "

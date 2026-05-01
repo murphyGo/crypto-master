@@ -55,6 +55,7 @@ from src.strategy.base import TechniqueInfo
 from src.strategy.loader import load_strategy
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.trading.profiles import TradingProfile
+from src.utils.io import atomic_write_text
 from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.feedback.loop")
@@ -438,10 +439,18 @@ class FeedbackLoop:
     # ------------------------------------------------------------------
 
     def save_state(self, record: CandidateRecord) -> None:
-        """Persist a candidate's snapshot to ``state_dir``."""
+        """Persist a candidate's snapshot to ``state_dir``.
+
+        Routed through :func:`src.utils.io.atomic_write_text` (Phase
+        26.1 / DEBT-044) so a crash mid-write leaves the previous
+        snapshot intact rather than truncating it. Same load → mutate
+        → save shape as the Phase 22.1 sites; the helper guarantees
+        readers observe either the prior payload or the new one,
+        never a half-written file.
+        """
         self.state_dir.mkdir(parents=True, exist_ok=True)
         path = self.state_dir / f"{record.candidate_id}.json"
-        path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
+        atomic_write_text(path, record.model_dump_json(indent=2))
 
     def load_state(self, candidate_id: str) -> CandidateRecord:
         """Load a candidate by ID."""

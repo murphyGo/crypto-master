@@ -729,3 +729,50 @@ def test_candidate_record_default_timestamps_are_utc_aware() -> None:
 
     assert record.created_at.tzinfo is not None
     assert record.updated_at.tzinfo is not None
+
+
+# =============================================================================
+# Phase 26.1 / DEBT-044: atomic-write durability
+# =============================================================================
+
+
+def test_save_state_crash_preserves_prior_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Phase 26.1 / DEBT-044: a mid-write crash leaves the prior snapshot intact.
+
+    Mirrors the Phase 22.1 site tests in
+    ``tests/test_proposal_interaction.py`` and ``tests/test_portfolio.py``:
+    monkeypatch ``atomic_write_text`` to raise after the helper would
+    have produced the temp file but before ``os.replace`` swaps it in,
+    then assert the previously-saved JSON is still readable verbatim.
+    """
+    from src.feedback.loop import CandidateRecord, LoopStatus
+
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+
+    seed = CandidateRecord(
+        candidate_id="seed-cand",
+        kind="improvement",
+        technique_name="seed",
+        technique_version="0.1.0",
+        source_path=tmp_path / "seed.md",
+        status=LoopStatus.GENERATED,
+    )
+    loop.save_state(seed)
+
+    def boom(path: Path, text: str, **kwargs: object) -> None:
+        raise OSError("simulated mid-write crash")
+
+    monkeypatch.setattr("src.feedback.loop.atomic_write_text", boom)
+
+    updated = seed.model_copy(update={"status": LoopStatus.PROMOTED})
+    with pytest.raises(OSError, match="simulated mid-write crash"):
+        loop.save_state(updated)
+
+    # The on-disk snapshot is still the GENERATED seed; no truncation,
+    # no half-written file.
+    loaded = loop.load_state("seed-cand")
+    assert loaded.status == LoopStatus.GENERATED.value
+    assert loaded.technique_name == "seed"

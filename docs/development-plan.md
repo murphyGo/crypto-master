@@ -88,6 +88,11 @@
 | Snapshot Dataset + Format | ✅ Complete | 25 |
 | `--snapshot` CLI Flag + Script Changes | ✅ Complete | 25 |
 | First Run + Populate `docs/baselines.md` (Part A: runbook ✅; Part B: operator) | ✅ Complete[^p25-3] | 25 |
+| Atomic-Write Completion (DEBT-044, 045) | ✅ Complete | 26 |
+| Code Hygiene Sweep (DEBT-035, 036, 040, 041, 048) | ❌ Missing | 26 |
+| Observability + Logger Test-Friendliness (DEBT-038, 039) | ❌ Missing | 26 |
+| Backtester Liquidation Parity (DEBT-047) | ❌ Missing | 26 |
+| Black Sweep (DEBT-042) | ❌ Missing | 26 |
 
 **Status Legend**: ✅ Complete | 🔄 In Progress | ❌ Missing | ⏸ Deferred
 
@@ -3135,6 +3140,224 @@ the snapshot infrastructure tests landed with 25.1 + 25.2).
 
 ---
 
+## Phase 26: Hygiene & Polish Bundle
+
+**Goal**: Close the Low-priority debts that have accumulated
+since Phase 22 / 24 / 25 plus one Medium debt (DEBT-047) where
+the surface is small enough to bundle. The bundle covers
+DEBT-035 / 036 / 038 / 039 / 040 / 041 / 042 / 044 / 045 / 047 /
+048 — each individually too small to justify its own phase, all
+isolated to ≤ 2 files. Sub-tasks group by risk profile and
+file-set overlap so a single `/dev-crypto` cycle can ship each
+sub-task without cross-bleed. Phase 26.5 (Black sweep) lands
+last because it produces a noisy 47-file diff and would conflict
+with the other sub-tasks if interleaved.
+
+### 26.1 Atomic-Write Completion
+
+**Background**: Phase 22.1 introduced
+`src/utils/io.py::atomic_write_text` and migrated 5 named load →
+mutate → save sites. Two adjacent persistence sites were
+out-of-scope at the time and surfaced in the Phase 22.1 review:
+`FeedbackLoop.save_state` (`src/feedback/loop.py:444`,
+DEBT-044 — surfaced by senior-developer; same load → mutate →
+save shape) and `Backtester._save_result`
+(`src/backtest/engine.py:1057`, DEBT-045 — surfaced by quant
+review; single-write but benefits from atomicity if a backtest
+run crashes during persistence). The helper exists; both fixes
+are mechanical one-line routes.
+
+**Related Requirements**: NFR-006 (Backtesting Result Storage),
+NFR-008 (Asset/PnL History) — atomicity is a storage-correctness
+boundary on both sites. Extending Phase 22.1's helper; no new
+FR/NFR introduced.
+
+- [x] DEBT-044: `src/feedback/loop.py:444` — route
+  `FeedbackLoop.save_state`'s `Path.write_text(json.dumps(...))`
+  through `atomic_write_text`.
+- [x] DEBT-045: `src/backtest/engine.py:1057` — route
+  `Backtester._save_result`'s `Path.write_text(...)` through
+  `atomic_write_text`.
+- [x] Regression test for each site — fault-injection that
+  raises mid-write and asserts the destination is either fully
+  old or fully new (mirror the Phase 22.1 pattern in
+  `tests/test_utils_io.py` site tests).
+- [x] Write unit tests.
+
+### 26.2 Code Hygiene Sweep
+
+**Background**: Five Low-priority correctness / readability
+items share the "isolated, < 20 lines, no cross-coupling" shape:
+DEBT-035 (`Trade` model in `src/models.py` is dead code — delete
++ import sweep), DEBT-036 (`30 * months` calendar approximation
+at `src/proposal/interaction.py:413` — use
+`dateutil.relativedelta`), DEBT-040 (two undocumented
+`# type: ignore[arg-type]` at `src/proposal/engine.py:496,532`
+— either fix the underlying type issue or document why the
+ignore is correct), DEBT-041 (`src/runtime/engine.py:222`
+private access of `ProposalInteraction._decision_callback` —
+add a public setter), and DEBT-048 (`docs/baselines.md` 6→9
+column widening + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_`
+rename, in lockstep with `_TABLE_PATTERN` / `render_table` /
+the 3 tests that assert the literal token). Bundling avoids
+five separate `/dev-crypto` cycles; sequencing within the
+sub-task is arbitrary.
+
+**Related Requirements**: FR-014 (Proposal History — DEBT-036
+/ DEBT-041 site), FR-025 (Backtesting — DEBT-048 baselines
+table), NFR-001 (Python 3.10+ — type-correctness for DEBT-035 /
+040). Extending existing requirements; no new FR/NFR introduced.
+
+- [ ] DEBT-035: `src/models.py` — delete the unused `Trade`
+  model; sweep imports across `src/` and `tests/`; pin the
+  removal with a regression that the symbol no longer resolves
+  (or the import-sweep grep is empty).
+- [ ] DEBT-036: `src/proposal/interaction.py:413` — replace
+  `now + timedelta(days=30 * months)` with
+  `now + dateutil.relativedelta.relativedelta(months=months)`
+  (or equivalent stdlib `calendar`-based helper); add `python-
+  dateutil` to `pyproject.toml` dependencies if not already
+  present; regression test on a month-boundary case (e.g. Jan
+  31 + 1 month should land Feb 28/29, not Mar 2/3).
+- [ ] DEBT-040: `src/proposal/engine.py:496,532` — fix the
+  underlying type issue at each `# type: ignore[arg-type]` site
+  OR add a comment explaining why the ignore is correct (with
+  the upstream type that drives the mismatch).
+- [ ] DEBT-041: `src/proposal/interaction.py` — add a public
+  `set_decision_callback(self, cb)` setter on
+  `ProposalInteraction`; `src/runtime/engine.py:222` switches
+  from `proposal_interaction._decision_callback = ...` to
+  the setter; regression pins the setter contract.
+- [ ] DEBT-048: `docs/baselines.md` — widen operator table from
+  6 columns to 9 (`Strategy / Symbol / Timeframe / Trades /
+  Win Rate / Sharpe / MDD (USDT) / Total PnL (USDT) / Snapshot
+  fetched_at`); rename placeholder `_TBD_` →
+  `_AWAITING_OPERATOR_FIRST_RUN_`; update
+  `scripts/backtest_baselines.py` `_TABLE_PATTERN` regex +
+  `render_table` to match the new column shape and token; the
+  3 affected tests in `tests/test_scripts_backtest_baselines.py`
+  switch to the new shape and token in lockstep.
+- [ ] Write unit tests.
+
+### 26.3 Observability + Logger Test-Friendliness
+
+**Background**: Two Low-priority observability items share the
+"logging / activity-event surface" shape and benefit from being
+landed together. DEBT-038
+(`src/runtime/engine.py:410` — notifier failure swallowed
+silently without a `NOTIFICATION_FAILED` `ActivityEvent`)
+extends the activity-log contract used by Phase 22.2's
+`LIQUIDATED` event. DEBT-039
+(`src/logger.py:18` — module-global `_initialized_loggers` set
+blocks handler reset across tests; tests that need a fresh
+logger configuration fight the cache) needs a `reset_loggers()`
+helper plus a `pytest` fixture so test-side observability
+stays inspectable.
+
+**Related Requirements**: FR-015 (Proposal Notification —
+DEBT-038 surfaces notification-dispatch failures structurally),
+NFR-001 (Python 3.10+ test-friendliness — DEBT-039 logger
+helper). Extending existing requirements; no new FR/NFR
+introduced.
+
+- [ ] DEBT-038: `src/runtime/activity_log.py::ActivityEventType`
+  — new member `NOTIFICATION_FAILED` with structured-fields
+  contract documented in the docstring (`channel`, `subject`,
+  `error`).
+- [ ] DEBT-038: `src/runtime/engine.py:410` — wrap the notifier
+  dispatch in a try/except that emits `NOTIFICATION_FAILED`
+  with the structured payload before swallowing the exception
+  (or re-raises if policy demands; planner defers the
+  swallow-vs-raise call to senior-developer based on existing
+  notifier policy).
+- [ ] DEBT-039: `src/logger.py` — expose
+  `reset_loggers() -> None` (idempotent — clears
+  `_initialized_loggers` and removes installed handlers; safe
+  to call multiple times).
+- [ ] DEBT-039: `tests/conftest.py` — add a `pytest` fixture
+  (autouse or explicit) that calls `reset_loggers()` between
+  tests so handler state doesn't leak across the suite.
+- [ ] Regression test on the notifier-failure path — assert the
+  `NOTIFICATION_FAILED` event is emitted with the expected
+  structured fields when the notifier raises.
+- [ ] Write unit tests.
+
+### 26.4 Backtester Liquidation Parity
+
+**Background**: DEBT-047 (Medium) — surfaced during Phase 22.2
+quant-trader review. `Backtester` (`src/backtest/engine.py:371,
+396`) advances the simulated balance via `balance += pnl_delta`
+with no margin lock, no clamp, no liquidation event. Operators
+reading backtest equity curves can't distinguish "would have
+been liquidated" from "deep drawdown but recovered"; asymmetric
+with `PaperTrader` post-Phase 22.2 (paper now emits
+`LIQUIDATED`, backtester continues simulating against
+arbitrarily negative equity). This sub-task closes the
+asymmetry by adding a configurable threshold + a structural
+marker on the result.
+
+**Related Requirements**: FR-025 (Backtesting Execution —
+liquidation modeling is part of faithful simulation), FR-007
+(Leverage Setting — leverage without liquidation is the bug),
+NFR-006 (Backtesting Result Storage — structural marker on
+`BacktestResult` summary). Extending existing requirements;
+no new FR/NFR introduced.
+
+- [ ] `src/backtest/engine.py::BacktestConfig` — add
+  `liquidation_threshold: Decimal = Decimal("0")` (literal
+  liquidation default; lead-decision-pending whether to default
+  tighter, e.g. 10% of initial balance — see "Decision points
+  for the lead").
+- [ ] `src/backtest/engine.py:371,396` — after the `balance +=
+  pnl_delta` mutation, branch on `balance ≤ liquidation_
+  threshold`: emit a "would have been liquidated" annotation
+  on the affected `BacktestTrade` (or accumulate on the
+  `BacktestResult` summary — pin the convention with the test).
+- [ ] `src/backtest/engine.py::BacktestTrade` or
+  `BacktestResult` — add a structural marker field
+  (e.g. `liquidated: bool` per-trade, plus
+  `liquidation_count: int` on the result summary) so
+  downstream consumers (PerformanceAnalyzer, dashboard) can
+  surface the marker meaningfully.
+- [ ] Regression test on a leveraged drawdown fixture that
+  crosses the threshold — pin: marker fires, equity curve
+  records the crossing, baseline of the no-leverage path is
+  unchanged.
+- [ ] Regression test on a deep-drawdown-but-recovered path
+  with the threshold *not* crossed — pin: no marker, no
+  behaviour change vs. pre-26.4.
+- [ ] Write unit tests.
+
+### 26.5 Black Sweep
+
+**Background**: DEBT-042 (Low) — `pyproject.toml` declares
+`black` as a dev dependency and `black --check` is in the gate
+recipe, but the formatter has never been run repository-wide;
+47 files are currently unformatted. The gate is dormant —
+running `black --check src tests` today fails with a 47-file
+delta, so any operator running the gate locally sees a noisy
+spurious failure. Two resolution shapes; lead recommends sweep
++ commit (so the gate is actually enforceable in CI). Land
+last in Phase 26 so the noisy diff doesn't conflict with the
+other sub-tasks.
+
+**Related Requirements**: NFR-001 (Python 3.10+ tooling
+hygiene — formatter-gate enforceability). Extending existing
+requirements; no new FR/NFR introduced.
+
+- [ ] Run `black src tests` once across the repo; commit the
+  formatting-only diff in a single sub-task commit (no
+  semantic changes interleaved).
+- [ ] Verify `black --check src tests` exits clean post-sweep.
+- [ ] CI gate confirmation: the existing `black --check` step
+  in the project's gate recipe now passes.
+- [ ] Document the sweep in the sub-task's session log so
+  future audits don't mistake the noisy diff for a semantic
+  change.
+- [ ] Write unit tests.
+
+---
+
 ## Requirements Mapping
 
 | Phase | Related Requirements |
@@ -3164,6 +3387,7 @@ the snapshot infrastructure tests landed with 25.1 + 25.2).
 | Phase 23 | NFR-001 (AIDLC hygiene backfill — sessions for shipped 17.2 / 17.3 (23.1), Phase 15 cross-check (23.1), `CLAUDE.md` tree (23.1), `DESIGN.md` ClaudeClient → ClaudeCLI rename (23.1), Phase 17.2 / 17.3 / 17.4 / 17.5 numbering reconciliation (23.2, including renaming the existing 17.2 auto-research-unblock session log to 17.4); resolves DEBT-037; no new FR/NFR introduced) |
 | Phase 24 | FR-005, FR-008, FR-013, FR-025, NFR-001 (strategy robustness polish — intra-trade MDD (DEBT-030), MA-crossover SL window (DEBT-031), OOS gate IS-sample-size guard (DEBT-032), stale-quote ticker freshness threshold (DEBT-033), cold-start minimum-sample guard (DEBT-034); no new FR/NFR introduced) |
 | Phase 25 | FR-025 (snapshot-pinned reproducible baselines — replace live-Binance dependence in `scripts/backtest_baselines.py` with a snapshot-pinned dataset so baselines are reproducible across operators / days; closes DEBT-043; first run post-DEBT-024 fix populates `docs/baselines.md` operator table; extends FR-025, no new FR/NFR introduced) |
+| Phase 26 | FR-007, FR-014, FR-015, FR-025, NFR-001, NFR-006, NFR-008 (hygiene & polish bundle — atomic-write completion at `FeedbackLoop.save_state` + `Backtester._save_result` (26.1, DEBT-044/045); code hygiene sweep — dead `Trade` model, calendar-month math, undocumented `type: ignore`, private callback access, baselines table widening (26.2, DEBT-035/036/040/041/048); observability + logger test-friendliness — `NOTIFICATION_FAILED` activity event + `reset_loggers()` helper (26.3, DEBT-038/039); backtester liquidation parity — `BacktestConfig.liquidation_threshold` + structural marker (26.4, DEBT-047); black sweep + commit (26.5, DEBT-042); no new FR/NFR introduced) |
 
 ---
 
@@ -3283,3 +3507,4 @@ the snapshot infrastructure tests landed with 25.1 + 25.2).
 | 25.2 | 2026-05-01 | Phase 25.2 sealed 2026-05-01 — `--snapshot` CLI flag + script changes (FR-025 extending; partial DEBT-043 closure). 4 new CLI flags on `scripts/backtest_baselines.py`: `--snapshot [PATH]` opt-in reproducible mode (default `data/backtest/snapshots`), `--refresh-snapshot` operator-gated mainnet fetch path (sole entry point that touches Binance live, prints two operator-visible warnings), `--max-snapshot-age-days INT` default 30 (env-overridable via `ENGINE_BASELINE_MAX_SNAPSHOT_AGE_DAYS`; quant-recommended active-use window — `DEFAULT_MAX_AGE_DAYS=90` in `snapshot.py` unchanged as absolute stale ceiling), `--snapshot-root PATH` companion. `--snapshot` and `--refresh-snapshot` mutually exclusive via `argparse.add_mutually_exclusive_group()`. New `SnapshotExchange` class in `src/backtest/snapshot.py` (free-standing, not BaseExchange subclass — regenerator only consumes connect/disconnect/get_ohlcv) with quant carry-over slice-bounds enforcement: `clamped_limit = min(limit, len(rows))` clamps oversized requests to snapshot length; `if since > last_ts_ms: return []` refuses extrapolation past `last_timestamp`. `refresh_snapshots` async helper writes via `save_snapshot` (atomic per Phase 22.1) with `now_utc()` `fetched_at` and `fetcher_version="phase-25.2"`. `Settings.engine_baseline_max_snapshot_age_days = 30` env-overridable. `rsi_universal` reconciliation: KEEP — quant verified against `strategies/rsi.py` lines 11-18 ("universal-cadence fallback"); 25.3 must enumerate all 5 baselines in `docs/baselines.md`. 10 new tests including `test_cross_operator_determinism_byte_identical` (runs `run_all` twice, scrubs `run_id` + `trade_id` UUIDs — quant-approved as operator-trace IDs not strategy state, asserts byte equality on remaining fields and `summary.json`). pytest 1338 → 1348 (+10), ruff/mypy/black clean. Reviewers 🟢🟢. Carry-over for 25.3: call out 30-day active vs 90-day absolute stale window in `docs/baselines.md`. New TECH-DEBT candidate (informational): `BacktestResult.run_id` / `Trade.trade_id` use `uuid.uuid4()` so byte-identical determinism requires UUID scrubbing today; future `--deterministic-ids` flag could land truly byte-identical artefacts. Session log: `docs/sessions/2026-05-01-phase-25.2-snapshot-cli.md`. | docs-auditor (lead-orchestrated) |
 | 25.3 | 2026-05-01 | Phase 25.3 Part A sealed 2026-05-01 — operator runbook + doc restructure (FR-025 extending; partial DEBT-043 closure at infrastructure level). 25.3 split into Part A (autonomous, this sub-task) + Part B (one-time operator action with live Binance read-only credentials, post-seal). `docs/baselines.md` restructured with new sections: **Operator runbook** (5-step first-fetch procedure: credential setup → `--refresh-snapshot` → directory verification → `--snapshot` run → commit), **Snapshot freshness policy** (30-day active-use window via `--max-snapshot-age-days` default vs 90-day absolute stale ceiling per `DEFAULT_MAX_AGE_DAYS` in `snapshot.py`; quant carry-over from 25.2), **Reproducibility note** (cross-operator byte-equality contract; UUID divergence approved), all 5 baselines enumerated (`rsi_universal` + `rsi_4h` / `rsi_15m` / `bollinger_band_reversion` / `ma_crossover`). Two spec deviations documented + surfaced as DEBT-048 (Low): (1) 9-column table widening kept at 6 (autonomous-shipping `_TABLE_PATTERN` rewriter hard-wired to legacy header; widening would break 3 tests); (2) `_AWAITING_OPERATOR_FIRST_RUN_` placeholder kept as `_TBD_` (existing tests assert the literal). Both new semantics explained in surrounding prose. No code changes (Part A is docs-only). pytest 1348 unchanged from 25.2; ruff/mypy/black clean. Reviewers skipped for docs-only sub-task. Session log: `docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`. | docs-auditor (lead-orchestrated) |
 | 25.0 | 2026-05-01 | Phase 25 sealed (partial — 25.1 ✅, 25.2 ✅, 25.3 Part A ✅; 25.3 Part B operator action documented + non-gating) — DEBT-043 Resolved at infrastructure level. Reproducibility infrastructure for backtest baselines: snapshot CSV + JSON-sidecar format with UTC-aware Pydantic validation and atomic write (Phase 22.1 / 21.2 conventions); `--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` / `--snapshot-root` CLI surface with mutually-exclusive guard between read and refresh modes; `SnapshotExchange` adapter with quant-mandated slice-bounds enforcement (no extrapolation past `last_timestamp`); 30-day active-use freshness vs 90-day absolute stale ceiling; cross-operator byte-determinism contract (`test_cross_operator_determinism_byte_identical`); operator runbook + reproducibility note in `docs/baselines.md`; new TECH-DEBT entries: DEBT-048 (Low — table widening polish deferred). Phase 25 cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS — FR-025 ✅, NFR-006 ✅, NFR-007 ✅; 0 gaps blocking; 0 ⚠️ partial. pytest 1311 → 1348 (+37 across 25.x). Two minor stylistic carry-overs (implicit string concat at `scripts/backtest_baselines.py:773,834`) noted but non-blocking. | docs-auditor |
+| 26.1 | 2026-05-01 | Phase 26.1 sealed 2026-05-01 — Atomic-Write Completion (DEBT-044 + DEBT-045 Resolved). `FeedbackLoop.save_state` (line 440) and `Backtester.save_result` (line 1106) migrated from direct `Path.write_text` / `json.dump(f, ...)` to `atomic_write_text(path, json.dumps(payload, indent=2))` from Phase 22.1. Output bytes byte-identical pre/post (CPython `json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. 3 new regression tests inject `OSError` mid-write and assert prior bytes intact (or no half-written file when no prior). pytest 1348 → 1351 (+3); ruff/mypy/black clean. QA verdict: 🟢 ship. No new debt; no quant review needed (mechanical persistence, not trading logic). Phase 22.1 atomic-write coverage now extends to all known load-mutate-save and single-write JSON sites in src/. | docs-auditor (lead-orchestrated) |

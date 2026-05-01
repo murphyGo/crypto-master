@@ -732,81 +732,6 @@ the chosen one only.
 
 ---
 
-### DEBT-044: `FeedbackLoop.save_state` not migrated to `atomic_write_text`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 22.1 (origin); surfaced 2026-05-01 |
-| **Component** | `src/feedback/loop.py:444` (and ~9 callers post-`load_state`) |
-
-**Description:**
-`FeedbackLoop.save_state` (and any direct `Path.write_text(...)`
-in the same module) follows the same load → mutate → save shape as
-the five sites Phase 22.1 migrated, but it was outside the named
-scope of DEBT-028 (which enumerated `TradeHistoryTracker` /
-`PortfolioTracker` / `ProposalHistory` / `_record_stale_quote_
-rejection`). Senior-developer surfaced it during Phase 22.1
-implementation review as the obvious next-pass site — same shape,
-same risk, mechanical fix.
-
-**Impact:**
-Same risk profile as the migrated sites: crash-mid-write can
-truncate the feedback-loop state file, and concurrent writers
-(post Phase 19.2) can race. Currently low because the feedback
-loop is single-writer in single-engine mode.
-
-**Suggested Resolution:**
-Add `atomic_write_text(...)` call to `FeedbackLoop.save_state`
-and any other direct `write_text` in `src/feedback/loop.py`.
-Mechanical — same one-line shape as the five Phase 22.1
-migrations.
-
-**Related:**
-- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1)
-- DEBT-046 (concurrent-mutation loss — same caveat applies once
-  Phase 19.2 fan-out lands)
-- `src/feedback/loop.py:444`
-
----
-
-### DEBT-045: `Backtester._save_result` single-write not atomic
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 22.1 (origin); surfaced 2026-05-01 |
-| **Component** | `src/backtest/engine.py:1057` |
-
-**Description:**
-`Backtester._save_result` writes a backtest-result JSON payload
-in a single `Path.write_text(...)` call (no load → mutate cycle).
-A crash during persistence still corrupts the file even though
-there is no race window. Out of Phase 22.1's named scope (which
-targeted load → mutate → save sites), but quant-trader-expert
-emphasised it during review as a small completeness item: the
-helper exists, the migration is one line, and a backtest run that
-crashes during result persistence is a real failure mode for
-long-running operator runs.
-
-**Impact:**
-Low — backtest results are reproducible by re-running the
-backtest. Atomicity prevents corruption of a finished result file
-if the process crashes mid-write (e.g. SIGTERM during shutdown,
-disk full).
-
-**Suggested Resolution:**
-Route `Backtester._save_result` through `atomic_write_text(...)`.
-One-line mechanical change.
-
-**Related:**
-- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1)
-- `src/backtest/engine.py:1057`
-
----
-
 ### DEBT-046: Atomic write does not protect against concurrent-mutation loss; Phase 19.2 prereq
 
 | Field | Value |
@@ -1234,18 +1159,36 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 25 closed at the infrastructure level via 25.1 + 25.2 + 25.3 Part A (partial seal — Part B is a one-time operator action with live Binance read-only credentials, fully documented in `docs/baselines.md` runbook, non-gating for further phases). **25.1**: new `src/backtest/snapshot.py` with `SnapshotMetadata` (Pydantic UTC-coerce per Phase 21.2 pattern) + `Snapshot` + `SnapshotValidationError` + `load_snapshot` / `save_snapshot` (atomic via Phase 22.1) + `is_snapshot_fresh` (90-day default, `now=` injectable) + `baseline_directory` helper. Format: CSV (`ohlcv.csv`) + JSON sidecar (`metadata.json`). Decimal-as-string round-trip (no `float()` drift). `.gitignore` switched `data/` → `data/*` with carve-backs (`!data/backtest/snapshots/**`); other data subdirs remain ignored. 27 tests covering round-trip, schema breach × 8, UTC contract, freshness boundary. **25.2**: 4 new CLI flags on `scripts/backtest_baselines.py` (`--snapshot [PATH]` opt-in reproducible, `--refresh-snapshot` operator-gated mainnet entry, `--max-snapshot-age-days INT` default 30, `--snapshot-root PATH`); `--snapshot` and `--refresh-snapshot` mutually exclusive. New `SnapshotExchange` class — free-standing (not `BaseExchange` subclass), follows `_FakeBinanceExchange` injection pattern. Slice-bounds enforcement (quant carry-over from 25.1): `clamped_limit = min(limit, len(rows))`; `if since > last_ts_ms: return []`. Active-use freshness window: 30-day default operator path; 90-day absolute stale ceiling. `Settings.engine_baseline_max_snapshot_age_days` env-overridable. `rsi_universal` reconciliation: KEEP (verified against `strategies/rsi.py:11-18` "universal-cadence fallback"). 10 tests including `test_cross_operator_determinism_byte_identical` (UUID scrubbing approved by quant — operator-trace IDs not strategy state). **25.3 Part A**: `docs/baselines.md` restructured with operator runbook (5-step first-fetch procedure), snapshot freshness policy section (30-day active vs 90-day absolute), reproducibility note (cross-operator byte-equality contract), all 5 baselines enumerated. Spec deviations recorded as DEBT-048 (Low): table widening 6→9 columns + placeholder token rename `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` deferred since they conflict with the autonomous-shipping `_TABLE_PATTERN` rewriter and 2 existing tests; explicit semantics documented in surrounding prose. **Part B (operator action, post-seal)**: one-time live Binance read-only fetch + first-time number population per the runbook; not blocking any further phase. pytest 1311 → 1348 (+37 across all 25.x sub-tasks); ruff/mypy/black clean throughout; reviewers 🟢🟢 on 25.1 and 25.2; 25.3 Part A docs-only (no review needed; gates re-checked clean). Cross-check `docs/cross-checks/2026-05-01-phase-25-snapshot-pinned-baselines.md` PASS. Session logs: `docs/sessions/2026-05-01-phase-25.1-snapshot-format.md`, `docs/sessions/2026-05-01-phase-25.2-snapshot-cli.md`, `docs/sessions/2026-05-01-phase-25.3-and-phase-25-partial-seal.md`. |
 
+### DEBT-044: `FeedbackLoop.save_state` not migrated to `atomic_write_text` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.1 migrated `FeedbackLoop.save_state` (`src/feedback/loop.py:440`) from direct `Path.write_text(record.model_dump_json(indent=2), encoding="utf-8")` to `atomic_write_text(path, record.model_dump_json(indent=2))`. Output bytes byte-identical pre/post; only durability semantics changed (crash mid-write now leaves the prior state intact instead of producing a half-written file). Regression test `test_save_state_crash_preserves_prior_snapshot` injects `OSError` mid-write via `monkeypatch.setattr(...atomic_write_text..., raise OSError)` and asserts the prior bytes load cleanly. The other `Path.write_text` site in `feedback/loop.py:677` (`_promote_file`) was explicitly out of scope (fresh-path technique markdown write, not load → mutate → save). pytest 1348 → 1349 (+1); ruff/mypy/black clean. QA verdict: 🟢 ship. Session log: `docs/sessions/2026-05-01-phase-26.1-atomic-write-completion.md` (forthcoming via the seal commit). |
+
+### DEBT-045: `Backtester._save_result` single-write not atomic ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-01 |
+| **Resolved** | 2026-05-01 |
+| **Resolution** | Phase 26.1 migrated `Backtester.save_result` (`src/backtest/engine.py:1106`) from `open(path, "w") + json.dump(payload, f, indent=2)` to `atomic_write_text(path, json.dumps(payload, indent=2))`. Output bytes byte-identical pre/post per CPython stdlib guarantee (`json.dump` is a thin wrapper over `json.dumps`); only durability semantics changed. Two regression tests pin the contract: `test_save_result_crash_leaves_no_half_written_file` (no prior file → fresh write injected with `OSError` → asserts no half-written file present) and `test_save_result_crash_preserves_prior_result` (prior file → mid-write injected → asserts prior bytes intact). pytest 1349 → 1351 (+2); ruff/mypy/black clean. QA verdict: 🟢 ship. Session log shared with DEBT-044 (Phase 26.1). |
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 22 |
+| Total Active | 20 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 6 |
-| Low | 16 |
-| Resolved (All Time) | 26 |
+| Low | 14 |
+| Resolved (All Time) | 28 |
 
 ---
 
@@ -1330,3 +1273,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-034 Cold-start technique selection uses alphabetical ordering — Phase 24 added `ProposalEngineConfig.mode: Literal["paper", "live"]` + `min_closed_trades_for_live_promotion: int = 5`; `_cold_start_blocks_live` guard refuses live proposals when no applicable technique meets threshold; paper-mode bootstrap behavior unchanged; `src/main.py` wires `settings.trading_mode` into engine config; quant-driven follow-up added `ActivityEventType.COLD_START_BLOCKED` enum + structured event payload (symbol / threshold / max_trades_observed / per_technique_trades) so operators see why bot is intentionally idle |
 | 2026-05-01 | Resolved | DEBT-043 Baseline regenerator is non-deterministic — Phase 25 closed at infrastructure level via 25.1 (snapshot format + loader + 27 tests) + 25.2 (`--snapshot` / `--refresh-snapshot` / `--max-snapshot-age-days` CLI flags + `SnapshotExchange` adapter + slice-bounds enforcement + 10 tests including `test_cross_operator_determinism_byte_identical`) + 25.3 Part A (operator runbook + freshness policy guidance + reproducibility note in `docs/baselines.md`). Phase 25 partial seal — Part B (one-time operator action with live Binance read-only credentials to populate first-time numbers) documented in runbook, non-gating for further phases. Cross-check PASS |
 | 2026-05-01 | Added | DEBT-048 `docs/baselines.md` table widening + placeholder rename (Low) — surfaced during Phase 25.3 Part A; spec asked for 6→9 column widening (`Trades / Total PnL (USDT) / Snapshot fetched_at` columns) + `_TBD_` → `_AWAITING_OPERATOR_FIRST_RUN_` rename, but both conflict with the autonomous-shipping `_TABLE_PATTERN` rewriter and 2 existing tests; deferred to a future docs-polish bundle that updates regex + `render_table` + tests in lockstep |
+| 2026-05-01 | Resolved | DEBT-044 `FeedbackLoop.save_state` not migrated to `atomic_write_text` — Phase 26.1 routed through Phase 22.1 helper; output bytes byte-identical, only durability semantics changed; 1 regression test |
+| 2026-05-01 | Resolved | DEBT-045 `Backtester._save_result` single-write not atomic — Phase 26.1 routed through `atomic_write_text`; CPython `json.dump` ≡ `json.dumps` so bytes identical; 2 regression tests |

@@ -582,6 +582,72 @@ class TestPersistence:
         bt = make_backtester(tmp_path)
         assert bt.list_runs() == []
 
+    @pytest.mark.asyncio
+    async def test_save_result_crash_leaves_no_half_written_file(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Phase 26.1 / DEBT-045: a mid-write crash leaves no half-written ``result.json``.
+
+        Mirrors the Phase 22.1 site tests: monkeypatch
+        ``atomic_write_text`` to raise, then assert that no truncated
+        ``result.json`` is sitting in the run directory for downstream
+        readers to trip over.
+        """
+        bt = make_backtester(tmp_path)
+        candles = make_flat_candles(5)
+        strategy = ControllableStrategy(signals={2: long_analysis()})
+        result = await bt.run(strategy, candles, "BTC/USDT")
+
+        def boom(path: Path, text: str, **kwargs: object) -> None:
+            raise OSError("simulated mid-write crash")
+
+        monkeypatch.setattr("src.backtest.engine.atomic_write_text", boom)
+
+        with pytest.raises(OSError, match="simulated mid-write crash"):
+            bt.save_result(result)
+
+        # Fresh-run case: no prior file, no half-written file. The run
+        # directory was created (mkdir is upstream of the write) but
+        # ``result.json`` itself must not exist.
+        run_dir = (tmp_path / "backtest") / result.run_id
+        assert run_dir.exists()
+        assert not (run_dir / "result.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_save_result_crash_preserves_prior_result(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Phase 26.1 / DEBT-045: a mid-write crash preserves a prior ``result.json``.
+
+        Re-saving the same ``run_id`` (rare in practice, but the
+        durability contract is "either fully old or fully new") must
+        leave the original payload readable byte-for-byte.
+        """
+        bt = make_backtester(tmp_path)
+        candles = make_flat_candles(5)
+        strategy = ControllableStrategy(signals={2: long_analysis()})
+        result = await bt.run(strategy, candles, "BTC/USDT")
+        path = bt.save_result(result)
+        original_bytes = path.read_bytes()
+
+        def boom(p: Path, text: str, **kwargs: object) -> None:
+            raise OSError("simulated mid-write crash")
+
+        monkeypatch.setattr("src.backtest.engine.atomic_write_text", boom)
+
+        with pytest.raises(OSError, match="simulated mid-write crash"):
+            bt.save_result(result)
+
+        # The original payload is preserved byte-for-byte.
+        assert path.read_bytes() == original_bytes
+        loaded = bt.load_result(result.run_id)
+        assert loaded is not None
+        assert loaded.run_id == result.run_id
+
 
 # =============================================================================
 # Per-bar circuit breaker (Phase 17.2 / DEBT-019)
