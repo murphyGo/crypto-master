@@ -487,11 +487,16 @@ def discover_strategies(
 
 def load_all_strategies(
     directory: Path = DEFAULT_STRATEGIES_DIR,
+    *,
+    include_deprecated: bool = False,
 ) -> dict[str, BaseStrategy]:
     """Load all strategies from a directory.
 
     Args:
         directory: Directory containing strategy files.
+        include_deprecated: When False, strategies marked
+            ``status: deprecated`` are loaded for metadata validation
+            but excluded from the returned runtime population.
 
     Returns:
         Dict mapping strategy name to strategy instance.
@@ -507,6 +512,9 @@ def load_all_strategies(
     for file_path in discover_strategies(directory):
         try:
             strategy = load_strategy(file_path)
+            if strategy.info.status == "deprecated" and not include_deprecated:
+                logger.info(f"Skipping deprecated strategy: {strategy.name}")
+                continue
             if strategy.name in strategies:
                 logger.warning(
                     f"Duplicate strategy name '{strategy.name}' from {file_path}, "

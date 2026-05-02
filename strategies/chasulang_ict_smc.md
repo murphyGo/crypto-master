@@ -6,7 +6,7 @@ author: system
 symbols: ["BTC/USDT", "ETH/USDT", "XRP/USDT"]
 timeframes: ["4h", "1h", "15m", "5m"]
 requires_multi_timeframe: true
-status: experimental
+status: deprecated
 claude_timeout_seconds: 480
 changelog: Initial version - distilled from 차슐랭 recent videos (2026-03-31 ~ 2026-04-05)
 source_channel: https://www.youtube.com/@차슐랭-p5f (UCvP4YNon2tfOY_1WltiTKlw)

@@ -898,3 +898,54 @@ class TestLoadAllStrategies:
 
         assert "valid_strategy" in result
         assert len(result) == 1
+
+    def test_load_all_skips_deprecated_by_default(self, tmp_path: Path) -> None:
+        """Deprecated strategies stay on disk but are not runtime-loaded."""
+        active_content = dedent("""
+            ---
+            name: active_strategy
+            version: 1.0.0
+            description: Active
+            status: experimental
+            ---
+
+            Prompt
+        """).strip()
+        deprecated_content = dedent("""
+            ---
+            name: chasulang_ict_smc
+            version: 1.0.0
+            description: Deprecated prompt strategy
+            status: deprecated
+            ---
+
+            Prompt
+        """).strip()
+        (tmp_path / "active.md").write_text(active_content)
+        (tmp_path / "chasulang.md").write_text(deprecated_content)
+
+        result = load_all_strategies(tmp_path)
+
+        assert "active_strategy" in result
+        assert "chasulang_ict_smc" not in result
+
+    def test_load_all_can_include_deprecated_when_requested(
+        self, tmp_path: Path
+    ) -> None:
+        """Diagnostic callers can still inspect deprecated strategies."""
+        deprecated_content = dedent("""
+            ---
+            name: archived_strategy
+            version: 1.0.0
+            description: Archived
+            status: deprecated
+            ---
+
+            Prompt
+        """).strip()
+        (tmp_path / "archived.md").write_text(deprecated_content)
+
+        result = load_all_strategies(tmp_path, include_deprecated=True)
+
+        assert "archived_strategy" in result
+        assert result["archived_strategy"].info.status == "deprecated"
