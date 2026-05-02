@@ -1,0 +1,39 @@
+# Copy to config/sub_accounts.yaml to enable multi-paper-account routing.
+#
+# Phase 19.3 supports multiple paper-mode sub-accounts. Live-mode
+# expansion with distinct credential sets lands in Phase 19.4.
+
+sub_accounts:
+  - id: default
+    name: Default Paper Account
+    mode: paper
+    exchange_ref: default
+    initial_balance:
+      USDT: 10000
+    strategy_filter: null
+    risk_overrides: {}
+    enabled: true
+
+  - id: btc_only
+    name: BTC Swing Paper
+    mode: paper
+    exchange_ref: default
+    initial_balance:
+      USDT: 5000
+    strategy_filter:
+      - chasulang_ict_smc
+      - rsi_4h
+    risk_overrides: {}
+    enabled: true
+
+  - id: experimental
+    name: Experimental Paper
+    mode: paper
+    exchange_ref: default
+    initial_balance:
+      USDT: 2500
+    strategy_filter: null
+    risk_overrides:
+      risk_percent: 0.5
+      max_open_positions_total: 1
+    enabled: true

@@ -109,7 +109,8 @@ def build_default_message(proposal: Proposal, level: NotificationLevel) -> str:
         else "Proposal"
     )
     return (
-        f"{label}: {proposal.signal.upper()} {proposal.symbol} "
+        f"{label} [{proposal.sub_account_id}]: "
+        f"{proposal.signal.upper()} {proposal.symbol} "
         f"@ {proposal.entry_price} "
         f"(R/R={proposal.risk_reward_ratio:.2f}, "
         f"score={proposal.score.composite:.4f})"
@@ -264,13 +265,14 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
     """
     proposal = notification.proposal
     summary = (
-        f"{proposal.symbol} {proposal.signal} "
+        f"[{proposal.sub_account_id}] {proposal.symbol} {proposal.signal} "
         f"score={proposal.score.composite:.2f} "
         f"entry={proposal.entry_price}"
     )
     detail = (
         "```\n"
         f"proposal_id: {proposal.proposal_id}\n"
+        f"sub_account_id: {proposal.sub_account_id}\n"
         f"technique: {proposal.technique_name}\n"
         f"SL: {proposal.stop_loss}\n"
         f"TP: {proposal.take_profit}\n"
@@ -287,7 +289,8 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"*{proposal.symbol} {proposal.signal}* "
+                        f"*[{proposal.sub_account_id}] "
+                        f"{proposal.symbol} {proposal.signal}* "
                         f"score={proposal.score.composite:.2f} "
                         f"entry={proposal.entry_price}"
                     ),
@@ -380,13 +383,14 @@ def _build_telegram_text(notification: Notification) -> str:
     """
     proposal = notification.proposal
     headline = (
-        f"*{proposal.symbol} {proposal.signal}* "
+        f"*[{proposal.sub_account_id}] {proposal.symbol} {proposal.signal}* "
         f"score={proposal.score.composite:.2f} "
         f"entry={proposal.entry_price}"
     )
     detail = (
         "```\n"
         f"proposal_id: {proposal.proposal_id}\n"
+        f"sub_account_id: {proposal.sub_account_id}\n"
         f"technique: {proposal.technique_name}\n"
         f"SL: {proposal.stop_loss}\n"
         f"TP: {proposal.take_profit}\n"
@@ -493,7 +497,7 @@ def _build_email_subject(notification: Notification) -> str:
     proposal = notification.proposal
     return (
         f"Crypto Master: {proposal.symbol} {proposal.signal} "
-        f"score={proposal.score.composite:.2f}"
+        f"score={proposal.score.composite:.2f} [{proposal.sub_account_id}]"
     )
 
 

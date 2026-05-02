@@ -293,6 +293,7 @@ class PickResult:
     decision_reason: str
     robustness_summary: str | None = None
     error: str | None = None
+    sub_account_id: str = "default"
 
     @classmethod
     def from_record(
@@ -309,6 +310,7 @@ class PickResult:
             failed_gates=list(record.failed_gates),
             decision_reason=record.decision_reason,
             robustness_summary=record.robustness_summary,
+            sub_account_id=record.sub_account_id,
         )
 
     @classmethod
@@ -376,6 +378,7 @@ async def run_picks(
     dry_run: bool = False,
     loop: FeedbackLoop | None = None,
     exchange: BinanceExchange | None = None,
+    sub_account_id: str = "default",
 ) -> list[PickResult]:
     """Generate, backtest, and gate each pick.
 
@@ -390,6 +393,7 @@ async def run_picks(
             real, gated candidates the operator might approve later.
         loop: Optional pre-built loop (tests inject mocks here).
         exchange: Optional pre-built exchange (tests inject mocks here).
+        sub_account_id: Capital bucket assigned to generated candidates.
     """
     loop = loop or build_loop()
     owns_exchange = exchange is None
@@ -447,6 +451,7 @@ async def run_picks(
                     # picks ride the code-type path so the resulting
                     # backtest never invokes Claude per bar.
                     code_type=pick.code_type,
+                    sub_account_id=sub_account_id,
                 )
                 results.append(PickResult.from_record(pick.slug, pick.context, record))
                 logger.info(
@@ -522,9 +527,19 @@ def write_run_artifacts(
 
 
 async def run_async(
-    picks: list[Pick], symbol: str, *, dry_run: bool, results_dir: Path | None
+    picks: list[Pick],
+    symbol: str,
+    *,
+    dry_run: bool,
+    results_dir: Path | None,
+    sub_account_id: str = "default",
 ) -> int:
-    results = await run_picks(picks, symbol, dry_run=dry_run)
+    results = await run_picks(
+        picks,
+        symbol,
+        dry_run=dry_run,
+        sub_account_id=sub_account_id,
+    )
     summary = render_summary(results)
     print("\n=== Auto-research summary ===\n")
     print(summary)
@@ -562,6 +577,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Where to write the run snapshot (default data/research_runs)",
     )
+    parser.add_argument(
+        "--sub-account",
+        default="default",
+        help="Sub-account id assigned to generated candidates (default default)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     args = parser.parse_args(argv)
 
@@ -575,7 +595,11 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(f"Running {n} picks against {args.symbol} (dry_run={args.dry_run})")
     return asyncio.run(
         run_async(
-            picks, args.symbol, dry_run=args.dry_run, results_dir=args.results_dir
+            picks,
+            args.symbol,
+            dry_run=args.dry_run,
+            results_dir=args.results_dir,
+            sub_account_id=args.sub_account,
         )
     )
 

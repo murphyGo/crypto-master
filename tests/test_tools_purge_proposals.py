@@ -112,8 +112,9 @@ def test_main_archives_old_records_against_real_history(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """End-to-end: with ``DATA_DIR`` pointing at ``tmp_path``, an old
-    record on disk moves into ``proposals/archive/<YYYY-MM>/`` and the
-    fresh one stays put."""
+    record on disk moves into
+    ``proposals/default/archive/<YYYY-MM>/`` and the fresh one stays
+    in the default sub-account directory."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("LOG_RETENTION_MONTHS", "1")
     reload_settings()
@@ -127,11 +128,11 @@ def test_main_archives_old_records_against_real_history(
         assert rc == 0
 
         # Old record archived under its own creation month.
-        archived = proposals_dir / "archive" / "2024-01" / "old.json"
+        archived = proposals_dir / "default" / "archive" / "2024-01" / "old.json"
         assert archived.exists()
-        assert not (proposals_dir / "old.json").exists()
-        # Fresh record stays at the top level.
-        assert (proposals_dir / "fresh.json").exists()
+        assert not (proposals_dir / "default" / "old.json").exists()
+        # Fresh record stays in the default sub-account directory.
+        assert (proposals_dir / "default" / "fresh.json").exists()
 
         captured = capsys.readouterr()
         assert "Purged 1 proposal record" in captured.out

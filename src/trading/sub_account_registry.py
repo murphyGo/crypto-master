@@ -23,13 +23,19 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import ValidationError
 
 from src.config import Settings
 from src.strategy.base import BaseStrategy
 from src.trading.base import Trader
+from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     RiskOverrides,
     SubAccount,
+    SubAccountError,
     SubAccountNotFoundError,
 )
 
@@ -40,6 +46,10 @@ DEFAULT_CONFIG_PATH = Path("config/sub_accounts.yaml")
 
 # The id reserved for the auto-materialised back-compat sub-account.
 DEFAULT_SUB_ACCOUNT_ID = "default"
+
+
+class SubAccountConfigError(SubAccountError):
+    """Raised when ``config/sub_accounts.yaml`` is present but invalid."""
 
 
 class SubAccountRegistry:
@@ -84,9 +94,10 @@ class SubAccountRegistry:
         self.config_path = config_path or DEFAULT_CONFIG_PATH
 
         # Single shared trader — the wiring seam for 19.2's per-sub
-        # trader map. Phase 19.1 keeps the existing single-Trader
-        # behaviour bytewise.
+        # trader map. The default sub-account keeps this exact object;
+        # YAML-loaded paper siblings get isolated PaperTrader instances.
         self._trader = trader
+        self._traders: dict[str, Trader] = {}
 
         # Stable insertion order keeps ``list_active`` deterministic
         # for tests and dashboards.
@@ -105,18 +116,89 @@ class SubAccountRegistry:
         this with a YAML loader; the absence-check on
         ``self.config_path`` is the seam.
         """
-        # 19.1: YAML parsing is out of scope. If a config file already
-        # sits on disk (e.g. an operator pre-staged one for 19.3) we
-        # still take the default branch — 19.3 will replace this body.
-        # The early return makes the seam obvious at the call site.
         if self.config_path.exists():
-            # 19.3 placeholder: parse YAML into a list of SubAccount
-            # instances. For 19.1 we deliberately ignore the file and
-            # fall through to the default-materialisation branch.
-            pass
+            self._load_from_yaml()
+            return
 
         default = self._materialise_default()
         self._sub_accounts[default.id] = default
+        self._traders[default.id] = self._trader
+
+    def _load_from_yaml(self) -> None:
+        """Parse ``config/sub_accounts.yaml`` into validated accounts."""
+        raw_accounts = self._read_config_file()
+        seen: set[str] = set()
+        for index, raw in enumerate(raw_accounts, start=1):
+            if not isinstance(raw, dict):
+                raise SubAccountConfigError(
+                    f"{self.config_path}: sub_accounts[{index}] must be a mapping"
+                )
+            try:
+                sub = SubAccount(**raw)
+            except ValidationError as exc:
+                raise SubAccountConfigError(
+                    f"{self.config_path}: invalid sub_accounts[{index}]: {exc}"
+                ) from exc
+            if sub.id in seen:
+                raise SubAccountConfigError(
+                    f"{self.config_path}: duplicate sub-account id {sub.id!r}"
+                )
+            seen.add(sub.id)
+            self._validate_phase_19_3_boundaries(sub)
+            self._sub_accounts[sub.id] = sub
+            self._traders[sub.id] = self._build_trader_for(sub)
+
+        if not self._sub_accounts:
+            raise SubAccountConfigError(
+                f"{self.config_path}: sub_accounts must contain at least one entry"
+            )
+
+    def _read_config_file(self) -> list[Any]:
+        try:
+            with self.config_path.open("r", encoding="utf-8") as fh:
+                parsed = yaml.safe_load(fh) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            raise SubAccountConfigError(
+                f"failed to read sub-account config {self.config_path}: {exc}"
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise SubAccountConfigError(
+                f"{self.config_path}: top-level YAML document must be a mapping"
+            )
+        accounts = parsed.get("sub_accounts")
+        if not isinstance(accounts, list):
+            raise SubAccountConfigError(
+                f"{self.config_path}: sub_accounts must be a list"
+            )
+        return accounts
+
+    def _validate_phase_19_3_boundaries(self, sub: SubAccount) -> None:
+        if sub.mode == "live" and sub.id != DEFAULT_SUB_ACCOUNT_ID:
+            raise SubAccountConfigError(
+                "Phase 19.4 not landed: live sub-accounts with "
+                f"id != {DEFAULT_SUB_ACCOUNT_ID!r} are not supported yet "
+                f"(got {sub.id!r})"
+            )
+        if sub.exchange_ref in (None, "default"):
+            return
+        configured = set(self.settings.get_configured_exchanges())
+        if sub.exchange_ref not in configured:
+            raise SubAccountConfigError(
+                f"sub-account {sub.id!r} references exchange_ref "
+                f"{sub.exchange_ref!r}, but configured exchanges are "
+                f"{sorted(configured) or ['default']}"
+            )
+
+    def _build_trader_for(self, sub: SubAccount) -> Trader:
+        if sub.id == DEFAULT_SUB_ACCOUNT_ID:
+            return self._trader
+        if sub.mode == "paper":
+            return PaperTrader(
+                initial_balance=sub.initial_balance,
+                data_dir=self.settings.data_dir / "trades",
+                sub_account_id=sub.id,
+            )
+        return self._trader
 
     def _materialise_default(self) -> SubAccount:
         """Build the back-compat ``default`` sub-account from settings.
@@ -185,10 +267,8 @@ class SubAccountRegistry:
         Raises:
             SubAccountNotFoundError: If the id is not registered.
         """
-        # Validate the id even though we hand back the shared trader —
-        # the consumer expectation is "get_trader(unknown_id) raises".
         self.get(id)
-        return self._trader
+        return self._traders[id]
 
     def filter_strategies(
         self,
@@ -226,5 +306,6 @@ class SubAccountRegistry:
 __all__ = [
     "DEFAULT_CONFIG_PATH",
     "DEFAULT_SUB_ACCOUNT_ID",
+    "SubAccountConfigError",
     "SubAccountRegistry",
 ]

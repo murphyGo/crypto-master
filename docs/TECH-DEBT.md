@@ -541,43 +541,36 @@ existing test structure, swap one method body in the fixture.
 - `tests/test_scripts_auto_research_candidates.py:427-468`
 - `test_code_type_pick_runs_without_per_bar_claude_calls`
 
-### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files
+### DEBT-052: Per-sub-account notification routing overrides deferred
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Low |
-| **Created** | 2026-05-02 |
-| **Phase** | Phase 19.1 (origin); Phase 19.3 (consumer — auto-resolves) |
-| **Component** | `src/trading/sub_account_registry.py` (`_load` method) |
+| **Created** | 2026-05-03 |
+| **Phase** | Phase 19.3 |
+| **Component** | `src/proposal/notification.py` / runtime notification wiring |
 
 **Description:**
-`SubAccountRegistry._load` carries a 19.3 placeholder branch:
-`if self.config_path.exists(): pass`. Inert in 19.1 — YAML
-parsing is 19.3 territory. If an operator pre-stages
-`config/sub_accounts.yaml` against a 19.1-only build, the file
-is silently ignored and the registry materialises the synthetic
-single-default entry as if no config existed.
+Phase 19.3 adds `sub_account_id` to notification headlines and
+structured details, but all sub-accounts still fan out to the same
+global notifier set. The Phase 19.3 plan explicitly deferred
+per-sub-account routing overrides such as `experimental` →
+`slack_webhook_url_experimental`.
 
 **Impact:**
-- Operator confusion if someone tries to "get ahead" of 19.3 and
-  drops a YAML file expecting it to be parsed: the file is
-  silently ignored, no warning, no error.
-- Documented in the `_load` docstring, which mitigates but
-  doesn't eliminate the surprise.
+Low for 19.3 because alerts are now attributable by sub-account.
+Operators cannot yet route noisy experimental accounts to a separate
+channel without adding a second process or custom notifier wiring.
 
 **Suggested Resolution:**
-Phase 19.3 YAML parsing replaces the placeholder branch with the
-real loader. Auto-resolves naturally as part of 19.3's spec.
-Optional pre-19.3 mitigation: emit a WARN log when
-`config_path.exists()` and we're hitting the dead branch — but
-the operator-confusion surface is small enough to defer to 19.3.
+Add optional per-sub-account notifier config in a later 19.x pass:
+extend sub-account config with notification route refs, construct
+route-specific dispatchers, and route `notify_proposal` by
+`proposal.sub_account_id`.
 
 **Related:**
-- Phase 19.1 docs-auditor review (2026-05-02 — recorded as a
-  forward-pointer for 19.3)
-- Phase 19.3 spec: `docs/development-plan.md` Phase 19.3 block
-  (YAML config + multi-account parsing)
-- `src/trading/sub_account_registry.py::_load`
+- Phase 19.3 spec (`src/proposal/notification.py` bullet)
+- `src/proposal/notification.py`
 
 ---
 
@@ -595,6 +588,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-02 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | Phase 19.3 replaced the placeholder `if self.config_path.exists(): pass` branch with real YAML parsing, Pydantic validation, duplicate-id rejection, live-non-default rejection, and exchange-ref validation. |
 
 ### DEBT-001: Pre-Existing Lint/Type Sweep ✅
 
@@ -940,7 +942,7 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 4 |
 | Low | 8 |
-| Resolved (All Time) | 39 |
+| Resolved (All Time) | 40 |
 
 ---
 

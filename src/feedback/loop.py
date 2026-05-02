@@ -127,6 +127,7 @@ class CandidateRecord(BaseModel):
     robustness_summary: str | None = None
     failed_gates: list[str] = Field(default_factory=list)
     decision_reason: str = ""
+    sub_account_id: str = "default"
     created_at: datetime = Field(default_factory=now_utc)
     updated_at: datetime = Field(default_factory=now_utc)
 
@@ -265,6 +266,7 @@ class FeedbackLoop:
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
         code_type: bool = False,
+        sub_account_id: str = "default",
     ) -> CandidateRecord:
         """Generate a brand-new technique and run it through the gate.
 
@@ -287,6 +289,7 @@ class FeedbackLoop:
             strategy_factory=strategy_factory,
             param_grid=param_grid,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+            sub_account_id=sub_account_id,
         )
 
     async def from_user_idea(
@@ -503,6 +506,7 @@ class FeedbackLoop:
         strategy_factory: StrategyFactory | AsyncStrategyFactory | None,
         param_grid: dict[str, list[Any]] | None,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        sub_account_id: str = "default",
     ) -> CandidateRecord:
         """Run the full backtest → gate cycle for a fresh candidate."""
         if generated.saved_path is None:
@@ -519,6 +523,7 @@ class FeedbackLoop:
             technique_version=generated.version,
             source_path=generated.saved_path,
             status=LoopStatus.GENERATED,
+            sub_account_id=sub_account_id,
         )
         self.save_state(record)
         self._audit(
@@ -528,6 +533,7 @@ class FeedbackLoop:
                 "kind": kind,
                 "saved_path": str(generated.saved_path),
                 "hypothesis": generated.hypothesis,
+                "sub_account_id": sub_account_id,
             },
         )
 

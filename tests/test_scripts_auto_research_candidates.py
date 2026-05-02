@@ -164,6 +164,23 @@ async def test_run_picks_orchestrates_each_candidate(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_picks_threads_sub_account_id(tmp_path: Path) -> None:
+    candles = _synthetic_ohlcv(300)
+    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
+
+    results = await run_picks(
+        _make_picks()[:1],
+        symbol="BTC/USDT",
+        loop=loop,
+        exchange=exchange,
+        sub_account_id="experimental",
+    )
+
+    assert results[0].sub_account_id == "experimental"
+
+
+@pytest.mark.asyncio
 async def test_dry_run_skips_backtest(tmp_path: Path) -> None:
     """``--dry-run`` should generate the technique file but not run
     the gate. The result status reflects this. Files must land under

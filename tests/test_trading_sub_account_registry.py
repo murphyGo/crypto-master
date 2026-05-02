@@ -24,6 +24,7 @@ from src.trading.sub_account import (
 )
 from src.trading.sub_account_registry import (
     DEFAULT_SUB_ACCOUNT_ID,
+    SubAccountConfigError,
     SubAccountRegistry,
 )
 
@@ -234,3 +235,126 @@ def test_filter_strategies_narrows_to_whitelist(tmp_path: Path) -> None:
     ]
     filtered = registry.filter_strategies(DEFAULT_SUB_ACCOUNT_ID, available)
     assert [s.info.name for s in filtered] == ["rsi_4h"]
+
+
+# =============================================================================
+# YAML config loading (Phase 19.3)
+# =============================================================================
+
+
+def _write_sub_accounts_config(path: Path, body: str) -> None:
+    path.write_text(body, encoding="utf-8")
+
+
+def test_yaml_config_happy_path_three_sub_accounts(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 10000}
+    strategy_filter: null
+    enabled: true
+  - id: btc_only
+    name: BTC Only
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 5000}
+    strategy_filter: [rsi_4h]
+    enabled: true
+  - id: experimental
+    name: Experimental
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 2500}
+    risk_overrides:
+      risk_percent: 0.5
+      max_open_positions_total: 1
+    enabled: false
+""",
+    )
+
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+
+    assert [sub.id for sub in registry.list_active()] == ["default", "btc_only"]
+    assert registry.get("experimental").enabled is False
+    assert registry.get("btc_only").strategy_filter == ["rsi_4h"]
+    assert registry.get("experimental").risk_overrides.risk_percent == Decimal("0.5")
+    assert registry.get_trader("btc_only") is not registry.get_trader("default")
+
+
+def test_yaml_config_rejects_live_non_default(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: live_alt
+    name: Live Alt
+    mode: live
+    exchange_ref: default
+    initial_balance: {USDT: 10000}
+""",
+    )
+
+    with pytest.raises(SubAccountConfigError, match="Phase 19.4 not landed"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )
+
+
+def test_yaml_config_rejects_duplicate_ids(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: default
+    name: One
+    mode: paper
+    initial_balance: {USDT: 10000}
+  - id: default
+    name: Two
+    mode: paper
+    initial_balance: {USDT: 5000}
+""",
+    )
+
+    with pytest.raises(SubAccountConfigError, match="duplicate"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )
+
+
+def test_yaml_config_rejects_unresolved_exchange_ref(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: alt
+    name: Alt
+    mode: paper
+    exchange_ref: binance_alt
+    initial_balance: {USDT: 10000}
+""",
+    )
+
+    with pytest.raises(SubAccountConfigError, match="exchange_ref"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )

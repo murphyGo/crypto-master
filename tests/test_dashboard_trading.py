@@ -10,10 +10,12 @@ import pytest
 
 from src.dashboard.pages.trading import (
     DEFAULT_HISTORY_LIMIT,
+    build_comparative_equity_dataframe,
     build_equity_curve_dataframe,
     build_open_positions_dataframe,
     build_summary_metrics,
     build_trade_history_dataframe,
+    discover_sub_account_ids,
 )
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
@@ -271,6 +273,32 @@ def test_equity_curve_empty_returns_empty_frame_with_columns() -> None:
 
     assert df.empty
     assert list(df.columns) == ["timestamp", "equity"]
+
+
+def test_comparative_equity_curve_uses_one_column_per_sub_account() -> None:
+    t0 = datetime(2026, 1, 1)
+    df = build_comparative_equity_dataframe(
+        {
+            "default": [(t0, Decimal("10000"))],
+            "experimental": [(t0, Decimal("2500"))],
+        }
+    )
+
+    assert list(df.columns) == ["default", "experimental"]
+    assert df.loc[t0, "default"] == 10000.0
+    assert df.loc[t0, "experimental"] == 2500.0
+
+
+def test_discover_sub_account_ids_default_first(tmp_path: Path) -> None:
+    (tmp_path / "trades" / "paper" / "experimental").mkdir(parents=True)
+    (tmp_path / "portfolio" / "paper" / "default").mkdir(parents=True)
+    (tmp_path / "portfolio" / "paper" / "btc_only").mkdir(parents=True)
+
+    assert discover_sub_account_ids(tmp_path, "paper") == [
+        "default",
+        "btc_only",
+        "experimental",
+    ]
 
 
 # =============================================================================

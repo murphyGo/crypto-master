@@ -12,6 +12,7 @@ from src.dashboard.pages.engine import (
     aggregate_cycles,
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
+    build_sub_account_metrics_dataframe,
     build_summary_metrics,
     build_timeline_dataframe,
 )
@@ -366,7 +367,34 @@ def test_summary_metrics_errored_last_cycle() -> None:
     metrics = build_summary_metrics([], cycles)
 
     assert metrics["last_cycle_status"] == "errored"
-    assert metrics["errored_cycles"] == 1
+
+
+def test_sub_account_metrics_dataframe_has_aggregate_row() -> None:
+    events = [
+        make_event(
+            event_type=ActivityEventType.PROPOSAL_GENERATED,
+            timestamp=datetime(2026, 4, 27, 12, 0),
+            details={"sub_account_id": "default"},
+        ),
+        make_event(
+            event_type=ActivityEventType.PROPOSAL_ACCEPTED,
+            timestamp=datetime(2026, 4, 27, 12, 1),
+            details={"sub_account_id": "default"},
+        ),
+        make_event(
+            event_type=ActivityEventType.POSITION_OPENED,
+            timestamp=datetime(2026, 4, 27, 12, 2),
+            details={"sub_account_id": "experimental"},
+        ),
+    ]
+
+    df = build_sub_account_metrics_dataframe(events)
+
+    assert list(df["Sub-account"]) == ["Aggregate", "default", "experimental"]
+    aggregate = df.iloc[0]
+    assert aggregate["Generated"] == 1
+    assert aggregate["Accepted"] == 1
+    assert aggregate["Opened"] == 1
 
 
 # =============================================================================

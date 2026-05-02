@@ -25,20 +25,24 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal, TypedDict
 
 import pandas as pd
 import streamlit as st
 
+from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.portfolio import AssetSnapshot, PortfolioTracker
+from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 
 logger = get_logger("crypto_master.dashboard.trading")
 
 DashboardMode = Literal["paper", "live"]
 DEFAULT_HISTORY_LIMIT = 25
+AGGREGATE_SUB_ACCOUNT = "Aggregate"
 
 # Phase 15.1: matches the threshold-gate rejection reason emitted by
 # ``src.runtime.engine.RuntimeEngine._auto_decide`` —
@@ -195,6 +199,37 @@ def build_equity_curve_dataframe(
     return df.sort_values("timestamp").reset_index(drop=True)
 
 
+def build_comparative_equity_dataframe(
+    curves_by_sub_account: dict[str, list[tuple[datetime, Decimal]]],
+) -> pd.DataFrame:
+    """Build a wide equity table with one column per sub-account."""
+    frames: list[pd.DataFrame] = []
+    for sub_account_id, curve in curves_by_sub_account.items():
+        df = build_equity_curve_dataframe(curve)
+        if df.empty:
+            continue
+        frames.append(
+            df.rename(columns={"equity": sub_account_id}).set_index("timestamp")
+        )
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, axis=1).sort_index()
+
+
+def discover_sub_account_ids(data_dir: Path, mode: DashboardMode) -> list[str]:
+    """Discover sub-account ids from persisted trade / portfolio paths."""
+    found: set[str] = set()
+    for base in (
+        data_dir / "trades" / mode,
+        data_dir / "portfolio" / mode,
+    ):
+        if not base.exists():
+            continue
+        found.update(p.name for p in base.iterdir() if p.is_dir())
+    ordered = sorted(found - {DEFAULT_SUB_ACCOUNT_ID})
+    return [DEFAULT_SUB_ACCOUNT_ID, *ordered]
+
+
 def build_summary_metrics(
     trades: list[TradeHistory],
     snapshots: list[AssetSnapshot],
@@ -301,6 +336,7 @@ def render(
     trade_tracker: TradeHistoryTracker | None = None,
     portfolio_tracker: PortfolioTracker | None = None,
     proposal_history: ProposalHistory | None = None,
+    sub_account_ids: list[str] | None = None,
 ) -> None:
     """Render the Trading page.
 
@@ -312,6 +348,9 @@ def render(
         proposal_history: Override the proposal-history source used
             for the threshold-rejection summary card (Phase 15.1).
             Defaults to ``ProposalHistory()``.
+        sub_account_ids: Optional active sub-account ids for tests or
+            dashboard wiring. When omitted, ids are discovered from
+            persisted trade / portfolio directories.
     """
     st.title("💹 Trading")
     st.caption("Active positions, recent trade history, and equity curve.")
@@ -323,14 +362,43 @@ def render(
         format_func=lambda v: v.capitalize(),
     )
 
-    trades_t = trade_tracker or TradeHistoryTracker()
-    portfolio_t = portfolio_tracker or PortfolioTracker(
-        trade_tracker=trades_t,
+    ids = sub_account_ids or discover_sub_account_ids(get_settings().data_dir, mode)
+    if not ids:
+        ids = [DEFAULT_SUB_ACCOUNT_ID]
+    options = [AGGREGATE_SUB_ACCOUNT, *ids] if len(ids) > 1 else ids
+    selected_sub_account = st.selectbox(
+        "Sub-account",
+        options=options,
+        index=0,
     )
+
     history_t = proposal_history or ProposalHistory()
 
-    trades = trades_t.load_trades(mode=mode)
-    snapshots = portfolio_t.load_snapshots(mode)
+    if selected_sub_account == AGGREGATE_SUB_ACCOUNT:
+        trades = []
+        snapshots = []
+        for sub_account_id in ids:
+            tracker = TradeHistoryTracker(sub_account_id=sub_account_id)
+            portfolio_for_sub = PortfolioTracker(
+                trade_tracker=tracker,
+                sub_account_id=sub_account_id,
+            )
+            trades.extend(tracker.load_trades(mode=mode))
+            snapshots.extend(portfolio_for_sub.load_snapshots(mode))
+        trades_t = TradeHistoryTracker(sub_account_id=DEFAULT_SUB_ACCOUNT_ID)
+        portfolio_t = PortfolioTracker(
+            trade_tracker=trades_t,
+            sub_account_id=DEFAULT_SUB_ACCOUNT_ID,
+        )
+    else:
+        selected_id = str(selected_sub_account)
+        trades_t = trade_tracker or TradeHistoryTracker(sub_account_id=selected_id)
+        portfolio_t = portfolio_tracker or PortfolioTracker(
+            trade_tracker=trades_t,
+            sub_account_id=selected_id,
+        )
+        trades = trades_t.load_trades(mode=mode)
+        snapshots = portfolio_t.load_snapshots(mode)
     metrics = build_summary_metrics(trades, snapshots, history_t)
 
     # ---- Summary cards ----
@@ -390,25 +458,39 @@ def render(
 
     # ---- Equity curve ----
     st.subheader("Equity Curve")
-    curve = portfolio_t.get_equity_curve(mode)
-    curve_df = build_equity_curve_dataframe(curve)
+    if selected_sub_account == AGGREGATE_SUB_ACCOUNT:
+        curves = {
+            sub_account_id: PortfolioTracker(
+                trade_tracker=TradeHistoryTracker(sub_account_id=sub_account_id),
+                sub_account_id=sub_account_id,
+            ).get_equity_curve(mode)
+            for sub_account_id in ids
+        }
+        curve_df = build_comparative_equity_dataframe(curves)
+    else:
+        curve = portfolio_t.get_equity_curve(mode)
+        curve_df = build_equity_curve_dataframe(curve)
     if curve_df.empty:
         st.info(
             "No equity history yet. Once snapshots accumulate the "
             "curve will populate here."
         )
     else:
-        st.line_chart(
-            curve_df.set_index("timestamp")[["equity"]],
-            use_container_width=True,
+        chart_data = (
+            curve_df.set_index("timestamp")[["equity"]]
+            if "timestamp" in curve_df.columns
+            else curve_df
         )
+        st.line_chart(chart_data, use_container_width=True)
 
 
 __all__ = [
     "TradingSummaryMetrics",
+    "build_comparative_equity_dataframe",
     "build_equity_curve_dataframe",
     "build_open_positions_dataframe",
     "build_summary_metrics",
     "build_trade_history_dataframe",
+    "discover_sub_account_ids",
     "render",
 ]

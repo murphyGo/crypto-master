@@ -280,6 +280,7 @@ class PaperTrader:
         *,
         activity_log: ActivityLog | None = None,
         auto_deposit_on_liquidation: bool = False,
+        sub_account_id: str = "default",
     ) -> None:
         """Initialize PaperTrader.
 
@@ -312,10 +313,16 @@ class PaperTrader:
                 liquidation. Either way, when ``activity_log`` is wired,
                 the ``LIQUIDATED`` event is still emitted so the
                 shortfall is never silently swallowed.
+            sub_account_id: Capital bucket whose trade history this
+                trader owns. Defaults to ``"default"`` for legacy
+                single-account deployments.
         """
         self._balances: dict[str, PaperBalance] = {}
         self._open_positions: dict[str, OpenPosition] = {}
-        self._trade_tracker = TradeHistoryTracker(data_dir=data_dir)
+        self._trade_tracker = TradeHistoryTracker(
+            data_dir=data_dir,
+            sub_account_id=sub_account_id,
+        )
         self._exchange = exchange
         self._use_testnet = exchange is not None and exchange.testnet
         self._fee_config = self._resolve_fee_config(fee_config, exchange)

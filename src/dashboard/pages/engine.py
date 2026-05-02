@@ -363,6 +363,42 @@ def build_timeline_dataframe(events: list[ActivityEvent]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def build_sub_account_metrics_dataframe(events: list[ActivityEvent]) -> pd.DataFrame:
+    """Roll up proposal / position counts by ``details.sub_account_id``."""
+    columns = ["Sub-account", "Generated", "Accepted", "Rejected", "Opened", "Closed"]
+    counters: dict[str, dict[str, int]] = {}
+    mapping = {
+        ActivityEventType.PROPOSAL_GENERATED.value: "Generated",
+        ActivityEventType.PROPOSAL_ACCEPTED.value: "Accepted",
+        ActivityEventType.PROPOSAL_REJECTED.value: "Rejected",
+        ActivityEventType.POSITION_OPENED.value: "Opened",
+        ActivityEventType.POSITION_CLOSED.value: "Closed",
+    }
+    for event in events:
+        column = mapping.get(event.event_type)
+        if column is None:
+            continue
+        sub_account_id = str(event.details.get("sub_account_id", "default"))
+        row = counters.setdefault(
+            sub_account_id,
+            {"Generated": 0, "Accepted": 0, "Rejected": 0, "Opened": 0, "Closed": 0},
+        )
+        row[column] += 1
+
+    if not counters:
+        return pd.DataFrame(columns=columns)
+
+    total = {"Generated": 0, "Accepted": 0, "Rejected": 0, "Opened": 0, "Closed": 0}
+    rows: list[dict[str, object]] = []
+    for sub_account_id in sorted(counters):
+        row = counters[sub_account_id]
+        rows.append({"Sub-account": sub_account_id, **row})
+        for key, value in row.items():
+            total[key] += value
+    rows.insert(0, {"Sub-account": "Aggregate", **total})
+    return pd.DataFrame(rows, columns=columns)
+
+
 # =============================================================================
 # Streamlit render
 # =============================================================================
@@ -420,6 +456,13 @@ def render(
     c6.metric("Positions opened (total)", metrics["positions_opened_total"])
     c7.metric("Positions closed (total)", metrics["positions_closed_total"])
 
+    st.subheader("Sub-account Metrics")
+    sub_account_df = build_sub_account_metrics_dataframe(events)
+    if sub_account_df.empty:
+        st.info("No sub-account activity recorded yet.")
+    else:
+        st.dataframe(sub_account_df, hide_index=True, use_container_width=True)
+
     # ---- Recent cycles table ----
     st.subheader("Recent Cycles")
     cycles_df = build_cycles_dataframe(cycles[:RECENT_CYCLES_LIMIT])
@@ -466,6 +509,7 @@ __all__ = [
     "build_cycle_duration_dataframe",
     "build_cycles_dataframe",
     "build_summary_metrics",
+    "build_sub_account_metrics_dataframe",
     "build_timeline_dataframe",
     "render",
 ]

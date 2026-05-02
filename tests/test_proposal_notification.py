@@ -54,6 +54,7 @@ def make_proposal(
     signal: str = "long",
     symbol: str = "BTC/USDT",
     rr: float = 3.0,
+    sub_account_id: str = "default",
 ) -> Proposal:
     kwargs: dict[str, object] = {
         "symbol": symbol,
@@ -69,6 +70,7 @@ def make_proposal(
         "risk_reward_ratio": rr,
         "score": make_score(composite=composite),
         "reasoning": "Test reasoning.",
+        "sub_account_id": sub_account_id,
     }
     if proposal_id is not None:
         kwargs["proposal_id"] = proposal_id
@@ -114,13 +116,18 @@ class FailingNotifier:
 
 
 def test_build_default_message_marks_good_opportunity() -> None:
-    proposal = make_proposal(signal="long", symbol="BTC/USDT")
+    proposal = make_proposal(
+        signal="long",
+        symbol="BTC/USDT",
+        sub_account_id="experimental",
+    )
 
     msg = build_default_message(proposal, NotificationLevel.GOOD_OPPORTUNITY)
 
     assert "Good opportunity" in msg
     assert "LONG" in msg
     assert "BTC/USDT" in msg
+    assert "[experimental]" in msg
     assert "50000" in msg
     assert "R/R=3.00" in msg
 
@@ -406,8 +413,7 @@ def test_build_slack_payload_text_matches_spec() -> None:
     )
     payload = _build_slack_payload(make_notification(proposal=proposal))
 
-    # Spec: ``{symbol} {side} score={composite:.2f} entry={price}``
-    assert payload["text"] == "BTC/USDT short score=1.23 entry=50000"
+    assert payload["text"] == "[default] BTC/USDT short score=1.23 entry=50000"
 
 
 def test_build_slack_payload_blocks_have_summary_and_detail() -> None:
@@ -424,7 +430,7 @@ def test_build_slack_payload_blocks_have_summary_and_detail() -> None:
 
     # Summary block — bolded headline.
     assert summary["type"] == "section"
-    assert "*ETH/USDT long*" in summary["text"]["text"]
+    assert "*[default] ETH/USDT long*" in summary["text"]["text"]
     assert "score=1.50" in summary["text"]["text"]
 
     # Detail block — code-fenced multi-line key/value.
@@ -433,6 +439,7 @@ def test_build_slack_payload_blocks_have_summary_and_detail() -> None:
     assert detail_text.startswith("```\n")
     assert detail_text.endswith("```")
     assert f"proposal_id: {proposal.proposal_id}" in detail_text
+    assert "sub_account_id: default" in detail_text
     assert f"technique: {proposal.technique_name}" in detail_text
     assert f"SL: {proposal.stop_loss}" in detail_text
     assert f"TP: {proposal.take_profit}" in detail_text
@@ -492,10 +499,10 @@ async def test_slack_notify_proposal_format(
 
     payload = json.loads(captured["data"])  # type: ignore[arg-type]
     # Spec format: ``{symbol} {side} score={composite:.2f} entry={price}``
-    assert payload["text"] == "BTC/USDT short score=1.23 entry=50000"
+    assert payload["text"] == "[default] BTC/USDT short score=1.23 entry=50000"
     assert len(payload["blocks"]) == 2
     # Summary + code-fence detail.
-    assert "*BTC/USDT short*" in payload["blocks"][0]["text"]["text"]
+    assert "*[default] BTC/USDT short*" in payload["blocks"][0]["text"]["text"]
     assert "```" in payload["blocks"][1]["text"]["text"]
 
 
@@ -586,13 +593,14 @@ def test_build_telegram_text_has_summary_and_detail() -> None:
     text = _build_telegram_text(make_notification(proposal=proposal))
 
     # Bolded headline.
-    assert "*ETH/USDT long*" in text
+    assert "*[default] ETH/USDT long*" in text
     assert "score=1.50" in text
     assert "entry=50000" in text
 
     # Code-fenced detail with the same fields as Slack.
     assert "```" in text
     assert f"proposal_id: {proposal.proposal_id}" in text
+    assert "sub_account_id: default" in text
     assert f"technique: {proposal.technique_name}" in text
     assert f"SL: {proposal.stop_loss}" in text
     assert f"TP: {proposal.take_profit}" in text
@@ -657,7 +665,7 @@ async def test_telegram_notifier_format(
     assert parsed["parse_mode"] == ["Markdown"]
     text = parsed["text"][0]
     # Spec format: bolded headline + code-fenced detail.
-    assert "*BTC/USDT short*" in text
+    assert "*[default] BTC/USDT short*" in text
     assert "score=1.23" in text
     assert "entry=50000" in text
     assert "```" in text
@@ -798,12 +806,31 @@ def _make_email_notifier() -> EmailNotifier:
 
 
 def test_build_email_subject_matches_spec() -> None:
-    """Subject is ``Crypto Master: {symbol} {side} score={c:.2f}``."""
-    proposal = make_proposal(symbol="BTC/USDT", signal="short", composite=1.234)
+    """Subject includes the sub-account suffix for routed alerts."""
+    proposal = make_proposal(
+        symbol="BTC/USDT",
+        signal="short",
+        composite=1.234,
+        sub_account_id="experimental",
+    )
 
     subject = _build_email_subject(make_notification(proposal=proposal))
 
-    assert subject == "Crypto Master: BTC/USDT short score=1.23"
+    assert subject == "Crypto Master: BTC/USDT short score=1.23 [experimental]"
+
+
+def test_notifier_payloads_include_sub_account_id() -> None:
+    proposal = make_proposal(sub_account_id="btc_only")
+    notification = make_notification(proposal=proposal)
+
+    slack_payload = _build_slack_payload(notification)
+    telegram_text = _build_telegram_text(notification)
+    email_subject = _build_email_subject(notification)
+
+    assert "[btc_only]" in slack_payload["text"]
+    assert "sub_account_id: btc_only" in json.dumps(slack_payload)
+    assert "sub_account_id: btc_only" in telegram_text
+    assert email_subject.endswith("[btc_only]")
 
 
 def test_build_email_body_matches_telegram_text() -> None:
@@ -835,11 +862,11 @@ async def test_email_notifier_subject_and_body_format(
     assert len(fake.sent_messages) == 1
 
     msg = fake.sent_messages[0]
-    assert msg["Subject"] == "Crypto Master: BTC/USDT short score=1.23"
+    assert msg["Subject"] == "Crypto Master: BTC/USDT short score=1.23 [default]"
     assert msg["From"] == EMAIL_FROM
     assert msg["To"] == EMAIL_TO
     body = msg.get_content()
-    assert "*BTC/USDT short*" in body
+    assert "*[default] BTC/USDT short*" in body
     assert "score=1.23" in body
     assert "entry=50000" in body
     assert "```" in body
