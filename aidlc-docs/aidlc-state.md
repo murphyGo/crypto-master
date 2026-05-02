@@ -35,6 +35,7 @@
 | Workspace Detection | Complete | `aidlc-docs/aidlc-state.md` |
 | Reverse Engineering | Complete | `aidlc-docs/inception/reverse-engineering/` |
 | Unit Breakdown | Complete | `aidlc-docs/inception/units/unit-of-work.md` |
+| Legacy Phase Crosswalk | Complete | `aidlc-docs/inception/units/legacy-phase-map.md` |
 | Execution Plan | Complete | `aidlc-docs/inception/plans/execution-plan.md` |
 
 ## Unit Progress
@@ -71,10 +72,10 @@ planned against one or more units using this stage order:
 ## Legacy References
 
 - Chronological plan: `docs/development-plan.md`
+- Legacy phase to unit map: `aidlc-docs/inception/units/legacy-phase-map.md`
 - Requirements: `docs/requirements.md`
 - Architecture: `DESIGN.md`
 - Project guide: `CLAUDE.md`
 - Debt registry: `docs/TECH-DEBT.md`
 - Session logs: `docs/sessions/`
 - Cross-checks: `docs/cross-checks/`
-
