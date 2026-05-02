@@ -327,6 +327,7 @@ def build_engine(
         proposal_interaction=interaction,
         proposal_history=history,
         trader=trader,
+        registry=registry,
         notification_dispatcher=notifier,
         activity_log=activity,
         config=config,
@@ -334,11 +335,6 @@ def build_engine(
         mode=settings.trading_mode,
         quote_currency="USDT",
     )
-    # Phase 19.1: stash the registry on the engine without modifying
-    # ``TradingEngine.__init__`` (out of scope for 19.1). 19.2 will
-    # promote this to a real ``__init__`` parameter and consume it
-    # inside the cycle. Until then the attribute is set-only.
-    engine.sub_account_registry = registry  # type: ignore[attr-defined]
     return engine
 
 
@@ -390,10 +386,12 @@ async def run() -> None:
     migration_counts = migrate_legacy_paths(settings.data_dir)
     if any(migration_counts.values()):
         logger.info(
-            "Sub-account migration renamed: trades=%d portfolio=%d proposals=%d",
+            "Sub-account migration renamed: trades=%d portfolio=%d proposals=%d "
+            "performance=%d",
             migration_counts["trades"],
             migration_counts["portfolio"],
             migration_counts["proposals"],
+            migration_counts["performance"],
         )
 
     # Phase 19.1: pre-build the trader and registry so we can hand

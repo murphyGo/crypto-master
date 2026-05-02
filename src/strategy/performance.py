@@ -34,6 +34,7 @@ logger = get_logger("crypto_master.strategy.performance")
 
 # Default performance data directory
 DEFAULT_PERFORMANCE_DIR = Path("data/performance")
+DEFAULT_SUB_ACCOUNT_ID = "default"
 
 
 class TradeOutcome(str, Enum):
@@ -99,6 +100,7 @@ class PerformanceRecord(BaseModel):
     actual_exit_price: Decimal | None = None
     mode: Literal["backtest", "paper", "live"] = "backtest"
     trade_id: str | None = None
+    sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     # Profile dimension for FR-005 technique+profile combinations
     profile_name: str | None = None
 
@@ -195,6 +197,7 @@ class TechniquePerformance(BaseModel):
         last_updated: Timestamp of last update.
     """
 
+    sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     technique_name: str
     technique_version: str
     total_trades: int = 0
@@ -248,6 +251,7 @@ class TechniquePerformance(BaseModel):
         worst_pnl = min(pnl_values) if pnl_values else 0.0
 
         return cls(
+            sub_account_id=records[-1].sub_account_id,
             technique_name=technique_name,
             technique_version=technique_version,
             total_trades=len(records),
@@ -277,7 +281,11 @@ class PerformanceTracker:
         data_dir: Directory for storing performance data.
     """
 
-    def __init__(self, data_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID,
+    ) -> None:
         """Initialize PerformanceTracker.
 
         Args:
@@ -289,6 +297,7 @@ class PerformanceTracker:
             self.data_dir = settings.data_dir / "performance"
         else:
             self.data_dir = data_dir
+        self.sub_account_id = sub_account_id
 
     def _get_technique_dir(self, technique_name: str) -> Path:
         """Get the directory for a technique's performance data.
@@ -299,7 +308,7 @@ class PerformanceTracker:
         Returns:
             Path to the technique's performance directory.
         """
-        return self.data_dir / technique_name
+        return self.data_dir / self.sub_account_id / technique_name
 
     def _get_records_path(self, technique_name: str) -> Path:
         """Get the path to the records file for a technique.
@@ -358,6 +367,7 @@ class PerformanceTracker:
             confidence=result.confidence,
             analysis_timestamp=result.timestamp,
             profile_name=profile_name,
+            sub_account_id=self.sub_account_id,
         )
 
         self.save_record(record)
@@ -702,12 +712,13 @@ class PerformanceTracker:
         Returns:
             List of technique names.
         """
-        if not self.data_dir.exists():
+        sub_account_dir = self.data_dir / self.sub_account_id
+        if not sub_account_dir.exists():
             return []
 
         return [
             d.name
-            for d in self.data_dir.iterdir()
+            for d in sub_account_dir.iterdir()
             if d.is_dir() and (d / "records.json").exists()
         ]
 
@@ -777,6 +788,7 @@ class TradeHistory(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     performance_record_id: str | None = None
+    sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     symbol: str
     side: Literal["long", "short"]
     mode: Literal["backtest", "paper", "live"]
@@ -906,7 +918,11 @@ class TradeHistoryTracker:
         data_dir: Directory for storing trade data.
     """
 
-    def __init__(self, data_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID,
+    ) -> None:
         """Initialize TradeHistoryTracker.
 
         Args:
@@ -918,6 +934,7 @@ class TradeHistoryTracker:
             self.data_dir = settings.data_dir / "trades"
         else:
             self.data_dir = data_dir
+        self.sub_account_id = sub_account_id
 
     def _get_trades_path(self, mode: str) -> Path:
         """Get the path to the trades file for a mode.
@@ -928,7 +945,7 @@ class TradeHistoryTracker:
         Returns:
             Path to the trades JSON file.
         """
-        mode_dir = self.data_dir / mode
+        mode_dir = self.data_dir / mode / self.sub_account_id
         mode_dir.mkdir(parents=True, exist_ok=True)
         return mode_dir / "trades.json"
 
@@ -942,6 +959,7 @@ class TradeHistoryTracker:
         leverage: int = 1,
         entry_order_id: str | None = None,
         performance_record_id: str | None = None,
+        sub_account_id: str | None = None,
     ) -> TradeHistory:
         """Open a new trade.
 
@@ -967,6 +985,7 @@ class TradeHistoryTracker:
             leverage=leverage,
             entry_order_id=entry_order_id,
             performance_record_id=performance_record_id,
+            sub_account_id=sub_account_id or self.sub_account_id,
             status="open",
         )
 

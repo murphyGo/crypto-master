@@ -501,76 +501,6 @@ suggests an exception is warranted).
 - DEBT-019 (parent — Phase 17.2 acceptance test reference)
 
 
-### DEBT-046: Atomic write does not protect against concurrent-mutation loss; Phase 19.2 prereq
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-01 |
-| **Phase** | Phase 22.1 (origin — caveat surfaced during atomic-write rollout); Phase 19.2 (consumer) |
-| **Component** | `src/utils/io.py` (helper itself); affects all 5 Phase 22.1 migrated sites |
-
-**Description:**
-`atomic_write_text(path, text)` (Phase 22.1, `src/utils/io.py`)
-resolves last-writer-wins durability — the destination file is
-either fully the prior contents or fully the new contents, never
-partial. It does **not** resolve concurrent-mutation loss: when
-two workers each do `data = json.loads(path.read_text());
-data.append(record); atomic_write_text(path, json.dumps(data))`
-in the same wall-clock window, both reads see the same prior
-state, both writes succeed atomically, and the loser's mutation is
-silently dropped — `os.replace(...)` overwrites the prior file
-with whichever write lands second.
-
-Single-engine deployment today is safe (one writer per file).
-Phase 19.2 sub-account fan-out introduces parallel workers per
-cycle against `data/performance/...`, `data/trades/...`,
-`data/portfolio/...`, and `data/proposals/...`; without per-file
-locking or per-account file partitioning, sub-account A's
-mutation can silently overwrite sub-account B's record. The
-durability guarantee Phase 22.1 ships is necessary but not
-sufficient.
-
-**Impact:**
-- **Hard prerequisite for Phase 19.2.** Without resolution,
-  19.2's sub-account fan-out can silently lose trade records,
-  performance updates, portfolio snapshots, and proposal
-  status changes under concurrent writes.
-- **Defensible single-engine today**: zero impact under the
-  current deployment shape; the caveat is dormant until 19.2
-  introduces parallel writers.
-- **Surface this on the Phase 19.2 spec page** so the planner
-  cites it as a prereq before 19.2 starts. (Cross-reference
-  added in `docs/development-plan.md` Phase 19.2 block.)
-
-**Suggested Resolution:**
-Two viable shapes; Phase 19.2 planner picks:
-- **Per-file lock helper layered over `atomic_write_text`**:
-  `with_file_lock(path)` context manager using `fcntl.flock` on
-  POSIX (advisory exclusive lock, blocks concurrent readers
-  doing load → mutate → save against the same path); helper
-  composes naturally with the existing atomic-write helper.
-  Trade-off: POSIX-only (Windows needs a separate path); blocks
-  on contention (latency penalty per cycle).
-- **Per-account file partitioning**: 19.2's path layout already
-  introduces a `{sub_account_id}` level (`data/performance/
-  {sub_account_id}/{technique}/`, etc.); making the partitioning
-  exhaustive (no shared cross-account file) eliminates the race
-  by construction. Trade-off: cross-account aggregation reads
-  fan out across N files (cheap); migration of pre-19.2
-  shared-file records to per-account partitions needs a
-  marker-file pattern (same shape as 19.1's
-  `migrate_legacy_paths`).
-
-**Related:**
-- DEBT-028 (parent — Resolved 2026-05-01 by Phase 22.1; this
-  caveat is the "atomicity ≠ concurrency-safety" residual)
-- Phase 19.2 (`docs/development-plan.md` — Prerequisites line
-  added 2026-05-01 cites this DEBT)
-- Phase 22.1 (`docs/sessions/2026-05-01-phase-22.1-atomic-write-
-  helper.md` — caveat recorded in session log)
-- `src/utils/io.py` (helper site)
-
 ### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path)
 
 | Field | Value |
@@ -610,47 +540,6 @@ existing test structure, swap one method body in the fixture.
   ship-with-note, non-blocking)
 - `tests/test_scripts_auto_research_candidates.py:427-468`
 - `test_code_type_pick_runs_without_per_bar_claude_calls`
-
-### DEBT-050: `engine.sub_account_registry` post-hoc attribute set in `src/main.py`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-02 |
-| **Phase** | Phase 19.1 (origin); Phase 19.2 (consumer — auto-resolves) |
-| **Component** | `src/main.py` (build_engine wiring) |
-
-**Description:**
-`src/main.py:339` sets `engine.sub_account_registry = registry  #
-type: ignore[attr-defined]` after `build_engine` returns, because
-`TradingEngine` does not yet expose a `sub_account_registry`
-constructor parameter or attribute. Phase 19.1's scope was the
-seam (entity + registry + migration), not the engine surface;
-attaching the registry post-construction is a tracking workaround
-so 19.2 has a `engine.sub_account_registry` reference to read
-from when the fan-out lands.
-
-**Impact:**
-- Cosmetic at runtime: the attribute is set, the registry is
-  reachable, no behaviour difference.
-- Type-system: requires a `# type: ignore[attr-defined]` comment
-  that future readers may misread as a bug.
-- Out of place: `build_engine`'s job is to wire dependencies into
-  the engine, not to mutate the engine post-construction.
-
-**Suggested Resolution:**
-Phase 19.2's spec already covers lifting `registry` into a proper
-`TradingEngine.__init__` parameter. When that lands, drop the
-post-hoc assignment and the `# type: ignore` comment from
-`src/main.py:339`. Auto-resolves naturally — no separate cycle
-required.
-
-**Related:**
-- Phase 19.1 docs-auditor review (2026-05-02 — recorded as the
-  workaround line for the 19.2 lift)
-- Phase 19.2 spec: `docs/development-plan.md` Phase 19.2 block
-  (engine-side fan-out)
-- `src/main.py:339`
 
 ### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files
 
@@ -1046,12 +935,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 14 |
+| Total Active | 12 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 5 |
-| Low | 9 |
-| Resolved (All Time) | 37 |
+| Medium | 4 |
+| Low | 8 |
+| Resolved (All Time) | 39 |
 
 ---
 
@@ -1152,3 +1041,5 @@ Move resolved items here with resolution date and notes.
 | 2026-05-02 | Added | DEBT-050 `engine.sub_account_registry` post-hoc attribute set in `src/main.py:339` (Low) — surfaced during Phase 19.1; `# type: ignore[attr-defined]` workaround until Phase 19.2 lifts `registry` into `TradingEngine.__init__`; auto-resolves with 19.2's spec |
 | 2026-05-02 | Added | DEBT-051 `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files (Low) — surfaced during Phase 19.1; `if self.config_path.exists(): pass` placeholder, inert in 19.1; resolved naturally by Phase 19.3 YAML parsing |
 | 2026-05-02 | Updated | DEBT-046 Active status confirmed unchanged at Phase 19.1 close — atomic write does not protect against concurrent-mutation loss; remains hard prereq for Phase 19.2 sub-account fan-out (no concurrent writers in 19.1's scope, so 19.1 didn't touch it) |
+| 2026-05-03 | Resolved | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 picked the per-account file-partitioning resolution shape instead of adding a POSIX file lock. Proposal history, performance records, trade history, and portfolio snapshots now write under a `{sub_account_id}` directory (`data/proposals/{sub_account_id}/`, `data/performance/{sub_account_id}/{technique}/`, `data/trades/{mode}/{sub_account_id}/`, `data/portfolio/{mode}/{sub_account_id}/`), so sub-account fan-out does not share load → mutate → save files across accounts. Performance-tree migration uses separate marker `.performance_migrated_v19_2` so 19.1-completed deployments still pick it up |
+| 2026-05-03 | Resolved | DEBT-050 `engine.sub_account_registry` post-hoc attribute set — Phase 19.2 promoted `registry` to a real `TradingEngine.__init__` parameter and removed the post-construction `engine.sub_account_registry = registry  # type: ignore[attr-defined]` assignment from `src/main.py` |

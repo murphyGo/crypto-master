@@ -45,7 +45,12 @@ def test_fresh_dir_renames_all_three_components(tmp_path: Path) -> None:
 
     # Three modes × one trades file = 3 trades; same for portfolio.
     # Two top-level proposal files.
-    assert counts == {"trades": 3, "portfolio": 3, "proposals": 2}
+    assert counts == {
+        "trades": 3,
+        "portfolio": 3,
+        "proposals": 2,
+        "performance": 0,
+    }
 
     # Trades migrated under default/ for each mode; legacy file gone.
     for mode in ("paper", "live", "backtest"):
@@ -80,7 +85,12 @@ def test_idempotent_rerun_short_circuits(tmp_path: Path) -> None:
 
     # Second pass: short-circuits.
     counts = migrate_legacy_paths(tmp_path)
-    assert counts == {"trades": 0, "portfolio": 0, "proposals": 0}
+    assert counts == {
+        "trades": 0,
+        "portfolio": 0,
+        "proposals": 0,
+        "performance": 0,
+    }
     # Sentinel still in place — proves no rename happened.
     assert sentinel.read_text() == '{"second_pass":"sentinel"}'
 
@@ -91,7 +101,12 @@ def test_no_source_files_writes_marker_and_returns_zero(tmp_path: Path) -> None:
     short-circuit, and returns all-zero counts. No error."""
     counts = migrate_legacy_paths(tmp_path)
 
-    assert counts == {"trades": 0, "portfolio": 0, "proposals": 0}
+    assert counts == {
+        "trades": 0,
+        "portfolio": 0,
+        "proposals": 0,
+        "performance": 0,
+    }
     # Marker IS written even on the no-source path so subsequent
     # boots don't keep re-scanning empty directories.
     assert (tmp_path / MARKER_FILENAME).is_file()
@@ -158,3 +173,20 @@ def test_skip_when_target_already_exists(tmp_path: Path) -> None:
     assert target.read_text() == '{"target":"existing"}'
     # Marker still written.
     assert (tmp_path / MARKER_FILENAME).is_file()
+
+
+def test_performance_tree_migrates_under_default_even_after_19_1_marker(
+    tmp_path: Path,
+) -> None:
+    """Phase 19.2 performance migration has its own marker, so a
+    deployment that already completed 19.1 still picks it up."""
+    (tmp_path / MARKER_FILENAME).write_text("")
+    tech_dir = tmp_path / "performance" / "rsi_4h"
+    tech_dir.mkdir(parents=True)
+    (tech_dir / "records.json").write_text("[]")
+
+    counts = migrate_legacy_paths(tmp_path)
+
+    assert counts["performance"] == 1
+    assert (tmp_path / "performance" / "default" / "rsi_4h" / "records.json").is_file()
+    assert not tech_dir.exists()

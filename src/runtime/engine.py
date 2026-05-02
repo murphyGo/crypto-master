@@ -60,12 +60,15 @@ from src.strategy.performance import (
     TradeHistory,
     TradeOutcome,
 )
+from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import now_utc
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
     from src.trading.base import Trader
     from src.trading.portfolio import Mode, PortfolioTracker
+    from src.trading.sub_account import SubAccount
+    from src.trading.sub_account_registry import SubAccountRegistry
 
 logger = get_logger("crypto_master.runtime.engine")
 
@@ -204,6 +207,7 @@ class TradingEngine:
         proposal_interaction: ProposalInteraction,
         proposal_history: ProposalHistory,
         trader: Trader,
+        registry: SubAccountRegistry | None = None,
         notification_dispatcher: NotificationDispatcher,
         activity_log: ActivityLog,
         config: EngineConfig | None = None,
@@ -248,6 +252,7 @@ class TradingEngine:
         self.proposal_engine = proposal_engine
         self.proposal_history = proposal_history
         self.trader = trader
+        self.sub_account_registry = registry
         self.notification_dispatcher = notification_dispatcher
         self.activity_log = activity_log
         self.config = config or EngineConfig()
@@ -324,13 +329,19 @@ class TradingEngine:
 
         result = CycleResult(cycle_id=cycle_id)
 
-        proposals = await self._scan(cycle_id, result)
-        for proposal in proposals:
-            await self._handle_proposal(proposal, cycle_id, result)
+        for sub_account in self._active_sub_accounts():
+            sub_account_id = self._sub_account_id(sub_account)
+            trader = self._trader_for_sub_account(sub_account_id)
 
-        await self._monitor(cycle_id, result)
+            proposals = await self._scan(cycle_id, result, sub_account)
+            for proposal in proposals:
+                await self._handle_proposal(
+                    proposal, cycle_id, result, sub_account, trader
+                )
 
-        await self._record_portfolio_snapshot(cycle_id)
+            await self._monitor(cycle_id, result, sub_account, trader)
+
+            await self._record_portfolio_snapshot(cycle_id, sub_account, trader)
 
         self.activity_log.append(
             ActivityEventType.CYCLE_COMPLETED,
@@ -384,6 +395,7 @@ class TradingEngine:
         self,
         cycle_id: str,
         result: CycleResult,
+        sub_account: SubAccount | None = None,
     ) -> list[Proposal]:
         """Run the BTC + altcoin scans, returning all proposals collected.
 
@@ -393,17 +405,37 @@ class TradingEngine:
         the others.
         """
         proposals: list[Proposal] = []
+        sub_account_id = self._sub_account_id(sub_account)
+        strategies = None
+        if self.sub_account_registry is not None:
+            available_strategies = list(self.proposal_engine.strategies.values())
+            strategies = self.sub_account_registry.filter_strategies(
+                sub_account_id, available_strategies
+            )
+        risk_percent = None
+        if (
+            sub_account is not None
+            and sub_account.risk_overrides.risk_percent is not None
+        ):
+            risk_percent = float(sub_account.risk_overrides.risk_percent)
 
         try:
             btc = await self.proposal_engine.propose_bitcoin(
                 symbol=self.config.bitcoin_symbol,
                 balance=self.config.balance,
+                strategies=strategies,
+                risk_percent=risk_percent,
+                sub_account_id=sub_account_id,
             )
         except ExchangeError as e:
             self.activity_log.append(
                 ActivityEventType.SCAN_ERRORED,
                 f"Bitcoin scan failed: {e}",
-                details={"symbol": self.config.bitcoin_symbol, "error": str(e)},
+                details={
+                    "symbol": self.config.bitcoin_symbol,
+                    "error": str(e),
+                    "sub_account_id": sub_account_id,
+                },
                 cycle_id=cycle_id,
             )
             result.errors.append(f"btc:{e}")
@@ -417,19 +449,22 @@ class TradingEngine:
                 symbols=self.config.altcoin_symbols,
                 balance=self.config.balance,
                 top_k=self.config.altcoin_top_k,
+                strategies=strategies,
+                risk_percent=risk_percent,
+                sub_account_id=sub_account_id,
             )
         except ExchangeError as e:
             self.activity_log.append(
                 ActivityEventType.SCAN_ERRORED,
                 f"Altcoin scan failed: {e}",
-                details={"error": str(e)},
+                details={"error": str(e), "sub_account_id": sub_account_id},
                 cycle_id=cycle_id,
             )
             result.errors.append(f"alt:{e}")
             altcoins = []
 
         proposals.extend(altcoins)
-        result.proposals_generated = len(proposals)
+        result.proposals_generated += len(proposals)
         return proposals
 
     async def _handle_proposal(
@@ -437,6 +472,8 @@ class TradingEngine:
         proposal: Proposal,
         cycle_id: str,
         result: CycleResult,
+        sub_account: SubAccount | None,
+        trader: Trader,
     ) -> None:
         """Persist + decide + (maybe) execute one proposal."""
         self.activity_log.append(
@@ -491,14 +528,20 @@ class TradingEngine:
             # Block execution here and record a second rejection
             # reason on top of the existing composite-threshold one.
             cap = self.config.max_open_positions_per_symbol
+            if (
+                sub_account is not None
+                and sub_account.risk_overrides.max_open_positions_per_symbol is not None
+            ):
+                cap = sub_account.risk_overrides.max_open_positions_per_symbol
             existing = sum(
                 1
-                for trade in self.trader.get_open_trades()
+                for trade in trader.get_open_trades()
                 if trade.symbol == proposal.symbol
             )
             if existing >= cap:
                 reason = (
-                    f"symbol {proposal.symbol} cap {cap} reached " f"({existing} open)"
+                    f"symbol {proposal.symbol} cap {cap} reached on "
+                    f"sub-account {proposal.sub_account_id} ({existing} open)"
                 )
                 result.proposals_rejected += 1
                 self.activity_log.append(
@@ -514,7 +557,7 @@ class TradingEngine:
                 )
                 return
 
-            await self._execute(proposal, cycle_id, result)
+            await self._execute(proposal, cycle_id, result, trader)
         else:
             result.proposals_rejected += 1
             self.activity_log.append(
@@ -532,6 +575,7 @@ class TradingEngine:
         proposal: Proposal,
         cycle_id: str,
         result: CycleResult,
+        trader: Trader,
     ) -> None:
         """Open a paper position for an accepted proposal.
 
@@ -560,7 +604,7 @@ class TradingEngine:
 
         position = _proposal_to_position(proposal)
         try:
-            trade = await self.trader.open_position(position)
+            trade = await trader.open_position(position)
         except Exception as e:
             self.activity_log.append(
                 ActivityEventType.POSITION_OPEN_ERRORED,
@@ -584,6 +628,7 @@ class TradingEngine:
             f"Opened {proposal.symbol} {proposal.signal} qty={trade.entry_quantity}",
             details={
                 "proposal_id": proposal.proposal_id,
+                "sub_account_id": proposal.sub_account_id,
                 "trade_id": trade.id,
                 "symbol": proposal.symbol,
                 "side": proposal.signal,
@@ -892,13 +937,15 @@ class TradingEngine:
         self,
         cycle_id: str,
         result: CycleResult,
+        sub_account: SubAccount | None,
+        trader: Trader,
     ) -> None:
         """Check SL/TP for every open paper position; close on hit.
 
         Per-trade ticker errors are logged and skipped — one stale
         symbol shouldn't block the rest of the monitor pass.
         """
-        open_trades = self.trader.get_open_trades()
+        open_trades = trader.get_open_trades()
         closed_count = 0
 
         for trade in open_trades:
@@ -920,7 +967,7 @@ class TradingEngine:
             if not should_exit or reason is None:
                 continue
 
-            closed_trade = await self.trader.close_position(
+            closed_trade = await trader.close_position(
                 trade.id, ticker.price, reason=reason
             )
             if closed_trade is None:
@@ -933,11 +980,20 @@ class TradingEngine:
         self.activity_log.append(
             ActivityEventType.MONITOR_PASS,
             f"Monitor pass: {len(open_trades)} open, {closed_count} closed",
-            details={"open_count": len(open_trades), "closed": closed_count},
+            details={
+                "open_count": len(open_trades),
+                "closed": closed_count,
+                "sub_account_id": self._sub_account_id(sub_account),
+            },
             cycle_id=cycle_id,
         )
 
-    async def _record_portfolio_snapshot(self, cycle_id: str) -> None:
+    async def _record_portfolio_snapshot(
+        self,
+        cycle_id: str,
+        sub_account: SubAccount | None,
+        trader: Trader,
+    ) -> None:
         """Capture balances + open-position marks into ``AssetSnapshot``.
 
         Called at the end of every cycle when ``portfolio_tracker`` is
@@ -950,7 +1006,7 @@ class TradingEngine:
             return
 
         try:
-            balances = await self.trader.get_balances()
+            balances = await trader.get_balances()
         except Exception as e:  # pragma: no cover - defensive
             self.activity_log.append(
                 ActivityEventType.MONITOR_ERRORED,
@@ -961,7 +1017,7 @@ class TradingEngine:
             return
 
         current_prices: dict[str, Decimal] = {}
-        for trade in self.trader.get_open_trades():
+        for trade in trader.get_open_trades():
             try:
                 ticker = await self.exchange.get_ticker(trade.symbol)
             except Exception:
@@ -969,7 +1025,19 @@ class TradingEngine:
             current_prices[trade.symbol] = ticker.price
 
         try:
-            self.portfolio_tracker.record_snapshot(
+            sub_account_id = self._sub_account_id(sub_account)
+            tracker = self.portfolio_tracker
+            if (
+                getattr(tracker, "sub_account_id", DEFAULT_SUB_ACCOUNT_ID)
+                != sub_account_id
+            ):
+                from src.trading.portfolio import PortfolioTracker
+
+                tracker = PortfolioTracker(
+                    data_dir=tracker.data_dir,
+                    sub_account_id=sub_account_id,
+                )
+            tracker.record_snapshot(
                 mode=self.mode,
                 quote_currency=self.quote_currency,
                 balances=balances,
@@ -1009,6 +1077,7 @@ class TradingEngine:
             details={
                 "trade_id": trade.id,
                 "proposal_id": proposal_id,
+                "sub_account_id": trade.sub_account_id,
                 "symbol": trade.symbol,
                 "side": trade.side,
                 "reason": reason,
@@ -1067,6 +1136,7 @@ class TradingEngine:
                 actual_exit_price=trade.exit_price,
                 mode=trade.mode,
                 trade_id=trade.id,
+                sub_account_id=trade.sub_account_id,
                 profile_name=proposal.profile_name,
             )
             tracker.save_record(record)
@@ -1098,6 +1168,19 @@ class TradingEngine:
             if record.trade_id == trade_id:
                 return record
         return None
+
+    def _active_sub_accounts(self) -> list[SubAccount | None]:
+        if self.sub_account_registry is None:
+            return [None]
+        return self.sub_account_registry.list_active()
+
+    def _sub_account_id(self, sub_account: SubAccount | None) -> str:
+        return sub_account.id if sub_account is not None else DEFAULT_SUB_ACCOUNT_ID
+
+    def _trader_for_sub_account(self, sub_account_id: str) -> Trader:
+        if self.sub_account_registry is None:
+            return self.trader
+        return self.sub_account_registry.get_trader(sub_account_id)
 
     async def _auto_decide(
         self,
@@ -1145,6 +1228,7 @@ def _proposal_summary(proposal: Proposal) -> dict[str, object]:
     """Compact dict used as the ``details`` payload for proposal events."""
     return {
         "proposal_id": proposal.proposal_id,
+        "sub_account_id": proposal.sub_account_id,
         "symbol": proposal.symbol,
         "side": proposal.signal,
         "technique": proposal.technique_name,

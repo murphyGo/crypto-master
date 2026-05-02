@@ -530,8 +530,10 @@ class TestSnapshots:
         assert live_snaps[0].quote_balance == Decimal("5000")
 
         # Verify on-disk layout
-        assert (tmp_path / "portfolio" / "paper" / "snapshots.json").exists()
-        assert (tmp_path / "portfolio" / "live" / "snapshots.json").exists()
+        assert (
+            tmp_path / "portfolio" / "paper" / "default" / "snapshots.json"
+        ).exists()
+        assert (tmp_path / "portfolio" / "live" / "default" / "snapshots.json").exists()
 
     def test_load_empty(self, portfolio_tracker: PortfolioTracker) -> None:
         """Loading with no snapshots returns []."""
@@ -574,7 +576,7 @@ class TestSnapshots:
         tmp_path: Path,
     ) -> None:
         """Malformed snapshot file yields an empty list, not a crash."""
-        path = tmp_path / "portfolio" / "paper" / "snapshots.json"
+        path = tmp_path / "portfolio" / "paper" / "default" / "snapshots.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{not json")
         assert portfolio_tracker.load_snapshots("paper") == []

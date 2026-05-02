@@ -39,6 +39,7 @@ Mode = Literal["backtest", "paper", "live"]
 # the live default from ``Settings.data_dir`` so snapshots survive
 # container recycles on managed hosts (Phase 10.5).
 DEFAULT_PORTFOLIO_DIR = Path("data/portfolio")
+DEFAULT_SUB_ACCOUNT_ID = "default"
 
 
 def _coerce_decimal(value: str | int | float | Decimal) -> Decimal:
@@ -72,6 +73,7 @@ class AssetSnapshot(BaseModel):
 
     timestamp: datetime = Field(default_factory=now_utc)
     mode: Mode
+    sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     quote_currency: str
     balances: dict[str, Decimal] = Field(default_factory=dict)
     realized_pnl: Decimal = Decimal("0")
@@ -145,6 +147,7 @@ class Portfolio(BaseModel):
     """
 
     mode: Mode
+    sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     quote_currency: str
     balances: dict[str, Decimal]
     realized_pnl: Decimal
@@ -189,6 +192,7 @@ class PortfolioTracker:
         self,
         data_dir: Path | None = None,
         trade_tracker: TradeHistoryTracker | None = None,
+        sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID,
     ) -> None:
         """Initialize PortfolioTracker.
 
@@ -205,11 +209,14 @@ class PortfolioTracker:
         else:
             self.data_dir = data_dir
 
-        self._trade_tracker = trade_tracker or TradeHistoryTracker()
+        self.sub_account_id = sub_account_id
+        self._trade_tracker = trade_tracker or TradeHistoryTracker(
+            sub_account_id=sub_account_id
+        )
 
     def _get_mode_dir(self, mode: Mode) -> Path:
         """Get (and create) the directory for a mode's snapshots."""
-        mode_dir = self.data_dir / mode
+        mode_dir = self.data_dir / mode / self.sub_account_id
         mode_dir.mkdir(parents=True, exist_ok=True)
         return mode_dir
 
@@ -304,6 +311,7 @@ class PortfolioTracker:
 
         return Portfolio(
             mode=mode,
+            sub_account_id=self.sub_account_id,
             quote_currency=quote_currency,
             balances=dict(balances),
             realized_pnl=realized,
@@ -336,6 +344,7 @@ class PortfolioTracker:
 
         snapshot = AssetSnapshot(
             mode=mode,
+            sub_account_id=self.sub_account_id,
             quote_currency=quote_currency,
             balances=dict(balances),
             realized_pnl=realized,
@@ -424,6 +433,7 @@ class PortfolioTracker:
         return {
             "timestamp": snapshot.timestamp.isoformat(),
             "mode": snapshot.mode,
+            "sub_account_id": snapshot.sub_account_id,
             "quote_currency": snapshot.quote_currency,
             "balances": {k: str(v) for k, v in snapshot.balances.items()},
             "realized_pnl": str(snapshot.realized_pnl),

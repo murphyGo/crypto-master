@@ -291,7 +291,7 @@ def test_history_save_creates_directory_lazily(tmp_path: Path) -> None:
     history.save(record)
 
     assert target.is_dir()
-    assert (target / f"{record.proposal.proposal_id}.json").exists()
+    assert (target / "default" / f"{record.proposal.proposal_id}.json").exists()
 
 
 def test_history_load_unknown_id_raises(tmp_path: Path) -> None:
@@ -413,13 +413,13 @@ def test_purge_old_moves_aged_records_to_archive(tmp_path: Path) -> None:
 
     assert len(archived) == 1
     # Old record moved into archive/2024-01/old.json
-    archived_path = tmp_path / "archive" / "2024-01" / "old.json"
+    archived_path = tmp_path / "default" / "archive" / "2024-01" / "old.json"
     assert archived_path.exists()
     assert archived[0] == archived_path
     # Fresh record left in place.
-    assert (tmp_path / "fresh.json").exists()
+    assert (tmp_path / "default" / "fresh.json").exists()
     # Old record no longer at top level.
-    assert not (tmp_path / "old.json").exists()
+    assert not (tmp_path / "default" / "old.json").exists()
 
 
 def test_purge_old_respects_retention_window(tmp_path: Path) -> None:
@@ -449,7 +449,7 @@ def test_purge_old_respects_retention_window(tmp_path: Path) -> None:
 
     assert len(archived) == 1
     assert archived[0].name == "just-outside.json"
-    assert (tmp_path / "just-inside.json").exists()
+    assert (tmp_path / "default" / "just-inside.json").exists()
 
 
 def test_purge_old_is_idempotent(tmp_path: Path) -> None:
@@ -529,7 +529,7 @@ def test_purge_old_uses_calendar_months_not_30_day_approximation(
     # Under the buggy 360-day cutoff (2025-01-20), it would have been
     # archived. The fact that this assertion passes pins the fix.
     assert archived == []
-    assert (tmp_path / "calendar-edge.json").exists()
+    assert (tmp_path / "default" / "calendar-edge.json").exists()
 
 
 def test_purge_old_calendar_cutoff_archives_record_just_outside(

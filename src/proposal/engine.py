@@ -109,6 +109,8 @@ class Proposal(BaseModel):
         timeframe: Candle timeframe used for the analysis.
         technique_name / technique_version: Which technique fired.
         profile_name: Trading profile applied, if any.
+        sub_account_id: Capital bucket this proposal belongs to. Defaults
+            to ``"default"`` so legacy serialized histories load unchanged.
         signal: ``"long"`` or ``"short"`` — neutral signals never
             become proposals.
         entry_price / stop_loss / take_profit: Trade prices from the
@@ -126,6 +128,7 @@ class Proposal(BaseModel):
     technique_name: str
     technique_version: str
     profile_name: str | None = None
+    sub_account_id: str = "default"
     signal: Literal["long", "short"]
     entry_price: Decimal
     stop_loss: Decimal
@@ -281,6 +284,9 @@ class ProposalEngine:
         symbol: str = "BTC/USDT",
         balance: Decimal | None = None,
         timeframe: str | None = None,
+        strategies: list[BaseStrategy] | None = None,
+        risk_percent: float | None = None,
+        sub_account_id: str = "default",
     ) -> Proposal | None:
         """FR-011: best-technique proposal for a single symbol.
 
@@ -311,14 +317,26 @@ class ProposalEngine:
 
         if not self.config.multi_technique_per_symbol:
             return await self._propose_for_symbol(
-                symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
+                symbol=symbol,
+                timeframe=tf,
+                balance=bal,
+                ohlcv_cache=cache,
+                strategies=strategies,
+                risk_percent=risk_percent,
+                sub_account_id=sub_account_id,
             )
 
         # Multi-technique path: run every applicable technique, dedup
         # by symbol (highest composite wins), return the single
         # survivor.
         candidates = await self._propose_all_for_symbol(
-            symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
+            symbol=symbol,
+            timeframe=tf,
+            balance=bal,
+            ohlcv_cache=cache,
+            strategies=strategies,
+            risk_percent=risk_percent,
+            sub_account_id=sub_account_id,
         )
         if not candidates:
             return None
@@ -331,6 +349,9 @@ class ProposalEngine:
         balance: Decimal | None = None,
         timeframe: str | None = None,
         top_k: int = 3,
+        strategies: list[BaseStrategy] | None = None,
+        risk_percent: float | None = None,
+        sub_account_id: str = "default",
     ) -> list[Proposal]:
         """FR-012: scan symbols and return the top-K highest-scored.
 
@@ -364,12 +385,24 @@ class ProposalEngine:
             try:
                 if self.config.multi_technique_per_symbol:
                     per_symbol = await self._propose_all_for_symbol(
-                        symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
+                        symbol=symbol,
+                        timeframe=tf,
+                        balance=bal,
+                        ohlcv_cache=cache,
+                        strategies=strategies,
+                        risk_percent=risk_percent,
+                        sub_account_id=sub_account_id,
                     )
                     candidates.extend(per_symbol)
                 else:
                     proposal = await self._propose_for_symbol(
-                        symbol=symbol, timeframe=tf, balance=bal, ohlcv_cache=cache
+                        symbol=symbol,
+                        timeframe=tf,
+                        balance=bal,
+                        ohlcv_cache=cache,
+                        strategies=strategies,
+                        risk_percent=risk_percent,
+                        sub_account_id=sub_account_id,
                     )
                     if proposal is not None:
                         candidates.append(proposal)
@@ -405,6 +438,9 @@ class ProposalEngine:
         timeframe: str,
         balance: Decimal,
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
+        strategies: list[BaseStrategy] | None = None,
+        risk_percent: float | None = None,
+        sub_account_id: str = "default",
     ) -> Proposal | None:
         """Build a proposal for one symbol, or return None if unfit.
 
@@ -421,9 +457,9 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
-        if self._cold_start_blocks_live(symbol):
+        if self._cold_start_blocks_live(symbol, strategies=strategies):
             return None
-        selection = self._select_best_technique(symbol)
+        selection = self._select_best_technique(symbol, strategies=strategies)
         if selection is None:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return None
@@ -435,6 +471,8 @@ class ProposalEngine:
             strategy=strategy,
             perf=perf,
             ohlcv_cache=ohlcv_cache if ohlcv_cache is not None else {},
+            risk_percent=risk_percent,
+            sub_account_id=sub_account_id,
         )
 
     async def _propose_all_for_symbol(
@@ -443,6 +481,9 @@ class ProposalEngine:
         timeframe: str,
         balance: Decimal,
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
+        strategies: list[BaseStrategy] | None = None,
+        risk_percent: float | None = None,
+        sub_account_id: str = "default",
     ) -> list[Proposal]:
         """Phase 10.6: run every applicable technique for ``symbol``.
 
@@ -458,9 +499,9 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
-        if self._cold_start_blocks_live(symbol):
+        if self._cold_start_blocks_live(symbol, strategies=strategies):
             return []
-        selections = self._select_all_techniques(symbol)
+        selections = self._select_all_techniques(symbol, strategies=strategies)
         if not selections:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return []
@@ -475,6 +516,8 @@ class ProposalEngine:
                 strategy=strategy,
                 perf=perf,
                 ohlcv_cache=cache,
+                risk_percent=risk_percent,
+                sub_account_id=sub_account_id,
             )
             if proposal is not None:
                 proposals.append(proposal)
@@ -489,6 +532,8 @@ class ProposalEngine:
         strategy: BaseStrategy,
         perf: TechniquePerformance | None,
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
+        risk_percent: float | None = None,
+        sub_account_id: str = "default",
     ) -> Proposal | None:
         """Run ``strategy`` against fresh OHLCV and build a Proposal.
 
@@ -589,7 +634,11 @@ class ProposalEngine:
                 symbol=symbol,
                 balance=balance,
                 leverage=self.config.leverage,
-                risk_percent=self.config.risk_percent,
+                risk_percent=(
+                    risk_percent
+                    if risk_percent is not None
+                    else self.config.risk_percent
+                ),
             )
         except TradingValidationError as e:
             logger.info(f"Position rejected for {symbol} via {strategy.name}: {e}")
@@ -603,6 +652,7 @@ class ProposalEngine:
             timeframe=primary_timeframe,
             technique_name=strategy.name,
             technique_version=strategy.version,
+            sub_account_id=sub_account_id,
             signal=position.side,
             entry_price=position.entry_price,
             stop_loss=position.stop_loss or analysis.stop_loss,
@@ -659,6 +709,7 @@ class ProposalEngine:
     def _select_best_technique(
         self,
         symbol: str,
+        strategies: list[BaseStrategy] | None = None,
     ) -> tuple[BaseStrategy, TechniquePerformance | None] | None:
         """Pick the technique most likely to produce a useful proposal.
 
@@ -674,10 +725,11 @@ class ProposalEngine:
         lex-first applicable strategy with ``perf=None`` so the caller
         can still produce a confidence-driven proposal.
         """
+        population = (
+            strategies if strategies is not None else list(self.strategies.values())
+        )
         applicable = [
-            s
-            for s in self.strategies.values()
-            if not s.info.symbols or symbol in s.info.symbols
+            s for s in population if not s.info.symbols or symbol in s.info.symbols
         ]
         if not applicable:
             return None
@@ -709,7 +761,11 @@ class ProposalEngine:
         best_strategy, best_perf = ranked[0]
         return (best_strategy, best_perf if best_perf.total_trades > 0 else None)
 
-    def _cold_start_blocks_live(self, symbol: str) -> bool:
+    def _cold_start_blocks_live(
+        self,
+        symbol: str,
+        strategies: list[BaseStrategy] | None = None,
+    ) -> bool:
         """Phase 24.1 / DEBT-034: live mode + no qualifying technique → block.
 
         Returns True iff:
@@ -730,10 +786,11 @@ class ProposalEngine:
         threshold = self.config.min_closed_trades_for_live_promotion
         if threshold <= 0:
             return False
+        population = (
+            strategies if strategies is not None else list(self.strategies.values())
+        )
         applicable = [
-            s
-            for s in self.strategies.values()
-            if not s.info.symbols or symbol in s.info.symbols
+            s for s in population if not s.info.symbols or symbol in s.info.symbols
         ]
         if not applicable:
             return False  # No-applicable-technique path is handled by callers.
@@ -785,6 +842,7 @@ class ProposalEngine:
     def _select_all_techniques(
         self,
         symbol: str,
+        strategies: list[BaseStrategy] | None = None,
     ) -> list[tuple[BaseStrategy, TechniquePerformance | None]]:
         """Phase 10.6: every applicable technique for ``symbol``.
 
@@ -799,12 +857,11 @@ class ProposalEngine:
         Order is lex by strategy name — deterministic for tests; the
         actual ranking happens after analysis on the composite score.
         """
+        population = (
+            strategies if strategies is not None else list(self.strategies.values())
+        )
         applicable = sorted(
-            (
-                s
-                for s in self.strategies.values()
-                if not s.info.symbols or symbol in s.info.symbols
-            ),
+            (s for s in population if not s.info.symbols or symbol in s.info.symbols),
             key=lambda s: s.name,
         )
 

@@ -25,6 +25,7 @@ from src.runtime.engine import (
     TradingEngine,
 )
 from src.strategy.performance import TradeHistory
+from src.trading.sub_account import RiskOverrides, SubAccount
 from src.utils.time import now_utc
 
 # =============================================================================
@@ -187,6 +188,41 @@ def build_engine(
     }
 
 
+class FakeSubAccountRegistry:
+    def __init__(self, sub_accounts: list[SubAccount], traders: dict[str, MagicMock]):
+        self.sub_accounts = sub_accounts
+        self.traders = traders
+        self.filter_calls: list[tuple[str, list[object]]] = []
+
+    def list_active(self) -> list[SubAccount]:
+        return self.sub_accounts
+
+    def get_trader(self, id: str) -> MagicMock:
+        return self.traders[id]
+
+    def filter_strategies(self, id: str, available: list[object]) -> list[object]:
+        self.filter_calls.append((id, available))
+        return available
+
+
+def make_mock_trader() -> MagicMock:
+    trader = MagicMock()
+    trader.get_open_trades.return_value = []
+    trader.open_position = AsyncMock(
+        side_effect=lambda position, **kwargs: make_trade(
+            trade_id=f"t-{position.symbol}-{position.side}",
+            symbol=position.symbol,
+            side=position.side,
+            entry=str(position.entry_price),
+            quantity=str(position.quantity),
+        )
+    )
+    trader.close_position = AsyncMock(return_value=None)
+    trader.check_exit_conditions.return_value = (False, None)
+    trader.get_balances = AsyncMock(return_value={"USDT": Decimal("10000")})
+    return trader
+
+
 # =============================================================================
 # _auto_decide
 # =============================================================================
@@ -293,6 +329,109 @@ async def test_run_cycle_handles_no_proposals(tmp_path: Path) -> None:
         event_type=ActivityEventType.CYCLE_COMPLETED
     )
     assert len(completed) == 1
+
+
+async def test_run_cycle_fans_out_per_active_sub_account(tmp_path: Path) -> None:
+    """Phase 19.2: each active sub-account gets its own scan and trader."""
+    exchange = AsyncMock(spec=BaseExchange)
+    exchange.get_ticker.return_value = Ticker(
+        symbol="BTC/USDT",
+        price=Decimal("50000"),
+        timestamp=now_utc(),
+    )
+
+    proposal_engine = MagicMock(spec=ProposalEngine)
+    proposal_engine.strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal:
+        return make_proposal(proposal_id=f"p-{kwargs['sub_account_id']}").model_copy(
+            update={"sub_account_id": kwargs["sub_account_id"]}
+        )
+
+    proposal_engine.propose_bitcoin = AsyncMock(side_effect=propose_bitcoin)
+    proposal_engine.propose_altcoins = AsyncMock(return_value=[])
+
+    history = ProposalHistory(data_dir=tmp_path / "proposals")
+    interaction = ProposalInteraction(history=history)
+    trader_a = make_mock_trader()
+    trader_b = make_mock_trader()
+    registry = FakeSubAccountRegistry(
+        [
+            SubAccount(
+                id="alpha",
+                name="Alpha",
+                mode="paper",
+                exchange_ref="default",
+                initial_balance={"USDT": Decimal("10000")},
+            ),
+            SubAccount(
+                id="beta",
+                name="Beta",
+                mode="paper",
+                exchange_ref="default",
+                initial_balance={"USDT": Decimal("10000")},
+            ),
+        ],
+        {"alpha": trader_a, "beta": trader_b},
+    )
+    notification_dispatcher = MagicMock(spec=NotificationDispatcher)
+    notification_dispatcher.notify_proposal = AsyncMock(return_value=None)
+
+    engine = TradingEngine(
+        exchange=exchange,
+        proposal_engine=proposal_engine,
+        proposal_interaction=interaction,
+        proposal_history=history,
+        trader=trader_a,
+        registry=registry,  # type: ignore[arg-type]
+        notification_dispatcher=notification_dispatcher,
+        activity_log=ActivityLog(path=tmp_path / "activity.jsonl"),
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_generated == 2
+    assert trader_a.open_position.await_count == 1
+    assert trader_b.open_position.await_count == 1
+    assert proposal_engine.propose_bitcoin.await_count == 2
+    assert {
+        c.kwargs["sub_account_id"]
+        for c in proposal_engine.propose_bitcoin.await_args_list
+    } == {"alpha", "beta"}
+    assert {r.sub_account_id for r in history.list_all()} == {"alpha", "beta"}
+
+
+async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> None:
+    """Risk override is passed to ProposalEngine per sub-account."""
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=make_proposal(proposal_id="alpha-proposal"),
+    )
+    sub = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        risk_overrides=RiskOverrides(risk_percent=Decimal("0.25")),
+    )
+    registry = FakeSubAccountRegistry([sub], {"alpha": mocks["trader"]})
+    engine.sub_account_registry = registry  # type: ignore[assignment]
+    mocks["proposal_engine"].strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal:
+        return make_proposal(proposal_id="alpha-proposal").model_copy(
+            update={"sub_account_id": kwargs["sub_account_id"]}
+        )
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
+
+    await engine.run_cycle()
+
+    call = mocks["proposal_engine"].propose_bitcoin.await_args
+    assert call.kwargs["sub_account_id"] == "alpha"
+    assert call.kwargs["risk_percent"] == 0.25
 
 
 # =============================================================================

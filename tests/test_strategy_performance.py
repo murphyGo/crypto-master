@@ -683,7 +683,7 @@ class TestPerformanceStorage:
         """Test records file is created on save."""
         tracker.save_record(sample_performance_record)
 
-        records_path = tmp_path / "test_strategy" / "records.json"
+        records_path = tmp_path / "default" / "test_strategy" / "records.json"
         assert records_path.exists()
 
     def test_summary_file_created(
@@ -695,7 +695,7 @@ class TestPerformanceStorage:
         """Test summary file is created on save."""
         tracker.save_record(sample_performance_record)
 
-        summary_path = tmp_path / "test_strategy" / "summary.json"
+        summary_path = tmp_path / "default" / "test_strategy" / "summary.json"
         assert summary_path.exists()
 
     def test_records_json_format(
@@ -707,7 +707,7 @@ class TestPerformanceStorage:
         """Test records file is valid JSON."""
         tracker.save_record(sample_performance_record)
 
-        records_path = tmp_path / "test_strategy" / "records.json"
+        records_path = tmp_path / "default" / "test_strategy" / "records.json"
         with open(records_path) as f:
             data = json.load(f)
 
@@ -724,7 +724,7 @@ class TestPerformanceStorage:
         """Test summary file is valid JSON."""
         tracker.save_record(sample_performance_record)
 
-        summary_path = tmp_path / "test_strategy" / "summary.json"
+        summary_path = tmp_path / "default" / "test_strategy" / "summary.json"
         with open(summary_path) as f:
             data = json.load(f)
 
@@ -741,7 +741,7 @@ class TestPerformanceStorage:
         """Test Decimal values are serialized as strings."""
         tracker.save_record(sample_performance_record)
 
-        records_path = tmp_path / "test_strategy" / "records.json"
+        records_path = tmp_path / "default" / "test_strategy" / "records.json"
         with open(records_path) as f:
             data = json.load(f)
 
@@ -758,7 +758,7 @@ class TestPerformanceStorage:
         """Test datetime values are serialized as ISO format."""
         tracker.save_record(sample_performance_record)
 
-        records_path = tmp_path / "test_strategy" / "records.json"
+        records_path = tmp_path / "default" / "test_strategy" / "records.json"
         with open(records_path) as f:
             data = json.load(f)
 
@@ -857,7 +857,7 @@ class TestPerformanceRecordEnhanced:
 
         tracker.save_record(record)
 
-        records_path = tmp_path / "test_enhanced" / "records.json"
+        records_path = tmp_path / "default" / "test_enhanced" / "records.json"
         with open(records_path) as f:
             data = json.load(f)
 
@@ -1615,7 +1615,7 @@ class TestTradeHistoryStorage:
             mode="paper",
         )
 
-        trades_path = tmp_path / "paper" / "trades.json"
+        trades_path = tmp_path / "paper" / "default" / "trades.json"
         assert trades_path.exists()
 
     def test_trades_json_format(
@@ -1630,7 +1630,7 @@ class TestTradeHistoryStorage:
             mode="paper",
         )
 
-        trades_path = tmp_path / "paper" / "trades.json"
+        trades_path = tmp_path / "paper" / "default" / "trades.json"
         with open(trades_path) as f:
             data = json.load(f)
 
@@ -1652,7 +1652,7 @@ class TestTradeHistoryStorage:
             mode="paper",
         )
 
-        trades_path = tmp_path / "paper" / "trades.json"
+        trades_path = tmp_path / "paper" / "default" / "trades.json"
         with open(trades_path) as f:
             data = json.load(f)
 
@@ -1672,7 +1672,7 @@ class TestTradeHistoryStorage:
             mode="paper",
         )
 
-        trades_path = tmp_path / "paper" / "trades.json"
+        trades_path = tmp_path / "paper" / "default" / "trades.json"
         with open(trades_path) as f:
             data = json.load(f)
 
@@ -1706,9 +1706,9 @@ class TestTradeHistoryStorage:
             mode="backtest",
         )
 
-        paper_path = tmp_path / "paper" / "trades.json"
-        live_path = tmp_path / "live" / "trades.json"
-        backtest_path = tmp_path / "backtest" / "trades.json"
+        paper_path = tmp_path / "paper" / "default" / "trades.json"
+        live_path = tmp_path / "live" / "default" / "trades.json"
+        backtest_path = tmp_path / "backtest" / "default" / "trades.json"
 
         assert paper_path.exists()
         assert live_path.exists()

@@ -47,6 +47,7 @@ logger = get_logger("crypto_master.trading.sub_account_migration")
 # reorganisation (e.g. Phase 19.2 performance subtree migration) can
 # ship a separate marker without overlapping this one.
 MARKER_FILENAME = ".subaccounts_migrated_v19_1"
+PERFORMANCE_MARKER_FILENAME = ".performance_migrated_v19_2"
 
 # Modes whose records sit under ``{root}/{mode}/...``. The backtest
 # subtree is included so backtester output produced by an upgraded
@@ -75,35 +76,27 @@ def migrate_legacy_paths(data_dir: Path) -> dict[str, int]:
         the short-circuit path. Operator-log friendly: callers can
         skip the log line entirely when the sum is zero.
     """
-    counts = {"trades": 0, "portfolio": 0, "proposals": 0}
+    counts = {"trades": 0, "portfolio": 0, "proposals": 0, "performance": 0}
 
     marker = data_dir / MARKER_FILENAME
-    if marker.exists():
-        # Already migrated on a previous boot — nothing to do.
-        # Deliberately silent (no log line) so restart noise stays
-        # zero on long-running deploys.
-        return counts
-
-    # If the data dir itself doesn't exist (fresh deploy on a new
-    # host) there is nothing to migrate; we still want to write the
-    # marker so the next boot doesn't keep looking. Create the dir
-    # eagerly so the marker write can succeed.
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    counts["trades"] = _migrate_mode_subtree(
-        root=data_dir / "trades",
-        leaf_name="trades.json",
-    )
-    counts["portfolio"] = _migrate_mode_subtree(
-        root=data_dir / "portfolio",
-        leaf_name="snapshots.json",
-    )
-    counts["proposals"] = _migrate_proposals(data_dir / "proposals")
+    if not marker.exists():
+        counts["trades"] = _migrate_mode_subtree(
+            root=data_dir / "trades",
+            leaf_name="trades.json",
+        )
+        counts["portfolio"] = _migrate_mode_subtree(
+            root=data_dir / "portfolio",
+            leaf_name="snapshots.json",
+        )
+        counts["proposals"] = _migrate_proposals(data_dir / "proposals")
+        marker.write_text("")
 
-    # Marker written unconditionally on a non-short-circuit pass so
-    # the "no source files" branch ends in a settled state too — the
-    # next boot doesn't re-scan empty directories.
-    marker.write_text("")
+    performance_marker = data_dir / PERFORMANCE_MARKER_FILENAME
+    if not performance_marker.exists():
+        counts["performance"] = _migrate_performance(data_dir / "performance")
+        performance_marker.write_text("")
     return counts
 
 
@@ -193,7 +186,44 @@ def _migrate_proposals(root: Path) -> int:
     return moved
 
 
+def _migrate_performance(root: Path) -> int:
+    """Migrate ``performance/{technique}`` → ``performance/default/{technique}``.
+
+    Phase 19.2 introduces the sub-account level above each technique
+    directory. The migration moves only top-level technique directories
+    that contain either ``records.json`` or ``summary.json``; existing
+    ``default/`` or other operator-created sub-account directories are
+    left untouched.
+    """
+    if not root.exists():
+        return 0
+
+    target_root = root / DEFAULT_SUB_ACCOUNT_ID
+    moved = 0
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        if entry.name == DEFAULT_SUB_ACCOUNT_ID:
+            continue
+        if not ((entry / "records.json").exists() or (entry / "summary.json").exists()):
+            continue
+        target = target_root / entry.name
+        if target.exists():
+            logger.warning(
+                "sub-account migration: %s already exists; "
+                "leaving legacy performance dir %s in place",
+                target,
+                entry,
+            )
+            continue
+        target_root.mkdir(parents=True, exist_ok=True)
+        os.replace(entry, target)
+        moved += 1
+    return moved
+
+
 __all__ = [
     "MARKER_FILENAME",
+    "PERFORMANCE_MARKER_FILENAME",
     "migrate_legacy_paths",
 ]

@@ -99,6 +99,9 @@ class ProposalRecord(BaseModel):
 
     Attributes:
         proposal: The full ``Proposal`` payload as ranked by the engine.
+        sub_account_id: Capital bucket mirror of
+            ``proposal.sub_account_id``. Defaults to ``"default"`` for
+            legacy records.
         decision: PENDING until the user responds; ACCEPTED or REJECTED
             after.
         decision_at: When the decision was recorded.
@@ -113,6 +116,7 @@ class ProposalRecord(BaseModel):
     """
 
     proposal: Proposal
+    sub_account_id: str = "default"
     decision: ProposalDecision = ProposalDecision.PENDING
     decision_at: datetime | None = None
     actor: str | None = None
@@ -243,8 +247,14 @@ class ProposalHistory:
 
     def save(self, record: ProposalRecord) -> None:
         """Persist a record, overwriting any earlier snapshot."""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        path = self._path_for(record.proposal.proposal_id)
+        record = record.model_copy(
+            update={"sub_account_id": record.proposal.sub_account_id}
+        )
+        path = self._path_for(
+            record.proposal.proposal_id,
+            sub_account_id=record.sub_account_id,
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
         # DEBT-028 (Phase 22.1): the engine's stale-quote rejection
         # path does load → model_copy → save against this same file
         # in the same cycle that ``ProposalInteraction.present`` first
@@ -284,7 +294,7 @@ class ProposalHistory:
             return []
 
         records: list[ProposalRecord] = []
-        for path in sorted(self.data_dir.glob("*.json")):
+        for path in self._iter_record_paths():
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 records.append(ProposalRecord(**payload))
@@ -380,8 +390,32 @@ class ProposalHistory:
         )
         return updated
 
-    def _path_for(self, proposal_id: str) -> Path:
-        return self.data_dir / f"{proposal_id}.json"
+    def _path_for(self, proposal_id: str, sub_account_id: str | None = None) -> Path:
+        if sub_account_id is not None:
+            return self.data_dir / sub_account_id / f"{proposal_id}.json"
+
+        default_path = self.data_dir / "default" / f"{proposal_id}.json"
+        if default_path.exists():
+            return default_path
+
+        legacy_path = self.data_dir / f"{proposal_id}.json"
+        if legacy_path.exists():
+            return legacy_path
+
+        for path in sorted(self.data_dir.glob(f"*/{proposal_id}.json")):
+            if "archive" in path.relative_to(self.data_dir).parts:
+                continue
+            return path
+        return default_path
+
+    def _iter_record_paths(self) -> list[Path]:
+        paths = list(self.data_dir.glob("*.json"))
+        paths.extend(self.data_dir.glob("*/*.json"))
+        return sorted(
+            path
+            for path in paths
+            if "archive" not in path.relative_to(self.data_dir).parts
+        )
 
     # =========================================================================
     # Retention (Phase 10.4)
@@ -447,7 +481,7 @@ class ProposalHistory:
         cutoff = now - relativedelta(months=retention_months)
 
         archived: list[Path] = []
-        for path in sorted(self.data_dir.glob("*.json")):
+        for path in self._iter_record_paths():
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 record = ProposalRecord(**payload)
@@ -468,7 +502,8 @@ class ProposalHistory:
                 continue
 
             month_token = created_at.strftime("%Y-%m")
-            archive_dir = self.data_dir / "archive" / month_token
+            sub_account_id = record.sub_account_id or record.proposal.sub_account_id
+            archive_dir = self.data_dir / sub_account_id / "archive" / month_token
             archive_dir.mkdir(parents=True, exist_ok=True)
             destination = archive_dir / path.name
             path.replace(destination)
@@ -558,6 +593,7 @@ class ProposalInteraction:
 
         record = ProposalRecord(
             proposal=proposal,
+            sub_account_id=proposal.sub_account_id,
             decision=decision,
             decision_at=now_utc(),
             actor=actor,
