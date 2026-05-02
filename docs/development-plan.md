@@ -73,7 +73,7 @@
 | Sub-Account Engine Integration | ✅ Complete | 19 |
 | Multi-Paper-Account Support + YAML Config + Dashboard | ✅ Complete | 19 |
 | Multi-Credential Live Mode | ✅ Complete | 19 |
-| Strategy-Combination A/B Backtest Harness | ❌ Missing | 19 |
+| Strategy-Combination A/B Backtest Harness | ✅ Complete | 19 |
 | PnL Convention Single Source — Leverage No Double-Apply | ✅ Complete | 20 |
 | Backtest / Portfolio Leverage Math Alignment | ✅ Complete | 20 |
 | Phase 5.4+ Baseline Re-computation | ⏸ Deferred (Phase 25) | 20 [^p20-3] |
@@ -2480,33 +2480,33 @@ Execution — extends the engine to multi-account), FR-027
 report), FR-034 (Robustness Validation Gate — reused per sub-
 account).
 
-- [ ] `src/backtest/harness.py` — `BacktestHarness.run_sub_accounts(
+- [x] `src/backtest/harness.py` — `BacktestHarness.run_sub_accounts(
   sub_accounts: list[SubAccount], ohlcv_by_symbol_tf: dict[...],
   strategies: dict[str, BaseStrategy]) ->
   MultiAccountReport`. Pre-loads the OHLCV window once;
-  per-bar dispatch fans out per sub-account; each sub-account's
+  per-window dispatch fans out per sub-account; each sub-account's
   trade ledger accumulates independently. Risk overrides and
   initial-balance per sub-account are honoured.
-- [ ] `src/backtest/multi_account_report.py` — `MultiAccountReport`
-  Pydantic model: `per_sub_account: dict[str, PerformanceSummary]`,
+- [x] `src/backtest/multi_account_report.py` — `MultiAccountReport`
+  Pydantic model: `per_sub_account: dict[str, PerformanceMetrics]`,
   `equity_curves: dict[str, list[tuple[datetime, Decimal]]]`,
-  `pairwise_correlation: dict[tuple[str, str], float]`,
-  `merged_trade_ledger: list[TradeHistory]` (each carrying its
+  `pairwise_correlation: dict[str, float]`,
+  `merged_trade_ledger: list[BacktestTrade]` (each carrying its
   `sub_account_id`).
-- [ ] `scripts/backtest_combinations.py` — operator entry point
+- [x] `scripts/backtest_combinations.py` — operator entry point
   `python -m scripts.backtest_combinations
   --config config/combinations/<name>.yaml --window 90d`. YAML
   schema is a list of sub-accounts (same shape as Phase 19.3's
   `config/sub_accounts.yaml`). Output: `data/backtest/
   combinations/<run_id>/{report.json, equity_curves.png,
   trades.csv}`.
-- [ ] `src/dashboard/pages/strategies.py` — link to the latest
+- [x] `src/dashboard/pages/strategies.py` — link to the latest
   combinations run (if `data/backtest/combinations/` non-empty);
   side-by-side equity-curve viewer.
-- [ ] Robustness-gate routing: extend `RobustnessGate` to accept
-  a list of sub-accounts when called via the harness; report
-  per-sub-account verdicts in the multi-account summary.
-- [ ] Tests: 2-sub-account lockstep harness over a 90-day synthetic
+- [x] Robustness-gate routing: the harness evaluates the configured
+  `RobustnessGate` once per active sub-account strategy set and
+  reports per-sub-account verdicts in the multi-account summary.
+- [x] Tests: 2-sub-account lockstep harness over a 90-day synthetic
   window — sub-A whitelists `[rsi_4h]`, sub-B whitelists
   `[chasulang_ict_smc]`, equal initial balance, assert per-sub-
   account ledger + equity curve are independent and the merged
@@ -3516,4 +3516,5 @@ requirements; no new FR/NFR introduced.
 | 19.2 | 2026-05-03 | Phase 19.2 complete - Sub-Account Engine Integration (FR-036, FR-005, NFR-007, NFR-008). Runtime `TradingEngine` now accepts `registry` and fans out each cycle across `registry.list_active()`, routing execution through `registry.get_trader(sub.id)` and passing filtered strategies plus `risk_percent` overrides into `ProposalEngine`. `Proposal`, `ProposalRecord`, `PerformanceRecord`, `TradeHistory`, and `AssetSnapshot` carry `sub_account_id="default"` by default for legacy-read compatibility. Persistence is partitioned by sub-account: proposals under `data/proposals/{sub_account_id}/`, performance under `data/performance/{sub_account_id}/{technique}/`, trades under `data/trades/{mode}/{sub_account_id}/trades.json`, and portfolio snapshots under `data/portfolio/{mode}/{sub_account_id}/snapshots.json`. This resolves DEBT-046 by construction via per-account files and resolves DEBT-050 by promoting registry wiring into `TradingEngine.__init__`. `migrate_legacy_paths` now also migrates `performance/{technique}` into `performance/default/{technique}` behind `.performance_migrated_v19_2`, independent of the 19.1 marker. Tests updated and expanded for path routing, proposal retention under sub-account directories, performance migration, sub-account fan-out, trader isolation, and risk override threading. Targeted pytest: 229 passed. Phase 19 remains open (19.3 / 19.4 / 19.5 pending); cross-check deferred until phase completion. Session log: `docs/sessions/2026-05-03-phase-19.2-sub-account-engine-integration.md`. | Claude |
 | 19.3 | 2026-05-03 | Phase 19.3 complete - Multi-Paper-Account Support + YAML Config + Dashboard (FR-036, FR-038, FR-013, NFR-003). Added `config/sub_accounts.yaml.example` with default, btc_only, and experimental paper examples. `SubAccountRegistry` now parses `config/sub_accounts.yaml` when present, validates every entry through `SubAccount`, raises `SubAccountConfigError` for malformed config, duplicate ids, unresolved non-default exchange refs, and non-default live sub-accounts (`Phase 19.4 not landed`). YAML paper siblings receive isolated `PaperTrader` instances with their own `sub_account_id` trade ledgers while `default` preserves the injected trader. Trading dashboard gained sub-account selector plus aggregate multi-account trade / snapshot summaries and comparative equity curves; Engine dashboard gained per-sub-account metrics with an aggregate row. Notifications now include `sub_account_id` in default messages, Slack text/detail, Telegram/email body, and email subject suffix. `FeedbackLoop.CandidateRecord` carries `sub_account_id`, and `scripts/auto_research_candidates.py --sub-account` threads it through `loop.propose_new`. DEBT-051 resolved; DEBT-052 added for deferred per-sub-account notification routing overrides. Tests added for YAML parser happy/error paths, dashboard helpers, notification payload attribution, and auto-research sub-account threading. Session log: `docs/sessions/2026-05-03-phase-19.3-multi-paper-account-yaml-dashboard.md`. Phase 19 remains open (19.4 / 19.5 pending); cross-check deferred until phase completion. | Claude |
 | 19.4 | 2026-05-03 | Phase 19.4 complete - Multi-Credential Live Mode (FR-037, FR-009, NFR-011, NFR-012). Added `ExchangeCredential` and `Settings.exchange_credentials` parsing for `EXCHANGE_<REF>_API_KEY` / `API_SECRET` / `TESTNET` / `EXCHANGE` / `MARKET_TYPE`, with legacy live-key aliases `binance_main` and `bybit_main` and conflict rejection when legacy keys and explicit `EXCHANGE_BINANCE_MAIN_*` / `EXCHANGE_BYBIT_MAIN_*` are both set. `SubAccountRegistry` now allows live sub-accounts with named credential refs, fails startup with `MissingExchangeCredentialsError` when an enabled live sub-account references missing creds, builds cached per-sub-account `LiveTrader` instances, and exposes `connect_owned_exchanges` / `disconnect_owned_exchanges` for startup lifecycle. `LiveTrader` accepts `sub_account_id` so live trade history lands under the correct account. `src/main.py` preserves single-account `build_trader` and adds `build_traders(registry, settings)` while connecting registry-owned exchanges during `run`. Runtime auto-decision now honors `RiskOverrides.auto_approve_threshold` per sub-account. `.env.example` documents the `EXCHANGE_<REF>_*` schema and `docs/deployment.md` adds a Multi-Account Live checklist. Tests cover env parsing, legacy aliasing, conflict rejection, missing live creds, per-sub-account LiveTrader isolation, and per-sub-account threshold routing. Targeted pytest: 181 passed; ruff / black / targeted mypy clean. Session log: `docs/sessions/2026-05-03-phase-19.4-multi-credential-live-mode.md`. Phase 19 remains open (19.5 pending); cross-check deferred until phase completion. | Claude |
+| 19.5 | 2026-05-03 | Phase 19.5 complete - Strategy-Combination A/B Backtest Harness (FR-038, FR-025, FR-027, FR-034). Added `BacktestHarness.run_sub_accounts` to run enabled sub-accounts against a shared OHLCV window, honor per-sub-account initial balance / risk overrides / strategy filters, merge sub-account-attributed `BacktestTrade` ledgers, compute per-sub-account `PerformanceMetrics`, pairwise return correlations, and optional per-sub-account robustness verdicts. Added `MultiAccountReport`, exported the harness from `src.backtest`, and extended `BacktestTrade` with default `sub_account_id` / `technique_name` attribution for combination CSVs. Added `scripts/backtest_combinations.py` operator entry (`--config`, `--window`, `--symbol`, `--timeframe`, `--output-dir`) that writes `report.json`, `trades.csv`, and dependency-free `equity_curves.png`. Strategies dashboard now links the newest combination run and renders its side-by-side equity curves. Tests cover 2-sub-account synthetic harness, merged-ledger attribution, correlation output, robustness-gate routing, YAML parsing, operator-script smoke, PNG artifact signature, and dashboard equity pivot. Phase 19 sealed; cross-check `docs/cross-checks/2026-05-03-phase-19-sub-account-capital-segmentation.md`. | Claude |
 | 18.2 | 2026-05-03 | Phase 18.2 complete - Trade-Quality Diagnostic (FR-005, FR-021, FR-025, NFR-001; read-only research task). Pulled Fly volume data into `/private/tmp/crypto-master-phase18-2-data` and published `docs/research/trade-quality-2026-05-01.md`. Current production snapshot had 11 closed paper trades + 1 open trade, not the design doc's stale 9-closed-trade count; analysis uses the current ledger. All closed trades resolved to `ProposalRecord`; no orphan closed trades. Main result: current closed set is 2W/9L, total PnL -61.66 USDT, EV -5.61 USDT/trade, expectancy -0.40R. `simple_trend_analysis` carries 8/9 losses and expectancy -1.24R over n=9, so §7.3 strategy-specific gate/removal rule also fires. Primary recommendation is a top-priority composite-score review because §7.2 fires: accepted closed expectancy (-0.40R, n=11) underperformed rejected-threshold hypothetical expectancy (-0.18R, n=98). Secondary recommendation is a strategy-specific block or higher threshold for `simple_trend_analysis` until enough post-18.1 evidence accumulates. No global slippage-tolerance edit recommended (p95 absolute stale/instant-stop drift proxy 151.2 bps, so §7.1 30-bps tighten rule does not fire). `docs/baselines.md` cross-reference added; no new TECH-DEBT. Phase 18 sealed with cross-check `docs/cross-checks/2026-05-03-phase-18-live-trading-quality.md` PASS. Session log: `docs/sessions/2026-05-03-phase-18.2-trade-quality-diagnostic.md`. | Claude |

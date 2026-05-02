@@ -7,7 +7,10 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from src.backtest.analyzer import PerformanceMetrics
+from src.backtest.multi_account_report import MultiAccountReport
 from src.dashboard.pages.strategies import (
+    build_combinations_equity_dataframe,
     build_summary_dataframe,
     build_trend_dataframe,
 )
@@ -103,6 +106,39 @@ def make_record(
         exit_timestamp=exit_at,
         pnl_percent=pnl_percent,
     )
+
+
+# =============================================================================
+# build_combinations_equity_dataframe
+# =============================================================================
+
+
+def test_combinations_equity_dataframe_pivots_sub_accounts() -> None:
+    report = MultiAccountReport(
+        run_id="combo-test",
+        symbol="BTC/USDT",
+        timeframe="1h",
+        per_sub_account={
+            "suba": PerformanceMetrics(final_balance=Decimal("10100")),
+            "subb": PerformanceMetrics(final_balance=Decimal("9900")),
+        },
+        equity_curves={
+            "suba": [
+                (datetime(2026, 1, 1, 0, 0, 0), Decimal("10000")),
+                (datetime(2026, 1, 1, 1, 0, 0), Decimal("10100")),
+            ],
+            "subb": [
+                (datetime(2026, 1, 1, 0, 0, 0), Decimal("10000")),
+                (datetime(2026, 1, 1, 1, 0, 0), Decimal("9900")),
+            ],
+        },
+    )
+
+    frame = build_combinations_equity_dataframe(report)
+
+    assert list(frame.columns) == ["suba", "subb"]
+    assert frame.iloc[-1]["suba"] == 10100.0
+    assert frame.iloc[-1]["subb"] == 9900.0
 
 
 # =============================================================================

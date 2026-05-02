@@ -226,6 +226,8 @@ class BacktestTrade(BaseModel):
     pnl: Decimal
     close_reason: Literal["take_profit", "stop_loss", "end_of_data"]
     liquidated: bool = False
+    sub_account_id: str = "default"
+    technique_name: str = "unknown"
 
 
 class EquityPoint(BaseModel):

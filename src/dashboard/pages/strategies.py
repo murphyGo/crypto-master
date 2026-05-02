@@ -21,12 +21,14 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.backtest.multi_account_report import MultiAccountReport
 from src.logger import get_logger
 from src.strategy.base import BaseStrategy
 from src.strategy.loader import DEFAULT_STRATEGIES_DIR, load_all_strategies
 from src.strategy.performance import PerformanceRecord, PerformanceTracker
 
 logger = get_logger("crypto_master.dashboard.strategies")
+DEFAULT_COMBINATIONS_DIR = Path("data/backtest/combinations")
 
 
 # =============================================================================
@@ -109,6 +111,47 @@ def build_trend_dataframe(
     return df
 
 
+def latest_combinations_run(
+    combinations_dir: Path = DEFAULT_COMBINATIONS_DIR,
+) -> Path | None:
+    """Return the newest combination report directory, if any."""
+    if not combinations_dir.exists():
+        return None
+    candidates = [p for p in combinations_dir.iterdir() if (p / "report.json").exists()]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def load_combinations_report(run_dir: Path) -> MultiAccountReport:
+    """Load a saved Phase 19.5 combination report."""
+    return MultiAccountReport.model_validate_json(
+        (run_dir / "report.json").read_text(encoding="utf-8")
+    )
+
+
+def build_combinations_equity_dataframe(report: MultiAccountReport) -> pd.DataFrame:
+    """Build a side-by-side equity curve table from a combination report."""
+    rows: list[dict[str, object]] = []
+    for sub_account_id, points in report.equity_curves.items():
+        for timestamp, equity in points:
+            rows.append(
+                {
+                    "timestamp": timestamp,
+                    "sub_account_id": sub_account_id,
+                    "equity": float(equity),
+                }
+            )
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows)
+    return frame.pivot(
+        index="timestamp",
+        columns="sub_account_id",
+        values="equity",
+    ).sort_index()
+
+
 # =============================================================================
 # Streamlit render
 # =============================================================================
@@ -140,6 +183,14 @@ def render(
         return
 
     perf_tracker = tracker or PerformanceTracker()
+
+    latest_combo = latest_combinations_run()
+    if latest_combo is not None:
+        st.info(f"Latest combination backtest: `{latest_combo / 'report.json'}`")
+        combo_report = load_combinations_report(latest_combo)
+        combo_equity = build_combinations_equity_dataframe(combo_report)
+        if not combo_equity.empty:
+            st.line_chart(combo_equity, use_container_width=True)
 
     # ---- Summary table ----
     st.subheader("Summary")
@@ -180,7 +231,10 @@ def render(
 
 
 __all__ = [
+    "build_combinations_equity_dataframe",
     "build_summary_dataframe",
     "build_trend_dataframe",
+    "latest_combinations_run",
+    "load_combinations_report",
     "render",
 ]

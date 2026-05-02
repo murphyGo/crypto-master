@@ -18,6 +18,8 @@ from src.backtest.engine import (
     BacktestResult,
     BacktestTrade,
 )
+from src.backtest.harness import BacktestHarness
+from src.backtest.multi_account_report import MultiAccountReport
 
 __all__ = [
     "Backtester",
@@ -26,6 +28,8 @@ __all__ = [
     "BacktestTrade",
     "BacktestError",
     "BacktestAbortedError",
+    "BacktestHarness",
+    "MultiAccountReport",
     "PerformanceAnalyzer",
     "PerformanceMetrics",
 ]
