@@ -69,7 +69,7 @@
 | Code-Type Steering for Deterministic Catalog Picks | ✅ Complete | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
 | Trade-Quality Diagnostic | ✅ Complete | 18 |
-| Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
+| Sub-Account Foundation (entity + registry + default migration) | ✅ Complete | 19 |
 | Sub-Account Engine Integration | ❌ Missing | 19 |
 | Multi-Paper-Account Support + YAML Config + Dashboard | ❌ Missing | 19 |
 | Multi-Credential Live Mode | ❌ Missing | 19 |
@@ -2192,7 +2192,7 @@ addressed by `id="default"`.
 introducing the entity that will eventually own a balance pool;
 single-account materialisation is the back-compat floor).
 
-- [ ] `src/trading/sub_account.py` — new module. `SubAccount` Pydantic
+- [x] `src/trading/sub_account.py` — new module. `SubAccount` Pydantic
   model with fields per `DESIGN.md §9.2` (`id` / `name` / `mode` /
   `exchange_ref` / `initial_balance` / `strategy_filter` /
   `risk_overrides` / `enabled`); `RiskOverrides` sub-model with
@@ -2203,7 +2203,7 @@ single-account materialisation is the back-compat floor).
   `initial_balance` keys are upper-case currency codes. Frozen model
   (`model_config = ConfigDict(frozen=True)`) so registry consumers
   can't mutate behind the registry's back.
-- [ ] `src/trading/sub_account_registry.py` — `SubAccountRegistry`
+- [x] `src/trading/sub_account_registry.py` — `SubAccountRegistry`
   class. `__init__` accepts `settings: Settings`, `trader: Trader`,
   `config_path: Path | None = None` (default
   `Path("config/sub_accounts.yaml")`). When config file is absent
@@ -2217,7 +2217,7 @@ single-account materialisation is the back-compat floor).
   shared `Trader` in 19.1 — registry stores the wiring seam now,
   19.2 lights it up), `filter_strategies(id, available)` (returns
   `available` unchanged when `strategy_filter is None`).
-- [ ] `src/trading/sub_account_migration.py` — `migrate_legacy_paths(
+- [x] `src/trading/sub_account_migration.py` — `migrate_legacy_paths(
   data_dir: Path) -> dict[str, int]` helper. Idempotent rename of
   `data/trades/{mode}/trades.json` → `data/trades/{mode}/default/
   trades.json` across `mode in {paper, live, backtest}`; same shape
@@ -2228,7 +2228,7 @@ single-account materialisation is the back-compat floor).
   technique. Marker file `data_dir/.subaccounts_migrated_v19_1`
   written on first success; presence short-circuits subsequent
   invocations. Returns count-per-component dict for operator log.
-- [ ] `src/main.py::run` — call `migrate_legacy_paths(settings.data_dir)`
+- [x] `src/main.py::run` — call `migrate_legacy_paths(settings.data_dir)`
   before `build_engine` (mirrors Phase 11.4's
   `_purge_old_proposals` placement). Log INFO with the rename count
   only when non-zero (silent on already-migrated to avoid restart
@@ -2236,20 +2236,20 @@ single-account materialisation is the back-compat floor).
   `build_engine` (registry currently unused inside the engine — the
   parameter is added now so 19.2 doesn't churn `build_engine`'s
   signature).
-- [ ] `tests/test_trading_sub_account.py` — model field validation
+- [x] `tests/test_trading_sub_account.py` — model field validation
   (id regex / live-requires-exchange-ref / currency-code casing /
   frozen behaviour); 6 tests.
-- [ ] `tests/test_trading_sub_account_registry.py` — default
+- [x] `tests/test_trading_sub_account_registry.py` — default
   materialisation reads `Settings.paper_initial_balance` /
   `Settings.trading_mode`; `list_active`, `get`, `get_trader`,
   `filter_strategies(None)` and `filter_strategies(["rsi_4h"])`
   paths; missing-id raises `SubAccountNotFoundError`; 7 tests.
-- [ ] `tests/test_trading_sub_account_migration.py` — rename-and-
+- [x] `tests/test_trading_sub_account_migration.py` — rename-and-
   marker on fresh dir; idempotent re-run (marker present, no work);
   no source files (empty mode dir, no marker written but no error);
   partial pre-existing (one mode already migrated, others not) —
   marker absent → finishes the rest. 5 tests.
-- [ ] `tests/test_main_dispatch.py` — extend with a smoke test
+- [x] `tests/test_main_dispatch.py` — extend with a smoke test
   asserting `run` calls `migrate_legacy_paths` once and constructs
   a registry. 2 tests.
 
@@ -3515,4 +3515,5 @@ requirements; no new FR/NFR introduced.
 | 26.0 | 2026-05-01 | Phase 26 sealed (26.1 ✅, 26.2 ✅, 26.3 ✅, 26.4 ✅, 26.5 ✅) — 11 DEBT items closed in one cohesive bundle (DEBT-035, 036, 038, 039, 040, 041, 042, 044, 045, 047, 048). Active TECH-DEBT 22 → 11 (-11); Resolved (All Time) 26 → 37 (+11); Medium 6 → 5; Low 16 → 6. pytest 1348 → 1361 (+13 net). All sub-task reviewers 🟢. Phase 26 cross-check `docs/cross-checks/2026-05-01-phase-26-hygiene-and-polish-bundle.md` PASS — FR-007 / FR-014 / FR-015 / FR-025 / NFR-001 / NFR-006 / NFR-008 all ✅; 0 ⚠️ partial; 0 ❌ gap. Carry-overs (not Phase 26 concerns): DEBT-046 hard prereq for Phase 19.2 sub-account fan-out; Phase 25.3 Part B operator follow-up; Phase 17.5 still open. | docs-auditor |
 | 17.5 | 2026-05-02 | Phase 17.5 sealed 2026-05-02 — Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B; FR-023 / FR-025 / NFR-001 extending). Eliminates Claude CLI from the hot path for deterministic catalog strategies — generated as Python `BaseStrategy` subclasses (executable locally per bar) instead of markdown prompts (per-bar Claude CLI invocation). `Pick.code_type: bool = False` field on `auto_research_candidates.py:145`; all 9 TOP_PICKS flagged `code_type=True` (Donchian System 2, Supertrend, Connors RSI(2), Z-score, Larry Williams, TTM Squeeze, BB %B+RSI, Golden Cross, NR7). New `improver._build_new_idea_code_prompt` branch (line 676) instructs Claude to emit Python file with `class XxxStrategy(BaseStrategy)` + `async def analyze` (NOT sync `signal()` as spec text said — implementation correctly matches `BaseStrategy.analyze` async abstract; spec drift surfaced as cosmetic-only). Catalog injection from Phase 17.1 retained on code branch. File extension dispatch: `.py` for code-type, `.md` otherwise. Loader (`src/strategy/loader.py`) already supported `.py` via existing `load_technique_info_from_py` — no loader changes. 6 new tests: 4 prompt-branch unit tests + 1 TOP_PICKS regression guard + 1 load-bearing integration test (`test_code_type_pick_runs_without_per_bar_claude_calls` — real `Backtester.run_for_strategy` over 300 synthetic candles, asserts `claude.complete.call_count == 1` AND `claude.analyze.call_count == 0`). pytest 1361 → 1367 (+6); ruff/mypy/black clean. Quant verdict: 🟡 ship-with-note (catalog flags / interface / invariant all correct; non-blocking note that fixture's `signal="neutral"` doesn't exercise real-trade path → recorded as DEBT-049 Low). QA verdict: 🟢 ship. Acceptance checkbox left for operator (real Claude run + 5 generated `.py` files) per Phase 17.4 precedent. Session log: `docs/sessions/2026-05-02-phase-17.5-and-phase-17-seal.md`. | docs-auditor (lead-orchestrated) |
 | 17.0 | 2026-05-02 | Phase 17 sealed (17.1 ✅, 17.2 ✅, 17.3 ✅, 17.4 ✅, 17.5 ✅) — strategy-evolution operator workflow now complete end-to-end. DEBT-019 (the original audit's most operationally painful debt — 9-hour hang on prompt-type catalog picks) closed at root: deterministic strategies bypass LLM hot path entirely (17.5 Option B); fallback prompt path hardened with per-bar circuit breakers (17.4 Options A+C). Auto-research generates candidates → backtester runs deterministic ones in seconds (not 9 hours) → robustness gate evaluates → operator promotes. Phase 17 cross-check `docs/cross-checks/2026-05-02-phase-17-strategy-evolution-operator.md` PASS — FR-021 / FR-022 / FR-023 / FR-025 / FR-027 / FR-031 / FR-005 / NFR-001 / NFR-008 all ✅; 0 partial; 0 gap. New TECH-DEBT: DEBT-049 (Low — fixture trade-producing path). DEBT-026 (Donchian truncated artefact) becomes obsolete on next operator regenerate. | docs-auditor |
+| 19.1 | 2026-05-02 | Phase 19.1 complete - Sub-Account Foundation (Entity + Registry + Default Migration) (FR-036; introduces the entity that will eventually own a balance pool). Lands the architectural seam without touching engine, persistence, or dashboard behaviour. New `src/trading/sub_account.py` (`SubAccount` Pydantic model frozen + `RiskOverrides` sub-model + `SubAccountNotFoundError`; validators on id regex `^[a-z][a-z0-9_]*$`, live-requires-exchange-ref, upper-case currency-code keys). New `src/trading/sub_account_registry.py` (`SubAccountRegistry` materialises one synthetic `default` from `Settings.trading_mode` + `Settings.paper_initial_balance` when `config/sub_accounts.yaml` absent — YAML parsing is 19.3 territory; methods `list_active` / `get` / `get_trader` / `filter_strategies`). New `src/trading/sub_account_migration.py` (`migrate_legacy_paths(data_dir)` idempotent rename of `data/{trades,portfolio}/{mode}/...` → `.../default/...` and `data/proposals/{date}_{symbol}.json` → `data/proposals/default/...` across paper/live/backtest; performance subtree deferred to 19.2; marker file `.subaccounts_migrated_v19_1`). `src/main.py::run` calls `migrate_legacy_paths` before `build_engine`; registry built post-`build_trader` and passed via new `build_engine` kwargs (`registry`, `trader`, `activity_log` — all optional, back-compat); `build_engine` extracted `_engine_config_from_settings` helper; engine carries registry via post-hoc `engine.sub_account_registry = registry` (`# type: ignore[attr-defined]` workaround until Phase 19.2 lifts into `TradingEngine.__init__`). 20 new tests: 6 model (`tests/test_trading_sub_account.py`), 7 registry (`tests/test_trading_sub_account_registry.py`), 5 migration (`tests/test_trading_sub_account_migration.py`), 2 wiring (`tests/test_main_dispatch.py::TestRunSubAccountWiring`). pytest 1387 passed, 0 failed; ruff/mypy clean. QA verdict: 🟡 Ship with note (6 observations: dev ticked the 8 spec checkboxes (normally docs-auditor's territory) — verified all 8 correspond exactly to spec items, accepted exceptionally; cosmetic adjacent f-string at `sub_account.py:145` (skip — not worth a DEBT line); test-seam private access at `test_trading_sub_account_registry.py:221` (acceptable until 19.3 YAML adds public path); DEBT-046 still gates 19.2 (atomic-write concurrency); DEBT-050 (Low — engine.sub_account_registry post-hoc set, auto-resolves with 19.2); DEBT-051 (Low — YAML config dead branch silently ignores pre-staged files, auto-resolves with 19.3)). All 8 sub-task checkboxes verified ticked. No ADR — extends Phase 12.1 / Phase 22 patterns; new module pair (`SubAccount` entity + `SubAccountRegistry`) is foundation for the FR-036 architectural seam scoped in `DESIGN.md §9` (architectural decision recorded in DESIGN, not duplicated as ADR per project convention). DESIGN reference: `DESIGN.md §9` lines 322–497. **Out-of-scope working-tree changes** (team-skill refactor: `.claude/agents/team-lead.md` deleted, `.claude/skills/team/team-lead-algorithm.md` new, `.claude/skills/team/SKILL.md` modified, `docs/team-design.md` modified) — should be committed separately from this 19.1 diff. Phase 19 NOT sealed (19.2 / 19.3 / 19.4 / 19.5 still ❌; cross-check deferred). Session log: `docs/sessions/2026-05-02-phase-19.1-sub-account-foundation.md`. | docs-auditor |
 | 18.2 | 2026-05-03 | Phase 18.2 complete - Trade-Quality Diagnostic (FR-005, FR-021, FR-025, NFR-001; read-only research task). Pulled Fly volume data into `/private/tmp/crypto-master-phase18-2-data` and published `docs/research/trade-quality-2026-05-01.md`. Current production snapshot had 11 closed paper trades + 1 open trade, not the design doc's stale 9-closed-trade count; analysis uses the current ledger. All closed trades resolved to `ProposalRecord`; no orphan closed trades. Main result: current closed set is 2W/9L, total PnL -61.66 USDT, EV -5.61 USDT/trade, expectancy -0.40R. `simple_trend_analysis` carries 8/9 losses and expectancy -1.24R over n=9, so §7.3 strategy-specific gate/removal rule also fires. Primary recommendation is a top-priority composite-score review because §7.2 fires: accepted closed expectancy (-0.40R, n=11) underperformed rejected-threshold hypothetical expectancy (-0.18R, n=98). Secondary recommendation is a strategy-specific block or higher threshold for `simple_trend_analysis` until enough post-18.1 evidence accumulates. No global slippage-tolerance edit recommended (p95 absolute stale/instant-stop drift proxy 151.2 bps, so §7.1 30-bps tighten rule does not fire). `docs/baselines.md` cross-reference added; no new TECH-DEBT. Phase 18 sealed with cross-check `docs/cross-checks/2026-05-03-phase-18-live-trading-quality.md` PASS. Session log: `docs/sessions/2026-05-03-phase-18.2-trade-quality-diagnostic.md`. | Claude |

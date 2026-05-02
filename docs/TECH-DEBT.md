@@ -611,6 +611,85 @@ existing test structure, swap one method body in the fixture.
 - `tests/test_scripts_auto_research_candidates.py:427-468`
 - `test_code_type_pick_runs_without_per_bar_claude_calls`
 
+### DEBT-050: `engine.sub_account_registry` post-hoc attribute set in `src/main.py`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-02 |
+| **Phase** | Phase 19.1 (origin); Phase 19.2 (consumer — auto-resolves) |
+| **Component** | `src/main.py` (build_engine wiring) |
+
+**Description:**
+`src/main.py:339` sets `engine.sub_account_registry = registry  #
+type: ignore[attr-defined]` after `build_engine` returns, because
+`TradingEngine` does not yet expose a `sub_account_registry`
+constructor parameter or attribute. Phase 19.1's scope was the
+seam (entity + registry + migration), not the engine surface;
+attaching the registry post-construction is a tracking workaround
+so 19.2 has a `engine.sub_account_registry` reference to read
+from when the fan-out lands.
+
+**Impact:**
+- Cosmetic at runtime: the attribute is set, the registry is
+  reachable, no behaviour difference.
+- Type-system: requires a `# type: ignore[attr-defined]` comment
+  that future readers may misread as a bug.
+- Out of place: `build_engine`'s job is to wire dependencies into
+  the engine, not to mutate the engine post-construction.
+
+**Suggested Resolution:**
+Phase 19.2's spec already covers lifting `registry` into a proper
+`TradingEngine.__init__` parameter. When that lands, drop the
+post-hoc assignment and the `# type: ignore` comment from
+`src/main.py:339`. Auto-resolves naturally — no separate cycle
+required.
+
+**Related:**
+- Phase 19.1 docs-auditor review (2026-05-02 — recorded as the
+  workaround line for the 19.2 lift)
+- Phase 19.2 spec: `docs/development-plan.md` Phase 19.2 block
+  (engine-side fan-out)
+- `src/main.py:339`
+
+### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-02 |
+| **Phase** | Phase 19.1 (origin); Phase 19.3 (consumer — auto-resolves) |
+| **Component** | `src/trading/sub_account_registry.py` (`_load` method) |
+
+**Description:**
+`SubAccountRegistry._load` carries a 19.3 placeholder branch:
+`if self.config_path.exists(): pass`. Inert in 19.1 — YAML
+parsing is 19.3 territory. If an operator pre-stages
+`config/sub_accounts.yaml` against a 19.1-only build, the file
+is silently ignored and the registry materialises the synthetic
+single-default entry as if no config existed.
+
+**Impact:**
+- Operator confusion if someone tries to "get ahead" of 19.3 and
+  drops a YAML file expecting it to be parsed: the file is
+  silently ignored, no warning, no error.
+- Documented in the `_load` docstring, which mitigates but
+  doesn't eliminate the surprise.
+
+**Suggested Resolution:**
+Phase 19.3 YAML parsing replaces the placeholder branch with the
+real loader. Auto-resolves naturally as part of 19.3's spec.
+Optional pre-19.3 mitigation: emit a WARN log when
+`config_path.exists()` and we're hitting the dead branch — but
+the operator-confusion surface is small enough to defer to 19.3.
+
+**Related:**
+- Phase 19.1 docs-auditor review (2026-05-02 — recorded as a
+  forward-pointer for 19.3)
+- Phase 19.3 spec: `docs/development-plan.md` Phase 19.3 block
+  (YAML config + multi-account parsing)
+- `src/trading/sub_account_registry.py::_load`
+
 ---
 
 ## Resolved Debt Items
@@ -967,11 +1046,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 12 |
+| Total Active | 14 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 5 |
-| Low | 7 |
+| Low | 9 |
 | Resolved (All Time) | 37 |
 
 ---
@@ -1070,3 +1149,6 @@ Move resolved items here with resolution date and notes.
 | 2026-05-01 | Resolved | DEBT-042 Black formatter gate dormant — Phase 26.5 ran one-shot `black src tests scripts` sweep; 21 files reformatted; pytest 1361 → 1361 (zero delta — pure formatter); gate now enforceable (115 files clean) |
 | 2026-05-02 | Updated | DEBT-019 Resolution prose extended — Option B (code-type steering) shipped by Phase 17.5: `Pick.code_type` flag, `_build_new_idea_code_prompt` branch instructing `BaseStrategy` Python emission, all 9 catalog TOP_PICKS flagged; integration test pins `claude.analyze.call_count == 0` during 300-candle backtest |
 | 2026-05-02 | Added | DEBT-049 Phase 17.5 integration fixture uses `signal="neutral"` (Low) — surfaced during quant-trader-expert review; trade-producing path not exercised; trivial follow-up to flip fixture to `signal="long"` on a Donchian-shaped trigger |
+| 2026-05-02 | Added | DEBT-050 `engine.sub_account_registry` post-hoc attribute set in `src/main.py:339` (Low) — surfaced during Phase 19.1; `# type: ignore[attr-defined]` workaround until Phase 19.2 lifts `registry` into `TradingEngine.__init__`; auto-resolves with 19.2's spec |
+| 2026-05-02 | Added | DEBT-051 `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files (Low) — surfaced during Phase 19.1; `if self.config_path.exists(): pass` placeholder, inert in 19.1; resolved naturally by Phase 19.3 YAML parsing |
+| 2026-05-02 | Updated | DEBT-046 Active status confirmed unchanged at Phase 19.1 close — atomic write does not protect against concurrent-mutation loss; remains hard prereq for Phase 19.2 sub-account fan-out (no concurrent writers in 19.1's scope, so 19.1 didn't touch it) |

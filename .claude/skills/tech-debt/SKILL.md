@@ -1,3 +1,8 @@
+---
+name: tech-debt
+description: Display and manage the technical debt dashboard, including filtering and promotion workflows.
+---
+
 # Tech Debt Skill
 
 Displays technical debt dashboard and manages debt items.

@@ -1,3 +1,8 @@
+---
+name: cross-check
+description: Verify alignment between design documents and implementation, then generate compliance reports.
+---
+
 # Cross-Check Skill
 
 Verifies alignment between design documents and implementation, generating compliance reports.

@@ -1,3 +1,8 @@
+---
+name: dev-crypto
+description: Incrementally develop the Crypto Master service according to the development plan.
+---
+
 # Crypto Master Development Skill
 
 Incrementally develops the Crypto Master service following the development plan.

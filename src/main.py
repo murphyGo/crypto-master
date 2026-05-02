@@ -54,6 +54,8 @@ from src.trading.base import Trader
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.portfolio import PortfolioTracker
+from src.trading.sub_account_migration import migrate_legacy_paths
+from src.trading.sub_account_registry import SubAccountRegistry
 
 logger = get_logger("crypto_master.main")
 
@@ -160,24 +162,16 @@ async def _engine_auto_confirmation(position: object, action: str) -> bool:
     return True
 
 
-def build_engine(
-    settings: Settings,
-    exchange: BaseExchange,
-    config: EngineConfig | None = None,
-) -> TradingEngine:
-    """Wire all the components and return a ready-to-run ``TradingEngine``.
+def _engine_config_from_settings(settings: Settings) -> EngineConfig:
+    """Build an ``EngineConfig`` from the env-driven ``Settings`` snapshot.
 
-    Splitting this out keeps ``main`` thin and makes it easy for an
-    integration test or a one-shot ``python -c "..."`` to construct
-    the engine without standing up an event loop.
-
-    When ``config`` is omitted, all engine tunables are read from
-    ``Settings``: cycle interval, auto-approve threshold, altcoin
-    symbol list, balance, and per-symbol cap (Phase 10.2 / 12.1) plus
-    monitor interval, bitcoin symbol, altcoin top-K, and actor name
-    (Phase 13.2 / DEBT-003).
+    Extracted from :func:`build_engine` (Phase 19.1) so :func:`run`
+    can construct the same config to drive ``build_trader`` before
+    handing it to ``build_engine`` (the registry needs the trader,
+    which needs the config). Behaviour is bytewise identical to the
+    inline construction it replaces.
     """
-    config = config or EngineConfig(
+    return EngineConfig(
         cycle_interval_seconds=settings.engine_cycle_interval,
         auto_approve_threshold=settings.engine_auto_approve_threshold,
         altcoin_symbols=settings.engine_symbols,
@@ -197,14 +191,44 @@ def build_engine(
         paper_auto_deposit_on_liquidation=(settings.paper_auto_deposit_on_liquidation),
     )
 
+
+def build_engine(
+    settings: Settings,
+    exchange: BaseExchange,
+    config: EngineConfig | None = None,
+    registry: SubAccountRegistry | None = None,
+    trader: Trader | None = None,
+    activity_log: ActivityLog | None = None,
+) -> TradingEngine:
+    """Wire all the components and return a ready-to-run ``TradingEngine``.
+
+    Splitting this out keeps ``main`` thin and makes it easy for an
+    integration test or a one-shot ``python -c "..."`` to construct
+    the engine without standing up an event loop.
+
+    When ``config`` is omitted, all engine tunables are read from
+    ``Settings``: cycle interval, auto-approve threshold, altcoin
+    symbol list, balance, and per-symbol cap (Phase 10.2 / 12.1) plus
+    monitor interval, bitcoin symbol, altcoin top-K, and actor name
+    (Phase 13.2 / DEBT-003).
+
+    Phase 19.1 adds the ``registry`` parameter as the wiring seam for
+    sub-account capital segmentation. When omitted the engine
+    constructs a single-``default`` registry internally so legacy
+    callers see no behaviour change. The engine does not yet consume
+    the registry — 19.2 will fan out ``cycle()`` per sub-account.
+    """
+    config = config or _engine_config_from_settings(settings)
+
     strategies = load_all_strategies()
     perf = PerformanceTracker()
     # Phase 12.3: share one ActivityLog instance between the proposal
     # engine (for ``LLM_TIMEOUT`` events), the paper trader (for
     # ``LIQUIDATED`` events — Phase 22.2 / DEBT-027), and the trading
     # engine (for everything else) so the dashboard sees all events on
-    # the same rotated file.
-    activity = ActivityLog()
+    # the same rotated file. Phase 19.1 lets ``run`` pre-build the log
+    # so the same instance can be threaded into a pre-built trader.
+    activity = activity_log if activity_log is not None else ActivityLog()
     # Phase 24.1 / DEBT-034: forward the trading mode so the proposal
     # engine can apply the live cold-start guard (no real money to a
     # technique with zero closed trades).
@@ -218,7 +242,16 @@ def build_engine(
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
-    trader = build_trader(settings, exchange, config, activity_log=activity)
+    if trader is None:
+        trader = build_trader(settings, exchange, config, activity_log=activity)
+
+    # Phase 19.1: registry seam. When the caller didn't supply one,
+    # synthesise the back-compat single-``default`` registry from the
+    # just-built trader. The engine doesn't consume it yet (19.2 will
+    # fan out ``cycle`` per sub-account), but the parameter is in
+    # place so 19.2 doesn't churn ``build_engine``'s signature.
+    if registry is None:
+        registry = SubAccountRegistry(settings=settings, trader=trader)
 
     # Notifier list grows with optional push backends (Phase 11.3,
     # 12.4, 13.4). Console + File are always-on. Slack is opt-in via
@@ -288,7 +321,7 @@ def build_engine(
 
     portfolio_tracker = PortfolioTracker()
 
-    return TradingEngine(
+    engine = TradingEngine(
         exchange=exchange,
         proposal_engine=proposal_engine,
         proposal_interaction=interaction,
@@ -301,6 +334,12 @@ def build_engine(
         mode=settings.trading_mode,
         quote_currency="USDT",
     )
+    # Phase 19.1: stash the registry on the engine without modifying
+    # ``TradingEngine.__init__`` (out of scope for 19.1). 19.2 will
+    # promote this to a real ``__init__`` parameter and consume it
+    # inside the cycle. Until then the attribute is set-only.
+    engine.sub_account_registry = registry  # type: ignore[attr-defined]
+    return engine
 
 
 def _purge_old_proposals(history: ProposalHistory, retention_months: int) -> int:
@@ -342,7 +381,42 @@ async def run() -> None:
     exchange = build_exchange(settings)
     await exchange.connect()
 
-    engine = build_engine(settings, exchange)
+    # Phase 19.1: rename legacy on-disk records into the sub-account
+    # layout (``data/.../{mode}/default/...``) before the engine
+    # starts. Mirrors Phase 11.4's ``_purge_old_proposals`` placement.
+    # Idempotent across restarts via a marker file; we log the
+    # rename count only when non-zero so already-migrated deploys
+    # stay silent.
+    migration_counts = migrate_legacy_paths(settings.data_dir)
+    if any(migration_counts.values()):
+        logger.info(
+            "Sub-account migration renamed: trades=%d portfolio=%d proposals=%d",
+            migration_counts["trades"],
+            migration_counts["portfolio"],
+            migration_counts["proposals"],
+        )
+
+    # Phase 19.1: pre-build the trader and registry so we can hand
+    # both to ``build_engine`` via its 19.1 seam params. The shared
+    # ``ActivityLog`` is also pre-built so the just-built trader and
+    # the engine's proposal-stack share one instance (Phase 12.3 /
+    # DEBT-027 dashboard event surface). ``build_engine`` accepts
+    # all three as optional injections; tests / one-shots that don't
+    # care about the seam still call ``build_engine(settings, exchange)``
+    # and get the auto-construct path.
+    engine_config = _engine_config_from_settings(settings)
+    activity = ActivityLog()
+    trader = build_trader(settings, exchange, engine_config, activity_log=activity)
+    registry = SubAccountRegistry(settings=settings, trader=trader)
+
+    engine = build_engine(
+        settings,
+        exchange,
+        config=engine_config,
+        registry=registry,
+        trader=trader,
+        activity_log=activity,
+    )
 
     # Phase 11.4: archive proposal records older than retention before
     # the engine starts cycling. Constructs a second ``ProposalHistory``

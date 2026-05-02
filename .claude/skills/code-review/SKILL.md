@@ -1,3 +1,8 @@
+---
+name: code-review
+description: Analyze Python code for quality issues, security risks, and best practice compliance.
+---
+
 # Code Review Skill
 
 Automatically analyzes Python code for quality issues and best practice compliance.

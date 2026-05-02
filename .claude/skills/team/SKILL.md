@@ -1,18 +1,25 @@
+---
+name: team
+description: Run the autonomous Crypto Master agent team through planning, coding, testing, and documentation.
+---
+
 # Crypto Master Team Skill
 
-Spawns the autonomous Crypto Master agent team to advance the project by one sub-task. Use when the user wants the team to find the next thing to do and run it through plan → code → test → document.
+Runs the autonomous Crypto Master agent team to advance the project by one sub-task. Use when the user wants the team to find the next thing to do and run it through plan → code → test → document.
+
+> **Architecture note.** Claude Code blocks subagent nesting at runtime — a spawned subagent cannot spawn siblings, regardless of its `tools:` frontmatter. So the team-lead role is **not** a subagent. **You (the parent assistant who received `/team`) are the team lead.** You dispatch the specialist subagents (`product-planner`, `quant-trader-expert`, `senior-developer`, `qa-reviewer`, `docs-auditor`) yourself via the `Agent` tool. Do not try to spawn a `team-lead` subagent — it does not exist in `.claude/agents/`.
 
 ## Arguments
 
 - `$ARGUMENTS` — (optional)
-  - Empty → team-lead picks the next sub-task itself, following its priority order: critical TECH-DEBT → `docs/team-priorities.md` open queue → cross-check gaps → dev plan → session follow-ups.
+  - Empty → you pick the next sub-task yourself, following the priority order in `team-lead-algorithm.md`: critical TECH-DEBT → `docs/team-priorities.md` open queue → cross-check gaps → dev plan → session follow-ups.
   - `phase N.M` → force the team onto a specific sub-task.
-  - `from-tech-debt` → bias the lead toward escalated TECH-DEBT items first.
+  - `from-tech-debt` → bias toward escalated TECH-DEBT items first.
   - `cross-check N` → ask the auditor to run the cross-check for a completed phase.
 
 ## Ad-hoc tasks (priority queue)
 
-For one-off requests that aren't in the dev plan ("verify why nothing's trading on Fly", "audit the auto-approve threshold against last week's data"), add a one-line item to **`docs/team-priorities.md`**. The team-lead picks the first unchecked item every cycle, processes it through the appropriate specialists, and the docs-auditor flips the box and moves it to the **Done** section with a one-line outcome.
+For one-off requests that aren't in the dev plan ("verify why nothing's trading on Fly", "audit the auto-approve threshold against last week's data"), add a one-line item to **`docs/team-priorities.md`**. You (as lead) pick the first unchecked item every cycle, process it through the appropriate specialists, and the docs-auditor flips the box and moves it to the **Done** section with a one-line outcome.
 
 This is the seam that makes `/loop /team` actually useful for autonomous iteration:
 
@@ -25,14 +32,14 @@ You don't have to edit the file by hand — just say "add this to team prioritie
 ## Objective
 
 Run **one cycle** of the team:
-1. `team-lead` reads project state, picks the next sub-task, and writes a brief.
-2. `product-planner` (only if the spec is missing) and/or `quant-trader-expert` (only if trading correctness is at stake) provide upfront analysis — in parallel when both are needed.
+1. **You (parent, acting as lead)** read project state, pick the next sub-task, and write the brief.
+2. `product-planner` (only if the spec is missing) and/or `quant-trader-expert` (only if trading correctness is at stake) provide upfront analysis — dispatch in parallel when both are needed.
 3. `senior-developer` implements.
 4. `qa-reviewer` runs pytest / ruff / mypy and reviews the diff.
 5. `docs-auditor` writes the session log, updates TECH-DEBT, runs the phase cross-check if a phase just completed.
-6. `team-lead` aggregates a final user-facing report.
+6. **You aggregate** the specialists' structured reports into a single user-facing summary.
 
-The team will halt and ask the user when:
+Halt and ask the user when:
 - The work touches live trading credentials, mainnet money, deployment config, or API keys.
 - A phase is about to complete but the cross-check would surface a gap.
 - The qa-reviewer flagged a 🔴 the dev couldn't resolve in one round.
@@ -40,13 +47,15 @@ The team will halt and ask the user when:
 
 ## How to invoke
 
-The skill is mostly a launcher. The work is:
+You (the parent assistant) are the lead. Concretely:
 
-1. **Read `docs/team-design.md`** so you (the parent assistant) understand the team shape.
-2. **Spawn the `team-lead` agent** via the Agent tool, passing the user's `$ARGUMENTS` as the brief.
-3. **Wait for the lead to return** its aggregated cycle report.
-4. **Surface the report to the user** with no paraphrasing.
+1. **Read `team-lead-algorithm.md`** (sibling file in this skill folder) — it's the lead's playbook (survey order, priority rules, specialist-selection table, report format, anti-patterns).
+2. **Read `docs/team-design.md`** for the team shape and ownership map.
+3. **Run the lead algorithm yourself**: survey project state with `Read` / `Bash`, pick the next sub-task per the priority order, decide which specialists are needed, and dispatch them via the `Agent` tool (parallel calls in one message when independent).
+4. **Aggregate** the specialists' structured reports into the final user-facing summary (format defined in `team-lead-algorithm.md`).
 5. **Stop** — the user decides whether to commit, run another cycle, or course-correct.
+
+> Do **not** try to spawn a `team-lead` subagent. There is no `.claude/agents/team-lead.md` — the role lives in the parent. If a future Claude Code release lifts the subagent-nesting restriction, this skill can be re-architected; until then, parent-as-lead is the only working pattern.
 
 ## Stop conditions for the parent (you, the harness assistant)
 

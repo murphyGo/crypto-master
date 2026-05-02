@@ -1,5 +1,9 @@
 # Crypto Master Agent Team Design
 
+> **Runtime constraint (2026-05).** Claude Code blocks subagent nesting — a spawned subagent cannot use the `Agent` tool to spawn siblings, regardless of frontmatter. Therefore the **`team-lead` role is not a subagent**; it is played by the **parent assistant** that received the `/team` invocation. The parent reads `.claude/skills/team/team-lead-algorithm.md`, runs the algorithm, and dispatches the five specialist subagents directly. The diagram below shows the team shape; "team-lead" rows refer to the parent assistant's lead-mode behaviour.
+>
+> When designing future agents in this repo: **only the parent can fan out to subagents.** Anything that needs to dispatch siblings must live in the parent or in a skill the parent reads.
+
 ## Why a team
 
 The project already has a strong, well-documented workflow (`/dev-crypto` skill: plan → research → code → test → review → session log → cross-check). One generalist Claude can run that loop, but it has to switch costume on every step. A specialised team buys three things:

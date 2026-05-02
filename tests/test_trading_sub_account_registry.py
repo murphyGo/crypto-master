@@ -1,0 +1,236 @@
+"""Tests for ``src.trading.sub_account_registry`` (Phase 19.1).
+
+Phase 19.1 contract: when ``config_path`` does not exist, the
+registry materialises one synthesised ``default`` ``SubAccount`` from
+``Settings``. ``get_trader`` returns the single shared trader for any
+registered id; unknown ids raise.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+
+from src.config import Settings
+from src.strategy.base import BaseStrategy, TechniqueInfo
+from src.trading.sub_account import (
+    RiskOverrides,
+    SubAccount,
+    SubAccountNotFoundError,
+)
+from src.trading.sub_account_registry import (
+    DEFAULT_SUB_ACCOUNT_ID,
+    SubAccountRegistry,
+)
+
+
+def _make_settings(
+    *, mode: str = "paper", initial_balance: float = 10000.0
+) -> Settings:
+    """Build a ``Settings`` snapshot with explicit fields.
+
+    Avoids touching the user's real ``.env``.
+    """
+    return Settings(
+        trading_mode=mode,  # type: ignore[arg-type]
+        paper_initial_balance=initial_balance,
+    )
+
+
+def _make_trader() -> Any:
+    """Stub trader. The registry only stores the reference; it does
+    not call any ``Trader`` method in 19.1."""
+    return MagicMock()
+
+
+class _StubStrategy(BaseStrategy):
+    """Minimal ``BaseStrategy`` so ``filter_strategies`` has a real
+    object to filter on. ``analyze`` is never invoked here."""
+
+    async def analyze(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover
+        raise NotImplementedError
+
+
+def _stub_strategy(name: str) -> _StubStrategy:
+    return _StubStrategy(
+        info=TechniqueInfo(
+            name=name,
+            version="1.0.0",
+            description="stub",
+            technique_type="code",
+        )
+    )
+
+
+# =============================================================================
+# Default-materialisation
+# =============================================================================
+
+
+def test_default_materialisation_reads_settings(tmp_path: Path) -> None:
+    """Absent config file → registry synthesises one ``default``
+    ``SubAccount`` whose mode and seed balance come from ``Settings``.
+
+    Two subcases inline: paper-mode reads ``paper_initial_balance``
+    onto ``USDT`` seed; live-mode propagates onto ``mode`` and keeps
+    the conventional ``"default"`` ``exchange_ref`` so the live-
+    requires-exchange-ref invariant is satisfied without a config
+    file.
+    """
+    # Paper-mode + custom seed balance.
+    settings = _make_settings(mode="paper", initial_balance=12345.0)
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        # Pin to a non-existent path so the synth-from-Settings
+        # branch fires regardless of CWD.
+        config_path=tmp_path / "missing-sub-accounts.yaml",
+    )
+
+    sub = registry.get(DEFAULT_SUB_ACCOUNT_ID)
+    assert sub.id == DEFAULT_SUB_ACCOUNT_ID
+    assert sub.name == "Default Account"
+    assert sub.mode == "paper"
+    assert sub.exchange_ref == "default"
+    assert sub.initial_balance == {"USDT": Decimal("12345.0")}
+    assert sub.strategy_filter is None
+    assert sub.risk_overrides == RiskOverrides()
+    assert sub.enabled is True
+
+    # Live-mode picks up the trading mode from Settings.
+    live_registry = SubAccountRegistry(
+        settings=_make_settings(mode="live"),
+        trader=_make_trader(),
+        config_path=tmp_path / "missing-live.yaml",
+    )
+    live_sub = live_registry.get(DEFAULT_SUB_ACCOUNT_ID)
+    assert live_sub.mode == "live"
+    assert live_sub.exchange_ref == "default"
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+
+
+def test_list_active_returns_only_enabled_sub_accounts(tmp_path: Path) -> None:
+    """``list_active`` excludes disabled records. 19.1 has only the
+    enabled ``default`` so this is one entry; we assert the shape so
+    19.3's multi-sub-account loader inherits the contract."""
+    settings = _make_settings()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        config_path=tmp_path / "missing.yaml",
+    )
+
+    active = registry.list_active()
+    assert [s.id for s in active] == [DEFAULT_SUB_ACCOUNT_ID]
+    assert all(s.enabled for s in active)
+
+
+def test_get_returns_registered_sub_account(tmp_path: Path) -> None:
+    """``get`` returns the registered record by id."""
+    settings = _make_settings()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        config_path=tmp_path / "missing.yaml",
+    )
+
+    sub = registry.get(DEFAULT_SUB_ACCOUNT_ID)
+    assert isinstance(sub, SubAccount)
+    assert sub.id == DEFAULT_SUB_ACCOUNT_ID
+
+
+def test_get_unknown_id_raises(tmp_path: Path) -> None:
+    """Unknown id raises ``SubAccountNotFoundError`` so a typo in a
+    consumer surfaces here rather than as a silent wrong-bucket
+    write later."""
+    settings = _make_settings()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        config_path=tmp_path / "missing.yaml",
+    )
+
+    with pytest.raises(SubAccountNotFoundError, match="experimental"):
+        registry.get("experimental")
+
+
+def test_get_trader_returns_shared_instance(tmp_path: Path) -> None:
+    """19.1 returns the single shared ``Trader`` regardless of id;
+    19.2 will replace this with a per-sub-account map. Unknown id
+    still raises (validated through ``get``)."""
+    settings = _make_settings()
+    trader = _make_trader()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=trader,
+        config_path=tmp_path / "missing.yaml",
+    )
+
+    assert registry.get_trader(DEFAULT_SUB_ACCOUNT_ID) is trader
+    with pytest.raises(SubAccountNotFoundError):
+        registry.get_trader("experimental")
+
+
+# =============================================================================
+# filter_strategies
+# =============================================================================
+
+
+def test_filter_strategies_passthrough_when_filter_is_none(tmp_path: Path) -> None:
+    """``strategy_filter is None`` → registry returns the input list
+    unchanged. This is the 19.1 default for the synthesised
+    ``default`` sub-account; the back-compat single-seed deployment
+    sees every loaded technique."""
+    settings = _make_settings()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        config_path=tmp_path / "missing.yaml",
+    )
+
+    available = [_stub_strategy("rsi_4h"), _stub_strategy("bollinger")]
+    filtered = registry.filter_strategies(DEFAULT_SUB_ACCOUNT_ID, available)
+    assert filtered == available
+
+
+def test_filter_strategies_narrows_to_whitelist(tmp_path: Path) -> None:
+    """A non-``None`` ``strategy_filter`` narrows ``available`` to its
+    whitelist. 19.1 always materialises ``strategy_filter=None`` from
+    settings, so we exercise the path by injecting a custom registry
+    record post-construction. Order from ``available`` is preserved
+    so ranking-sensitive callers see no shuffle.
+    """
+    settings = _make_settings()
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=_make_trader(),
+        config_path=tmp_path / "missing.yaml",
+    )
+    # Replace the default record with one carrying a whitelist. This
+    # is a test seam — the public 19.3 path will be a YAML config
+    # field; the seam exercises the ``filter_strategies`` branch
+    # without waiting for that.
+    registry._sub_accounts[DEFAULT_SUB_ACCOUNT_ID] = SubAccount(
+        id=DEFAULT_SUB_ACCOUNT_ID,
+        name="Default Account",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_filter=["rsi_4h"],
+    )
+
+    available = [
+        _stub_strategy("rsi_4h"),
+        _stub_strategy("bollinger"),
+        _stub_strategy("breakout"),
+    ]
+    filtered = registry.filter_strategies(DEFAULT_SUB_ACCOUNT_ID, available)
+    assert [s.info.name for s in filtered] == ["rsi_4h"]

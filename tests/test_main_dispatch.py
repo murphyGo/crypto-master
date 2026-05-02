@@ -681,3 +681,137 @@ class TestPurgeOldProposalsHook:
         finally:
             monkeypatch.delenv("DATA_DIR", raising=False)
             reload_settings()
+
+
+# =============================================================================
+# Phase 19.1: sub-account migration + registry wiring inside run()
+# =============================================================================
+
+
+class TestRunSubAccountWiring:
+    """``run`` calls ``migrate_legacy_paths`` once before standing up
+    the engine and constructs a ``SubAccountRegistry`` that gets
+    handed to ``build_engine`` (Phase 19.1 seam)."""
+
+    def test_run_calls_migrate_legacy_paths_once(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """``migrate_legacy_paths`` runs once per process boot,
+        before the engine cycles, with ``Settings.data_dir`` as its
+        argument. Mirrors Phase 11.4's ``_purge_old_proposals``
+        placement.
+        """
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        # Stand up a settings + exchange the test runtime can build
+        # without external creds. ``DATA_DIR`` propagates onto
+        # ``Settings.data_dir`` so the migration call sees a writable
+        # tmp path.
+        monkeypatch.setenv("DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("BINANCE_TESTNET_API_KEY", "x")
+        monkeypatch.setenv("BINANCE_TESTNET_API_SECRET", "y")
+
+        from src.config import reload_settings
+
+        reload_settings()
+        try:
+            with (
+                patch("src.main.migrate_legacy_paths") as mock_migrate,
+                patch("src.main.build_engine") as mock_build_engine,
+                patch("src.main.build_exchange") as mock_build_exchange,
+                patch("src.main._purge_old_proposals"),
+                patch("src.main.SubAccountRegistry"),
+                patch("src.main.build_trader"),
+                patch("src.main.ActivityLog"),
+            ):
+                mock_migrate.return_value = {
+                    "trades": 0,
+                    "portfolio": 0,
+                    "proposals": 0,
+                }
+                mock_engine = MagicMock()
+                mock_engine.run_forever = AsyncMock()
+                mock_build_engine.return_value = mock_engine
+
+                stub_exchange = MagicMock()
+                stub_exchange.connect = AsyncMock()
+                stub_exchange.disconnect = AsyncMock()
+                mock_build_exchange.return_value = stub_exchange
+
+                from src.main import run
+
+                asyncio.run(run())
+
+                # Called exactly once with the settings.data_dir.
+                mock_migrate.assert_called_once()
+                (called_with,), _ = mock_migrate.call_args
+                assert called_with == tmp_path
+        finally:
+            monkeypatch.delenv("DATA_DIR", raising=False)
+            reload_settings()
+
+    def test_run_constructs_registry_and_passes_it_to_build_engine(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """``run`` builds a ``SubAccountRegistry`` and threads it
+        through ``build_engine``'s 19.1 seam param. The engine does
+        not consume it yet (19.2), but the wiring is in place.
+        """
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        monkeypatch.setenv("DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("BINANCE_TESTNET_API_KEY", "x")
+        monkeypatch.setenv("BINANCE_TESTNET_API_SECRET", "y")
+
+        from src.config import reload_settings
+
+        reload_settings()
+        try:
+            with (
+                patch("src.main.migrate_legacy_paths") as mock_migrate,
+                patch("src.main.build_engine") as mock_build_engine,
+                patch("src.main.build_exchange") as mock_build_exchange,
+                patch("src.main._purge_old_proposals"),
+                patch("src.main.SubAccountRegistry") as MockRegistry,
+                patch("src.main.build_trader") as mock_build_trader,
+                patch("src.main.ActivityLog"),
+            ):
+                mock_migrate.return_value = {
+                    "trades": 0,
+                    "portfolio": 0,
+                    "proposals": 0,
+                }
+                mock_engine = MagicMock()
+                mock_engine.run_forever = AsyncMock()
+                mock_build_engine.return_value = mock_engine
+
+                stub_exchange = MagicMock()
+                stub_exchange.connect = AsyncMock()
+                stub_exchange.disconnect = AsyncMock()
+                mock_build_exchange.return_value = stub_exchange
+
+                stub_trader = MagicMock()
+                mock_build_trader.return_value = stub_trader
+
+                fake_registry = MagicMock()
+                MockRegistry.return_value = fake_registry
+
+                from src.main import run
+
+                asyncio.run(run())
+
+                # Registry was constructed with the trader.
+                MockRegistry.assert_called_once()
+                kwargs = MockRegistry.call_args.kwargs
+                assert kwargs.get("trader") is stub_trader
+
+                # Registry was forwarded to build_engine via its
+                # 19.1 seam param.
+                mock_build_engine.assert_called_once()
+                build_engine_kwargs = mock_build_engine.call_args.kwargs
+                assert build_engine_kwargs.get("registry") is fake_registry
+        finally:
+            monkeypatch.delenv("DATA_DIR", raising=False)
+            reload_settings()
