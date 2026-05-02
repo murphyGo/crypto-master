@@ -543,6 +543,14 @@ class TradingEngine:
                     f"symbol {proposal.symbol} cap {cap} reached on "
                     f"sub-account {proposal.sub_account_id} ({existing} open)"
                 )
+                rejected_record = record.model_copy(
+                    update={
+                        "decision": ProposalDecision.REJECTED.value,
+                        "rejection_reason": reason,
+                        "decision_at": now_utc(),
+                    }
+                )
+                self.proposal_history.save(rejected_record)
                 result.proposals_rejected += 1
                 self.activity_log.append(
                     ActivityEventType.PROPOSAL_REJECTED,

@@ -97,51 +97,6 @@ sensitivity surface), but option 1 is a faster bridge.
 - `src/feedback/loop.py::FeedbackLoop.propose_new`
 - `src/backtest/robustness.py::RobustnessGate` (sensitivity gate design)
 
-### DEBT-015: Rejection-path semantic divergence — Phase 18.1 rewrites `ProposalRecord`, Phase 12.1 emits activity-event only
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 |
-| **Component** | `src/runtime/engine.py` (`_stale_quote_gate` + `_handle_proposal` cap branch) |
-
-**Description:**
-Phase 18.1's stale-quote rejection path overwrites the
-`ProposalRecord` decision to `REJECTED` (load + `model_copy` +
-save) so dashboard / post-mortems reading
-`ProposalHistory.list_all(decision=REJECTED)` see the rejections
-with structured fields. Phase 12.1's cap rejection path takes a
-lighter route — it only emits an activity event without
-rewriting the proposal record. Two rejection paths now follow two
-persistence patterns.
-
-**Impact:**
-Dashboard / post-mortems running queries against
-`ProposalHistory.list_all(decision=REJECTED)` see Phase 18.1's
-stale-quote rejections but miss Phase 12.1's cap rejections. An
-operator running a "show me all rejected proposals in the last
-24h" query would silently under-count cap rejections, which
-distorts the rejected-proposals view. Single-source-of-truth for
-the proposal decision is split across two stores depending on
-which gate fired.
-
-**Suggested Resolution:**
-Pick one canonical pattern and apply it to both. The rewrite is
-probably the right shape (preserves a single source of truth for
-the decision, makes `ProposalHistory` queries authoritative);
-applying it to the cap branch is mechanical — the activity event
-emitted from `_handle_proposal` already carries enough context
-to drive the rewrite. Should land before Phase 18.2 so the
-rejection-path consistency is in place when 18.2 adds new
-diagnostic queries.
-
-**Related:**
-- Phase 18.1 qa-reviewer note 1
-- `src/runtime/engine.py::_stale_quote_gate` (rewrite path)
-- `src/runtime/engine.py::_handle_proposal` cap branch
-  (activity-event-only path)
-
 ### DEBT-016: `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented
 
 | Field | Value |
@@ -568,6 +523,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-03 |
 | **Resolution** | `scripts/auto_research_candidates.py::main` now constructs the `FeedbackLoop` and Binance exchange through explicit `build_loop()` / `build_exchange()` factories and passes them into `run_async`. `run_async` now requires caller-built dependencies, owns connect/disconnect by default for the script entrypoint, and can be called with `owns_exchange=False` by future shared-runtime callers. Added tests pinning the dependency injection path and the `main` wiring. |
 
+### DEBT-015: Rejection-path semantic divergence — Phase 18.1 rewrites `ProposalRecord`, Phase 12.1 emits activity-event only ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | The Phase 12.1 cap-rejection branch in `TradingEngine._handle_proposal` now rewrites the accepted `ProposalRecord` to `decision="rejected"` with the cap reason and fresh `decision_at`, then persists via `ProposalHistory.save`. Existing `PROPOSAL_REJECTED` activity event emission is preserved. Runtime tests now assert cap rejections are visible through both `ProposalHistory.load(...)` and the activity log. |
+
 ### DEBT-001: Pre-Existing Lint/Type Sweep ✅
 
 | Field | Value |
@@ -907,12 +871,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 11 |
+| Total Active | 10 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 3 |
 | Low | 7 |
-| Resolved (All Time) | 41 |
+| Resolved (All Time) | 42 |
 
 ---
 
@@ -1016,3 +980,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-03 | Resolved | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 picked the per-account file-partitioning resolution shape instead of adding a POSIX file lock. Proposal history, performance records, trade history, and portfolio snapshots now write under a `{sub_account_id}` directory (`data/proposals/{sub_account_id}/`, `data/performance/{sub_account_id}/{technique}/`, `data/trades/{mode}/{sub_account_id}/`, `data/portfolio/{mode}/{sub_account_id}/`), so sub-account fan-out does not share load → mutate → save files across accounts. Performance-tree migration uses separate marker `.performance_migrated_v19_2` so 19.1-completed deployments still pick it up |
 | 2026-05-03 | Resolved | DEBT-050 `engine.sub_account_registry` post-hoc attribute set — Phase 19.2 promoted `registry` to a real `TradingEngine.__init__` parameter and removed the post-construction `engine.sub_account_registry = registry  # type: ignore[attr-defined]` assignment from `src/main.py` |
 | 2026-05-03 | Resolved | DEBT-013 `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` — `main()` now builds dependencies explicitly via `build_loop()` / `build_exchange()` and passes them into `run_async`; `run_async` owns exchange lifecycle by default and supports `owns_exchange=False` for future shared-runtime callers |
+| 2026-05-03 | Resolved | DEBT-015 Rejection-path semantic divergence — cap rejections now rewrite the persisted `ProposalRecord` to `REJECTED` with the cap reason, matching the stale-quote rejection pattern while preserving the existing activity event |

@@ -693,6 +693,11 @@ async def test_proposal_rejected_when_symbol_cap_reached(tmp_path: Path) -> None
     assert result.positions_opened == 0
     mocks["trader"].open_position.assert_not_called()
 
+    record = mocks["history"].load("bnb-2")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason is not None
+    assert "cap 1 reached" in record.rejection_reason
+
     # Activity log carries a PROPOSAL_REJECTED event with the cap reason.
     rejections = mocks["activity_log"].filter(
         event_type=ActivityEventType.PROPOSAL_REJECTED
@@ -817,6 +822,11 @@ async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
     assert result.proposals_rejected == 1
     assert result.positions_opened == 0
     mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("bnb-short-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason is not None
+    assert "cap 1 reached" in record.rejection_reason
 
     # Activity log carries a PROPOSAL_REJECTED with the cap reason for BNB.
     rejections = mocks["activity_log"].filter(
