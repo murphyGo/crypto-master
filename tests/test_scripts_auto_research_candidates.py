@@ -45,6 +45,14 @@ class _FakeExchange:
 
     def __init__(self, candles_by_tf: dict[str, list]) -> None:
         self._by_tf = candles_by_tf
+        self.connected = False
+        self.disconnected = False
+
+    async def connect(self) -> None:
+        self.connected = True
+
+    async def disconnect(self) -> None:
+        self.disconnected = True
 
     async def get_ohlcv(
         self, symbol: str, timeframe: str, limit: int, since: int | None = None
@@ -398,6 +406,53 @@ def test_write_run_artifacts_writes_json(tmp_path: Path) -> None:
     payload = json.loads(path.read_text())
     assert payload["results"][0]["slug"] == "x"
     assert payload["results"][0]["robustness_passed"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_async_uses_caller_built_loop_and_exchange(
+    tmp_path: Path,
+) -> None:
+    candles = _synthetic_ohlcv(300)
+    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
+
+    rc = await script.run_async(
+        _make_picks()[:1],
+        "BTC/USDT",
+        dry_run=False,
+        results_dir=tmp_path / "results",
+        loop=loop,
+        exchange=exchange,  # type: ignore[arg-type]
+    )
+
+    assert rc == 0
+    assert exchange.connected is True
+    assert exchange.disconnected is True
+    assert list((tmp_path / "results").glob("run_*.json"))
+
+
+def test_main_builds_runtime_before_calling_run_async(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loop = object()
+    exchange = object()
+    seen: dict[str, object] = {}
+
+    async def fake_run_async(*args, **kwargs):
+        del args
+        seen.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(script, "build_loop", lambda: loop)
+    monkeypatch.setattr(script, "build_exchange", lambda: exchange)
+    monkeypatch.setattr(script, "run_async", fake_run_async)
+
+    rc = script.main(["--picks", "1", "--results-dir", str(tmp_path)])
+
+    assert rc == 0
+    assert seen["loop"] is loop
+    assert seen["exchange"] is exchange
+    assert seen["dry_run"] is False
 
 
 def test_top_picks_are_ohlcv_only() -> None:

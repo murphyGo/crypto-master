@@ -43,10 +43,6 @@ Related Requirements:
 - CON-003: User Approval Required
 
 Known follow-ups (not blocking 17.1):
-- ``run_async`` constructs its own ``FeedbackLoop`` / ``BinanceExchange``
-  instead of taking caller-built ones from ``main`` — currently fine
-  because ``main`` is the only caller, but if a future test wants to
-  inject mocks at the ``main`` layer the wiring will need a tweak.
 - ``loop.propose_new`` is invoked without a ``param_grid``, so the
   sensitivity gate skips. Runs through 17.1 will report sensitivity
   as SKIPPED rather than PASSED — a gap operators should know about
@@ -57,14 +53,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from scripts.backtest_baselines import fetch_ohlcv_window
 from src.ai.improver import StrategyImprover
 from src.backtest.analyzer import PerformanceAnalyzer
 from src.backtest.engine import BacktestConfig, Backtester
@@ -346,6 +342,18 @@ def build_loop() -> FeedbackLoop:
     )
 
 
+def build_exchange() -> BinanceExchange:
+    """Build the public-data exchange used by the operator script."""
+    return BinanceExchange(BinanceConfig())
+
+
+async def fetch_ohlcv_window(**kwargs: Any) -> list[OHLCV]:
+    """Proxy to the baseline fetcher without pulling it into static type checks."""
+    module = importlib.import_module("scripts.backtest_baselines")
+    fetched = await module.fetch_ohlcv_window(**kwargs)
+    return list(fetched)
+
+
 async def fetch_for_picks(
     exchange: BinanceExchange,
     symbol: str,
@@ -532,14 +540,26 @@ async def run_async(
     *,
     dry_run: bool,
     results_dir: Path | None,
+    loop: FeedbackLoop,
+    exchange: BinanceExchange,
+    owns_exchange: bool = True,
     sub_account_id: str = "default",
 ) -> int:
-    results = await run_picks(
-        picks,
-        symbol,
-        dry_run=dry_run,
-        sub_account_id=sub_account_id,
-    )
+    if owns_exchange:
+        await exchange.connect()
+    try:
+        results = await run_picks(
+            picks,
+            symbol,
+            dry_run=dry_run,
+            loop=loop,
+            exchange=exchange,
+            sub_account_id=sub_account_id,
+        )
+    finally:
+        if owns_exchange:
+            await exchange.disconnect()
+
     summary = render_summary(results)
     print("\n=== Auto-research summary ===\n")
     print(summary)
@@ -593,12 +613,16 @@ def main(argv: list[str] | None = None) -> int:
     n = max(1, min(args.picks, len(TOP_PICKS)))
     picks = TOP_PICKS[:n]
     logger.info(f"Running {n} picks against {args.symbol} (dry_run={args.dry_run})")
+    loop = build_loop()
+    exchange = build_exchange()
     return asyncio.run(
         run_async(
             picks,
             args.symbol,
             dry_run=args.dry_run,
             results_dir=args.results_dir,
+            loop=loop,
+            exchange=exchange,
             sub_account_id=args.sub_account,
         )
     )

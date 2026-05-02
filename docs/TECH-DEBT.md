@@ -41,45 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-013: `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-29 |
-| **Phase** | Phase 17.1 |
-| **Component** | `scripts/auto_research_candidates.py` |
-
-**Description:**
-`run_async(...)` accepts `loop: FeedbackLoop | None = None` and
-`exchange: BinanceExchange | None = None` parameters and constructs
-its own when absent (`exchange = exchange or
-BinanceExchange(BinanceConfig())`, `loop = loop or build_loop()`).
-Currently fine because the script's `main` is the only caller and
-always passes `None`, so the construction-on-absence path is the
-production path. If a second caller (dashboard hook, scheduled
-machine, `main.py` background task) wants to share an exchange
-client across multiple invocations or supply a pre-configured
-loop, the self-construction will become wasteful (re-loading
-markets, re-reading Settings) and potentially incorrect (different
-caller may want different `RobustnessGate` thresholds).
-
-**Impact:**
-Low until a second caller materialises. The signature is already in
-place to accept caller-built objects; only the production wiring
-needs adjustment when the time comes.
-
-**Suggested Resolution:**
-When a second caller is added, route both callers through a shared
-`build_loop()` + cached `BinanceExchange` factory in
-`src/main.py` (the existing pattern for `ProposalEngine` /
-`TradingEngine`). No signature change to `run_async` itself —
-just stop passing `None` from `main`.
-
-**Related:**
-- Phase 17.1 quant-trader-expert review Issue 3
-- `scripts/auto_research_candidates.py` lines 46–48 + 311–312 (module docstring + `build_loop`)
-
 ### DEBT-014: `loop.propose_new` called without `param_grid` — sensitivity gate SKIPPED
 
 | Field | Value |
@@ -598,6 +559,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-03 |
 | **Resolution** | Phase 19.3 replaced the placeholder `if self.config_path.exists(): pass` branch with real YAML parsing, Pydantic validation, duplicate-id rejection, live-non-default rejection, and exchange-ref validation. |
 
+### DEBT-013: `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-29 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | `scripts/auto_research_candidates.py::main` now constructs the `FeedbackLoop` and Binance exchange through explicit `build_loop()` / `build_exchange()` factories and passes them into `run_async`. `run_async` now requires caller-built dependencies, owns connect/disconnect by default for the script entrypoint, and can be called with `owns_exchange=False` by future shared-runtime callers. Added tests pinning the dependency injection path and the `main` wiring. |
+
 ### DEBT-001: Pre-Existing Lint/Type Sweep ✅
 
 | Field | Value |
@@ -937,12 +907,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 12 |
+| Total Active | 11 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 4 |
-| Low | 8 |
-| Resolved (All Time) | 40 |
+| Low | 7 |
+| Resolved (All Time) | 41 |
 
 ---
 
@@ -1045,3 +1015,4 @@ Move resolved items here with resolution date and notes.
 | 2026-05-02 | Updated | DEBT-046 Active status confirmed unchanged at Phase 19.1 close — atomic write does not protect against concurrent-mutation loss; remains hard prereq for Phase 19.2 sub-account fan-out (no concurrent writers in 19.1's scope, so 19.1 didn't touch it) |
 | 2026-05-03 | Resolved | DEBT-046 Atomic write does not protect against concurrent-mutation loss — Phase 19.2 picked the per-account file-partitioning resolution shape instead of adding a POSIX file lock. Proposal history, performance records, trade history, and portfolio snapshots now write under a `{sub_account_id}` directory (`data/proposals/{sub_account_id}/`, `data/performance/{sub_account_id}/{technique}/`, `data/trades/{mode}/{sub_account_id}/`, `data/portfolio/{mode}/{sub_account_id}/`), so sub-account fan-out does not share load → mutate → save files across accounts. Performance-tree migration uses separate marker `.performance_migrated_v19_2` so 19.1-completed deployments still pick it up |
 | 2026-05-03 | Resolved | DEBT-050 `engine.sub_account_registry` post-hoc attribute set — Phase 19.2 promoted `registry` to a real `TradingEngine.__init__` parameter and removed the post-construction `engine.sub_account_registry = registry  # type: ignore[attr-defined]` assignment from `src/main.py` |
+| 2026-05-03 | Resolved | DEBT-013 `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` — `main()` now builds dependencies explicitly via `build_loop()` / `build_exchange()` and passes them into `run_async`; `run_async` owns exchange lifecycle by default and supports `owns_exchange=False` for future shared-runtime callers |
