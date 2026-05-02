@@ -15,8 +15,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.config import Settings
+from src.config import ExchangeCredential, Settings
 from src.strategy.base import BaseStrategy, TechniqueInfo
+from src.trading.live import LiveTrader
 from src.trading.sub_account import (
     RiskOverrides,
     SubAccount,
@@ -24,13 +25,17 @@ from src.trading.sub_account import (
 )
 from src.trading.sub_account_registry import (
     DEFAULT_SUB_ACCOUNT_ID,
+    MissingExchangeCredentialsError,
     SubAccountConfigError,
     SubAccountRegistry,
 )
 
 
 def _make_settings(
-    *, mode: str = "paper", initial_balance: float = 10000.0
+    *,
+    mode: str = "paper",
+    initial_balance: float = 10000.0,
+    exchange_credentials: dict[str, ExchangeCredential] | None = None,
 ) -> Settings:
     """Build a ``Settings`` snapshot with explicit fields.
 
@@ -39,6 +44,7 @@ def _make_settings(
     return Settings(
         trading_mode=mode,  # type: ignore[arg-type]
         paper_initial_balance=initial_balance,
+        exchange_credentials=exchange_credentials or {},
     )
 
 
@@ -291,7 +297,7 @@ sub_accounts:
     assert registry.get_trader("btc_only") is not registry.get_trader("default")
 
 
-def test_yaml_config_rejects_live_non_default(tmp_path: Path) -> None:
+def test_yaml_config_live_sub_account_uses_named_credentials(tmp_path: Path) -> None:
     config_path = tmp_path / "sub_accounts.yaml"
     _write_sub_accounts_config(
         config_path,
@@ -300,14 +306,50 @@ sub_accounts:
   - id: live_alt
     name: Live Alt
     mode: live
-    exchange_ref: default
+    exchange_ref: binance_alt
     initial_balance: {USDT: 10000}
 """,
     )
 
-    with pytest.raises(SubAccountConfigError, match="Phase 19.4 not landed"):
+    registry = SubAccountRegistry(
+        settings=_make_settings(
+            mode="live",
+            exchange_credentials={
+                "binance_alt": ExchangeCredential(
+                    ref="binance_alt",
+                    exchange="binance",
+                    api_key="alt-key",
+                    api_secret="alt-secret",
+                    testnet=False,
+                )
+            },
+        ),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+
+    trader = registry.get_trader("live_alt")
+    assert isinstance(trader, LiveTrader)
+    assert trader.exchange.config.api_key == "alt-key"
+
+
+def test_yaml_config_rejects_live_missing_credentials(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: live_alt
+    name: Live Alt
+    mode: live
+    exchange_ref: binance_alt
+    initial_balance: {USDT: 10000}
+""",
+    )
+
+    with pytest.raises(MissingExchangeCredentialsError, match="binance_alt"):
         SubAccountRegistry(
-            settings=_make_settings(),
+            settings=_make_settings(mode="live"),
             trader=_make_trader(),
             config_path=config_path,
         )

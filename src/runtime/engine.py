@@ -1172,7 +1172,8 @@ class TradingEngine:
     def _active_sub_accounts(self) -> list[SubAccount | None]:
         if self.sub_account_registry is None:
             return [None]
-        return self.sub_account_registry.list_active()
+        active: list[SubAccount | None] = list(self.sub_account_registry.list_active())
+        return active
 
     def _sub_account_id(self, sub_account: SubAccount | None) -> str:
         return sub_account.id if sub_account is not None else DEFAULT_SUB_ACCOUNT_ID
@@ -1194,6 +1195,16 @@ class TradingEngine:
         """
         composite = proposal.score.composite
         threshold = self.config.auto_approve_threshold
+        if self.sub_account_registry is not None:
+            try:
+                sub_account = self.sub_account_registry.get(proposal.sub_account_id)
+                override = sub_account.risk_overrides.auto_approve_threshold
+                if override is not None:
+                    threshold = override
+            except Exception:
+                # Keep the decision path robust; registry validation
+                # should already have caught unknown sub-account ids.
+                threshold = self.config.auto_approve_threshold
         if composite >= threshold:
             return ProposalDecisionInput(accepted=True)
         return ProposalDecisionInput(

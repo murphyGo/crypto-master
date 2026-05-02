@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -27,6 +27,7 @@ from src.main import (
     _purge_old_proposals,
     build_exchange,
     build_trader,
+    build_traders,
 )
 from src.runtime.engine import EngineConfig
 from src.trading.live import LiveTrader
@@ -134,6 +135,22 @@ class TestBuildTrader:
         # confirmation time; verify the engine's auto-confirmation
         # function is what's wired.
         assert trader._confirmation_callback is _engine_auto_confirmation
+
+    def test_build_traders_returns_registry_trader_map(self) -> None:
+        registry = MagicMock()
+        sub_a = MagicMock(id="default")
+        sub_b = MagicMock(id="alt")
+        registry.list_active.return_value = [sub_a, sub_b]
+        default_trader = MagicMock()
+        alt_trader = MagicMock()
+        registry.get_trader.side_effect = {
+            "default": default_trader,
+            "alt": alt_trader,
+        }.__getitem__
+
+        result = build_traders(registry, _settings(mode="paper", binance_testnet=True))
+
+        assert result == {"default": default_trader, "alt": alt_trader}
 
 
 # =============================================================================
@@ -721,7 +738,7 @@ class TestRunSubAccountWiring:
                 patch("src.main.build_engine") as mock_build_engine,
                 patch("src.main.build_exchange") as mock_build_exchange,
                 patch("src.main._purge_old_proposals"),
-                patch("src.main.SubAccountRegistry"),
+                patch("src.main.SubAccountRegistry") as MockRegistry,
                 patch("src.main.build_trader"),
                 patch("src.main.ActivityLog"),
             ):
@@ -738,6 +755,8 @@ class TestRunSubAccountWiring:
                 stub_exchange.connect = AsyncMock()
                 stub_exchange.disconnect = AsyncMock()
                 mock_build_exchange.return_value = stub_exchange
+                MockRegistry.return_value.connect_owned_exchanges = AsyncMock()
+                MockRegistry.return_value.disconnect_owned_exchanges = AsyncMock()
 
                 from src.main import run
 
@@ -796,6 +815,8 @@ class TestRunSubAccountWiring:
                 mock_build_trader.return_value = stub_trader
 
                 fake_registry = MagicMock()
+                fake_registry.connect_owned_exchanges = AsyncMock()
+                fake_registry.disconnect_owned_exchanges = AsyncMock()
                 MockRegistry.return_value = fake_registry
 
                 from src.main import run

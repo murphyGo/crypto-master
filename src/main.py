@@ -130,6 +130,7 @@ def build_trader(
         return LiveTrader(
             exchange=exchange,
             confirmation_callback=_engine_auto_confirmation,
+            sub_account_id="default",
         )
 
     return PaperTrader(
@@ -137,7 +138,21 @@ def build_trader(
         exchange=exchange,
         activity_log=activity_log,
         auto_deposit_on_liquidation=config.paper_auto_deposit_on_liquidation,
+        sub_account_id="default",
     )
+
+
+def build_traders(
+    registry: SubAccountRegistry, settings: Settings
+) -> dict[str, Trader]:
+    """Return one trader per active sub-account.
+
+    Phase 19.4 keeps the registry as trader owner/cache. This helper
+    gives startup wiring and tests a simple map while preserving the
+    long-standing ``build_trader`` single-account API.
+    """
+    del settings  # settings is part of the public wiring contract.
+    return {sub.id: registry.get_trader(sub.id) for sub in registry.list_active()}
 
 
 async def _engine_auto_confirmation(position: object, action: str) -> bool:
@@ -406,6 +421,8 @@ async def run() -> None:
     activity = ActivityLog()
     trader = build_trader(settings, exchange, engine_config, activity_log=activity)
     registry = SubAccountRegistry(settings=settings, trader=trader)
+    await registry.connect_owned_exchanges()
+    build_traders(registry, settings)
 
     engine = build_engine(
         settings,
@@ -432,6 +449,7 @@ async def run() -> None:
     try:
         await engine.run_forever()
     finally:
+        await registry.disconnect_owned_exchanges()
         await exchange.disconnect()
 
 

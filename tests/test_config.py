@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from src.config import (
     BinanceConfig,
     BybitConfig,
+    ExchangeCredential,
     Settings,
     get_settings,
     reload_settings,
@@ -346,6 +347,79 @@ class TestSettings:
             bybit=BybitConfig(api_key="key", api_secret="secret"),
         )
         settings.validate_for_live_trading()  # Should not raise
+
+    def test_exchange_credentials_parse_named_env_refs(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EXCHANGE_BINANCE_MAIN_API_KEY": "bn-main-key",
+                "EXCHANGE_BINANCE_MAIN_API_SECRET": "bn-main-secret",
+                "EXCHANGE_BINANCE_ALT_API_KEY": "bn-alt-key",
+                "EXCHANGE_BINANCE_ALT_API_SECRET": "bn-alt-secret",
+                "EXCHANGE_BINANCE_ALT_TESTNET": "false",
+                "EXCHANGE_BYBIT_MAIN_API_KEY": "by-main-key",
+                "EXCHANGE_BYBIT_MAIN_API_SECRET": "by-main-secret",
+                "EXCHANGE_BYBIT_MAIN_EXCHANGE": "bybit",
+            },
+            clear=False,
+        ):
+            settings = Settings()
+
+        assert set(settings.exchange_credentials) >= {
+            "binance_main",
+            "binance_alt",
+            "bybit_main",
+        }
+        assert settings.exchange_credentials["binance_alt"].exchange == "binance"
+        assert settings.exchange_credentials["binance_alt"].api_key == "bn-alt-key"
+        assert settings.exchange_credentials["bybit_main"].exchange == "bybit"
+
+    def test_exchange_credentials_legacy_binance_alias(self) -> None:
+        settings = Settings(
+            binance=BinanceConfig(api_key="key", api_secret="secret", testnet=False)
+        )
+
+        credential = settings.exchange_credentials["binance_main"]
+        assert credential == ExchangeCredential(
+            ref="binance_main",
+            exchange="binance",
+            api_key="key",
+            api_secret="secret",
+            testnet=False,
+            market_type="futures",
+        )
+
+    def test_exchange_credentials_reject_legacy_explicit_conflict(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EXCHANGE_BINANCE_MAIN_API_KEY": "explicit-key",
+                "EXCHANGE_BINANCE_MAIN_API_SECRET": "explicit-secret",
+            },
+            clear=False,
+        ):
+            with pytest.raises(ValidationError, match="Conflicting credentials"):
+                Settings(
+                    binance=BinanceConfig(
+                        api_key="legacy-key",
+                        api_secret="legacy-secret",
+                    )
+                )
+
+    def test_validate_for_live_trading_accepts_named_credentials(self) -> None:
+        settings = Settings(
+            trading_mode="live",
+            exchange_credentials={
+                "binance_alt": ExchangeCredential(
+                    ref="binance_alt",
+                    exchange="binance",
+                    api_key="key",
+                    api_secret="secret",
+                )
+            },
+        )
+
+        settings.validate_for_live_trading()
 
     def test_validate_for_live_trading_no_exchange_raises(self) -> None:
         """Test validation fails for live trading without any exchange."""

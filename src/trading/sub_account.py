@@ -63,12 +63,15 @@ class RiskOverrides(BaseModel):
             open-position cap (Phase 12.1 cross-cycle gate).
         leverage_cap: Override on the maximum leverage allowed for
             any trade routed through this sub-account.
+        auto_approve_threshold: Override on the proposal composite
+            score threshold for this sub-account.
     """
 
     risk_percent: Decimal | None = None
     max_open_positions_total: int | None = Field(default=None, ge=1)
     max_open_positions_per_symbol: int | None = Field(default=None, ge=1)
     leverage_cap: int | None = Field(default=None, ge=1, le=125)
+    auto_approve_threshold: float | None = Field(default=None, ge=0.0)
 
     model_config = ConfigDict(frozen=True)
 

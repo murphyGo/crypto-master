@@ -8,11 +8,13 @@ Related Requirements:
 - NFR-011: API Key Protection
 """
 
+import os
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -100,6 +102,39 @@ class BybitConfig(BaseSettings):
         if self.testnet and self.testnet_api_key:
             return self.testnet_api_key, self.testnet_api_secret
         return self.api_key, self.api_secret
+
+
+class ExchangeCredential(BaseModel):
+    """Named exchange credential set for multi-account live mode.
+
+    ``ref`` is the stable sub-account binding key (for example
+    ``binance_main`` or ``binance_alt``). Secrets remain env-sourced;
+    this model only carries the loaded values in memory.
+    """
+
+    ref: str
+    exchange: Literal["binance", "bybit"]
+    api_key: str
+    api_secret: str
+    testnet: bool = False
+    market_type: Literal["spot", "futures"] = "futures"
+
+    def to_binance_config(self) -> BinanceConfig:
+        """Convert to the existing Binance adapter config shape."""
+        return BinanceConfig(
+            api_key=self.api_key,
+            api_secret=self.api_secret,
+            testnet=self.testnet,
+            market_type=self.market_type,
+        )
+
+    def to_bybit_config(self) -> BybitConfig:
+        """Convert to the existing Bybit adapter config shape."""
+        return BybitConfig(
+            api_key=self.api_key,
+            api_secret=self.api_secret,
+            testnet=self.testnet,
+        )
 
 
 class Settings(BaseSettings):
@@ -297,6 +332,7 @@ class Settings(BaseSettings):
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)
+    exchange_credentials: dict[str, ExchangeCredential] = Field(default_factory=dict)
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -319,6 +355,47 @@ class Settings(BaseSettings):
             return [s.strip() for s in v.split(",") if s.strip()]
         return v
 
+    @model_validator(mode="after")
+    def _load_exchange_credentials(self) -> "Settings":
+        """Populate named credential refs from legacy and EXCHANGE_* env vars."""
+        explicit = _parse_named_exchange_credentials(os.environ)
+        credentials: dict[str, ExchangeCredential] = {
+            **self.exchange_credentials,
+            **explicit,
+        }
+
+        if self.binance.api_key and self.binance.api_secret:
+            if "binance_main" in explicit:
+                raise ValueError(
+                    "Conflicting credentials: legacy BINANCE_API_KEY/SECRET and "
+                    "EXCHANGE_BINANCE_MAIN_* are both set"
+                )
+            credentials["binance_main"] = ExchangeCredential(
+                ref="binance_main",
+                exchange="binance",
+                api_key=self.binance.api_key,
+                api_secret=self.binance.api_secret,
+                testnet=False,
+                market_type=self.binance.market_type,
+            )
+
+        if self.bybit.api_key and self.bybit.api_secret:
+            if "bybit_main" in explicit:
+                raise ValueError(
+                    "Conflicting credentials: legacy BYBIT_API_KEY/SECRET and "
+                    "EXCHANGE_BYBIT_MAIN_* are both set"
+                )
+            credentials["bybit_main"] = ExchangeCredential(
+                ref="bybit_main",
+                exchange="bybit",
+                api_key=self.bybit.api_key,
+                api_secret=self.bybit.api_secret,
+                testnet=False,
+            )
+
+        self.exchange_credentials = credentials
+        return self
+
     def validate_for_live_trading(self) -> None:
         """Validate that configuration is suitable for live trading.
 
@@ -328,7 +405,11 @@ class Settings(BaseSettings):
         if self.trading_mode != "live":
             return
 
-        if not self.binance.is_configured() and not self.bybit.is_configured():
+        if (
+            not self.binance.is_configured()
+            and not self.bybit.is_configured()
+            and not self.exchange_credentials
+        ):
             raise ValueError(
                 "Live trading requires at least one exchange to be configured. "
                 "Please set API keys for Binance or Bybit in your .env file."
@@ -342,6 +423,72 @@ class Settings(BaseSettings):
         if self.bybit.is_configured():
             exchanges.append("bybit")
         return exchanges
+
+    def get_configured_exchange_refs(self) -> list[str]:
+        """Return named exchange credential refs available for sub-accounts."""
+        return sorted(self.exchange_credentials)
+
+
+_EXCHANGE_ENV_RE = re.compile(
+    r"^EXCHANGE_(?P<ref>[A-Z0-9_]+)_(?P<field>API_KEY|API_SECRET|TESTNET|EXCHANGE|MARKET_TYPE)$"
+)
+
+
+def _parse_named_exchange_credentials(
+    env: os._Environ[str] | dict[str, str],
+) -> dict[str, ExchangeCredential]:
+    """Parse Phase 19.4 ``EXCHANGE_<REF>_*`` env vars."""
+    grouped: dict[str, dict[str, str]] = {}
+    for key, value in env.items():
+        match = _EXCHANGE_ENV_RE.match(key)
+        if match is None:
+            continue
+        ref = match.group("ref").lower()
+        field = match.group("field").lower()
+        grouped.setdefault(ref, {})[field] = value
+
+    credentials: dict[str, ExchangeCredential] = {}
+    for ref, values in grouped.items():
+        api_key = values.get("api_key", "")
+        api_secret = values.get("api_secret", "")
+        if not api_key or not api_secret:
+            continue
+        exchange = values.get("exchange") or _infer_exchange_from_ref(ref)
+        if exchange not in {"binance", "bybit"}:
+            raise ValueError(
+                f"EXCHANGE_{ref.upper()}_EXCHANGE must be 'binance' or 'bybit'"
+            )
+        testnet = values.get("testnet", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        market_type = values.get("market_type", "futures")
+        if market_type not in {"spot", "futures"}:
+            raise ValueError(
+                f"EXCHANGE_{ref.upper()}_MARKET_TYPE must be 'spot' or 'futures'"
+            )
+        credentials[ref] = ExchangeCredential(
+            ref=ref,
+            exchange=exchange,  # type: ignore[arg-type]
+            api_key=api_key,
+            api_secret=api_secret,
+            testnet=testnet,
+            market_type=market_type,  # type: ignore[arg-type]
+        )
+    return credentials
+
+
+def _infer_exchange_from_ref(ref: str) -> str:
+    if ref.startswith("binance"):
+        return "binance"
+    if ref.startswith("bybit"):
+        return "bybit"
+    raise ValueError(
+        f"Cannot infer exchange for EXCHANGE_{ref.upper()}_*; set "
+        f"EXCHANGE_{ref.upper()}_EXCHANGE=binance or bybit"
+    )
 
 
 # Module-level singleton

@@ -154,6 +154,7 @@ class LiveTrader:
         exchange: BaseExchange,
         data_dir: Path | None = None,
         confirmation_callback: ConfirmationCallback | None = None,
+        sub_account_id: str = "default",
     ) -> None:
         """Initialize LiveTrader.
 
@@ -164,6 +165,9 @@ class LiveTrader:
             confirmation_callback: Async callable asked to approve each
                      user-initiated order. Defaults to an interactive
                      CLI prompt.
+            sub_account_id: Capital bucket whose live trade history
+                     this trader owns. Defaults to ``"default"`` for
+                     legacy single-account live deployments.
 
         Raises:
             LiveModeError: If the exchange is in testnet mode.
@@ -175,7 +179,10 @@ class LiveTrader:
             )
 
         self._exchange = exchange
-        self._trade_tracker = TradeHistoryTracker(data_dir=data_dir)
+        self._trade_tracker = TradeHistoryTracker(
+            data_dir=data_dir,
+            sub_account_id=sub_account_id,
+        )
         self._confirmation_callback: ConfirmationCallback = (
             confirmation_callback or default_confirmation
         )

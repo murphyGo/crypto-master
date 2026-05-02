@@ -200,6 +200,12 @@ class FakeSubAccountRegistry:
     def get_trader(self, id: str) -> MagicMock:
         return self.traders[id]
 
+    def get(self, id: str) -> SubAccount:
+        for sub_account in self.sub_accounts:
+            if sub_account.id == id:
+                return sub_account
+        raise KeyError(id)
+
     def filter_strategies(self, id: str, available: list[object]) -> list[object]:
         self.filter_calls.append((id, available))
         return available
@@ -265,6 +271,35 @@ async def test_auto_decide_rejects_below_threshold(tmp_path: Path) -> None:
     assert decision.accepted is False
     assert "0.4" in (decision.reason or "")
     assert "1.5" in (decision.reason or "")
+
+
+async def test_auto_decide_uses_sub_account_threshold_override(
+    tmp_path: Path,
+) -> None:
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = SubAccount(
+        id="experimental",
+        name="Experimental",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        risk_overrides=RiskOverrides(auto_approve_threshold=2.0),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"experimental": mocks["trader"]},
+    )
+    proposal = make_proposal(composite=1.5).model_copy(
+        update={"sub_account_id": "experimental"}
+    )
+
+    decision = await engine._auto_decide(proposal)
+
+    assert decision.accepted is False
+    assert "2.0000" in (decision.reason or "")
 
 
 # =============================================================================

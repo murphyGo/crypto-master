@@ -28,9 +28,12 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from src.config import Settings
+from src.config import ExchangeCredential, Settings
+from src.exchange.binance import BinanceExchange
+from src.exchange.bybit import BybitExchange
 from src.strategy.base import BaseStrategy
 from src.trading.base import Trader
+from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     RiskOverrides,
@@ -50,6 +53,10 @@ DEFAULT_SUB_ACCOUNT_ID = "default"
 
 class SubAccountConfigError(SubAccountError):
     """Raised when ``config/sub_accounts.yaml`` is present but invalid."""
+
+
+class MissingExchangeCredentialsError(SubAccountConfigError):
+    """Raised when a live sub-account references missing credentials."""
 
 
 class SubAccountRegistry:
@@ -98,6 +105,7 @@ class SubAccountRegistry:
         # YAML-loaded paper siblings get isolated PaperTrader instances.
         self._trader = trader
         self._traders: dict[str, Trader] = {}
+        self._owned_live_exchanges: list[BinanceExchange | BybitExchange] = []
 
         # Stable insertion order keeps ``list_active`` deterministic
         # for tests and dashboards.
@@ -173,15 +181,25 @@ class SubAccountRegistry:
         return accounts
 
     def _validate_phase_19_3_boundaries(self, sub: SubAccount) -> None:
-        if sub.mode == "live" and sub.id != DEFAULT_SUB_ACCOUNT_ID:
-            raise SubAccountConfigError(
-                "Phase 19.4 not landed: live sub-accounts with "
-                f"id != {DEFAULT_SUB_ACCOUNT_ID!r} are not supported yet "
-                f"(got {sub.id!r})"
-            )
+        if sub.mode == "live":
+            if sub.exchange_ref == "default" and sub.id == DEFAULT_SUB_ACCOUNT_ID:
+                return
+            if sub.exchange_ref is None:
+                raise MissingExchangeCredentialsError(
+                    f"live sub-account {sub.id!r} must declare exchange_ref"
+                )
+            if sub.exchange_ref not in self.settings.exchange_credentials:
+                raise MissingExchangeCredentialsError(
+                    f"live sub-account {sub.id!r} references exchange_ref "
+                    f"{sub.exchange_ref!r}, but no matching credentials are configured"
+                )
+            return
+
         if sub.exchange_ref in (None, "default"):
             return
-        configured = set(self.settings.get_configured_exchanges())
+        configured = set(self.settings.get_configured_exchanges()) | set(
+            self.settings.get_configured_exchange_refs()
+        )
         if sub.exchange_ref not in configured:
             raise SubAccountConfigError(
                 f"sub-account {sub.id!r} references exchange_ref "
@@ -190,7 +208,7 @@ class SubAccountRegistry:
             )
 
     def _build_trader_for(self, sub: SubAccount) -> Trader:
-        if sub.id == DEFAULT_SUB_ACCOUNT_ID:
+        if sub.id == DEFAULT_SUB_ACCOUNT_ID and sub.exchange_ref in (None, "default"):
             return self._trader
         if sub.mode == "paper":
             return PaperTrader(
@@ -198,7 +216,43 @@ class SubAccountRegistry:
                 data_dir=self.settings.data_dir / "trades",
                 sub_account_id=sub.id,
             )
-        return self._trader
+        if sub.exchange_ref is None:
+            raise MissingExchangeCredentialsError(
+                f"live sub-account {sub.id!r} must declare exchange_ref"
+            )
+        credential = self.settings.exchange_credentials[sub.exchange_ref]
+        exchange = self._exchange_from_credential(credential)
+        self._owned_live_exchanges.append(exchange)
+        return LiveTrader(
+            exchange=exchange,
+            data_dir=self.settings.data_dir / "trades",
+            sub_account_id=sub.id,
+            confirmation_callback=_auto_confirm_live_sub_account,
+        )
+
+    @staticmethod
+    def _exchange_from_credential(
+        credential: ExchangeCredential,
+    ) -> BinanceExchange | BybitExchange:
+        if credential.exchange == "binance":
+            return BinanceExchange(
+                credential.to_binance_config(),
+                testnet=credential.testnet,
+            )
+        return BybitExchange(
+            credential.to_bybit_config(),
+            testnet=credential.testnet,
+        )
+
+    async def connect_owned_exchanges(self) -> None:
+        """Connect live exchanges constructed by this registry."""
+        for exchange in self._owned_live_exchanges:
+            await exchange.connect()
+
+    async def disconnect_owned_exchanges(self) -> None:
+        """Disconnect live exchanges constructed by this registry."""
+        for exchange in self._owned_live_exchanges:
+            await exchange.disconnect()
 
     def _materialise_default(self) -> SubAccount:
         """Build the back-compat ``default`` sub-account from settings.
@@ -306,6 +360,12 @@ class SubAccountRegistry:
 __all__ = [
     "DEFAULT_CONFIG_PATH",
     "DEFAULT_SUB_ACCOUNT_ID",
+    "MissingExchangeCredentialsError",
     "SubAccountConfigError",
     "SubAccountRegistry",
 ]
+
+
+async def _auto_confirm_live_sub_account(position: object, action: str) -> bool:
+    """Headless confirmation used for registry-built live traders."""
+    return True

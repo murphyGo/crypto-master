@@ -385,6 +385,49 @@ deploy is real losses, not test-data garbage.
    away — but **does not auto-close any open live positions**.
    Manually close them on the exchange first if needed.
 
+### Multi-Account Live
+
+Phase 19.4 supports multiple live sub-accounts bound to distinct
+credential refs in `config/sub_accounts.yaml`.
+
+1. Create separate API keys on the exchange for each live account.
+   Keep IP whitelists, permissions, margin mode, and leverage limits
+   configured independently in the exchange dashboard.
+2. Store each key pair as an `EXCHANGE_<REF>_*` secret. Example:
+
+   ```bash
+   fly secrets set \
+       EXCHANGE_BINANCE_MAIN_EXCHANGE=binance \
+       EXCHANGE_BINANCE_MAIN_API_KEY=... \
+       EXCHANGE_BINANCE_MAIN_API_SECRET=... \
+       EXCHANGE_BINANCE_MAIN_TESTNET=false \
+       EXCHANGE_BINANCE_ALT_EXCHANGE=binance \
+       EXCHANGE_BINANCE_ALT_API_KEY=... \
+       EXCHANGE_BINANCE_ALT_API_SECRET=... \
+       EXCHANGE_BINANCE_ALT_TESTNET=false
+   ```
+
+3. Bind sub-accounts to those refs:
+
+   ```yaml
+   sub_accounts:
+     - id: default
+       name: Main Live
+       mode: live
+       exchange_ref: binance_main
+       initial_balance: {USDT: 10000}
+     - id: alt_swing
+       name: Alt Swing Live
+       mode: live
+       exchange_ref: binance_alt
+       initial_balance: {USDT: 5000}
+   ```
+
+4. Do not mix the legacy `BINANCE_API_KEY`/`BINANCE_API_SECRET` pair
+   with `EXCHANGE_BINANCE_MAIN_*`; startup treats that as a conflict.
+   The legacy pair remains available as the `binance_main` alias for
+   single-account deployments.
+
 ## Operator tools
 
 ### Proposal-history retention
