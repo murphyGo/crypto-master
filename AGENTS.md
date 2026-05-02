@@ -1,0 +1,72 @@
+# Crypto Master
+
+Brownfield AI-DLC project overlay for the existing Crypto Master trading system.
+
+## Project Purpose
+
+Crypto Master is an automated crypto trading application with Claude CLI-assisted
+strategy generation, backtesting, proposal review, paper/live trading, and
+operator dashboard workflows.
+
+This repository predates the AI-DLC overlay. Existing implementation, tests,
+session logs, cross-checks, and technical debt records must be treated as source
+of truth unless a current task explicitly updates them.
+
+## Quick Commands
+
+| Skill | Purpose | Example |
+|-------|---------|---------|
+| `/dev-crypto` | Continue unit-oriented development | `/dev-crypto` |
+| `/code-review` | Review changed code | `/code-review git` |
+| `/tech-debt` | View or promote debt items | `/tech-debt aged` |
+| `/cross-check` | Verify implementation vs requirements | `/cross-check proposal-runtime` |
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `aidlc-docs/aidlc-state.md` | Brownfield AI-DLC state and unit progress |
+| `aidlc-docs/inception/units/unit-of-work.md` | Functional unit breakdown of existing and future work |
+| `aidlc-docs/inception/plans/execution-plan.md` | Construction stage strategy per unit |
+| `aidlc-docs/inception/reverse-engineering/` | Reverse-engineered current-system documentation |
+| `docs/requirements.md` | Existing FR/NFR requirements and traceability |
+| `docs/development-plan.md` | Legacy chronological development plan |
+| `DESIGN.md` | Existing architecture document |
+| `CLAUDE.md` | Existing project guide and commands |
+| `docs/TECH-DEBT.md` | Active and resolved technical debt registry |
+| `docs/sessions/` | Implementation session logs |
+| `docs/cross-checks/` | Phase and unit compliance reports |
+
+## Development Workflow
+
+1. Check `aidlc-docs/aidlc-state.md` for current unit status.
+2. Use `aidlc-docs/inception/units/unit-of-work.md` to identify ownership,
+   related requirements, legacy phase history, and likely test scope.
+3. Keep `docs/development-plan.md` as the chronological legacy plan. Do not
+   flatten or rewrite its history when creating unit-oriented work.
+4. For new work, update the relevant unit state, tests, session log,
+   cross-check, and technical debt record as appropriate.
+
+## Brownfield Constraints
+
+1. Preserve existing runtime behavior unless the task explicitly changes it.
+2. Do not overwrite `docs/requirements.md`, `docs/development-plan.md`,
+   `DESIGN.md`, or `CLAUDE.md`; update them intentionally and narrowly.
+3. Treat `data/` as runtime/operator data. Do not migrate or delete it during
+   AI-DLC overlay work.
+4. Keep Claude integration on the CLI path (`claude -p`) unless requirements
+   are explicitly changed.
+5. Keep exchange credentials and live trading controls conservative. Live mode
+   must fail fast for missing credentials and require explicit operator intent.
+6. Prefer additive migrations and compatibility shims for existing paper/live
+   trading state.
+
+## Quality Bar
+
+- Run targeted tests for any changed unit.
+- Run `uv run pytest` for broader changes when practical.
+- Run `uv run black` / ruff-compatible formatting for Python changes.
+- Record significant decisions in session logs; create ADRs only for durable
+  architecture choices.
+- Link gaps to `docs/TECH-DEBT.md` instead of leaving untracked TODOs.
+
