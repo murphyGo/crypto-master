@@ -251,3 +251,12 @@ shape.)
 | `ma_crossover` | BTC/USDT | 3mo 1h | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ | _AWAITING_OPERATOR_FIRST_RUN_ |
 
 These numbers are the bar each LLM-driven technique needs to clear.
+
+## Related Live-Quality Diagnostics
+
+- `docs/research/trade-quality-2026-05-01.md` compares the current
+  paper-trading live EV for `simple_trend_analysis` and
+  `chasulang_ict_smc` against the Phase 18.2 methodology. Baseline
+  deltas are marked N/A there because these LLM strategies are not
+  rows in the deterministic baseline table above and the Phase 25.3
+  Part B operator artefacts are still awaiting first run.

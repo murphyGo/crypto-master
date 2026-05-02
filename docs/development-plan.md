@@ -68,7 +68,7 @@
 | Auto-Research Workflow Unblock — Runtime Contract + Backtest Circuit Breaker | ✅ Complete | 17 |
 | Code-Type Steering for Deterministic Catalog Picks | ✅ Complete | 17 |
 | Stale-Quote Sanity Gate at Proposal Fill | ✅ Complete | 18 |
-| Trade-Quality Diagnostic | ❌ Missing | 18 |
+| Trade-Quality Diagnostic | ✅ Complete | 18 |
 | Sub-Account Foundation (entity + registry + default migration) | ❌ Missing | 19 |
 | Sub-Account Engine Integration | ❌ Missing | 19 |
 | Multi-Paper-Account Support + YAML Config + Dashboard | ❌ Missing | 19 |
@@ -2107,44 +2107,44 @@ proposals reuses the backtest fill semantics), NFR-001 (Python
 3.10+ tooling for the analysis script — extending the existing
 contract; no new FR/NFR introduced).
 
-- [ ] Pull `/data/trades/paper/trades.json` and `/data/proposals/
+- [x] Pull `/data/trades/paper/trades.json` and `/data/proposals/
   *.json` from the Fly volume per `docs/research/trade-quality-
   design-2026-05-01.md` §2.1 and §2.2; cross-link every closed
   trade to its `ProposalRecord` via `proposal_id` and surface
   any orphans.
-- [ ] Compute the §3 per-trade table for all 9 closed trades
+- [x] Compute the §3 per-trade table for all 9 closed trades
   (columns: `trade_id`, `symbol`, `strategy`, `side`,
   `latency_seconds`, `realised_drift_bps`, `sl_distance_bps`,
   `tp_distance_bps`, `rr_ratio`, `exit_reason`, `pnl_realised`,
   `r_multiple`, `regime_tag`) using the formulae in §5 verbatim.
-- [ ] Emit the §4.1 per-strategy EV table with `live_ev_usdt` vs
+- [x] Emit the §4.1 per-strategy EV table with `live_ev_usdt` vs
   `baseline_ev_usdt` delta against `data/backtest/baselines/
   <strategy>/summary.json` (Phase 10.3 numbers); annotate every
   aggregate with `(n=N)` and the §9 sample-size caveats.
-- [ ] Emit §4.2 per-regime, §4.3 per-exit-reason, §4.4 latency-
+- [x] Emit §4.2 per-regime, §4.3 per-exit-reason, §4.4 latency-
   vs-adverse-drift scatter (PNG to `docs/research/figures/
   2026-05-01-latency-drift.png` linked inline, or ASCII), §4.5
   rejected-vs-accepted EV gap with hypothetical-outcome walk,
   and §4.6 50-bps recalibration empirical drift CDF
   (augmenting the truncated post-18.1 tail with rejected-by-
   slippage drift values per §4.6 caveat).
-- [ ] Land the analysis as `docs/research/trade-quality-2026-05-
+- [x] Land the analysis as `docs/research/trade-quality-2026-05-
   01.md` following the §6 output skeleton; include the §6.1
   ETH `5d51cba3` worked example as the first row of §1 per-
   trade table.
-- [ ] Apply the §7 decision rules and write a single explicit
+- [x] Apply the §7 decision rules and write a single explicit
   recommendation in §9 of the output doc — one of: §7.1
   (tighten tolerance → Phase 18.3 trigger), §7.2 (composite-
   gate inversion → top-priority escalation), §7.3 (strategy-
   specific gate / removal), §7.4 (no clear signal — return to
   dev plan); cite the numerical trigger threshold met.
-- [ ] Update `docs/baselines.md` with a cross-reference pointer
+- [x] Update `docs/baselines.md` with a cross-reference pointer
   to the new analysis doc for each strategy touched (per the
   design's §10 cross-check item); if the regime-tertile
   convention from §3.1 is novel, document it in `docs/baselines.
   md` and add a one-line `docs/TECH-DEBT.md` entry for any
   newly-surfaced gap surfaced during the analysis.
-- [ ] Write unit tests — N/A for a research-only sub-task; no
+- [x] Write unit tests — N/A for a research-only sub-task; no
   `src/` or `tests/` changes are produced. The §10 cross-check
   list in the design doc is the verification gate in lieu of
   unit tests; the analyst ticks every box before publishing.
@@ -3515,3 +3515,4 @@ requirements; no new FR/NFR introduced.
 | 26.0 | 2026-05-01 | Phase 26 sealed (26.1 ✅, 26.2 ✅, 26.3 ✅, 26.4 ✅, 26.5 ✅) — 11 DEBT items closed in one cohesive bundle (DEBT-035, 036, 038, 039, 040, 041, 042, 044, 045, 047, 048). Active TECH-DEBT 22 → 11 (-11); Resolved (All Time) 26 → 37 (+11); Medium 6 → 5; Low 16 → 6. pytest 1348 → 1361 (+13 net). All sub-task reviewers 🟢. Phase 26 cross-check `docs/cross-checks/2026-05-01-phase-26-hygiene-and-polish-bundle.md` PASS — FR-007 / FR-014 / FR-015 / FR-025 / NFR-001 / NFR-006 / NFR-008 all ✅; 0 ⚠️ partial; 0 ❌ gap. Carry-overs (not Phase 26 concerns): DEBT-046 hard prereq for Phase 19.2 sub-account fan-out; Phase 25.3 Part B operator follow-up; Phase 17.5 still open. | docs-auditor |
 | 17.5 | 2026-05-02 | Phase 17.5 sealed 2026-05-02 — Code-Type Steering for Deterministic Catalog Picks (DEBT-019 Option B; FR-023 / FR-025 / NFR-001 extending). Eliminates Claude CLI from the hot path for deterministic catalog strategies — generated as Python `BaseStrategy` subclasses (executable locally per bar) instead of markdown prompts (per-bar Claude CLI invocation). `Pick.code_type: bool = False` field on `auto_research_candidates.py:145`; all 9 TOP_PICKS flagged `code_type=True` (Donchian System 2, Supertrend, Connors RSI(2), Z-score, Larry Williams, TTM Squeeze, BB %B+RSI, Golden Cross, NR7). New `improver._build_new_idea_code_prompt` branch (line 676) instructs Claude to emit Python file with `class XxxStrategy(BaseStrategy)` + `async def analyze` (NOT sync `signal()` as spec text said — implementation correctly matches `BaseStrategy.analyze` async abstract; spec drift surfaced as cosmetic-only). Catalog injection from Phase 17.1 retained on code branch. File extension dispatch: `.py` for code-type, `.md` otherwise. Loader (`src/strategy/loader.py`) already supported `.py` via existing `load_technique_info_from_py` — no loader changes. 6 new tests: 4 prompt-branch unit tests + 1 TOP_PICKS regression guard + 1 load-bearing integration test (`test_code_type_pick_runs_without_per_bar_claude_calls` — real `Backtester.run_for_strategy` over 300 synthetic candles, asserts `claude.complete.call_count == 1` AND `claude.analyze.call_count == 0`). pytest 1361 → 1367 (+6); ruff/mypy/black clean. Quant verdict: 🟡 ship-with-note (catalog flags / interface / invariant all correct; non-blocking note that fixture's `signal="neutral"` doesn't exercise real-trade path → recorded as DEBT-049 Low). QA verdict: 🟢 ship. Acceptance checkbox left for operator (real Claude run + 5 generated `.py` files) per Phase 17.4 precedent. Session log: `docs/sessions/2026-05-02-phase-17.5-and-phase-17-seal.md`. | docs-auditor (lead-orchestrated) |
 | 17.0 | 2026-05-02 | Phase 17 sealed (17.1 ✅, 17.2 ✅, 17.3 ✅, 17.4 ✅, 17.5 ✅) — strategy-evolution operator workflow now complete end-to-end. DEBT-019 (the original audit's most operationally painful debt — 9-hour hang on prompt-type catalog picks) closed at root: deterministic strategies bypass LLM hot path entirely (17.5 Option B); fallback prompt path hardened with per-bar circuit breakers (17.4 Options A+C). Auto-research generates candidates → backtester runs deterministic ones in seconds (not 9 hours) → robustness gate evaluates → operator promotes. Phase 17 cross-check `docs/cross-checks/2026-05-02-phase-17-strategy-evolution-operator.md` PASS — FR-021 / FR-022 / FR-023 / FR-025 / FR-027 / FR-031 / FR-005 / NFR-001 / NFR-008 all ✅; 0 partial; 0 gap. New TECH-DEBT: DEBT-049 (Low — fixture trade-producing path). DEBT-026 (Donchian truncated artefact) becomes obsolete on next operator regenerate. | docs-auditor |
+| 18.2 | 2026-05-03 | Phase 18.2 complete - Trade-Quality Diagnostic (FR-005, FR-021, FR-025, NFR-001; read-only research task). Pulled Fly volume data into `/private/tmp/crypto-master-phase18-2-data` and published `docs/research/trade-quality-2026-05-01.md`. Current production snapshot had 11 closed paper trades + 1 open trade, not the design doc's stale 9-closed-trade count; analysis uses the current ledger. All closed trades resolved to `ProposalRecord`; no orphan closed trades. Main result: current closed set is 2W/9L, total PnL -61.66 USDT, EV -5.61 USDT/trade, expectancy -0.40R. `simple_trend_analysis` carries 8/9 losses and expectancy -1.24R over n=9, so §7.3 strategy-specific gate/removal rule also fires. Primary recommendation is a top-priority composite-score review because §7.2 fires: accepted closed expectancy (-0.40R, n=11) underperformed rejected-threshold hypothetical expectancy (-0.18R, n=98). Secondary recommendation is a strategy-specific block or higher threshold for `simple_trend_analysis` until enough post-18.1 evidence accumulates. No global slippage-tolerance edit recommended (p95 absolute stale/instant-stop drift proxy 151.2 bps, so §7.1 30-bps tighten rule does not fire). `docs/baselines.md` cross-reference added; no new TECH-DEBT. Phase 18 sealed with cross-check `docs/cross-checks/2026-05-03-phase-18-live-trading-quality.md` PASS. Session log: `docs/sessions/2026-05-03-phase-18.2-trade-quality-diagnostic.md`. | Claude |
