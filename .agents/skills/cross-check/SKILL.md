@@ -20,14 +20,18 @@ requirements without regressing brownfield behavior.
 ## Execution Steps
 
 1. Read `aidlc-docs/inception/units/unit-of-work.md`.
-2. Identify related FR/NFR IDs and owned files.
-3. Read implementation and tests in scope.
-4. Compare behavior against:
+2. Read `aidlc-docs/inception/units/legacy-phase-map.md` when the argument
+   references a legacy phase, component, or historical cross-check.
+3. Read `aidlc-docs/inception/units/debt-unit-map.md` when the work closes,
+   promotes, or discovers technical debt.
+4. Identify related FR/NFR IDs and owned files.
+5. Read implementation and tests in scope.
+6. Compare behavior against:
    - `docs/requirements.md`
    - `DESIGN.md`
    - relevant session logs and previous cross-checks
-5. Run targeted tests when practical.
-6. Generate or update a report in `docs/cross-checks/`.
+7. Run targeted tests when practical.
+8. Generate or update a report in `docs/cross-checks/`.
 
 ## Report Template
 
@@ -47,6 +51,13 @@ requirements without regressing brownfield behavior.
 
 ## Gaps and Risks
 
+## Unit and Debt Mapping
+
+- **Primary Unit**:
+- **Secondary Units**:
+- **Related Debt**:
+- **Legacy Phase Context**:
+
 ## Recommendations
 ```
 
@@ -58,4 +69,3 @@ requirements without regressing brownfield behavior.
 | Partial | Implemented but test/docs/edge case coverage is incomplete |
 | Gap | Requirement not implemented or behavior contradicts requirement |
 | Deferred | Explicitly deferred with documented reason |
-

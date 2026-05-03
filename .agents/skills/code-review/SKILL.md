@@ -23,9 +23,13 @@ data integrity, failure modes, and test gaps.
 Read:
 
 1. `aidlc-docs/inception/units/unit-of-work.md`
-2. related requirements in `docs/requirements.md`
-3. related design in `DESIGN.md`
-4. current debt in `docs/TECH-DEBT.md`
+2. `aidlc-docs/inception/units/legacy-phase-map.md` when old phases or
+   historical components are referenced
+3. `aidlc-docs/inception/units/debt-unit-map.md` when reviewing debt-related
+   changes
+4. related requirements in `docs/requirements.md`
+5. related design in `DESIGN.md`
+6. current debt in `docs/TECH-DEBT.md`
 
 For `git`, identify changed files with:
 
@@ -56,4 +60,3 @@ issues are found, say so and note residual test or operational risk.
 
 For actionable unresolved findings, suggest whether they should be fixed now or
 tracked in `docs/TECH-DEBT.md`.
-
