@@ -9,6 +9,9 @@ reviewed, tested, and cross-checked by bounded functional area.
 For a row-by-row mapping from `docs/development-plan.md` components to these
 units, see `aidlc-docs/inception/units/legacy-phase-map.md`.
 
+For active technical debt grouped by these units, see
+`aidlc-docs/inception/units/debt-unit-map.md`.
+
 ## Unit Summary
 
 | Unit | Purpose | Primary Paths |

@@ -33,9 +33,12 @@ review should be fixed immediately when small and safe, or tracked in
 
 1. Read `docs/TECH-DEBT.md`.
 2. Parse active items, priority, creation date, component, and related paths.
-3. Map items to units using `aidlc-docs/inception/units/unit-of-work.md`.
-4. Present a concise dashboard or filtered list.
-5. For promotion, propose a unit-oriented task and target tests.
+3. Load `aidlc-docs/inception/units/debt-unit-map.md` if present.
+4. Map new or unmapped items to units using
+   `aidlc-docs/inception/units/unit-of-work.md` and
+   `aidlc-docs/inception/units/legacy-phase-map.md`.
+5. Present a concise dashboard or filtered list.
+6. For promotion, propose a unit-oriented task and target tests.
 
 ## Promotion Output
 
@@ -52,4 +55,3 @@ review should be fixed immediately when small and safe, or tracked in
 - [ ] Update session/cross-check docs
 - [ ] Mark debt resolved
 ```
-

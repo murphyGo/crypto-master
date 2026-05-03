@@ -28,11 +28,12 @@ Read these files before choosing or executing work:
 2. `aidlc-docs/aidlc-state.md`
 3. `aidlc-docs/inception/units/unit-of-work.md`
 4. `aidlc-docs/inception/units/legacy-phase-map.md`
-5. `aidlc-docs/inception/plans/execution-plan.md`
-6. `docs/requirements.md`
-7. `docs/TECH-DEBT.md`
-8. `DESIGN.md`
-9. `CLAUDE.md`
+5. `aidlc-docs/inception/units/debt-unit-map.md`
+6. `aidlc-docs/inception/plans/execution-plan.md`
+7. `docs/requirements.md`
+8. `docs/TECH-DEBT.md`
+9. `DESIGN.md`
+10. `CLAUDE.md`
 
 Use `docs/development-plan.md` as historical context. Do not rewrite it unless
 the task explicitly updates legacy plan status.

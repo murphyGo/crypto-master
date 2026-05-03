@@ -36,6 +36,7 @@
 | Reverse Engineering | Complete | `aidlc-docs/inception/reverse-engineering/` |
 | Unit Breakdown | Complete | `aidlc-docs/inception/units/unit-of-work.md` |
 | Legacy Phase Crosswalk | Complete | `aidlc-docs/inception/units/legacy-phase-map.md` |
+| Debt Unit Map | Complete | `aidlc-docs/inception/units/debt-unit-map.md` |
 | Execution Plan | Complete | `aidlc-docs/inception/plans/execution-plan.md` |
 
 ## Unit Progress
@@ -73,6 +74,7 @@ planned against one or more units using this stage order:
 
 - Chronological plan: `docs/development-plan.md`
 - Legacy phase to unit map: `aidlc-docs/inception/units/legacy-phase-map.md`
+- Debt to unit map: `aidlc-docs/inception/units/debt-unit-map.md`
 - Requirements: `docs/requirements.md`
 - Architecture: `DESIGN.md`
 - Project guide: `CLAUDE.md`
