@@ -3,6 +3,11 @@
 > **Runtime constraint (2026-05).** Claude Code blocks subagent nesting — a spawned subagent cannot use the `Agent` tool to spawn siblings, regardless of frontmatter. Therefore the **`team-lead` role is not a subagent**; it is played by the **parent assistant** that received the `/team` invocation. The parent reads `.claude/skills/team/team-lead-algorithm.md`, runs the algorithm, and dispatches the five specialist subagents directly. The diagram below shows the team shape; "team-lead" rows refer to the parent assistant's lead-mode behaviour.
 >
 > When designing future agents in this repo: **only the parent can fan out to subagents.** Anything that needs to dispatch siblings must live in the parent or in a skill the parent reads.
+>
+> **Codex AI-DLC overlay.** The Codex-facing entry point is
+> `.agents/skills/team-lead/SKILL.md` (`/team-lead`), with specialist prompts in
+> `.agents/agents/` and the roster summary in `docs/AGENT-TEAM.md`. The older
+> `.claude/skills/team/` path remains the Claude Code entry point for `/team`.
 
 ## Why a team
 

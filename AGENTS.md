@@ -17,6 +17,7 @@ of truth unless a current task explicitly updates them.
 | Skill | Purpose | Example |
 |-------|---------|---------|
 | `/dev-crypto` | Continue unit-oriented development | `/dev-crypto` |
+| `/team-lead` | Run the AI-DLC specialist team for one bounded cycle | `/team-lead "resolve DEBT-047"` |
 | `/code-review` | Review changed code | `/code-review git` |
 | `/tech-debt` | View or promote debt items | `/tech-debt aged` |
 | `/cross-check` | Verify implementation vs requirements | `/cross-check proposal-runtime` |
@@ -33,6 +34,9 @@ of truth unless a current task explicitly updates them.
 | `aidlc-docs/inception/units/debt-unit-map.md` | Mapping from active technical debt to AI-DLC units |
 | `aidlc-docs/inception/plans/execution-plan.md` | Construction stage strategy per unit |
 | `aidlc-docs/inception/reverse-engineering/` | Reverse-engineered current-system documentation |
+| `.agents/agents/` | Codex specialist agent prompts used by `/team-lead` |
+| `.agents/skills/team-lead/` | Codex team-lead skill and orchestration algorithm |
+| `docs/AGENT-TEAM.md` | Team roster, ownership, and delegation map |
 | `docs/requirements.md` | Existing FR/NFR requirements and traceability |
 | `docs/development-plan.md` | Pointer to archived legacy plan; not an active queue |
 | `docs/legacy/development-plan.md` | Archived chronological development plan |
