@@ -6,8 +6,9 @@ The original Crypto Master plan is chronological. This document remaps the
 existing implementation into AI-DLC units so future development can be planned,
 reviewed, tested, and cross-checked by bounded functional area.
 
-For a row-by-row mapping from `docs/development-plan.md` components to these
-units, see `aidlc-docs/inception/units/legacy-phase-map.md`.
+For a row-by-row mapping from archived `docs/legacy/development-plan.md`
+components to these units, see
+`aidlc-docs/inception/units/legacy-phase-map.md`.
 
 For active technical debt grouped by these units, see
 `aidlc-docs/inception/units/debt-unit-map.md`.

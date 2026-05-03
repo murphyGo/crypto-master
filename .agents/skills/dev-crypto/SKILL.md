@@ -1,24 +1,25 @@
 ---
 name: dev-crypto
-description: Continue Crypto Master development using the brownfield AI-DLC unit map.
+description: Execute Crypto Master brownfield AI-DLC construction work by unit.
 ---
 
 # Crypto Master Development Skill
 
-Develop Crypto Master incrementally using the brownfield AI-DLC overlay.
+Execute Crypto Master construction work using the brownfield AI-DLC overlay.
 
 ## Arguments
 
 - `$ARGUMENTS` - Optional target override:
-  - empty: choose the next appropriate unit from `aidlc-docs/aidlc-state.md`
+  - empty: choose the next construction target from AI-DLC unit state and debt
   - `<unit>`: work in a specific unit, such as `proposal-runtime`
-  - `<unit> <task>`: work in a specific unit with a short task description
+  - `<unit> <stage>`: work in a specific construction stage
+  - `<unit> <task>`: start a new construction task for that unit
 
 ## Objective
 
-Plan, implement, test, and document one bounded change at a time. Existing
-Phase 1-26 work is considered brownfield-complete; new work is tracked by unit
-instead of by extending the legacy chronological plan blindly.
+Plan, implement, test, and document one bounded construction step at a time.
+Existing Phase 1-26 work is brownfield-complete historical context. New work is
+tracked under `aidlc-docs/construction/` by unit and stage.
 
 ## Required Context
 
@@ -30,20 +31,40 @@ Read these files before choosing or executing work:
 4. `aidlc-docs/inception/units/legacy-phase-map.md`
 5. `aidlc-docs/inception/units/debt-unit-map.md`
 6. `aidlc-docs/inception/plans/execution-plan.md`
-7. `docs/requirements.md`
-8. `docs/TECH-DEBT.md`
-9. `DESIGN.md`
-10. `CLAUDE.md`
+7. `aidlc-docs/construction/README.md`
+8. `docs/requirements.md`
+9. `docs/TECH-DEBT.md`
+10. `DESIGN.md`
+11. `CLAUDE.md`
 
-Use `docs/development-plan.md` as historical context. Do not rewrite it unless
-the task explicitly updates legacy plan status.
+Use `docs/legacy/development-plan.md` only as historical chronology when a task
+mentions an old phase. Do not use `docs/development-plan.md` as the queue for
+new work, and do not extend the archived plan with new phases unless the user
+explicitly asks for legacy-plan maintenance.
 
 ## Execution Steps
 
-### Step 1: Select Unit
+### Step 1: Select Construction Target
 
 If `$ARGUMENTS` names a unit, use it. Otherwise infer the unit from the user's
-task and the path ownership table in `unit-of-work.md`.
+task, active `docs/TECH-DEBT.md` entries, and the path ownership table in
+`unit-of-work.md`. If there is no clear task, report that no construction target
+is currently selected rather than mining `docs/legacy/development-plan.md` for
+old phase work.
+
+Determine the current construction stage:
+
+1. Functional Design, if behavior, contracts, workflows, or operator semantics
+   change.
+2. NFR Requirements / NFR Design, if reliability, safety, data integrity,
+   security, observability, latency, or runtime resilience changes.
+3. Infrastructure Design, if Fly.io, credentials, processes, deployment, or
+   external topology changes.
+4. Code Generation, for source/test/script changes.
+5. Build and Test, after code changes and before sealing the unit task.
+
+Use `aidlc-docs/inception/plans/execution-plan.md` to decide which conditional
+stages apply.
 
 Present:
 
@@ -51,28 +72,39 @@ Present:
 ## Development Target
 
 **Unit**: `<unit>`
+**Stage**: `<construction stage>`
 **Task**: <short task summary>
 **Related Requirements**: FR/NFR IDs if known
 **Likely Files**: paths
 **Tests**: targeted test list
+**Construction Plan**: `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
 ```
 
 Proceed without asking for confirmation unless the task is ambiguous or risky.
 
-### Step 2: Plan the Change
+### Step 2: Enter or Resume the Construction Stage
 
-For behavior or contract changes, create or update a short construction note
-under `aidlc-docs/construction/<unit>/`. For narrow code fixes, a session log is
-enough.
+Look for the matching plan file under `aidlc-docs/construction/plans/`.
 
-Check whether the change needs:
+- If it does not exist, create it before touching application code.
+- If it exists, resume the first unchecked `[ ]` step.
+- If all steps are checked, mark the stage complete in
+  `aidlc-docs/aidlc-state.md` and move to the next applicable stage.
 
-- Functional design
-- NFR requirement/design notes
-- Infrastructure design
-- Code/test changes
-- Cross-check
-- Technical debt update
+Plan files must include:
+
+- Unit, stage, task, related requirements, and related legacy phase/debt IDs.
+- Explicit `[ ]` steps with target files and verification commands.
+- Any user questions with `[Answer]:` tags.
+- A completion checklist for docs, tests, debt, cross-check, and state updates.
+
+For design stages, load and follow the matching rule file from
+`aidlc-workflows/aidlc-rules/aws-aidlc-rule-details/construction/` and write
+artifacts under `aidlc-docs/construction/<unit>/<stage>/`.
+
+For code generation, write application code in the workspace root and write
+only summaries or implementation notes under
+`aidlc-docs/construction/<unit>/code/`.
 
 ### Step 3: Implement
 
@@ -81,6 +113,8 @@ Check whether the change needs:
 - Prefer existing patterns in `src/`.
 - Add or update targeted tests with the change.
 - Avoid unrelated refactors.
+- Mark a plan step `[x]` only after the implementation and targeted
+  verification for that step are complete.
 
 ### Step 4: Verify
 
@@ -98,6 +132,13 @@ Record any checks not run and why.
 
 ### Step 5: Document
 
+Create or update the relevant construction artifacts:
+
+- `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
+- `aidlc-docs/construction/<unit>/<stage>/...` for design artifacts or code
+  summaries
+- `aidlc-docs/aidlc-state.md` for stage/unit progress
+
 Create a session log under `docs/sessions/YYYY-MM-DD-<unit>-<task>.md` for
 substantial changes. Include:
 
@@ -112,6 +153,9 @@ substantial changes. Include:
 For completed unit-level changes, create or update a cross-check under
 `docs/cross-checks/`.
 
+Do not use `docs/development-plan.md` as the progress tracker for new work.
+`docs/legacy/development-plan.md` may be cited as legacy context only.
+
 ### Step 6: Report
 
 Summarize changed files, tests, documentation, and any remaining risks.
@@ -122,5 +166,5 @@ Summarize changed files, tests, documentation, and any remaining risks.
 - Do not replace Claude CLI integration with API calls unless requirements
   change.
 - Keep exchange and live-trading changes conservative and well-tested.
-- Keep `docs/development-plan.md` as historical chronology; new planning should
-  cite units.
+- Keep `docs/legacy/development-plan.md` as historical chronology; new planning
+  must cite units and construction plan files.

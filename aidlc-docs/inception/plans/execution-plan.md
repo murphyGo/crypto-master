@@ -3,9 +3,9 @@
 ## Purpose
 
 This plan adapts the existing chronological Crypto Master development history
-into AI-DLC unit-oriented construction tracking. The legacy plan remains in
-`docs/development-plan.md`; this document defines how future work should be
-routed by unit.
+into AI-DLC unit-oriented construction tracking. The legacy plan archive remains
+in `docs/legacy/development-plan.md`; this document defines how future work
+should be routed by unit.
 
 ## Stage Strategy
 
@@ -37,8 +37,8 @@ routed by unit.
 ## Legacy Phase Handling
 
 Existing phases are considered completed historical work. They should not be
-renumbered or moved out of `docs/development-plan.md`. Future changes should
-reference both:
+renumbered or moved out of `docs/legacy/development-plan.md`. Future changes
+should reference both:
 
 - the target unit from `aidlc-docs/inception/units/unit-of-work.md`
 - any related legacy phase/debt/session/cross-check records
@@ -53,4 +53,3 @@ include:
 - tests run
 - relevant technical debt added/resolved
 - whether legacy behavior was preserved or intentionally changed
-

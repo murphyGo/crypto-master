@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`docs/development-plan.md` is the authoritative chronological history of the
+`docs/legacy/development-plan.md` is the archived chronological history of the
 project. `unit-of-work.md` is the unit-oriented AI-DLC view. This map connects
 the two so future work can preserve audit history while planning by bounded
 functional area.
@@ -124,4 +124,3 @@ When starting a new task:
 3. Read the suggested tests and related requirements.
 4. Preserve the old phase history in session logs, but plan and cross-check the
    new change by unit.
-

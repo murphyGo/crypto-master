@@ -26,13 +26,16 @@ of truth unless a current task explicitly updates them.
 | File | Purpose |
 |------|---------|
 | `aidlc-docs/aidlc-state.md` | Brownfield AI-DLC state and unit progress |
+| `aidlc-docs/construction/` | Active construction-stage plans and artifacts for new work |
+| `aidlc-docs/construction/plans/` | Per-unit construction plan queue |
 | `aidlc-docs/inception/units/unit-of-work.md` | Functional unit breakdown of existing and future work |
 | `aidlc-docs/inception/units/legacy-phase-map.md` | Mapping from legacy phases/components to AI-DLC units |
 | `aidlc-docs/inception/units/debt-unit-map.md` | Mapping from active technical debt to AI-DLC units |
 | `aidlc-docs/inception/plans/execution-plan.md` | Construction stage strategy per unit |
 | `aidlc-docs/inception/reverse-engineering/` | Reverse-engineered current-system documentation |
 | `docs/requirements.md` | Existing FR/NFR requirements and traceability |
-| `docs/development-plan.md` | Legacy chronological development plan |
+| `docs/development-plan.md` | Pointer to archived legacy plan; not an active queue |
+| `docs/legacy/development-plan.md` | Archived chronological development plan |
 | `DESIGN.md` | Existing architecture document |
 | `CLAUDE.md` | Existing project guide and commands |
 | `docs/TECH-DEBT.md` | Active and resolved technical debt registry |
@@ -48,15 +51,17 @@ of truth unless a current task explicitly updates them.
    an old phase, component, session log, or cross-check.
 4. Use `aidlc-docs/inception/units/debt-unit-map.md` when a task starts from
    debt, cleanup, risk, or backlog language.
-5. Keep `docs/development-plan.md` as the chronological legacy plan. Do not
-   flatten or rewrite its history when creating unit-oriented work.
-6. For new work, update the relevant unit state, tests, session log,
+5. Create or resume active work in `aidlc-docs/construction/plans/` and write
+   stage artifacts under `aidlc-docs/construction/<unit>/`.
+6. Keep `docs/legacy/development-plan.md` as the archived chronological legacy
+   plan. Do not flatten or rewrite its history when creating unit-oriented work.
+7. For new work, update the relevant unit state, construction plan, tests, session log,
    cross-check, and technical debt record as appropriate.
 
 ## Brownfield Constraints
 
 1. Preserve existing runtime behavior unless the task explicitly changes it.
-2. Do not overwrite `docs/requirements.md`, `docs/development-plan.md`,
+2. Do not overwrite `docs/requirements.md`, `docs/legacy/development-plan.md`,
    `DESIGN.md`, or `CLAUDE.md`; update them intentionally and narrowly.
 3. Treat `data/` as runtime/operator data. Do not migrate or delete it during
    AI-DLC overlay work.

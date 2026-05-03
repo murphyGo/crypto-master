@@ -9,7 +9,7 @@ When acting as **team lead** for the Crypto Master project, your job is coordina
 ## Project context (assume true unless reading proves otherwise)
 
 - Crypto Master = automated crypto trading service. Claude AI (CLI only — `NFR-002`) for chart analysis, multi-exchange (Binance/Bybit), paper + live trading, feedback loop with robustness gates.
-- The project follows a **Phase / sub-task** plan in `docs/development-plan.md`. Each sub-task is the unit of work — never bundle two.
+- The project routes new work through AI-DLC construction plans in `aidlc-docs/construction/plans/`. Each unchecked construction step or explicit priority item is the unit of work; never bundle two.
 - Existing skills (`/dev-crypto`, `/cross-check`, `/code-review`, `/tech-debt`) define the gold workflow. You orchestrate the team to mirror it.
 - Korean user. Documentation is English. Communicate with the user in Korean if they wrote Korean; otherwise English.
 
@@ -19,7 +19,7 @@ When acting as **team lead** for the Crypto Master project, your job is coordina
 
 Read in parallel:
 - `docs/team-priorities.md` (user-driven ad-hoc queue — **always check first**)
-- `docs/development-plan.md` (find unchecked `[ ]` items)
+- `aidlc-docs/construction/plans/` (find unchecked `[ ]` steps)
 - `docs/TECH-DEBT.md` (any escalated items?)
 - Latest 2 files in `docs/cross-checks/` (any gaps surfaced?)
 - Latest 2 files in `docs/sessions/` (any "Follow-up Work" items?)
@@ -32,11 +32,11 @@ Priority order:
 1. **Critical** TECH-DEBT, regardless of phase.
 2. **First unchecked item in `docs/team-priorities.md` "Open" section.** This is the user-driven queue — they put it there because they want it done before whatever else is on the board. Treat the item as the cycle's brief: read its sub-bullets for context, file pointers, and stop criteria. Items that look like investigations (no code change) still go through the cycle — dev does the read-only inspection, qa validates the methodology, auditor records the conclusion. Items that turn out to need a code change but no spec yet → invoke the `product-planner` to write a sub-task entry first, then proceed.
 3. Cross-check gaps from the latest completed phase that the user hasn't already accepted as deferred.
-4. Earliest unchecked sub-task in `docs/development-plan.md` (top-down order).
-5. "Follow-up Work" items from the latest session log if dev plan is fully checked.
+4. Earliest unchecked construction-plan step in `aidlc-docs/construction/plans/` (unit plan order).
+5. "Follow-up Work" items from the latest session log if construction plans are fully checked.
 6. If nothing is left: report "all done" and stop.
 
-When picking, write a one-paragraph rationale: *why* this is the right next thing, *why not* the alternatives. **State explicitly which queue the item came from** (priorities / TECH-DEBT / cross-check / dev plan / session follow-up) — this lets the docs-auditor know whether to flip a checkbox in `docs/team-priorities.md` or `docs/development-plan.md`.
+When picking, write a one-paragraph rationale: *why* this is the right next thing, *why not* the alternatives. **State explicitly which queue the item came from** (priorities / TECH-DEBT / cross-check / construction plan / session follow-up) — this lets the docs-auditor know whether to flip a checkbox in `docs/team-priorities.md` or `aidlc-docs/construction/plans/`.
 
 ### Step 3 — Decide which specialists to invoke
 
@@ -51,14 +51,14 @@ Use this table:
 | Any code change | `qa-reviewer` always after dev |
 | Any change at all | `docs-auditor` always last |
 
-If a sub-task is already specified clearly in the dev plan (most cases), skip the planner — go straight to dev. Only pull the planner in when the spec is missing, ambiguous, or when a *new* sub-task has been suggested by the auditor's cross-check.
+If a sub-task is already specified clearly in a construction plan, skip the planner — go straight to dev. Only pull the planner in when the spec is missing, ambiguous, or when a *new* sub-task has been suggested by the auditor's cross-check.
 
 ### Step 4 — Delegate
 
 Use the **Agent** tool to spawn each specialist. Brief them like a colleague joining cold:
 
 - Tell them the sub-task ID (e.g. "Phase 10.2 EngineConfig Env Override").
-- Paste the relevant section of `docs/development-plan.md`.
+- Paste the relevant section of the construction plan or priority item.
 - Paste any prior reports from earlier specialists in this cycle.
 - State explicitly what you want back (use the report template below).
 

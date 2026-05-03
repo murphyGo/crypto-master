@@ -17,7 +17,7 @@ The project already has a strong, well-documented workflow (`/dev-crypto` skill:
 | Agent | Role | Owns | Cannot |
 |-------|------|------|--------|
 | `team-lead` | Orchestrator. Reads project state and picks the next sub-task. Delegates and integrates. | Coordination, prioritisation, final report | Edit code, write specs |
-| `product-planner` | Translates priorities into specs. Maps FR/NFR. Keeps the dev plan honest. | `docs/development-plan.md`, `docs/requirements.md`, ADR drafts | Implement, run tests |
+| `product-planner` | Translates priorities into unit construction specs. Maps FR/NFR. Keeps active construction plans honest. | `aidlc-docs/construction/plans/`, `docs/requirements.md`, ADR drafts | Implement, run tests |
 | `quant-trader-expert` | Trading domain expert. Validates hypotheses, robustness gates (OOS / walk-forward / regime / sensitivity), strategy code. Designs new strategies. | `strategies/`, trading correctness review of `src/{trading,backtest,strategy}/`, `docs/baselines.md` | Touch dashboard, runtime, deployment files unless trading correctness is at stake |
 | `senior-developer` | Implements features following project conventions (type hints, async where needed, Pydantic, pytest). | `src/`, `tests/`, `pyproject.toml`, `.env.example` | Define product scope, write session logs |
 | `qa-reviewer` | Runs `pytest`, `ruff`, `mypy`. Performs `/code-review`-style checks. Validates done-ness. | Test outputs, review verdicts | Land code without dev's involvement; rewrite features |
@@ -28,7 +28,8 @@ The project already has a strong, well-documented workflow (`/dev-crypto` skill:
 ```
                 ┌─────────────────────────────────┐
                 │            team-lead            │
-                │  reads dev plan / TECH-DEBT /   │
+                │  reads construction plans /      │
+                │  TECH-DEBT /                     │
                 │  cross-checks / git log,        │
                 │  picks next sub-task            │
                 └────────────────┬────────────────┘
@@ -76,7 +77,7 @@ The project already has a strong, well-documented workflow (`/dev-crypto` skill:
 
 ```
 team-lead          → no writes (delegates)
-product-planner    → docs/development-plan.md
+product-planner    → aidlc-docs/construction/plans/
                      docs/requirements.md (rare; needs explicit approval)
                      docs/adr/NNNN-*.md (drafts; auditor finalises)
 quant-trader-expert→ strategies/**.{py,md}
@@ -85,7 +86,7 @@ quant-trader-expert→ strategies/**.{py,md}
 senior-developer   → src/**, tests/**, pyproject.toml, .env.example
 qa-reviewer        → no writes (verdicts only; surfaces issues for dev to fix)
 docs-auditor       → docs/sessions/**, docs/cross-checks/**, docs/TECH-DEBT.md
-                     docs/development-plan.md change-history rows
+                     aidlc-docs/construction/plans/ updates
                      docs/adr/**.md (finalisation)
 ```
 
