@@ -11,9 +11,9 @@ when debt is added or resolved, then refresh this map.
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
 | `ai-feedback-loop` | DEBT-014, DEBT-023, DEBT-049 | 1 Medium, 2 Low | Strategy generation and auto-research regression coverage. |
-| `backtesting-validation` | DEBT-014, DEBT-021, DEBT-022, DEBT-049 | 2 Medium, 2 Low | Robustness sensitivity, warmup contract, circuit breaker completeness, code-type trade path. |
+| `backtesting-validation` | DEBT-014, DEBT-022, DEBT-049 | 1 Medium, 2 Low | Robustness sensitivity, circuit breaker completeness, code-type trade path. |
 | `proposal-runtime` | DEBT-016, DEBT-017, DEBT-018, DEBT-052 | 4 Low | Runtime counters/events/tests and notification attribution. |
-| `strategy-framework` | DEBT-021, DEBT-023, DEBT-026 | 2 Medium, 1 Low | Strategy warmup metadata, output-contract preservation, experimental artefact hygiene. |
+| `strategy-framework` | DEBT-023, DEBT-026 | 1 Medium, 1 Low | Output-contract preservation and experimental artefact hygiene. |
 | `notifications-ops` | DEBT-052 | 1 Low | Per-sub-account routing is deferred. |
 
 ## Debt Details
@@ -24,7 +24,6 @@ when debt is added or resolved, then refresh this map.
 | DEBT-016 | Low | `proposal-runtime` | | Document `CycleResult` accepted/rejected counter semantics. |
 | DEBT-017 | Low | `proposal-runtime` | | Remove redundant stale-quote payload key in next dashboard/runtime event pass. |
 | DEBT-018 | Low | `proposal-runtime` | | Add `proposals_accepted == 1` assertions to stale-quote rejection tests. |
-| DEBT-021 | Medium | `backtesting-validation` | `strategy-framework` | Add declared strategy minimum warmup and use `max(config, strategy)` effective warmup. |
 | DEBT-022 | Low | `backtesting-validation` | | Add cumulative/rate-based parse failure breaker when a real workload needs it. |
 | DEBT-023 | Low | `ai-feedback-loop` | `strategy-framework` | Add regression test for preserving `## Output Contract` during improvement. |
 | DEBT-026 | Medium | `strategy-framework` | | Restore/regenerate or archive the truncated Donchian experimental artefact; clarify tracking policy. |
@@ -35,13 +34,11 @@ when debt is added or resolved, then refresh this map.
 
 The strongest near-term candidates are:
 
-1. **DEBT-021** (`backtesting-validation`, Medium): closes a contract mismatch
-   between engine warmup settings and strategy-specific warmup floors.
-2. **DEBT-014** (`backtesting-validation`, Medium): makes robustness admission
+1. **DEBT-014** (`backtesting-validation`, Medium): makes robustness admission
    more trustworthy by restoring the sensitivity gate.
-3. **DEBT-026** (`strategy-framework`, Medium): cleans up a broken experimental
+2. **DEBT-026** (`strategy-framework`, Medium): cleans up a broken experimental
    artefact and clarifies whether generated strategies should be tracked.
-4. **DEBT-016 + DEBT-018** (`proposal-runtime`, Low pair): cheap documentation
+3. **DEBT-016 + DEBT-018** (`proposal-runtime`, Low pair): cheap documentation
    and test pin for runtime proposal counter semantics.
 
 ## Update Rules
@@ -52,4 +49,3 @@ The strongest near-term candidates are:
   `legacy-phase-map.md` before assigning a unit.
 - If a debt item spans multiple units, choose the unit that owns the first code
   change as primary and list the other as secondary.
-

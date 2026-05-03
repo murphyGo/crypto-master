@@ -180,6 +180,18 @@ class TechniqueInfo(BaseModel):
         ),
     )
 
+    min_warmup_candles: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Minimum candles this strategy needs before analysis should "
+            "be called. BacktestConfig.warmup_candles remains the engine "
+            "default; the backtester uses max(config.warmup_candles, "
+            "strategy.minimum_candles). Strategies with dynamic tunables "
+            "can override BaseStrategy.minimum_candles instead."
+        ),
+    )
+
     model_config = {"frozen": True}
 
 
@@ -245,6 +257,17 @@ class BaseStrategy(ABC):
             Complete TechniqueInfo object.
         """
         return self._info
+
+    @property
+    def minimum_candles(self) -> int:
+        """Minimum OHLCV candles needed before analysis should run.
+
+        The default comes from metadata so prompt/code strategies can
+        declare static warmup needs without subclass code. Strategies
+        whose warmup depends on constructor tunables should override
+        this property.
+        """
+        return self._info.min_warmup_candles
 
     @abstractmethod
     async def analyze(

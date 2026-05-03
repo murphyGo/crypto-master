@@ -443,6 +443,8 @@ class Backtester:
         # see _check_breaker / the extended try/except below.
         consecutive_failures = 0
 
+        warmup_candles = self.effective_warmup_candles(strategy)
+
         # First analysis call happens once we have enough history.
         # Walk candle-by-candle; the strategy only sees up to index i.
         for i, current_candle in enumerate(ohlcv):
@@ -468,7 +470,7 @@ class Backtester:
                     open_trade = None
 
             # 2. Not enough history yet? skip analysis.
-            if i + 1 < self.config.warmup_candles:
+            if i + 1 < warmup_candles:
                 continue
 
             # 3. Concurrent positions gate.
@@ -673,6 +675,7 @@ class Backtester:
         # Phase 17.2 / DEBT-019: consecutive-failure counter for the
         # per-bar circuit breaker (mirrors single-TF run loop).
         consecutive_failures = 0
+        warmup_candles = self.effective_warmup_candles(strategy)
 
         for i, current_candle in enumerate(primary_ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
@@ -704,8 +707,7 @@ class Backtester:
             # 3. Warmup gate — every TF must have enough history. ICT
             # / SMC-style top-down analysis is meaningless without a
             # full higher-TF context window.
-            warmup = self.config.warmup_candles
-            if any(len(slice_dict[tf]) < warmup for tf in slice_dict):
+            if any(len(slice_dict[tf]) < warmup_candles for tf in slice_dict):
                 continue
 
             # 4. Concurrent positions gate.
@@ -880,6 +882,17 @@ class Backtester:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def effective_warmup_candles(self, strategy: BaseStrategy) -> int:
+        """Warmup floor used for a strategy in this backtester.
+
+        ``BacktestConfig.warmup_candles`` is the engine/operator
+        default. ``strategy.minimum_candles`` is the strategy-owned
+        contract. The effective floor is the maximum so the engine
+        never calls a strategy before its declared minimum, while
+        operators can still raise the global warmup for comparisons.
+        """
+        return max(self.config.warmup_candles, strategy.minimum_candles)
 
     def _build_trading_strategy(
         self, profile: TradingProfile | None

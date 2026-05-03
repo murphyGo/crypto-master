@@ -215,60 +215,6 @@ test file.
   `test_ticker_fetch_failure_falls_through_to_fill`)
 - DEBT-016 (counterpart docstring update)
 
-### DEBT-021: Strategy warmup contract mismatch with `BacktestConfig.warmup_candles`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 17.2 |
-| **Component** | `src/backtest/engine.py` (`BacktestConfig.warmup_candles`) + `src/strategy/base.py` (`BaseStrategy`) |
-
-**Description:**
-Phase 17.2's circuit-breaker refinement catches
-`StrategyValidationError` separately and skips the bar without
-incrementing the breaker counter — otherwise any strategy whose
-internal warmup exceeds `BacktestConfig.warmup_candles` would trip
-the breaker on the very first bar. The exemplar is `rsi_universal`:
-its internal floor is `period * 3 = 42` candles, but
-`BacktestConfig.warmup_candles` defaults to 20. Without the skip,
-bars 20–41 would all raise `StrategyValidationError`, blow through
-the 5-failure counter, and abort with
-`BacktestAbortedError(reason="consecutive_parse_failures")` even
-though the strategy was simply waiting for legitimate warmup data.
-
-The skip is a workaround. The real fix is to make the engine aware
-of each strategy's minimum warmup and use that as the effective
-floor — eliminating the "right thing" vs "ergonomic thing" gap.
-
-**Impact:**
-Currently Medium. The Phase 17.2 skip path keeps the breaker safe,
-but it papers over a contract mismatch: callers reading
-`BacktestConfig.warmup_candles` cannot tell whether the value will
-actually take effect, since the strategy's own floor may be higher.
-This bites operator-tuning expectations (operator sets
-`warmup_candles=10` expecting fewer wasted bars; strategy's
-`period * 3` floor still wastes 42) and complicates per-strategy
-backtest comparison (two strategies with different internal floors
-but the same `warmup_candles` setting are not comparable).
-
-**Suggested Resolution:**
-Add `BaseStrategy.minimum_candles: int` (default 0) — or surface
-it on `TechniqueInfo.min_warmup_candles` — and have
-`Backtester.run` (and `_run_multi_timeframe`) compute the
-effective warmup as `max(self.config.warmup_candles,
-strategy.minimum_candles)`. Strategies that need more candles than
-the engine default declare it; the engine respects the maximum.
-The `StrategyValidationError` skip-only refinement can stay as a
-defensive belt-and-braces measure (cheap, no harm), but the
-declared-minimum path becomes the primary mechanism.
-
-**Related:**
-- Phase 17.2 quant-trader-expert review Q2
-- `src/backtest/engine.py::BacktestConfig.warmup_candles`
-- `strategies/rsi.py::RSIMeanReversionStrategy.validate` (`period * 3` floor)
-- DEBT-019 (parent — Phase 17.2's circuit-breaker refinement surfaced this)
-
 ### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies
 
 | Field | Value |
@@ -513,6 +459,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-05-02 |
 | **Resolved** | 2026-05-03 |
 | **Resolution** | Phase 19.3 replaced the placeholder `if self.config_path.exists(): pass` branch with real YAML parsing, Pydantic validation, duplicate-id rejection, live-non-default rejection, and exchange-ref validation. |
+
+### DEBT-021: Strategy warmup contract mismatch with `BacktestConfig.warmup_candles` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | Added `TechniqueInfo.min_warmup_candles`, `BaseStrategy.minimum_candles`, and `Backtester.effective_warmup_candles(strategy)`. Single-TF, multi-TF, and robustness pre-check warmup gates now use `max(BacktestConfig.warmup_candles, strategy.minimum_candles)`. `RSIMeanReversionStrategy.minimum_candles` declares its dynamic `period * 3` floor. Added regression tests for single-TF, multi-TF, and RSI warmup declaration. |
 
 ### DEBT-013: `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` ✅
 
@@ -920,6 +875,7 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Resolved | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang — same-cycle one-line bump 60→600 (chasulang's 480s + 120s headroom); dynamic derivation flagged as forward-pointer follow-up |
 | 2026-04-30 | Resolved | DEBT-019 Auto-research script hangs indefinitely on prompt-type technique backtest — Phase 17.2 shipped Options A (mandatory `## Output Contract` injection in `_build_new_idea_prompt`) + C (per-bar timeout + consecutive-parse-failures circuit breaker raising `BacktestAbortedError` → `LoopStatus.ERRORED`); `StrategyValidationError` skip-only refinement applied; Option B (code-type steering) deferred to Phase 17.3 |
 | 2026-04-30 | Added | DEBT-021 Strategy warmup contract mismatch with `BacktestConfig.warmup_candles` (Medium) — surfaced during Phase 17.2 quant-trader-expert review Q2; `StrategyValidationError` skip-only refinement is a workaround, not a fix; declared `BaseStrategy.minimum_candles` is the long-term shape |
+| 2026-05-03 | Resolved | DEBT-021 Strategy warmup contract mismatch with `BacktestConfig.warmup_candles` — added `TechniqueInfo.min_warmup_candles`, `BaseStrategy.minimum_candles`, and `Backtester.effective_warmup_candles(strategy)`; single-TF, multi-TF, and robustness pre-check warmup gates now use `max(config, strategy)`; RSI declares `period * 3`; targeted 3 tests + related 79-test suite passed |
 | 2026-04-30 | Added | DEBT-022 Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies (Low) — surfaced during Phase 17.2 quant-trader-expert review Q3; consecutive-only counter never trips on alternating fail-success patterns; secondary cumulative-rate guard recommended |
 | 2026-04-30 | Added | DEBT-023 No test pins improvement-prompt preservation of existing Output Contract block (Low) — surfaced during Phase 17.2 quant-trader-expert review Q5; `_build_improvement_prompt` deliberately doesn't re-inject the contract (correct), but no regression test that Claude's improvement output preserves the existing block |
 | 2026-04-30 | Added | DEBT-024 Leverage applied twice in backtester / portfolio PnL math (High) — surfaced during 3-agent comprehensive audit; backtester `calculate_position_size` already returns leverage-neutral qty, then PnL multiplies by leverage again; paper trader convention divergent |

@@ -193,6 +193,28 @@ class TestBacktesterGuards:
         assert strategy.calls == []
 
     @pytest.mark.asyncio
+    async def test_strategy_minimum_candles_raises_effective_warmup(
+        self, tmp_path: Path
+    ) -> None:
+        """Strategy-owned warmup can raise the engine's default floor."""
+        bt = make_backtester(tmp_path, warmup_candles=2)
+        strategy = ControllableStrategy(
+            info=TechniqueInfo(
+                name="warmup_test",
+                version="1.0.0",
+                description="strategy with declared warmup",
+                technique_type="code",
+                min_warmup_candles=4,
+            )
+        )
+        candles = make_flat_candles(6)
+
+        await bt.run(strategy, candles, "BTC/USDT")
+
+        assert bt.effective_warmup_candles(strategy) == 4
+        assert strategy.calls == [3, 4, 5]
+
+    @pytest.mark.asyncio
     async def test_all_neutral_yields_zero_trades(self, tmp_path: Path) -> None:
         """A strategy that always returns neutral trades nothing."""
         bt = make_backtester(tmp_path)

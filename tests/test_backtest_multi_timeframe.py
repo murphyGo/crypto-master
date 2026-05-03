@@ -292,6 +292,44 @@ class TestRunMultiTimeframeSemantics:
         assert first["by_tf_lens"]["5m"] >= 4  # type: ignore[index]
 
     @pytest.mark.asyncio
+    async def test_strategy_minimum_candles_raises_multi_tf_warmup(
+        self, tmp_path: Path
+    ) -> None:
+        """Multi-TF warmup uses max(config warmup, strategy minimum)."""
+        primary = make_5m(8)
+        info = TechniqueInfo(
+            name="static_multi_warmup",
+            version="1.0.0",
+            description="static signal under test",
+            technique_type="code",
+            requires_multi_timeframe=True,
+            min_warmup_candles=5,
+        )
+        strat = StaticStrategy(
+            info=info,
+            requires_multi_tf=True,
+            signal=AnalysisResult(
+                signal="neutral",
+                confidence=0.0,
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49500"),
+                take_profit=Decimal("51000"),
+                reasoning="warmup only",
+            ),
+        )
+        bt = make_backtester(tmp_path, warmup=2)
+
+        await bt.run_multi_timeframe(
+            strategy=strat,
+            ohlcv_by_timeframe={"5m": primary},
+            symbol="BTC/USDT",
+            primary_timeframe="5m",
+        )
+
+        assert bt.effective_warmup_candles(strat) == 5
+        assert [call["primary_len"] for call in strat.calls] == [5, 6, 7, 8]
+
+    @pytest.mark.asyncio
     async def test_result_timeframe_is_primary(self, tmp_path: Path) -> None:
         primary = make_5m(30)
         higher = aligned_higher(primary, 30)

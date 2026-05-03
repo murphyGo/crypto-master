@@ -68,6 +68,11 @@ class RSIMeanReversionStrategy(BaseStrategy):
         self.oversold = oversold
         self.overbought = overbought
 
+    @property
+    def minimum_candles(self) -> int:
+        """RSI needs enough deltas for Wilder smoothing to stabilize."""
+        return self.period * 3
+
     async def analyze(
         self,
         ohlcv: list[OHLCV],

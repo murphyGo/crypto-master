@@ -396,7 +396,7 @@ class RobustnessGate:
         )
 
         # Both splits need enough warm-up for the strategy to fire.
-        warmup = self.backtester.config.warmup_candles
+        warmup = self.backtester.effective_warmup_candles(strategy)
         if len(is_data) <= warmup or len(oos_data) <= warmup:
             return GateResult(
                 name="oos",
@@ -530,7 +530,7 @@ class RobustnessGate:
         """
         cfg = self.config
         n = cfg.walk_forward_windows
-        warmup = self.backtester.config.warmup_candles
+        warmup = self.backtester.effective_warmup_candles(strategy)
 
         # Need at least warmup + a few useful candles per window.
         min_window_size = warmup + 5

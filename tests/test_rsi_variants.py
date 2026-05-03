@@ -93,6 +93,13 @@ def test_rsi_universal_renamed() -> None:
     assert s.name == "rsi_universal"
 
 
+def test_rsi_declares_dynamic_minimum_candles() -> None:
+    """RSI warmup tracks the configured period instead of engine defaults."""
+
+    s = load_strategy(STRATEGIES_DIR / "rsi.py")
+    assert s.minimum_candles == 42
+
+
 @pytest.mark.asyncio
 async def test_variants_match_universal_on_same_input() -> None:
     """All three variants share one strategy class, so they must
