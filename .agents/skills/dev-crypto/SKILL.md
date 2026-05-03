@@ -27,11 +27,12 @@ Read these files before choosing or executing work:
 1. `AGENTS.md`
 2. `aidlc-docs/aidlc-state.md`
 3. `aidlc-docs/inception/units/unit-of-work.md`
-4. `aidlc-docs/inception/plans/execution-plan.md`
-5. `docs/requirements.md`
-6. `docs/TECH-DEBT.md`
-7. `DESIGN.md`
-8. `CLAUDE.md`
+4. `aidlc-docs/inception/units/legacy-phase-map.md`
+5. `aidlc-docs/inception/plans/execution-plan.md`
+6. `docs/requirements.md`
+7. `docs/TECH-DEBT.md`
+8. `DESIGN.md`
+9. `CLAUDE.md`
 
 Use `docs/development-plan.md` as historical context. Do not rewrite it unless
 the task explicitly updates legacy plan status.
@@ -122,4 +123,3 @@ Summarize changed files, tests, documentation, and any remaining risks.
 - Keep exchange and live-trading changes conservative and well-tested.
 - Keep `docs/development-plan.md` as historical chronology; new planning should
   cite units.
-

@@ -6,6 +6,9 @@ The original Crypto Master plan is chronological. This document remaps the
 existing implementation into AI-DLC units so future development can be planned,
 reviewed, tested, and cross-checked by bounded functional area.
 
+For a row-by-row mapping from `docs/development-plan.md` components to these
+units, see `aidlc-docs/inception/units/legacy-phase-map.md`.
+
 ## Unit Summary
 
 | Unit | Purpose | Primary Paths |
@@ -178,4 +181,3 @@ reviewed, tested, and cross-checked by bounded functional area.
   documentation structure migration, agent/team update.
 - **Suggested Tests**: Documentation validation, targeted skill dry-run,
   `uv run pytest` for code-affecting changes.
-

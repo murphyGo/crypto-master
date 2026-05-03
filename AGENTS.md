@@ -27,6 +27,7 @@ of truth unless a current task explicitly updates them.
 |------|---------|
 | `aidlc-docs/aidlc-state.md` | Brownfield AI-DLC state and unit progress |
 | `aidlc-docs/inception/units/unit-of-work.md` | Functional unit breakdown of existing and future work |
+| `aidlc-docs/inception/units/legacy-phase-map.md` | Mapping from legacy phases/components to AI-DLC units |
 | `aidlc-docs/inception/plans/execution-plan.md` | Construction stage strategy per unit |
 | `aidlc-docs/inception/reverse-engineering/` | Reverse-engineered current-system documentation |
 | `docs/requirements.md` | Existing FR/NFR requirements and traceability |
@@ -42,9 +43,11 @@ of truth unless a current task explicitly updates them.
 1. Check `aidlc-docs/aidlc-state.md` for current unit status.
 2. Use `aidlc-docs/inception/units/unit-of-work.md` to identify ownership,
    related requirements, legacy phase history, and likely test scope.
-3. Keep `docs/development-plan.md` as the chronological legacy plan. Do not
+3. Use `aidlc-docs/inception/units/legacy-phase-map.md` when a task references
+   an old phase, component, session log, or cross-check.
+4. Keep `docs/development-plan.md` as the chronological legacy plan. Do not
    flatten or rewrite its history when creating unit-oriented work.
-4. For new work, update the relevant unit state, tests, session log,
+5. For new work, update the relevant unit state, tests, session log,
    cross-check, and technical debt record as appropriate.
 
 ## Brownfield Constraints
@@ -69,4 +72,3 @@ of truth unless a current task explicitly updates them.
 - Record significant decisions in session logs; create ADRs only for durable
   architecture choices.
 - Link gaps to `docs/TECH-DEBT.md` instead of leaving untracked TODOs.
-
