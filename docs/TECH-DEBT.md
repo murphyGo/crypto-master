@@ -97,47 +97,6 @@ sensitivity surface), but option 1 is a faster bridge.
 - `src/feedback/loop.py::FeedbackLoop.propose_new`
 - `src/backtest/robustness.py::RobustnessGate` (sensitivity gate design)
 
-### DEBT-016: `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 |
-| **Component** | `src/runtime/engine.py` (`CycleResult` field docstrings) |
-
-**Description:**
-When a post-acceptance gate fires (Phase 12.1 cap rejection,
-Phase 18.1 stale-quote rejection), both
-`CycleResult.proposals_accepted` and
-`CycleResult.proposals_rejected` increment for the same proposal
-— the composite gate accepts the proposal first, the
-post-acceptance gate then rejects it. Cycle summary log
-`accepted+rejected` will not sum to `proposals_processed`. The
-rejection paths are correct; the documentation is what's missing.
-
-**Impact:**
-Operators reading the cycle summary may mis-attribute "where did
-the proposal go" — `accepted=N rejected=M processed=N+M-K` (K =
-post-acceptance rejections) is confusing without the contract
-documented. Low-frequency in practice (only fires when a
-post-acceptance gate rejects), but the misattribution risk grows
-proportional to rejection-rate, which Phase 18.1's gate may
-elevate visibly on `bollinger_band_reversion`.
-
-**Suggested Resolution:**
-Add a docstring section to `CycleResult` noting that
-`proposals_accepted` counts proposals that passed the composite
-gate (regardless of whether a post-acceptance gate later
-rejected) and `proposals_rejected` counts proposals that were
-rejected anywhere in the chain (composite gate, cap gate, or
-stale-quote gate). Both can fire for the same proposal; the
-sum is not an invariant. No code change.
-
-**Related:**
-- Phase 18.1 qa-reviewer note 2
-- `src/runtime/engine.py::CycleResult`
-
 ### DEBT-017: Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value
 
 | Field | Value |
@@ -173,47 +132,6 @@ generic-payload consistency and dropping the explicit
 - Phase 18.1 qa-reviewer note 3
 - `src/runtime/engine.py::_record_stale_quote_rejection`
 - `src/runtime/engine.py::_proposal_summary`
-
-### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 |
-| **Component** | `tests/test_runtime_engine.py` (4 new rejection tests) |
-
-**Description:**
-The 4 new Phase 18.1 rejection tests
-(`test_runtime_engine.py`) assert
-`result.proposals_rejected == 1` and `positions_opened == 0` but
-do NOT assert `result.proposals_accepted == 1`. The
-simultaneous-counters contract from DEBT-016 (the proposal
-*was* accepted by the composite gate before the post-acceptance
-gate rejected it) isn't locked in by the test suite.
-
-**Impact:**
-Low. A future regression that drops the accept-counter
-increment on the rejection path (e.g. an over-eager refactor
-that decides "if it's rejected, it wasn't accepted") wouldn't
-be caught by the suite. Operationally invisible until someone
-looks at a cycle summary and notices the count mismatch.
-
-**Suggested Resolution:**
-One-line addition to each of the 4 rejection tests:
-`assert result.proposals_accepted == 1`. Pairs naturally with
-the DEBT-016 docstring update (test pins the contract; docstring
-explains it). Trivial, can land in any cycle that touches the
-test file.
-
-**Related:**
-- Phase 18.1 qa-reviewer note 4
-- `tests/test_runtime_engine.py` 4 new rejection tests
-  (`test_stale_quote_past_sl_rejects_long`,
-  `test_stale_quote_past_sl_rejects_short`,
-  `test_slippage_exceeds_tolerance_rejects`,
-  `test_ticker_fetch_failure_falls_through_to_fill`)
-- DEBT-016 (counterpart docstring update)
 
 ### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies
 
@@ -468,6 +386,24 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-30 |
 | **Resolved** | 2026-05-03 |
 | **Resolution** | Added `TechniqueInfo.min_warmup_candles`, `BaseStrategy.minimum_candles`, and `Backtester.effective_warmup_candles(strategy)`. Single-TF, multi-TF, and robustness pre-check warmup gates now use `max(BacktestConfig.warmup_candles, strategy.minimum_candles)`. `RSIMeanReversionStrategy.minimum_candles` declares its dynamic `period * 3` floor. Added regression tests for single-TF, multi-TF, and RSI warmup declaration. |
+
+### DEBT-016: `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | Added `CycleResult` docstring language clarifying proposal counters are stage counters, not mutually-exclusive final-state counters. Post-acceptance gates can increment both accepted and rejected for the same proposal, so `accepted + rejected` is not an invariant. |
+
+### DEBT-018: Phase 18.1 rejection tests don't assert simultaneous-counters contract ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | Added `result.proposals_accepted == 1` assertions to stale-quote past-SL, stale-quote short, slippage, no-live-data, and ticker-failure/fall-through runtime tests. `tests/test_runtime_engine.py` now pins the simultaneous-counters contract for post-acceptance gates. |
 
 ### DEBT-013: `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` ✅
 
@@ -870,6 +806,7 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Added | DEBT-016 `CycleResult.proposals_accepted` and `proposals_rejected` simultaneous increment — contract undocumented (Low) — surfaced during Phase 18.1 qa-reviewer review note 2 |
 | 2026-04-30 | Added | DEBT-017 Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value (Low / cosmetic) — surfaced during Phase 18.1 qa-reviewer review note 3 |
 | 2026-04-30 | Added | DEBT-018 Phase 18.1 rejection tests don't assert simultaneous-counters contract (Low) — surfaced during Phase 18.1 qa-reviewer review note 4 |
+| 2026-05-03 | Resolved | DEBT-016 / DEBT-018 Runtime proposal simultaneous-counters contract — `CycleResult` now documents accepted/rejected as non-exclusive stage counters; runtime rejection tests assert `proposals_accepted == 1` for post-acceptance rejection paths; `tests/test_runtime_engine.py` 40 passed |
 | 2026-04-30 | Added | DEBT-019 Auto-research script hangs indefinitely on prompt-type technique backtest (High) — surfaced during first real run of `auto_research_candidates.py --picks 5`; ~9-hour API-spend with one well-formed candidate generated and zero gated |
 | 2026-04-30 | Added | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang (High) — surfaced during Phase 17.2 quant-trader-expert review; default 60s was 8× smaller than chasulang's 480s per-`analyze()` ceiling |
 | 2026-04-30 | Resolved | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang — same-cycle one-line bump 60→600 (chasulang's 480s + 120s headroom); dynamic derivation flagged as forward-pointer follow-up |

@@ -988,6 +988,7 @@ async def test_stale_quote_gate_rejects_when_live_past_sl(
     # open_position must NOT be called.
     mocks["trader"].open_position.assert_not_called()
     assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
     assert result.proposals_rejected == 1
 
     # Proposal record overwritten as REJECTED with the stale-quote reason.
@@ -1036,6 +1037,8 @@ async def test_stale_quote_gate_rejects_when_live_past_sl_short(
 
     mocks["trader"].open_position.assert_not_called()
     assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
     record = mocks["history"].load("stale-short-1")
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason == "stale_quote_past_sl"
@@ -1098,6 +1101,7 @@ async def test_stale_quote_gate_rejects_when_drift_exceeds_tolerance(
 
     mocks["trader"].open_position.assert_not_called()
     assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
     assert result.proposals_rejected == 1
 
     record = mocks["history"].load("drift-1")
@@ -1150,6 +1154,8 @@ async def test_stale_quote_gate_falls_through_on_ticker_failure(
 
     # Fill proceeded.
     assert result.positions_opened == 1
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 0
     mocks["trader"].open_position.assert_called_once()
     record = mocks["history"].load("fallback-1")
     assert record.decision == ProposalDecision.ACCEPTED.value
@@ -1309,6 +1315,7 @@ async def test_reject_if_stale_quote_true_blocks_fill_on_stale_ticker(
 
     # Hard rejection: no fill, reason is the new no-live-data marker.
     assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
     assert result.proposals_rejected == 1
     mocks["trader"].open_position.assert_not_called()
     record = mocks["history"].load("reject-stale-1")
@@ -1398,6 +1405,7 @@ async def test_reject_if_stale_quote_true_blocks_fill_on_ticker_fetch_error(
     result = await engine.run_cycle()
 
     assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
     assert result.proposals_rejected == 1
     mocks["trader"].open_position.assert_not_called()
     record = mocks["history"].load("reject-fetch-fail-1")

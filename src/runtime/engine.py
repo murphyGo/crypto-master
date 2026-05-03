@@ -171,6 +171,16 @@ class CycleResult:
 
     Returned for testability and so the dashboard can render
     per-cycle stats without re-deriving them from the activity log.
+
+    Proposal counters are stage counters, not mutually-exclusive
+    final-state counters. ``proposals_accepted`` counts proposals
+    accepted by the composite proposal decision gate. A later
+    post-acceptance gate can still reject the fill, such as the
+    per-symbol cap, stale-quote past-SL gate, slippage gate, or
+    no-live-data gate. In those paths both ``proposals_accepted`` and
+    ``proposals_rejected`` increment for the same proposal, and
+    ``accepted + rejected`` is not expected to equal
+    ``proposals_processed``.
     """
 
     cycle_id: str
@@ -664,9 +674,9 @@ class TradingEngine:
         ``decision="rejected"``, emits a ``PROPOSAL_REJECTED`` activity
         event with structured ``proposal_entry``, ``live_price``, and
         ``drift_bps`` fields for post-mortem reconstruction, and bumps
-        ``result.proposals_rejected`` while leaving
-        ``proposals_accepted`` untouched (the cycle summary records both
-        sides of the gate).
+        ``result.proposals_rejected``. The composite gate has already
+        incremented ``proposals_accepted`` by this point, so the cycle
+        summary records both sides of the post-acceptance gate.
         """
         try:
             ticker = await self.exchange.get_ticker(proposal.symbol)
