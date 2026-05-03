@@ -672,7 +672,7 @@ class TradingEngine:
 
         On rejection: overwrites the proposal record with
         ``decision="rejected"``, emits a ``PROPOSAL_REJECTED`` activity
-        event with structured ``proposal_entry``, ``live_price``, and
+        event with structured ``entry_price``, ``live_price``, and
         ``drift_bps`` fields for post-mortem reconstruction, and bumps
         ``result.proposals_rejected``. The composite gate has already
         incremented ``proposals_accepted`` by this point, so the cycle
@@ -808,7 +808,7 @@ class TradingEngine:
         :meth:`ProposalInteraction.present`; overwrite it here with the
         rejected verdict so post-mortems see the final outcome at the
         canonical persistence path. The activity event carries the
-        numeric trio (``proposal_entry``, ``live_price``, ``drift_bps``)
+        numeric trio (``entry_price``, ``live_price``, ``drift_bps``)
         that the dashboard / audit reports need to reconstruct the
         rejection distribution.
 
@@ -883,7 +883,6 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "reason": reason,
-                "proposal_entry": str(proposal.entry_price),
                 "proposal_stop_loss": str(proposal.stop_loss),
                 "live_price": str(live_price),
                 "drift_bps": drift_bps,
@@ -945,7 +944,6 @@ class TradingEngine:
                 **_proposal_summary(proposal),
                 "reason": reason,
                 "detail": detail,
-                "proposal_entry": str(proposal.entry_price),
                 "proposal_stop_loss": str(proposal.stop_loss),
             },
             cycle_id=cycle_id,

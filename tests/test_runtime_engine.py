@@ -1006,7 +1006,8 @@ async def test_stale_quote_gate_rejects_when_live_past_sl(
     assert len(rejections) == 1
     details = rejections[0].details
     assert details["reason"] == "stale_quote_past_sl"
-    assert details["proposal_entry"] == "50000"
+    assert details["entry_price"] == "50000"
+    assert "proposal_entry" not in details
     assert details["proposal_stop_loss"] == "49500"
     assert details["live_price"] == "49400"
     # drift_bps = |49400 - 50000| / 50000 * 10_000 = 120

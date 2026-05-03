@@ -97,42 +97,6 @@ sensitivity surface), but option 1 is a faster bridge.
 - `src/feedback/loop.py::FeedbackLoop.propose_new`
 - `src/backtest/robustness.py::RobustnessGate` (sensitivity gate design)
 
-### DEBT-017: Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 18.1 |
-| **Component** | `src/runtime/engine.py` (`_record_stale_quote_rejection` event payload) |
-
-**Description:**
-The stale-quote rejection activity event's `details` payload
-carries both `entry_price` (via `_proposal_summary`) and
-`proposal_entry` (explicitly added by
-`_record_stale_quote_rejection`). Same value, two keys. Cosmetic
-redundancy; downstream consumers reading either key will get the
-same answer.
-
-**Impact:**
-Cosmetic only. No data correctness issue. A future dashboard
-pass that consumes the rejection event has two equivalent fields
-to choose from — pick one and the other becomes dead weight.
-
-**Suggested Resolution:**
-Drop one of the two in the next dashboard pass. `proposal_entry`
-is clearer at the rejection-event call site (paired with
-`live_price` and `proposal_stop_loss`); `entry_price` is the
-generic `_proposal_summary` field that every proposal-related
-event carries. Leaning toward keeping `entry_price` for
-generic-payload consistency and dropping the explicit
-`proposal_entry` add.
-
-**Related:**
-- Phase 18.1 qa-reviewer note 3
-- `src/runtime/engine.py::_record_stale_quote_rejection`
-- `src/runtime/engine.py::_proposal_summary`
-
 ### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies
 
 | Field | Value |
@@ -404,6 +368,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-30 |
 | **Resolved** | 2026-05-03 |
 | **Resolution** | Added `result.proposals_accepted == 1` assertions to stale-quote past-SL, stale-quote short, slippage, no-live-data, and ticker-failure/fall-through runtime tests. `tests/test_runtime_engine.py` now pins the simultaneous-counters contract for post-acceptance gates. |
+
+### DEBT-017: Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-03 |
+| **Resolution** | Removed explicit `proposal_entry` from stale-quote and no-live-data rejection activity payloads. The shared `_proposal_summary` `entry_price` field is now the single proposal-entry value across proposal events. Runtime tests assert `entry_price` remains present and `proposal_entry` is absent. |
 
 ### DEBT-013: `auto_research_candidates.run_async` self-constructs `FeedbackLoop` / `BinanceExchange` ✅
 
@@ -807,6 +780,7 @@ Move resolved items here with resolution date and notes.
 | 2026-04-30 | Added | DEBT-017 Stale-quote rejection event carries `entry_price` and `proposal_entry` for the same value (Low / cosmetic) — surfaced during Phase 18.1 qa-reviewer review note 3 |
 | 2026-04-30 | Added | DEBT-018 Phase 18.1 rejection tests don't assert simultaneous-counters contract (Low) — surfaced during Phase 18.1 qa-reviewer review note 4 |
 | 2026-05-03 | Resolved | DEBT-016 / DEBT-018 Runtime proposal simultaneous-counters contract — `CycleResult` now documents accepted/rejected as non-exclusive stage counters; runtime rejection tests assert `proposals_accepted == 1` for post-acceptance rejection paths; `tests/test_runtime_engine.py` 40 passed |
+| 2026-05-03 | Resolved | DEBT-017 Stale-quote rejection duplicate entry payload — removed explicit `proposal_entry`; `entry_price` from `_proposal_summary` is now the single proposal-entry field for rejection events |
 | 2026-04-30 | Added | DEBT-019 Auto-research script hangs indefinitely on prompt-type technique backtest (High) — surfaced during first real run of `auto_research_candidates.py --picks 5`; ~9-hour API-spend with one well-formed candidate generated and zero gated |
 | 2026-04-30 | Added | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang (High) — surfaced during Phase 17.2 quant-trader-expert review; default 60s was 8× smaller than chasulang's 480s per-`analyze()` ceiling |
 | 2026-04-30 | Resolved | DEBT-020 `BacktestConfig.per_bar_timeout` default unsafe for chasulang — same-cycle one-line bump 60→600 (chasulang's 480s + 120s headroom); dynamic derivation flagged as forward-pointer follow-up |
