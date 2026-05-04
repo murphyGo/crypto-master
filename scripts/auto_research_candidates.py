@@ -42,11 +42,11 @@ Related Requirements:
 - FR-034: Robustness Validation Gate
 - CON-003: User Approval Required
 
-Known follow-ups (not blocking 17.1):
-- ``loop.propose_new`` is invoked without a ``param_grid``, so the
-  sensitivity gate skips. Runs through 17.1 will report sensitivity
-  as SKIPPED rather than PASSED — a gap operators should know about
-  until the API for declaring a per-pick parameter grid is designed.
+DEBT-014 closure:
+- Default catalog picks declare ``param_grid`` values and generated
+  code-type strategies are prompted to expose matching constructor
+  tunables, allowing the robustness sensitivity gate to run instead
+  of skipping for missing grid/factory inputs.
 """
 
 from __future__ import annotations
@@ -132,6 +132,11 @@ class Pick:
             hot path. Defaults to ``False`` so any future operator-
             authored prompt-type pick keeps the 17.4-hardened markdown
             path.
+        param_grid: Optional parameter sensitivity grid passed through
+            to ``RobustnessGate``. When present, the generation context
+            is extended with the exact tunable names so generated
+            code-type strategies expose matching ``__init__`` keyword
+            arguments for the sensitivity factory.
     """
 
     slug: str
@@ -139,11 +144,25 @@ class Pick:
     timeframe: Literal["15m", "1h", "4h"]
     candles: int = 0
     code_type: bool = False
+    param_grid: dict[str, list[Any]] | None = None
 
     def __post_init__(self) -> None:
         # Frozen dataclasses can't reassign normally; use object.__setattr__.
         if self.candles == 0:
             object.__setattr__(self, "candles", _default_candles_for(self.timeframe))
+
+    @property
+    def generation_context(self) -> str:
+        """Steering context plus the sensitivity-grid contract."""
+        if not self.param_grid:
+            return self.context
+        names = ", ".join(self.param_grid)
+        return (
+            f"{self.context}\n\n"
+            "Parameter sensitivity contract: expose strategy __init__ "
+            f"tunables named exactly: {names}. These names are swept by "
+            "the robustness sensitivity gate, so do not rename them."
+        )
 
 
 # Top OHLCV-only picks from docs/research/strategies/00-priority-matrix.md
@@ -162,6 +181,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="4h",
         code_type=True,
+        param_grid={
+            "entry_period": [45, 55, 65],
+            "exit_period": [15, 20, 25],
+            "atr_period": [14, 20, 28],
+        },
     ),
     Pick(
         slug="supertrend",
@@ -175,6 +199,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "atr_period": [7, 10, 14],
+            "multiplier": [2.0, 3.0, 4.0],
+            "ema_period": [100, 200],
+        },
     ),
     Pick(
         slug="connors_rsi2",
@@ -187,6 +216,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="4h",
         code_type=True,
+        param_grid={
+            "rsi_period": [2, 3, 4],
+            "oversold_threshold": [5, 10, 15],
+            "sma_period": [150, 200],
+        },
     ),
     Pick(
         slug="zscore_mean_reversion",
@@ -199,6 +233,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "lookback_period": [40, 50, 60],
+            "entry_zscore": [-1.5, -2.0, -2.5],
+            "adx_threshold": [15, 20, 25],
+        },
     ),
     Pick(
         slug="larry_williams_volatility",
@@ -212,6 +251,10 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "breakout_k": [0.4, 0.5, 0.6],
+            "stop_loss_pct": [0.015, 0.02, 0.03],
+        },
     ),
     Pick(
         slug="ttm_squeeze",
@@ -225,6 +268,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "bb_period": [18, 20, 22],
+            "keltner_multiplier": [1.25, 1.5, 1.75],
+            "min_squeeze_bars": [4, 6, 8],
+        },
     ),
     Pick(
         slug="bb_pct_b_rsi_combo",
@@ -238,6 +286,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "bb_period": [18, 20, 22],
+            "pct_b_threshold": [0.03, 0.05, 0.08],
+            "rsi_threshold": [25, 30, 35],
+        },
     ),
     Pick(
         slug="golden_cross",
@@ -250,6 +303,10 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="4h",
         code_type=True,
+        param_grid={
+            "fast_sma_period": [40, 50, 60],
+            "slow_sma_period": [180, 200, 220],
+        },
     ),
     Pick(
         slug="nr7_breakout",
@@ -263,6 +320,11 @@ TOP_PICKS: list[Pick] = [
         ),
         timeframe="1h",
         code_type=True,
+        param_grid={
+            "lookback_period": [5, 7, 9],
+            "atr_period": [14, 20, 28],
+            "atr_filter_multiplier": [0.8, 1.0, 1.2],
+        },
     ),
 ]
 
@@ -427,7 +489,7 @@ async def run_picks(
             try:
                 if dry_run:
                     generated = await loop.improver.generate_idea(
-                        context=pick.context,
+                        context=pick.generation_context,
                         save=True,
                         code_type=pick.code_type,
                     )
@@ -451,7 +513,7 @@ async def run_picks(
                     continue
 
                 record = await loop.propose_new(
-                    context=pick.context,
+                    context=pick.generation_context,
                     ohlcv=ohlcv,
                     symbol=symbol,
                     timeframe=pick.timeframe,
@@ -459,6 +521,7 @@ async def run_picks(
                     # picks ride the code-type path so the resulting
                     # backtest never invokes Claude per bar.
                     code_type=pick.code_type,
+                    param_grid=pick.param_grid,
                     sub_account_id=sub_account_id,
                 )
                 results.append(PickResult.from_record(pick.slug, pick.context, record))

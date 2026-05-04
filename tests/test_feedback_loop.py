@@ -58,6 +58,63 @@ def write_experimental_md(
     return path
 
 
+def write_experimental_py(
+    dir_: Path,
+    name: str = "cand_code",
+    version: str = "0.1.0",
+) -> Path:
+    """Write a minimal code-type strategy with a tunable constructor."""
+    dir_.mkdir(parents=True, exist_ok=True)
+    path = dir_ / f"{name}.py"
+    path.write_text(
+        textwrap.dedent(f'''\
+            """Code strategy fixture."""
+
+            from datetime import datetime
+            from decimal import Decimal
+
+            from src.models import AnalysisResult, OHLCV
+            from src.strategy.base import BaseStrategy, TechniqueInfo
+
+            TECHNIQUE_INFO = {{
+                "name": "{name}",
+                "version": "{version}",
+                "description": "candidate code technique",
+                "author": "test",
+                "symbols": ["BTC/USDT"],
+                "timeframes": ["1h"],
+                "status": "experimental",
+            }}
+
+
+            class CandidateCodeStrategy(BaseStrategy):
+                def __init__(self, info: TechniqueInfo, period: int = 14) -> None:
+                    super().__init__(info)
+                    self.period = period
+
+                async def analyze(
+                    self,
+                    ohlcv: list[OHLCV],
+                    symbol: str,
+                    timeframe: str = "1h",
+                ) -> AnalysisResult:
+                    del symbol, timeframe
+                    price = Decimal(str(ohlcv[-1].close)) if ohlcv else Decimal("1")
+                    return AnalysisResult(
+                        signal="neutral",
+                        confidence=0.0,
+                        entry_price=price,
+                        stop_loss=price,
+                        take_profit=price,
+                        reasoning=f"period={{self.period}}",
+                        timestamp=datetime.now(),
+                    )
+            '''),
+        encoding="utf-8",
+    )
+    return path
+
+
 def make_generated(
     path: Path,
     kind: str = "improvement",
@@ -282,6 +339,34 @@ async def test_propose_new_gate_passed_awaits_approval(tmp_path: Path) -> None:
     assert record.kind == "new_idea"
     types = [e.event_type for e in audit_log.read_all()]
     assert AuditEventType.GATE_PASSED.value in types
+
+
+@pytest.mark.asyncio
+async def test_propose_new_code_type_builds_sensitivity_factory(
+    tmp_path: Path,
+) -> None:
+    """DEBT-014: code-type generated strategies should provide the
+    robustness gate with a factory when a param_grid is supplied."""
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+    py_path = write_experimental_py(tmp_path / "strategies" / "experimental")
+    generated = make_generated(py_path, kind="new_idea", parent=None)
+    loop.improver.generate_idea.return_value = generated
+
+    await loop.propose_new(
+        context="code strategy",
+        ohlcv=[],
+        symbol="BTC/USDT",
+        code_type=True,
+        param_grid={"period": [10, 14, 20]},
+    )
+
+    gate_call = loop.gate.evaluate.await_args
+    assert gate_call.kwargs["param_grid"] == {"period": [10, 14, 20]}
+    factory = gate_call.kwargs["strategy_factory"]
+    assert factory is not None
+    variant = factory(period=20)
+    assert variant.info.name == "cand_code"
+    assert variant.period == 20
 
 
 @pytest.mark.asyncio

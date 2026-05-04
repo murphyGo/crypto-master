@@ -374,6 +374,24 @@ def test_pick_candles_explicit_value_preserved() -> None:
     assert p.candles == 300
 
 
+def test_pick_generation_context_includes_param_grid_contract() -> None:
+    """DEBT-014: generated code must expose the names the sensitivity
+    gate will sweep."""
+    pick = Pick(
+        slug="x",
+        context="Build a breakout strategy",
+        timeframe="1h",
+        candles=300,
+        code_type=True,
+        param_grid={"entry_period": [45, 55], "exit_period": [15, 20]},
+    )
+
+    assert "Build a breakout strategy" in pick.generation_context
+    assert "Parameter sensitivity contract" in pick.generation_context
+    assert "entry_period" in pick.generation_context
+    assert "exit_period" in pick.generation_context
+
+
 def test_top_picks_use_default_candle_windows() -> None:
     """Every shipped TOP_PICK should be on the long-window default —
     the regime gate is meaningless on the short windows that hide
@@ -383,6 +401,24 @@ def test_top_picks_use_default_candle_windows() -> None:
         assert pick.candles == expected, (
             f"{pick.slug} has candles={pick.candles}, expected {expected} "
             f"for timeframe {pick.timeframe}"
+        )
+
+
+def test_top_picks_have_sensitivity_grids_within_gate_cap() -> None:
+    """DEBT-014: catalog picks should exercise parameter sensitivity.
+
+    Keep each cartesian grid below the default robustness cap so a
+    normal operator run does not fail before testing any variants.
+    """
+    default_cap = 64
+    for pick in script.TOP_PICKS:
+        assert pick.param_grid, f"{pick.slug} is missing param_grid"
+        combos = 1
+        for values in pick.param_grid.values():
+            combos *= len(values)
+        assert combos <= default_cap, (
+            f"{pick.slug} param_grid has {combos} combos, exceeding "
+            f"default cap {default_cap}"
         )
 
 

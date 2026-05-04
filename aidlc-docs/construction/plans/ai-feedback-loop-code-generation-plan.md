@@ -26,6 +26,7 @@ of unfinished historical tasks.
 - [x] Add LLM timeout handling and Chasulang-specific mitigation.
 - [x] Wire auto-research operator workflow and catalog-aware improvement.
 - [x] Preserve deterministic catalog steering for generated code strategies.
+- [x] Thread auto-research parameter sensitivity grids into feedback-loop gating.
 
 ## Evidence
 

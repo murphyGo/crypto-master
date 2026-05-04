@@ -37,6 +37,7 @@ of unfinished historical tasks.
 - [x] Add deterministic snapshot dataset format and `--snapshot` CLI support.
 - [x] Align backtest leverage/liquidation behavior with trading and portfolio math.
 - [x] Add strategy-combination A/B harness and operator baseline runbook behavior.
+- [x] Enable auto-research catalog picks to exercise the robustness sensitivity gate.
 
 ## Evidence
 

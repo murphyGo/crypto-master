@@ -51,8 +51,8 @@ from src.config import get_settings
 from src.feedback.audit import AuditEvent, AuditEventType, AuditLog
 from src.logger import get_logger
 from src.models import OHLCV
-from src.strategy.base import TechniqueInfo
-from src.strategy.loader import load_strategy
+from src.strategy.base import BaseStrategy, TechniqueInfo
+from src.strategy.loader import load_strategy, load_technique_info_from_py
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.trading.profiles import TradingProfile
 from src.utils.io import atomic_write_text
@@ -279,6 +279,8 @@ class FeedbackLoop:
         generated = await self.improver.generate_idea(
             context=context, save=True, code_type=code_type
         )
+        if strategy_factory is None and code_type and param_grid:
+            strategy_factory = self._strategy_factory_for_generated_code(generated)
         return await self._run_cycle(
             generated=generated,
             kind="new_idea",
@@ -291,6 +293,28 @@ class FeedbackLoop:
             ohlcv_by_timeframe=ohlcv_by_timeframe,
             sub_account_id=sub_account_id,
         )
+
+    @staticmethod
+    def _strategy_factory_for_generated_code(
+        generated: GeneratedTechnique,
+    ) -> StrategyFactory | None:
+        """Build a sensitivity factory for generated Python strategies.
+
+        Code-type auto-research prompts require generated strategies to
+        expose tunables as ``__init__`` keyword arguments. Once the file
+        is saved, the loop can load the strategy class and provide the
+        ``RobustnessGate`` with a factory that instantiates variants for
+        each parameter-grid combination.
+        """
+        if generated.saved_path is None or generated.saved_path.suffix != ".py":
+            return None
+
+        info, strategy_class = load_technique_info_from_py(generated.saved_path)
+
+        def _factory(**params: Any) -> BaseStrategy:
+            return strategy_class(info=info, **params)
+
+        return _factory
 
     async def from_user_idea(
         self,
