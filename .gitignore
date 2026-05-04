@@ -52,6 +52,12 @@ data/backtest/*
 # files are generated for prompt-validation only and never gated.
 strategies/experimental/dry_runs/
 
+# Auto-research candidates are runtime/operator artefacts. Keep the
+# directory placeholder tracked, but do not commit generated strategies
+# from real runs; approval promotes reviewed candidates into strategies/.
+strategies/experimental/*.md
+strategies/experimental/*.py
+
 # Distribution
 dist/
 build/

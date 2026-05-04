@@ -31,6 +31,7 @@ of unfinished historical tasks.
 - [x] Implement multi-timeframe support and baseline indicator strategies.
 - [x] Support multi-technique scans and Chasulang parsing/timeout mitigations.
 - [x] Preserve generated-code catalog steering and robustness polish behavior.
+- [x] Archive the truncated Donchian experimental artefact outside runtime strategy discovery.
 
 ## Evidence
 

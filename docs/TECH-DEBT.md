@@ -149,46 +149,6 @@ Cheap test surface; high regression-prevention value.
 - `strategies/chasulang_ict_smc.md` (the canonical `## Output Contract` block)
 - DEBT-019 (parent — the failure mode the regression guard prevents)
 
-### DEBT-026: Donchian experimental strategy file truncated and untracked
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 17.2 (artefact surfaced) |
-| **Component** | `strategies/experimental/donchian_turtle_system_2_20260430_002157.md` |
-
-**Description:**
-The auto-research script's first artefact (`donchian_turtle_system_2_
-20260430_002157.md`) is preserved in the working tree but the body
-is cut off at line 39 — entry rules / exit rules / ATR sizing
-section all missing. Phase 17.2's circuit breaker meant the
-incomplete file wouldn't infinite-loop the backtester, but the
-written rules also imply "next-bar open" fill semantics whereas
-`Backtester` fills at current-bar close. The file is currently
-untracked (`git status` shows `??`).
-
-**Impact:**
-Acceptance test for Phase 17.2 (DEBT-019 follow-up) can't run
-against this file as-is — the body's missing-section makes the
-backtest meaningless. Operator-facing artefact; production paths
-unaffected.
-
-**Suggested Resolution:**
-Either restore the file body via a re-run of the auto-research
-generator (now that 17.2's contract is in place, the regenerated
-body should carry the JSON `## Output Contract` block intact), or
-archive the file under `strategies/archive/` and remove the
-operator-acceptance reference. Decide `.gitignore` policy for
-`strategies/experimental/` (currently tracked; the truncated file
-suggests an exception is warranted).
-
-**Related:**
-- 3-agent comprehensive audit 2026-04-30
-- `strategies/experimental/donchian_turtle_system_2_20260430_002157.md`
-- DEBT-019 (parent — Phase 17.2 acceptance test reference)
-
-
 ### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path)
 
 | Field | Value |
@@ -285,6 +245,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-29 |
 | **Resolved** | 2026-05-05 |
 | **Resolution** | Added per-pick `param_grid` declarations for all auto-research catalog picks, threaded those grids into `FeedbackLoop.propose_new`, and added an automatic generated-code strategy factory so code-type candidates can be instantiated with swept constructor tunables during the robustness sensitivity gate. The generation context now names the exact tunables Claude must expose. |
+
+### DEBT-026: Donchian experimental strategy file truncated and untracked ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-05 |
+| **Resolution** | Archived the truncated Donchian artefact to `docs/archive/strategy-artifacts/donchian_turtle_system_2_20260430_002157.truncated.md` with an explicit warning that it is evidence only and must not be loaded or promoted. Removed it from `strategies/experimental/`, leaving only `.gitkeep`, and added `.gitignore` rules for generated `strategies/experimental/*.md` / `*.py` candidates so future auto-research runtime artefacts are not committed accidentally. |
 
 ### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files ✅
 

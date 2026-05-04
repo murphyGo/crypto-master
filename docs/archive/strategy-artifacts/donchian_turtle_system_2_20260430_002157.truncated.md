@@ -1,3 +1,11 @@
+> Archived truncated artefact.
+>
+> This file is retained only as DEBT-026 evidence. It was produced by the
+> pre-code-type auto-research path, is cut off after the entry-rule heading,
+> and must not be loaded or promoted as a strategy. Regenerate Donchian via
+> `python -m scripts.auto_research_candidates --picks 1` when an operator wants
+> a fresh gated candidate.
+
 ---
 name: donchian_turtle_system_2
 version: 1.0.0
