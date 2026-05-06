@@ -7,7 +7,7 @@ New product-intelligence unit for replaying historical proposal decisions.
 ## Planned Code Generation Steps
 
 - [x] Register the proposal replay simulator unit and construction plan.
-- [ ] Define replay input model over proposal history and candle windows.
+- [x] Define replay input model over proposal history and candle windows.
 - [ ] Compare alternate approval thresholds and exit assumptions.
 - [ ] Emit replay reports for operator threshold tuning.
 

@@ -38,6 +38,11 @@ from src.proposal.notification import (
     NotificationLevel,
     Notifier,
 )
+from src.proposal.replay import (
+    ProposalReplayCase,
+    ProposalReplayInput,
+    ProposalReplayInputError,
+)
 
 __all__ = [
     "ConsoleNotifier",
@@ -57,6 +62,9 @@ __all__ = [
     "ProposalHistoryError",
     "ProposalInteraction",
     "ProposalRecord",
+    "ProposalReplayCase",
+    "ProposalReplayInput",
+    "ProposalReplayInputError",
     "ProposalScore",
     "default_decision_prompt",
     "format_proposal",
