@@ -9,6 +9,11 @@ The dashboard reads the activity log to give operators visibility into
 what the engine is doing without coupling the engine to Streamlit.
 """
 
+from src.runtime.correlation_governor import (
+    CorrelationExposure,
+    CorrelationExposureSource,
+    CorrelationInputSet,
+)
 from src.runtime.safety_score import (
     RuntimeSafetyBand,
     RuntimeSafetyInputs,
@@ -19,6 +24,9 @@ from src.runtime.safety_score import (
 )
 
 __all__ = [
+    "CorrelationExposure",
+    "CorrelationExposureSource",
+    "CorrelationInputSet",
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",

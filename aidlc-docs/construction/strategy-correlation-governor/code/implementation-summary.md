@@ -1,3 +1,10 @@
 # Implementation Summary: strategy-correlation-governor
 
-Registered as a new product unit. No source code has landed yet.
+Registered as a new product unit.
+
+First code generation step adds `src/runtime/correlation_governor.py`, a shared
+correlation input contract. `CorrelationExposure` normalizes backtest trades and
+runtime `TradeHistory` records into common strategy/symbol/sub-account exposure
+samples with side, timestamps, notional, and PnL. `CorrelationInputSet` builds
+from backtest results or runtime trade history and exposes basic sub-account and
+symbol filters for the next warning/gate steps.
