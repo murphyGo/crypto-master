@@ -47,6 +47,11 @@ from src.strategy.performance import (
     TradeHistoryTracker,
     TradeOutcome,
 )
+from src.strategy.trade_autopsy import (
+    TradeAutopsy,
+    TradeAutopsyError,
+    TradeAutopsyOutcome,
+)
 
 __all__ = [
     # Base classes
@@ -82,4 +87,7 @@ __all__ = [
     # Trade history tracking (NFR-007)
     "TradeHistory",
     "TradeHistoryTracker",
+    "TradeAutopsy",
+    "TradeAutopsyError",
+    "TradeAutopsyOutcome",
 ]

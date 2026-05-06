@@ -7,7 +7,7 @@ New product-intelligence unit for post-trade diagnostics.
 ## Planned Code Generation Steps
 
 - [x] Register the trade quality autopsy unit and construction plan.
-- [ ] Define closed-trade autopsy metrics and evidence model.
+- [x] Define closed-trade autopsy metrics and evidence model.
 - [ ] Compute MFE/MAE and drawdown-before-exit from candle windows.
 - [ ] Feed autopsy summaries into strategy improvement context.
 
