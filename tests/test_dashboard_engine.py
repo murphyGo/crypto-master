@@ -12,6 +12,7 @@ from src.dashboard.pages.engine import (
     aggregate_cycles,
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
+    build_runtime_safety_score,
     build_sub_account_metrics_dataframe,
     build_summary_metrics,
     build_timeline_dataframe,
@@ -395,6 +396,32 @@ def test_sub_account_metrics_dataframe_has_aggregate_row() -> None:
     assert aggregate["Generated"] == 1
     assert aggregate["Accepted"] == 1
     assert aggregate["Opened"] == 1
+
+
+def test_build_runtime_safety_score_from_activity_events() -> None:
+    events = [
+        make_event(
+            event_type=ActivityEventType.CYCLE_ERRORED,
+            timestamp=datetime(2026, 4, 27, 12, 0, tzinfo=timezone.utc),
+        ),
+        make_event(
+            event_type=ActivityEventType.NOTIFICATION_FAILED,
+            timestamp=datetime(2026, 4, 27, 12, 1, tzinfo=timezone.utc),
+        ),
+        make_event(
+            event_type=ActivityEventType.PROPOSAL_REJECTED,
+            timestamp=datetime(2026, 4, 27, 12, 2, tzinfo=timezone.utc),
+            details={"reason": "stale_quote_past_sl"},
+        ),
+    ]
+
+    safety = build_runtime_safety_score(events)
+
+    assert safety.score == 65
+    assert safety.band.value == "degraded"
+    assert safety.inputs.recent_cycle_errors == 1
+    assert safety.inputs.recent_notification_failures == 1
+    assert safety.inputs.stale_quote_warnings == 1
 
 
 # =============================================================================

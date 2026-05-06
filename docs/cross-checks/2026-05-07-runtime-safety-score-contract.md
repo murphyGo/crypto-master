@@ -15,6 +15,7 @@ bands before event extraction is implemented.
 | Score output shape exists | Complete | `RuntimeSafetyScore` carries score, band, inputs, and explanatory factors. |
 | Activity events aggregate into inputs | Complete | Test counts cycle errors, notification failures, LLM timeouts, stale-quote rejection, liquidation, and cold-start events. |
 | Score computation applies penalties | Complete | Tests cover safe no-penalty score, risky mixed penalties, and pause-recommended liquidation penalties. |
+| Engine dashboard surfaces score | Complete | `build_runtime_safety_score` feeds the Engine page Runtime Safety section. |
 
 ## Implementation Evidence
 
@@ -25,12 +26,15 @@ bands before event extraction is implemented.
 ## Test Evidence
 
 - `uv run pytest tests/test_runtime_safety_score.py -q`
+- `uv run pytest tests/test_dashboard_engine.py tests/test_runtime_safety_score.py -q`
 - `uv run ruff check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
+- `uv run ruff check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 - `uv run black --check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
+- `uv run black --check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 
 ## Gaps and Risks
 
-- Dashboard and notification surfacing are not implemented yet.
+- Notification summary surfacing is not implemented yet.
 
 ## Unit Mapping
 

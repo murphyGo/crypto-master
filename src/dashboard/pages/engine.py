@@ -34,6 +34,11 @@ import streamlit as st
 
 from src.logger import get_logger
 from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
+from src.runtime.safety_score import (
+    RuntimeSafetyScore,
+    compute_runtime_safety_score,
+    inputs_from_activity_events,
+)
 
 logger = get_logger("crypto_master.dashboard.engine")
 
@@ -399,6 +404,11 @@ def build_sub_account_metrics_dataframe(events: list[ActivityEvent]) -> pd.DataF
     return pd.DataFrame(rows, columns=columns)
 
 
+def build_runtime_safety_score(events: list[ActivityEvent]) -> RuntimeSafetyScore:
+    """Compute the dashboard safety score from activity events."""
+    return compute_runtime_safety_score(inputs_from_activity_events(events))
+
+
 # =============================================================================
 # Streamlit render
 # =============================================================================
@@ -456,6 +466,13 @@ def render(
     c6.metric("Positions opened (total)", metrics["positions_opened_total"])
     c7.metric("Positions closed (total)", metrics["positions_closed_total"])
 
+    st.subheader("Runtime Safety")
+    safety = build_runtime_safety_score(events)
+    s1, s2 = st.columns(2)
+    s1.metric("Safety score", safety.score)
+    s2.metric("Safety band", safety.band.value)
+    st.caption("; ".join(safety.factors))
+
     st.subheader("Sub-account Metrics")
     sub_account_df = build_sub_account_metrics_dataframe(events)
     if sub_account_df.empty:
@@ -508,6 +525,7 @@ __all__ = [
     "aggregate_cycles",
     "build_cycle_duration_dataframe",
     "build_cycles_dataframe",
+    "build_runtime_safety_score",
     "build_summary_metrics",
     "build_sub_account_metrics_dataframe",
     "build_timeline_dataframe",

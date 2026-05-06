@@ -19,6 +19,9 @@ Runtime activity events now map into `RuntimeSafetyInputs`, and
 `compute_runtime_safety_score` applies capped penalties with explanatory
 factors.
 
+The dashboard surfacing step adds a Runtime Safety section to the Engine page,
+showing score, band, and factors from the same pure scoring helper.
+
 ## Files Changed
 
 - Created: `src/runtime/safety_score.py`
@@ -36,13 +39,17 @@ factors.
 | Use explicit status bands | Operators need scan-friendly states, not only a raw number. |
 | Validate threshold ordering | Misordered score thresholds would silently invert operator semantics. |
 | Keep scoring pure | Dashboard and notification surfaces can call the same deterministic function without side effects. |
+| Surface dashboard before notifications | The dashboard already consumes activity events, so it is the lowest-risk first surface. |
 
 ## Verification
 
 - `uv run pytest tests/test_runtime_safety_score.py -q`
+- `uv run pytest tests/test_dashboard_engine.py tests/test_runtime_safety_score.py -q`
 - `uv run ruff check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
+- `uv run ruff check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 - `uv run black --check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
+- `uv run black --check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 
 ## Follow-Up
 
-- Surface score in the engine dashboard and notification summaries.
+- Surface score in notification summaries.

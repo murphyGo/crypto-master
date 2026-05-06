@@ -9,3 +9,6 @@ steps.
 Score computation now aggregates `ActivityEvent` records into safety inputs and
 applies capped penalties for cycle errors, notification failures, LLM timeouts,
 stale-quote rejections, liquidations, cold-start blocks, and open drawdown.
+
+The Engine dashboard now computes and displays the runtime safety score, safety
+band, and explanatory factors from the same pure scoring helpers.
