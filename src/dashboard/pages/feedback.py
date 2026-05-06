@@ -23,6 +23,7 @@ Related Requirements:
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -30,6 +31,10 @@ import streamlit as st
 
 from src.feedback.audit import DEFAULT_AUDIT_PATH, AuditEvent, AuditLog
 from src.feedback.loop import DEFAULT_STATE_DIR, CandidateRecord, LoopStatus
+from src.feedback.promotion_lab import (
+    DEFAULT_PROMOTION_LAB_STATE_DIR,
+    PromotionObservation,
+)
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.dashboard.feedback")
@@ -69,7 +74,27 @@ def load_candidate_records(state_dir: Path) -> list[CandidateRecord]:
     return records
 
 
-def build_candidates_dataframe(records: list[CandidateRecord]) -> pd.DataFrame:
+def load_promotion_observations(state_dir: Path) -> dict[str, PromotionObservation]:
+    """Load promotion-lab observations keyed by candidate ID."""
+    if not state_dir.exists():
+        return {}
+
+    observations: dict[str, PromotionObservation] = {}
+    for path in sorted(state_dir.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            observation = PromotionObservation(**payload)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Skipping unreadable promotion observation {path}: {e}")
+            continue
+        observations[observation.candidate_id] = observation
+    return observations
+
+
+def build_candidates_dataframe(
+    records: list[CandidateRecord],
+    observations: Mapping[str, PromotionObservation] | None = None,
+) -> pd.DataFrame:
     """Build the all-candidates table.
 
     Records are already sorted by the loader; we keep that order and
@@ -87,17 +112,21 @@ def build_candidates_dataframe(records: list[CandidateRecord]) -> pd.DataFrame:
         "Version",
         "Status",
         "Robustness",
+        "Promotion",
+        "Score",
         "Updated",
     ]
     if not records:
         return pd.DataFrame(columns=columns)
 
+    observations = observations or {}
     rows = []
     for r in records:
         if r.robustness_passed is None:
             robustness = "—"
         else:
             robustness = "PASS" if r.robustness_passed else "FAIL"
+        observation = observations.get(r.candidate_id)
         rows.append(
             {
                 "Candidate ID": r.candidate_id[:8],
@@ -106,6 +135,8 @@ def build_candidates_dataframe(records: list[CandidateRecord]) -> pd.DataFrame:
                 "Version": r.technique_version,
                 "Status": r.status,
                 "Robustness": robustness,
+                "Promotion": observation.decision.value if observation else "—",
+                "Score": observation.score if observation else "—",
                 "Updated": r.updated_at,
             }
         )
@@ -173,6 +204,7 @@ def build_audit_timeline_dataframe(events: list[AuditEvent]) -> pd.DataFrame:
 
 def render(
     state_dir: Path | None = None,
+    promotion_state_dir: Path | None = None,
     audit_log: AuditLog | None = None,
 ) -> None:
     """Render the Feedback Loop page.
@@ -180,6 +212,8 @@ def render(
     Args:
         state_dir: Override the candidate-state directory. Defaults to
             ``data/feedback/state``.
+        promotion_state_dir: Override the promotion observation directory.
+            Defaults to ``data/feedback/promotion_lab``.
         audit_log: Override the audit log. Defaults to
             ``AuditLog()`` reading from ``data/audit/feedback.jsonl``.
     """
@@ -190,9 +224,11 @@ def render(
     )
 
     state_dir = state_dir or DEFAULT_STATE_DIR
+    promotion_state_dir = promotion_state_dir or DEFAULT_PROMOTION_LAB_STATE_DIR
     audit = audit_log or AuditLog()
 
     records = load_candidate_records(state_dir)
+    observations = load_promotion_observations(promotion_state_dir)
     metrics = build_summary_metrics(records)
 
     # ---- Summary cards ----
@@ -214,7 +250,7 @@ def render(
 
     # ---- All candidates table ----
     st.subheader("Candidates")
-    candidates_df = build_candidates_dataframe(records)
+    candidates_df = build_candidates_dataframe(records, observations)
     st.dataframe(candidates_df, hide_index=True, use_container_width=True)
 
     # ---- Per-candidate detail ----
@@ -232,7 +268,7 @@ def render(
         return
 
     record = _record_for(records, selected_id)
-    _render_record_detail(record)
+    _render_record_detail(record, observations.get(selected_id))
 
     # ---- Audit timeline for this candidate ----
     st.markdown("**Audit timeline**")
@@ -252,7 +288,10 @@ def _record_for(records: list[CandidateRecord], candidate_id: str) -> CandidateR
     raise KeyError(f"Candidate {candidate_id} not in records")
 
 
-def _render_record_detail(record: CandidateRecord) -> None:
+def _render_record_detail(
+    record: CandidateRecord,
+    observation: PromotionObservation | None = None,
+) -> None:
     """Render the per-candidate detail block."""
     col1, col2 = st.columns(2)
     col1.markdown(f"**Candidate ID:** `{record.candidate_id}`")
@@ -272,6 +311,19 @@ def _render_record_detail(record: CandidateRecord) -> None:
         st.markdown(f"**Failed gates:** {', '.join(record.failed_gates)}")
     if record.decision_reason:
         st.markdown(f"**Decision reason:** {record.decision_reason}")
+    if observation:
+        st.markdown("**Promotion lab recommendation**")
+        st.markdown(
+            f"`{observation.decision.value}` with score "
+            f"`{observation.score}` after "
+            f"`{observation.evaluations_count}` evaluation(s)."
+        )
+        if observation.factors:
+            st.markdown(f"**Promotion factors:** {'; '.join(observation.factors)}")
+        if observation.blocking_reasons:
+            st.markdown(
+                f"**Promotion blockers:** {'; '.join(observation.blocking_reasons)}"
+            )
 
 
 __all__ = [
@@ -280,6 +332,7 @@ __all__ = [
     "build_audit_timeline_dataframe",
     "build_candidates_dataframe",
     "build_summary_metrics",
+    "load_promotion_observations",
     "load_candidate_records",
     "render",
 ]

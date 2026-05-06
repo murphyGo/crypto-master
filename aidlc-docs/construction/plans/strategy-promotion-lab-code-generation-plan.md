@@ -17,7 +17,7 @@ New product-intelligence unit. No legacy phase owns this workflow end to end.
 - [x] Register the strategy promotion lab unit and construction plan.
 - [x] Add a first-pass promotion scoring model for candidate evidence.
 - [x] Persist observation-period state for watched candidates.
-- [ ] Surface promote / reject / keep-watching recommendations in the dashboard.
+- [x] Surface promote / reject / keep-watching recommendations in the dashboard.
 - [ ] Add operator actions that call existing approval/rejection paths.
 
 ## Evidence

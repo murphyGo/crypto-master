@@ -11,9 +11,11 @@ from src.dashboard.pages.feedback import (
     build_candidates_dataframe,
     build_summary_metrics,
     load_candidate_records,
+    load_promotion_observations,
 )
 from src.feedback.audit import AuditEvent, AuditEventType, AuditLog
 from src.feedback.loop import CandidateRecord, LoopStatus
+from src.feedback.promotion_lab import PromotionDecision, PromotionObservation
 
 # =============================================================================
 # Helpers
@@ -63,6 +65,32 @@ def write_record(state_dir: Path, record: CandidateRecord) -> Path:
     return path
 
 
+def make_observation(
+    *,
+    candidate_id: str = "cand-12345678",
+    technique_name: str = "tech_a",
+    decision: PromotionDecision = PromotionDecision.KEEP_WATCHING,
+    score: int = 80,
+) -> PromotionObservation:
+    return PromotionObservation(
+        candidate_id=candidate_id,
+        technique_name=technique_name,
+        decision=decision,
+        score=score,
+        factors=["trade sample is small"],
+    )
+
+
+def write_observation(
+    state_dir: Path,
+    observation: PromotionObservation,
+) -> Path:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    path = state_dir / f"{observation.candidate_id}.json"
+    path.write_text(observation.model_dump_json(indent=2), encoding="utf-8")
+    return path
+
+
 # =============================================================================
 # load_candidate_records
 # =============================================================================
@@ -109,6 +137,43 @@ def test_load_candidate_records_skips_malformed(tmp_path: Path) -> None:
 
 
 # =============================================================================
+# load_promotion_observations
+# =============================================================================
+
+
+def test_load_promotion_observations_empty_dir(tmp_path: Path) -> None:
+    observations = load_promotion_observations(tmp_path / "never_created")
+
+    assert observations == {}
+
+
+def test_load_promotion_observations_returns_by_candidate_id(tmp_path: Path) -> None:
+    write_observation(tmp_path, make_observation(candidate_id="cand-a"))
+    write_observation(
+        tmp_path,
+        make_observation(
+            candidate_id="cand-b",
+            decision=PromotionDecision.PROMOTE,
+            score=100,
+        ),
+    )
+
+    observations = load_promotion_observations(tmp_path)
+
+    assert set(observations) == {"cand-a", "cand-b"}
+    assert observations["cand-b"].decision == PromotionDecision.PROMOTE
+
+
+def test_load_promotion_observations_skips_malformed(tmp_path: Path) -> None:
+    write_observation(tmp_path, make_observation(candidate_id="good"))
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+
+    observations = load_promotion_observations(tmp_path)
+
+    assert list(observations) == ["good"]
+
+
+# =============================================================================
 # build_candidates_dataframe
 # =============================================================================
 
@@ -120,6 +185,8 @@ def test_candidates_dataframe_empty_returns_columns_only() -> None:
     assert "Candidate ID" in df.columns
     assert "Status" in df.columns
     assert "Robustness" in df.columns
+    assert "Promotion" in df.columns
+    assert "Score" in df.columns
 
 
 def test_candidates_dataframe_one_row_per_record() -> None:
@@ -146,6 +213,23 @@ def test_candidates_dataframe_robustness_label() -> None:
     assert by_id["pass-1"[:8]] == "PASS"
     assert by_id["fail-1"[:8]] == "FAIL"
     assert by_id["none-1"[:8]] == "—"
+
+
+def test_candidates_dataframe_includes_promotion_observation() -> None:
+    record = make_record(candidate_id="cand-aaaaaa11")
+    observation = make_observation(
+        candidate_id=record.candidate_id,
+        decision=PromotionDecision.PROMOTE,
+        score=95,
+    )
+
+    df = build_candidates_dataframe(
+        [record],
+        {record.candidate_id: observation},
+    )
+
+    assert df.iloc[0]["Promotion"] == "promote"
+    assert df.iloc[0]["Score"] == 95
 
 
 # =============================================================================
@@ -265,6 +349,7 @@ def test_feedback_page_renders_populated(tmp_path: Path) -> None:
     from streamlit.testing.v1 import AppTest
 
     state_dir = tmp_path / "state"
+    promotion_state_dir = tmp_path / "promotion_lab"
     audit_path = tmp_path / "audit.jsonl"
 
     record = make_record(
@@ -274,6 +359,14 @@ def test_feedback_page_renders_populated(tmp_path: Path) -> None:
         robustness_summary="OOS PASS, walk-forward PASS, regime PASS",
     )
     write_record(state_dir, record)
+    write_observation(
+        promotion_state_dir,
+        make_observation(
+            candidate_id=record.candidate_id,
+            decision=PromotionDecision.PROMOTE,
+            score=95,
+        ),
+    )
 
     audit = AuditLog(path=audit_path)
     audit.append(
@@ -303,6 +396,7 @@ from src.feedback.audit import AuditLog
 
 render(
     state_dir=Path({str(state_dir)!r}),
+    promotion_state_dir=Path({str(promotion_state_dir)!r}),
     audit_log=AuditLog(path=Path({str(audit_path)!r})),
 )
 """

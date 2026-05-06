@@ -23,6 +23,10 @@ The second implementation step adds atomic observation persistence. Repeated
 candidate evaluations now update a per-candidate snapshot while preserving the
 original first-seen timestamp and tracking evaluation count.
 
+The third implementation step surfaces the stored recommendation in the
+Feedback Loop dashboard. Candidate rows now include promotion decision and
+score, and candidate detail shows the latest lab factors and blockers.
+
 ## Files Changed
 
 - Modified: `aidlc-docs/aidlc-state.md`
@@ -47,14 +51,17 @@ original first-seen timestamp and tracking evaluation count.
 | Keep hard blockers separate from score factors | Failed robustness, wrong candidate state, and liquidation should reject even if other metrics are strong. |
 | Default promotion threshold is 90 | A candidate with one meaningful warning should remain in observation rather than receive an immediate promote recommendation. |
 | Persist observations outside candidate state | Promotion lab recommendations are operator workflow state, so they live under `feedback/promotion_lab` without mutating `CandidateRecord`. |
+| Keep dashboard display read-only | The page can show promote / reject / keep-watching guidance without performing the approval action itself. |
 
 ## Verification
 
 - `uv run pytest tests/test_feedback_promotion_lab.py -q`
+- `uv run pytest tests/test_dashboard_feedback.py tests/test_feedback_promotion_lab.py -q`
 - `uv run ruff check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
+- `uv run ruff check src/dashboard/pages/feedback.py tests/test_dashboard_feedback.py`
 - `uv run black --check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
+- `uv run black --check src/dashboard/pages/feedback.py tests/test_dashboard_feedback.py`
 
 ## Follow-Up
 
-- Surface promotion recommendations in the dashboard feedback workflow.
 - Wire operator promote/reject actions through existing approval and rejection paths.
