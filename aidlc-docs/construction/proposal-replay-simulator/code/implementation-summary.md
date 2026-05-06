@@ -19,3 +19,8 @@ Final code generation step adds `render_replay_report`, a Markdown report for
 operator threshold tuning. The report ranks scenarios by average PnL percent,
 shows approved count and total gross PnL, calls out the recommended scenario,
 and includes per-proposal outcome detail.
+
+CLI follow-up adds `src.tools.proposal_replay`. Operators can now run a
+file-based replay input through a scenario grid built from repeated
+`--min-score` and `--exit-assumption` options, then write the Markdown report to
+stdout or an explicit output path.

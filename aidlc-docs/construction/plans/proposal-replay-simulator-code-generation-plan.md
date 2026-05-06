@@ -10,6 +10,7 @@ New product-intelligence unit for replaying historical proposal decisions.
 - [x] Define replay input model over proposal history and candle windows.
 - [x] Compare alternate approval thresholds and exit assumptions.
 - [x] Emit replay reports for operator threshold tuning.
+- [x] Add CLI entrypoint once replay semantics are test-pinned.
 
 ## Evidence
 
@@ -18,4 +19,4 @@ New product-intelligence unit for replaying historical proposal decisions.
 
 ## Future Work
 
-Add CLI entrypoint once replay semantics are test-pinned.
+Add dashboard replay tooling once operators need an in-app workflow.
