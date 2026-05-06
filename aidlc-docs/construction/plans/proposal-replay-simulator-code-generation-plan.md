@@ -8,7 +8,7 @@ New product-intelligence unit for replaying historical proposal decisions.
 
 - [x] Register the proposal replay simulator unit and construction plan.
 - [x] Define replay input model over proposal history and candle windows.
-- [ ] Compare alternate approval thresholds and exit assumptions.
+- [x] Compare alternate approval thresholds and exit assumptions.
 - [ ] Emit replay reports for operator threshold tuning.
 
 ## Evidence

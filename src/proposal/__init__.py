@@ -40,8 +40,13 @@ from src.proposal.notification import (
 )
 from src.proposal.replay import (
     ProposalReplayCase,
+    ProposalReplayExitAssumption,
     ProposalReplayInput,
     ProposalReplayInputError,
+    ProposalReplayOutcome,
+    ProposalReplayScenario,
+    ProposalReplayScenarioResult,
+    compare_replay_scenarios,
 )
 
 __all__ = [
@@ -62,10 +67,15 @@ __all__ = [
     "ProposalHistoryError",
     "ProposalInteraction",
     "ProposalRecord",
+    "ProposalReplayExitAssumption",
     "ProposalReplayCase",
     "ProposalReplayInput",
     "ProposalReplayInputError",
+    "ProposalReplayOutcome",
+    "ProposalReplayScenario",
+    "ProposalReplayScenarioResult",
     "ProposalScore",
     "default_decision_prompt",
     "format_proposal",
+    "compare_replay_scenarios",
 ]

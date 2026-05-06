@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -12,8 +13,11 @@ from src.models import OHLCV
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import ProposalDecision, ProposalHistory, ProposalRecord
 from src.proposal.replay import (
+    ProposalReplayExitAssumption,
     ProposalReplayInput,
     ProposalReplayInputError,
+    ProposalReplayScenario,
+    compare_replay_scenarios,
 )
 
 
@@ -34,19 +38,24 @@ def make_proposal(
     created_at: datetime,
     *,
     sub_account_id: str = "default",
+    signal: Literal["long", "short"] = "long",
+    entry_price: str = "100",
+    stop_loss: str = "95",
+    take_profit: str = "110",
+    quantity: str = "0.1",
 ) -> Proposal:
     return Proposal(
         proposal_id=proposal_id,
         created_at=created_at,
         symbol="BTC/USDT",
         timeframe="1h",
-        signal="long",
+        signal=signal,
         technique_name="tech_a",
         technique_version="1.0.0",
-        entry_price=Decimal("100"),
-        stop_loss=Decimal("95"),
-        take_profit=Decimal("110"),
-        quantity=Decimal("0.1"),
+        entry_price=Decimal(entry_price),
+        stop_loss=Decimal(stop_loss),
+        take_profit=Decimal(take_profit),
+        quantity=Decimal(quantity),
         leverage=1,
         risk_reward_ratio=2.0,
         score=make_score(),
@@ -60,9 +69,20 @@ def make_record(
     created_at: datetime,
     *,
     decision: ProposalDecision = ProposalDecision.ACCEPTED,
+    signal: Literal["long", "short"] = "long",
+    entry_price: str = "100",
+    stop_loss: str = "95",
+    take_profit: str = "110",
 ) -> ProposalRecord:
     return ProposalRecord(
-        proposal=make_proposal(proposal_id, created_at),
+        proposal=make_proposal(
+            proposal_id,
+            created_at,
+            signal=signal,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+        ),
         sub_account_id="default",
         decision=decision,
         decision_at=created_at + timedelta(minutes=1),
@@ -70,13 +90,19 @@ def make_record(
     )
 
 
-def candle(timestamp: datetime, close: str = "100") -> OHLCV:
+def candle(
+    timestamp: datetime,
+    close: str = "100",
+    *,
+    high: str | None = None,
+    low: str | None = None,
+) -> OHLCV:
     price = Decimal(close)
     return OHLCV(
         timestamp=timestamp,
         open=price,
-        high=price + Decimal("2"),
-        low=price - Decimal("2"),
+        high=Decimal(high) if high is not None else price + Decimal("2"),
+        low=Decimal(low) if low is not None else price - Decimal("2"),
         close=price,
         volume=Decimal("10"),
     )
@@ -151,3 +177,117 @@ def test_replay_input_can_load_filtered_history(tmp_path: Path) -> None:
     )
 
     assert [case.proposal_id for case in replay_input.cases] == ["accepted"]
+
+
+def test_compare_replay_scenarios_filters_below_threshold() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"p1": [candle(base, high="112", low="99")]},
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [ProposalReplayScenario(min_score=2.0)],
+    )[0]
+
+    assert result.approved_count == 0
+    assert result.outcomes[0].approved is False
+    assert result.outcomes[0].exit_reason == "filtered"
+
+
+def test_compare_replay_scenarios_resolves_same_candle_stop_first() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"p1": [candle(base, high="112", low="94")]},
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [
+            ProposalReplayScenario(
+                exit_assumption=ProposalReplayExitAssumption.STOP_FIRST,
+            )
+        ],
+    )[0]
+
+    outcome = result.outcomes[0]
+    assert outcome.exit_reason == "stop_loss"
+    assert outcome.exit_price == Decimal("95")
+    assert outcome.gross_pnl == Decimal("-0.5")
+    assert outcome.pnl_percent == Decimal("-5.00")
+
+
+def test_compare_replay_scenarios_resolves_same_candle_take_profit_first() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"p1": [candle(base, high="112", low="94")]},
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [
+            ProposalReplayScenario(
+                exit_assumption=ProposalReplayExitAssumption.TAKE_PROFIT_FIRST,
+            )
+        ],
+    )[0]
+
+    outcome = result.outcomes[0]
+    assert outcome.exit_reason == "take_profit"
+    assert outcome.exit_price == Decimal("110")
+    assert outcome.gross_pnl == Decimal("1.0")
+    assert outcome.pnl_percent == Decimal("10.0")
+
+
+def test_compare_replay_scenarios_uses_end_of_data_close() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"p1": [candle(base, close="103", high="104", low="99")]},
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [ProposalReplayScenario()],
+    )[0]
+
+    outcome = result.outcomes[0]
+    assert outcome.exit_reason == "end_of_data"
+    assert outcome.exit_price == Decimal("103")
+    assert outcome.gross_pnl == Decimal("0.3")
+    assert result.approved_count == 1
+    assert result.average_pnl_percent == Decimal("3.00")
+
+
+def test_compare_replay_scenarios_handles_short_take_profit() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record(
+        "short",
+        base,
+        signal="short",
+        entry_price="100",
+        stop_loss="105",
+        take_profit="90",
+    )
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"short": [candle(base, close="92", high="101", low="89")]},
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [ProposalReplayScenario()],
+    )[0]
+
+    outcome = result.outcomes[0]
+    assert outcome.exit_reason == "take_profit"
+    assert outcome.exit_price == Decimal("90")
+    assert outcome.gross_pnl == Decimal("1.0")
+    assert outcome.pnl_percent == Decimal("10.0")

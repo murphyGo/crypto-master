@@ -74,7 +74,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, and publish-time validation shipped | Track future marketplace dashboard/operator tooling in construction plans |
 | `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, and improvement-context summaries shipped | Track future dashboard autopsy drill-downs in construction plans |
 | `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, and notification summary hooks shipped | Track future hard pause gates and signal calibration in construction plans |
-| `proposal-replay-simulator` | In Progress | Replay input model over proposal history and candle windows shipped | Continue threshold and exit-assumption comparison |
+| `proposal-replay-simulator` | In Progress | Replay input model and threshold/exit-assumption comparison shipped | Continue operator replay reports |
 | `strategy-correlation-governor` | New | Product unit registered; construction-ready | Plan correlation-aware exposure controls |
 
 ## Construction Stage Policy
