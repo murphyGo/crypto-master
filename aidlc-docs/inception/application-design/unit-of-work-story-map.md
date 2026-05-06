@@ -15,6 +15,12 @@ This map connects standard AI-DLC user stories to the brownfield unit breakdown.
 | `sub-account-capital-segmentation` | US-009, US-010, US-011 | FR-036 - FR-038 | `tests/test_trading_sub_account*`, backtest harness tests |
 | `persistence-data-integrity` | US-006, US-007, US-015 | FR-014, NFR-006 - NFR-008 | `tests/test_utils_atomic_write.py`, `tests/test_utils_time.py`, `tests/test_jsonl_rotator.py` |
 | `quality-governance` | US-015, US-016 | All | session logs, cross-checks, TECH-DEBT updates, AI-DLC state updates |
+| `strategy-promotion-lab` | US-017 | FR-027, FR-034, FR-039 | `tests/test_feedback_promotion_lab.py`, feedback/dashboard tests |
+| `sub-account-experiment-marketplace` | US-018 | FR-036, FR-038, FR-040 | sub-account registry tests, backtest harness tests |
+| `trade-quality-autopsy` | US-019 | FR-005, FR-021, FR-041 | strategy performance tests, backtest/trading tests |
+| `runtime-safety-score` | US-020 | FR-014, FR-015, FR-042, NFR-007 | runtime activity tests, dashboard engine tests |
+| `proposal-replay-simulator` | US-021 | FR-013, FR-014, FR-025, FR-043 | proposal/runtime tests, replay script tests |
+| `strategy-correlation-governor` | US-022 | FR-036, FR-038, FR-044 | backtest harness tests, runtime exposure tests |
 
 ## Planning Use
 

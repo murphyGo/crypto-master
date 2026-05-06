@@ -28,6 +28,12 @@ For active technical debt grouped by these units, see
 | `sub-account-capital-segmentation` | Independent capital pools, credential bindings, A/B harness | `src/trading/sub_account*.py`, `config/sub_accounts.yaml.example`, `src/backtest/harness.py`, `tests/test_trading_sub_account*` |
 | `persistence-data-integrity` | Atomic writes, JSON/JSONL rotation, UTC timestamp contracts | `src/utils/io.py`, `src/utils/time.py`, `src/runtime/jsonl_rotator.py`, `tests/test_utils_*`, `tests/test_jsonl_rotator.py` |
 | `quality-governance` | Session logs, cross-checks, technical debt, generated skills, AI-DLC overlay | `docs/`, `.agents/`, `.claude/`, `aidlc-docs/`, `aidlc-workflows/` |
+| `strategy-promotion-lab` | Candidate strategy scoring, observation stages, and promotion recommendations | `src/feedback/`, `src/backtest/`, `src/dashboard/pages/feedback.py`, `tests/test_feedback_*`, `tests/test_backtest_*` |
+| `sub-account-experiment-marketplace` | Reusable experiment templates for sub-account strategy labs | `config/sub_accounts.yaml.example`, `src/trading/sub_account*.py`, `src/backtest/harness.py`, `tests/test_trading_sub_account*` |
+| `trade-quality-autopsy` | Closed-trade quality diagnostics and thesis failure analysis | `src/strategy/performance.py`, `src/trading/`, `src/backtest/`, `tests/test_strategy_performance.py`, `tests/test_trading_*` |
+| `runtime-safety-score` | Operator-facing runtime safety score and degraded-state signals | `src/runtime/`, `src/proposal/`, `src/dashboard/pages/engine.py`, `tests/test_runtime_*`, `tests/test_dashboard_engine.py` |
+| `proposal-replay-simulator` | Historical proposal replay and threshold/exit sensitivity reports | `src/proposal/`, `src/backtest/`, `scripts/`, `tests/test_proposal_*`, `tests/test_scripts_*` |
+| `strategy-correlation-governor` | Correlation-aware exposure limits across strategies, symbols, and sub-accounts | `src/backtest/`, `src/runtime/`, `src/trading/`, `tests/test_backtest_*`, `tests/test_runtime_*` |
 
 ## Detailed Units
 
@@ -185,3 +191,74 @@ For active technical debt grouped by these units, see
   documentation structure migration, agent/team update.
 - **Suggested Tests**: Documentation validation, targeted skill dry-run,
   `uv run pytest` for code-affecting changes.
+
+### `strategy-promotion-lab`
+
+- **Responsibilities**: Score generated or improved strategy candidates,
+  combine backtest metrics with robustness gates, represent observation stages,
+  and produce explicit promote / reject / watch recommendations.
+- **Related Requirements**: FR-027, FR-034, FR-039.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: Promotion scoring formula, watch-period state,
+  dashboard promotion workflow, candidate evidence model.
+- **Suggested Tests**: `tests/test_feedback_promotion_lab.py`,
+  feedback-loop tests, dashboard feedback tests.
+
+### `sub-account-experiment-marketplace`
+
+- **Responsibilities**: Define reusable sub-account experiment templates,
+  including capital allocation, strategy filters, risk overrides, notification
+  routes, and backtest report bindings.
+- **Related Requirements**: FR-036, FR-038, FR-040.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: New experiment template schema, sub-account
+  allocation rules, dashboard template selector.
+- **Suggested Tests**: `tests/test_trading_sub_account_registry.py`,
+  `tests/test_backtest_harness.py`.
+
+### `trade-quality-autopsy`
+
+- **Responsibilities**: Diagnose closed trades after exit, including MFE/MAE,
+  drawdown before exit, invalidation timing, close-reason quality, and
+  sizing/risk notes.
+- **Related Requirements**: FR-005, FR-021, FR-041.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: New trade diagnostic fields, dashboard autopsy
+  view, post-trade feedback-loop inputs.
+- **Suggested Tests**: `tests/test_strategy_performance.py`,
+  `tests/test_backtest_engine.py`, targeted dashboard tests.
+
+### `runtime-safety-score`
+
+- **Responsibilities**: Roll up runtime health signals into an operator-facing
+  safety score and status band for safe / degraded / risky / pause-recommended
+  states.
+- **Related Requirements**: FR-014, FR-015, FR-042, NFR-007.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: New activity event types, runtime health checks,
+  dashboard score presentation, alert routing.
+- **Suggested Tests**: `tests/test_runtime_engine.py`,
+  `tests/test_runtime_activity_log.py`, `tests/test_dashboard_engine.py`.
+
+### `proposal-replay-simulator`
+
+- **Responsibilities**: Replay historical proposals under alternate approval
+  thresholds, decisions, and exit assumptions to tune proposal policy.
+- **Related Requirements**: FR-013, FR-014, FR-025, FR-043.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: Replay policy model, proposal outcome joins,
+  threshold sensitivity reports.
+- **Suggested Tests**: `tests/test_proposal_interaction.py`,
+  `tests/test_runtime_engine.py`, targeted script tests.
+
+### `strategy-correlation-governor`
+
+- **Responsibilities**: Measure strategy/asset correlation, surface duplicate
+  exposure, and optionally block highly correlated runtime positions across
+  sub-accounts.
+- **Related Requirements**: FR-036, FR-038, FR-044.
+- **Existing Status**: New product unit.
+- **Future Change Triggers**: Correlation metric changes, exposure cap policy,
+  runtime rejection event schema.
+- **Suggested Tests**: `tests/test_backtest_harness.py`,
+  `tests/test_runtime_engine.py`, `tests/test_trading_sub_account_registry.py`.

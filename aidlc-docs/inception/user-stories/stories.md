@@ -40,3 +40,14 @@
 |----------|-------|--------------------|--------------|--------------|
 | US-015 | As a system maintainer, I can route each change through an AI-DLC unit and construction stage. | Work references unit, stage, plan, tests, session log, and cross-check when warranted | All | `quality-governance` |
 | US-016 | As a reviewer, I can trace a requirement to units, code paths, tests, debt, and cross-checks. | Requirement index, unit map, construction plan, and verification report agree on ownership | All | `quality-governance` |
+
+## Product Intelligence Expansion
+
+| Story ID | Story | Acceptance Signals | Requirements | Primary Unit |
+|----------|-------|--------------------|--------------|--------------|
+| US-017 | As a strategy maintainer, I can review candidate strategies in a promotion lab before adoption. | Candidate score combines backtest quality, robustness gates, trade count, drawdown, liquidation, and observation state | FR-039, FR-027, FR-034 | `strategy-promotion-lab` |
+| US-018 | As an operator, I can choose reusable sub-account experiment templates for strategy labs. | Templates declare capital, strategy filters, risk overrides, and notification routes without duplicating YAML by hand | FR-040, FR-036, FR-038 | `sub-account-experiment-marketplace` |
+| US-019 | As a trading reviewer, I can inspect why a closed trade was high or low quality. | Autopsy output includes MFE/MAE, thesis invalidation, drawdown-before-exit, and sizing/risk notes | FR-041, FR-005, FR-021 | `trade-quality-autopsy` |
+| US-020 | As an operator, I can see whether the runtime is safe to continue. | Safety score rolls up data freshness, notification failures, LLM failures, drawdown, liquidation, and concentration signals | FR-042, FR-014, FR-015, NFR-007 | `runtime-safety-score` |
+| US-021 | As a strategy maintainer, I can replay historical proposals under alternate thresholds. | Replay reports compare accepted/rejected outcomes, threshold sensitivity, and alternate exit assumptions | FR-043, FR-013, FR-014, FR-025 | `proposal-replay-simulator` |
+| US-022 | As a risk reviewer, I can prevent multiple strategies from making the same correlated bet. | Governor surfaces or blocks highly correlated strategy/asset exposure across open positions and sub-accounts | FR-044, FR-036, FR-038 | `strategy-correlation-governor` |

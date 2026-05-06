@@ -33,6 +33,12 @@ should be routed by unit.
 | `sub-account-capital-segmentation` | Required for allocation or credential semantics | Required for isolation/safety | Conditional for live mode | Required for changes | Required |
 | `persistence-data-integrity` | Conditional | Required | Usually N/A | Required for changes | Required |
 | `quality-governance` | Conditional | Conditional | N/A | Required for skill/doc changes | Required as docs validation |
+| `strategy-promotion-lab` | Required for scoring/workflow changes | Required for promotion safety | Usually N/A | Required for changes | Required |
+| `sub-account-experiment-marketplace` | Required for template semantics | Required for capital/risk isolation | Conditional for live templates | Required for changes | Required |
+| `trade-quality-autopsy` | Required for diagnostic semantics | Required for trading-safety interpretation | Usually N/A | Required for changes | Required |
+| `runtime-safety-score` | Required for score/status semantics | Required for safety and observability | Conditional for alerting/deploy hooks | Required for changes | Required |
+| `proposal-replay-simulator` | Required for replay policy semantics | Required for decision-safety interpretation | Usually N/A | Required for changes | Required |
+| `strategy-correlation-governor` | Required for exposure policy semantics | Required for risk/correlation safety | Usually N/A | Required for changes | Required |
 
 ## Legacy Phase Handling
 

@@ -20,6 +20,12 @@ from src.feedback.loop import (
     FeedbackLoopError,
     LoopStatus,
 )
+from src.feedback.promotion_lab import (
+    PromotionDecision,
+    PromotionEvaluation,
+    PromotionPolicy,
+    evaluate_promotion_candidate,
+)
 
 __all__ = [
     "AuditEvent",
@@ -29,4 +35,8 @@ __all__ = [
     "FeedbackLoop",
     "FeedbackLoopError",
     "LoopStatus",
+    "PromotionDecision",
+    "PromotionEvaluation",
+    "PromotionPolicy",
+    "evaluate_promotion_candidate",
 ]
