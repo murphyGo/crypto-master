@@ -27,6 +27,9 @@ of truth unless a current task explicitly updates them.
 | File | Purpose |
 |------|---------|
 | `aidlc-docs/aidlc-state.md` | Brownfield AI-DLC state and unit progress |
+| `aidlc-docs/inception/requirements/` | Canonical AI-DLC FR/NFR index and verification questions |
+| `aidlc-docs/inception/user-stories/` | Personas and AI-DLC story map for future work |
+| `aidlc-docs/inception/application-design/` | Canonical component, service, dependency, and story-to-unit design |
 | `aidlc-docs/construction/` | Active construction-stage plans and artifacts for new work |
 | `aidlc-docs/construction/plans/` | Per-unit construction plan queue |
 | `aidlc-docs/inception/units/unit-of-work.md` | Functional unit breakdown of existing and future work |
@@ -49,17 +52,21 @@ of truth unless a current task explicitly updates them.
 ## Development Workflow
 
 1. Check `aidlc-docs/aidlc-state.md` for current unit status.
-2. Use `aidlc-docs/inception/units/unit-of-work.md` to identify ownership,
+2. Use `aidlc-docs/inception/requirements/requirements.md` and
+   `aidlc-docs/inception/user-stories/stories.md` to identify the FR/NFR and
+   story context for the task.
+3. Use `aidlc-docs/inception/application-design/unit-of-work-story-map.md` and
+   `aidlc-docs/inception/units/unit-of-work.md` to identify ownership,
    related requirements, legacy phase history, and likely test scope.
-3. Use `aidlc-docs/inception/units/legacy-phase-map.md` when a task references
+4. Use `aidlc-docs/inception/units/legacy-phase-map.md` when a task references
    an old phase, component, session log, or cross-check.
-4. Use `aidlc-docs/inception/units/debt-unit-map.md` when a task starts from
+5. Use `aidlc-docs/inception/units/debt-unit-map.md` when a task starts from
    debt, cleanup, risk, or backlog language.
-5. Create or resume active work in `aidlc-docs/construction/plans/` and write
+6. Create or resume active work in `aidlc-docs/construction/plans/` and write
    stage artifacts under `aidlc-docs/construction/<unit>/`.
-6. Keep `docs/legacy/development-plan.md` as the archived chronological legacy
+7. Keep `docs/legacy/development-plan.md` as the archived chronological legacy
    plan. Do not flatten or rewrite its history when creating unit-oriented work.
-7. For new work, update the relevant unit state, construction plan, tests, session log,
+8. For new work, update the relevant unit state, construction plan, tests, session log,
    cross-check, and technical debt record as appropriate.
 
 ## Brownfield Constraints

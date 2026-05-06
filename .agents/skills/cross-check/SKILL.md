@@ -19,19 +19,25 @@ requirements without regressing brownfield behavior.
 
 ## Execution Steps
 
-1. Read `aidlc-docs/inception/units/unit-of-work.md`.
-2. Read `aidlc-docs/inception/units/legacy-phase-map.md` when the argument
+1. Read `aidlc-docs/inception/requirements/requirements.md`.
+2. Read `aidlc-docs/inception/requirements/requirement-verification-questions.md`.
+3. Read `aidlc-docs/inception/user-stories/stories.md`.
+4. Read `aidlc-docs/inception/application-design/unit-of-work-story-map.md`.
+5. Read `aidlc-docs/inception/units/unit-of-work.md`.
+6. Read `aidlc-docs/inception/units/legacy-phase-map.md` when the argument
    references a legacy phase, component, or historical cross-check.
-3. Read `aidlc-docs/inception/units/debt-unit-map.md` when the work closes,
+7. Read `aidlc-docs/inception/units/debt-unit-map.md` when the work closes,
    promotes, or discovers technical debt.
-4. Identify related FR/NFR IDs and owned files.
-5. Read implementation and tests in scope.
-6. Compare behavior against:
-   - `docs/requirements.md`
+8. Identify related FR/NFR IDs, user stories, and owned files.
+9. Read implementation and tests in scope.
+10. Compare behavior against:
+   - `aidlc-docs/inception/requirements/requirements.md`
+   - `aidlc-docs/inception/user-stories/stories.md`
    - `DESIGN.md`
+   - `docs/requirements.md` for historical detailed requirement text
    - relevant session logs and previous cross-checks
-7. Run targeted tests when practical.
-8. Generate or update a report in `docs/cross-checks/`.
+11. Run targeted tests when practical.
+12. Generate or update a report in `docs/cross-checks/`.
 
 ## Report Template
 
@@ -44,6 +50,11 @@ requirements without regressing brownfield behavior.
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
+
+## Story Matrix
+
+| Story | Status | Evidence |
+|-------|--------|----------|
 
 ## Implementation Evidence
 

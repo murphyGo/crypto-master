@@ -22,14 +22,18 @@ data integrity, failure modes, and test gaps.
 
 Read:
 
-1. `aidlc-docs/inception/units/unit-of-work.md`
-2. `aidlc-docs/inception/units/legacy-phase-map.md` when old phases or
+1. `aidlc-docs/inception/requirements/requirements.md`
+2. `aidlc-docs/inception/requirements/requirement-verification-questions.md`
+3. `aidlc-docs/inception/user-stories/stories.md`
+4. `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
+5. `aidlc-docs/inception/units/unit-of-work.md`
+6. `aidlc-docs/inception/units/legacy-phase-map.md` when old phases or
    historical components are referenced
-3. `aidlc-docs/inception/units/debt-unit-map.md` when reviewing debt-related
+7. `aidlc-docs/inception/units/debt-unit-map.md` when reviewing debt-related
    changes
-4. related requirements in `docs/requirements.md`
-5. related design in `DESIGN.md`
-6. current debt in `docs/TECH-DEBT.md`
+8. related detailed requirement text in `docs/requirements.md`
+9. related design in `DESIGN.md`
+10. current debt in `docs/TECH-DEBT.md`
 
 For `git`, identify changed files with:
 

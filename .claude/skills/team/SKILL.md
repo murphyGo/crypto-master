@@ -12,14 +12,14 @@ Runs the autonomous Crypto Master agent team to advance the project by one sub-t
 ## Arguments
 
 - `$ARGUMENTS` — (optional)
-  - Empty → you pick the next sub-task yourself, following the priority order in `team-lead-algorithm.md`: critical TECH-DEBT → `docs/team-priorities.md` open queue → cross-check gaps → construction plans → session follow-ups.
-  - `phase N.M` → force the team onto a specific sub-task.
+- Empty → you pick the next sub-task yourself, following the priority order in `team-lead-algorithm.md`: critical TECH-DEBT → `docs/team-priorities.md` open queue → cross-check gaps → construction plans → session follow-ups.
+  - `<unit>` or `<task>` → force the team onto a specific AI-DLC unit or bounded task.
   - `from-tech-debt` → bias toward escalated TECH-DEBT items first.
   - `cross-check N` → ask the auditor to run the cross-check for a completed phase.
 
 ## Ad-hoc tasks (priority queue)
 
-For one-off requests that aren't in the construction plan queue ("verify why nothing's trading on Fly", "audit the auto-approve threshold against last week's data"), add a one-line item to **`docs/team-priorities.md`**. You (as lead) pick the first unchecked item every cycle, process it through the appropriate specialists, and the docs-auditor flips the box and moves it to the **Done** section with a one-line outcome.
+For one-off requests that aren't in the construction plan queue ("verify why nothing's trading on Fly", "audit the auto-approve threshold against last week's data"), add a one-line item to **`docs/team-priorities.md`**. You (as lead) pick the first unchecked item every cycle, map it through `aidlc-docs/inception/requirements/`, `aidlc-docs/inception/user-stories/`, and `aidlc-docs/inception/application-design/unit-of-work-story-map.md`, process it through the appropriate specialists, and the docs-auditor flips the box and moves it to the **Done** section with a one-line outcome.
 
 This is the seam that makes `/loop /team` actually useful for autonomous iteration:
 
@@ -51,9 +51,13 @@ You (the parent assistant) are the lead. Concretely:
 
 1. **Read `team-lead-algorithm.md`** (sibling file in this skill folder) — it's the lead's playbook (survey order, priority rules, specialist-selection table, report format, anti-patterns).
 2. **Read `docs/team-design.md`** for the team shape and ownership map.
-3. **Run the lead algorithm yourself**: survey project state with `Read` / `Bash`, pick the next sub-task per the priority order, decide which specialists are needed, and dispatch them via the `Agent` tool (parallel calls in one message when independent).
-4. **Aggregate** the specialists' structured reports into the final user-facing summary (format defined in `team-lead-algorithm.md`).
-5. **Stop** — the user decides whether to commit, run another cycle, or course-correct.
+3. **Read the canonical inception paths** before selecting implementation scope:
+   `aidlc-docs/inception/requirements/requirements.md`,
+   `aidlc-docs/inception/user-stories/stories.md`, and
+   `aidlc-docs/inception/application-design/unit-of-work-story-map.md`.
+4. **Run the lead algorithm yourself**: survey project state with `Read` / `Bash`, pick the next sub-task per the priority order, decide which specialists are needed, and dispatch them via the `Agent` tool (parallel calls in one message when independent).
+5. **Aggregate** the specialists' structured reports into the final user-facing summary (format defined in `team-lead-algorithm.md`).
+6. **Stop** — the user decides whether to commit, run another cycle, or course-correct.
 
 > Do **not** try to spawn a `team-lead` subagent. There is no `.claude/agents/team-lead.md` — the role lives in the parent. If a future Claude Code release lifts the subagent-nesting restriction, this skill can be re-architected; until then, parent-as-lead is the only working pattern.
 
@@ -76,9 +80,9 @@ You (the parent assistant) are the lead. Concretely:
 → continuous iteration. Each cycle: priority queue → construction plans → cross-check → done. User can add a priority mid-loop and it leapfrogs the construction plan queue on the next cycle. Loop self-paces between cycles. Stops when a user-gate trigger fires (live credentials / mainnet money / unit-completion gap / qa 🔴) — surfaces the question and waits.
 
 ```
-/team phase 10.4
+/team proposal-runtime stale quote audit
 ```
-→ team works on log retention (forced sub-task overrides priority queue).
+→ team maps the task through requirements, stories, and unit ownership before working.
 
 ```
 /team from-tech-debt

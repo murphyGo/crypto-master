@@ -11,6 +11,9 @@ Read in parallel where practical:
 - `AGENTS.md`
 - `docs/team-priorities.md`
 - `aidlc-docs/aidlc-state.md`
+- `aidlc-docs/inception/requirements/requirements.md`
+- `aidlc-docs/inception/user-stories/stories.md`
+- `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
 - `aidlc-docs/inception/units/unit-of-work.md`
 - `aidlc-docs/inception/units/debt-unit-map.md`
 - `aidlc-docs/inception/plans/execution-plan.md`

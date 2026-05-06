@@ -34,12 +34,15 @@ Read before acting:
 2. `docs/AGENT-TEAM.md`
 3. `.agents/skills/team-lead/team-lead-algorithm.md`
 4. `aidlc-docs/aidlc-state.md`
-5. `aidlc-docs/inception/units/unit-of-work.md`
-6. `aidlc-docs/inception/units/debt-unit-map.md`
-7. `aidlc-docs/inception/plans/execution-plan.md`
-8. `aidlc-docs/construction/plans/`
-9. `docs/TECH-DEBT.md`
-10. `docs/team-priorities.md`
+5. `aidlc-docs/inception/requirements/requirements.md`
+6. `aidlc-docs/inception/user-stories/stories.md`
+7. `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
+8. `aidlc-docs/inception/units/unit-of-work.md`
+9. `aidlc-docs/inception/units/debt-unit-map.md`
+10. `aidlc-docs/inception/plans/execution-plan.md`
+11. `aidlc-docs/construction/plans/`
+12. `docs/TECH-DEBT.md`
+13. `docs/team-priorities.md`
 
 ## Modes
 
@@ -60,7 +63,8 @@ Use `team-lead-algorithm.md` to choose the next task. Do not mine
 ### Directed
 
 Map the user's task to a unit, applicable construction stage, and specialist
-sequence. If the task is risky or underspecified, ask a concise question before
+sequence using the canonical requirements, stories, and unit story map first.
+If the task is risky or underspecified, ask a concise question before
 delegating.
 
 ## Specialist Roster

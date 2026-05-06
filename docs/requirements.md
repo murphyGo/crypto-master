@@ -1,5 +1,9 @@
 # Crypto Master - Requirements Specification
 
+> AI-DLC canonical index: `aidlc-docs/inception/requirements/requirements.md`.
+> This document preserves the detailed brownfield requirement text and change
+> history.
+
 ## 1. Overview
 
 ### 1.1 Project Purpose

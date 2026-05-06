@@ -27,15 +27,20 @@ Read these files before choosing or executing work:
 
 1. `AGENTS.md`
 2. `aidlc-docs/aidlc-state.md`
-3. `aidlc-docs/inception/units/unit-of-work.md`
-4. `aidlc-docs/inception/units/legacy-phase-map.md`
-5. `aidlc-docs/inception/units/debt-unit-map.md`
-6. `aidlc-docs/inception/plans/execution-plan.md`
-7. `aidlc-docs/construction/README.md`
-8. `docs/requirements.md`
-9. `docs/TECH-DEBT.md`
-10. `DESIGN.md`
-11. `CLAUDE.md`
+3. `aidlc-docs/inception/requirements/requirements.md`
+4. `aidlc-docs/inception/requirements/requirement-verification-questions.md`
+5. `aidlc-docs/inception/user-stories/stories.md`
+6. `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
+7. `aidlc-docs/inception/application-design/components.md`
+8. `aidlc-docs/inception/units/unit-of-work.md`
+9. `aidlc-docs/inception/units/legacy-phase-map.md`
+10. `aidlc-docs/inception/units/debt-unit-map.md`
+11. `aidlc-docs/inception/plans/execution-plan.md`
+12. `aidlc-docs/construction/README.md`
+13. `docs/requirements.md`
+14. `docs/TECH-DEBT.md`
+15. `DESIGN.md`
+16. `CLAUDE.md`
 
 Use `docs/legacy/development-plan.md` only as historical chronology when a task
 mentions an old phase. Do not use `docs/development-plan.md` as the queue for
@@ -47,10 +52,10 @@ explicitly asks for legacy-plan maintenance.
 ### Step 1: Select Construction Target
 
 If `$ARGUMENTS` names a unit, use it. Otherwise infer the unit from the user's
-task, active `docs/TECH-DEBT.md` entries, and the path ownership table in
-`unit-of-work.md`. If there is no clear task, report that no construction target
-is currently selected rather than mining `docs/legacy/development-plan.md` for
-old phase work.
+task, the canonical requirements/story map, active `docs/TECH-DEBT.md` entries,
+and the path ownership table in `unit-of-work.md`. If there is no clear task,
+report that no construction target is currently selected rather than mining
+`docs/legacy/development-plan.md` for old phase work.
 
 Determine the current construction stage:
 
@@ -75,6 +80,7 @@ Present:
 **Stage**: `<construction stage>`
 **Task**: <short task summary>
 **Related Requirements**: FR/NFR IDs if known
+**Related Stories**: US IDs if known
 **Likely Files**: paths
 **Tests**: targeted test list
 **Construction Plan**: `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
@@ -94,6 +100,8 @@ Look for the matching plan file under `aidlc-docs/construction/plans/`.
 Plan files must include:
 
 - Unit, stage, task, related requirements, and related legacy phase/debt IDs.
+- Related user stories when the work maps to a story in
+  `aidlc-docs/inception/user-stories/stories.md`.
 - Explicit `[ ]` steps with target files and verification commands.
 - Any user questions with `[Answer]:` tags.
 - A completion checklist for docs, tests, debt, cross-check, and state updates.

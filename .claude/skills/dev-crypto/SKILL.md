@@ -1,356 +1,178 @@
 ---
 name: dev-crypto
-description: Incrementally develop the Crypto Master service according to the development plan.
+description: Execute Crypto Master brownfield AI-DLC construction work by unit.
 ---
 
 # Crypto Master Development Skill
 
-Incrementally develops the Crypto Master service following the development plan.
+Execute Crypto Master construction work using the brownfield AI-DLC overlay.
 
 ## Arguments
 
-- `$ARGUMENTS` - (Optional) Specific Phase or task (e.g., `phase2`, `2.1`)
+- `$ARGUMENTS` - Optional target override:
+  - empty: choose the next construction target from AI-DLC unit state and debt
+  - `<unit>`: work in a specific unit, such as `proposal-runtime`
+  - `<unit> <stage>`: work in a specific construction stage
+  - `<unit> <task>`: start a new construction task for that unit
 
 ## Objective
 
-Execute one sub-task at a time from the development plan to incrementally build the Crypto Master service. Ensure quality through requirements compliance, best practices, and unit tests.
+Plan, implement, test, and document one bounded construction step at a time.
+Existing Phase 1-26 work is brownfield-complete historical context. New work is
+tracked under `aidlc-docs/construction/` by unit and stage.
 
----
+## Required Context
+
+Read these files before choosing or executing work:
+
+1. `AGENTS.md`
+2. `aidlc-docs/aidlc-state.md`
+3. `aidlc-docs/inception/requirements/requirements.md`
+4. `aidlc-docs/inception/requirements/requirement-verification-questions.md`
+5. `aidlc-docs/inception/user-stories/stories.md`
+6. `aidlc-docs/inception/application-design/unit-of-work-story-map.md`
+7. `aidlc-docs/inception/application-design/components.md`
+8. `aidlc-docs/inception/units/unit-of-work.md`
+9. `aidlc-docs/inception/units/legacy-phase-map.md`
+10. `aidlc-docs/inception/units/debt-unit-map.md`
+11. `aidlc-docs/inception/plans/execution-plan.md`
+12. `aidlc-docs/construction/README.md`
+13. `docs/requirements.md`
+14. `docs/TECH-DEBT.md`
+15. `DESIGN.md`
+16. `CLAUDE.md`
+
+Use `docs/legacy/development-plan.md` only as historical chronology when a task
+mentions an old phase. Do not use `docs/development-plan.md` as the queue for
+new work, and do not extend the archived plan with new phases unless the user
+explicitly asks for legacy-plan maintenance.
 
 ## Execution Steps
 
-### Step 0: Health Check (Automatic)
+### Step 1: Select Construction Target
 
-Automatic status check before starting development:
+If `$ARGUMENTS` names a unit, use it. Otherwise infer the unit from the user's
+task, the canonical requirements/story map, active `docs/TECH-DEBT.md` entries,
+and the path ownership table in `unit-of-work.md`. If there is no clear task,
+report that no construction target is currently selected rather than mining
+`docs/legacy/development-plan.md` for old phase work.
 
-1. **TECH-DEBT Escalation Check**:
-   - Read `docs/TECH-DEBT.md`
-   - Check items exceeding thresholds:
-     - Critical: Any age → Alert
-     - High: > 14 days → Alert
-     - Medium: > 21 days → Warn
-   - Display if escalation candidates found:
-     ```
-     ⚠️ TECH-DEBT Alert
+Determine the current construction stage:
 
-     | DEBT ID | Priority | Age | Action Suggested |
-     |---------|----------|-----|------------------|
-     | DEBT-001 | High | 16d | Consider /tech-debt promote |
+1. Functional Design, if behavior, contracts, workflows, or operator semantics
+   change.
+2. NFR Requirements / NFR Design, if reliability, safety, data integrity,
+   security, observability, latency, or runtime resilience changes.
+3. Infrastructure Design, if Fly.io, credentials, processes, deployment, or
+   external topology changes.
+4. Code Generation, for source/test/script changes.
+5. Build and Test, after code changes and before sealing the unit task.
 
-     Continue with development? (yes/no/review-debt)
-     ```
+Use `aidlc-docs/inception/plans/execution-plan.md` to decide which conditional
+stages apply.
 
-2. **Phase Completion Check**:
-   - Scan completed Phases in `docs/development-plan.md`
-   - Check existing reviews in `docs/cross-checks/`
-   - If unchecked Phase found:
-     ```
-     📋 Phase Review Pending
-
-     Phase 1 is complete but no cross-check document exists.
-     Run cross-check now? (yes/no/later)
-     ```
-
-**Note**: Health check alerts are informational. You can proceed with "yes" or address issues first.
-
-### Step 1: Environment Validation
-
-1. **Verify Path Existence**:
-   - `docs/development-plan.md`
-   - `docs/TECH-DEBT.md`
-   - `docs/requirements.md`
-   - `CLAUDE.md`
-   - `DESIGN.md`
-
-### Step 2: Analyze Development Plan
-
-1. **Read**: `docs/development-plan.md`
-
-2. **Parse Plan**:
-   - Current status table (component completion status)
-   - All Phases and sub-tasks
-   - Checkbox status: `[x]` = complete, `[ ]` = incomplete
-
-3. **Find Next Development Target** (scan top to bottom):
-   - Skip fully checked `[x]` Phases/sub-tasks
-   - Skip items marked "deferred" or "— *deferred*"
-   - Select **first sub-task** with at least one unchecked `[ ]` item
-   - For mixed-status sub-tasks, target only unchecked items
-
-### Step 3: Present Development Target
-
-Present identified sub-task in this format:
-
-```
-## Next Development Target
-
-**Phase**: [Phase number and name]
-**Sub-task**: [Sub-task number and title]
-
-### Items to Develop:
-- [ ] Item 1 description
-- [ ] Item 2 description
-...
-
-### Related Requirements:
-- FR-XXX: [Requirement description]
-- NFR-XXX: [Requirement description]
-
-### Estimated Files:
-- New: [List of files to create]
-- Modified: [List of files to modify]
-
-Proceed with this development? (yes/no)
-```
-
-**Wait for user approval before proceeding.**
-
-### Step 4: Development (Plan Mode)
-
-After user approval:
-
-1. **Enter Plan Mode**: Use `EnterPlanMode` tool
-
-2. **Research Phase**:
-   - Read related requirements from `docs/requirements.md`
-   - Check design patterns in `DESIGN.md`
-   - Explore existing codebase for patterns and dependencies
-
-3. **Write Implementation Plan**:
-   - Files to create/modify
-   - Implementation approach aligned with requirements
-   - Test strategy (unit tests for all new features)
-   - Integration points with existing code
-
-4. **Exit Plan Mode** and implement:
-   - Strictly follow Python best practices
-   - Write clean, idiomatic Python code
-   - Include comprehensive unit tests
-   - Run tests to verify: `pytest`
-
-### Step 5: Self-Review & Documentation
-
-After successful implementation:
-
-**5.1 Code Review** (Automatic):
-- Run `/code-review git` on changed files
-- If 🔴 Critical/High issues found, fix before proceeding or document in TECH-DEBT
-
-**5.2 Create Session Log** (`docs/sessions/YYYY-MM-DD-<phase>-<task>.md`):
+Present:
 
 ```markdown
-# Session Log: YYYY-MM-DD - Phase N.M - [Task Title]
+## Development Target
 
-## Overview
-- **Date**: YYYY-MM-DD
-- **Phase**: N - [Phase Name]
-- **Sub-task**: N.M - [Sub-task Name]
-
-## Work Summary
-[Brief description of completed work]
-
-## Files Changed
-- Created: [List]
-- Modified: [List]
-
-## Key Decisions
-| Decision | Rationale |
-|----------|-----------|
-| [What] | [Why] |
-
-## Code Review Results
-| Category | Status |
-|----------|--------|
-| Error Handling | ✅/⚠️/🔴 |
-| Resource Management | ✅/⚠️/🔴 |
-| Security | ✅/⚠️/🔴 |
-| Type Hints | ✅/⚠️/🔴 |
-| Tests | ✅/⚠️/🔴 |
-
-## Potential Risks
-- [Identified risks]
-
-## TECH-DEBT Items
-- [New items to track, if any]
+**Unit**: `<unit>`
+**Stage**: `<construction stage>`
+**Task**: <short task summary>
+**Related Requirements**: FR/NFR IDs if known
+**Related Stories**: US IDs if known
+**Likely Files**: paths
+**Tests**: targeted test list
+**Construction Plan**: `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
 ```
 
-**5.3 Update TECH-DEBT.md** (if applicable):
-- Add new debt items discovered during implementation
-- Add unfixed issues from code review
-- Mark resolved debt items
+Proceed without asking for confirmation unless the task is ambiguous or risky.
 
-**5.4 Create ADR** (if significant architectural decision was made):
+### Step 2: Enter or Resume the Construction Stage
 
-ADR-worthy decisions:
-- Affects system architecture or component boundaries
-- Chooses between multiple valid approaches
-- Has long-term implications worth documenting
+Look for the matching plan file under `aidlc-docs/construction/plans/`.
 
-If ADR needed:
-1. Find highest existing number in `docs/adr/`
-2. Create `docs/adr/NNNN-<short-title>.md` using `docs/adr/TEMPLATE.md`
-3. Reference ADR in session log
+- If it does not exist, create it before touching application code.
+- If it exists, resume the first unchecked `[ ]` step.
+- If all steps are checked, mark the stage complete in
+  `aidlc-docs/aidlc-state.md` and move to the next applicable stage.
 
+Plan files must include:
 
-### Step 6: Update Development Plan
+- Unit, stage, task, related requirements, and related legacy phase/debt IDs.
+- Related user stories when the work maps to a story in
+  `aidlc-docs/inception/user-stories/stories.md`.
+- Explicit `[ ]` steps with target files and verification commands.
+- Any user questions with `[Answer]:` tags.
+- A completion checklist for docs, tests, debt, cross-check, and state updates.
 
-After documentation:
+For design stages, load and follow the matching rule file from
+`aidlc-workflows/aidlc-rules/aws-aidlc-rule-details/construction/` and write
+artifacts under `aidlc-docs/construction/<unit>/<stage>/`.
 
-1. **Update Checkboxes**:
-   - Mark completed items with `[x]`
-   - When all items in a sub-task are complete, consider sub-task header complete
+For code generation, write application code in the workspace root and write
+only summaries or implementation notes under
+`aidlc-docs/construction/<unit>/code/`.
 
-2. **Update Current Status Table**:
-   - `✅ Complete` - All related sub-tasks complete
-   - `🔄 In Progress` - Some sub-tasks complete
-   - `❌ Missing` - No sub-tasks started
+### Step 3: Implement
 
-3. **Suggest Additions** (if applicable):
-   - If additional needs discovered during implementation, suggest new sub-task
-   - Format: "Suggested addition to Phase X: [description]"
+- Keep application code in the workspace root, never inside `aidlc-docs/`.
+- Preserve existing runtime data and live trading safeguards.
+- Prefer existing patterns in `src/`.
+- Add or update targeted tests with the change.
+- Avoid unrelated refactors.
+- Mark a plan step `[x]` only after the implementation and targeted
+  verification for that step are complete.
 
-4. **Phase Completion Auto-Action** (if Phase just completed):
-   - Detect: All sub-tasks in current Phase are `[x]`
-   - Trigger automatic cross-check:
-     ```
-     🎉 Phase [N] Complete!
+### Step 4: Verify
 
-     All sub-tasks in Phase [N] are complete.
-     Running automatic cross-check against requirements...
-     ```
-   - Execute `/cross-check` logic inline:
-     - Verify implementation vs requirements
-     - Generate compliance matrix
-     - Create `docs/cross-checks/phase-N-[name].md`
-   - Report found gaps:
-     ```
-     Cross-Check Results:
-     - ✅ Complete: X requirements
-     - ⚠️ Partial: Y requirements
-     - ❌ Gap: Z requirements
+Run targeted tests first. Use broader checks when the blast radius is larger:
 
-     [If gaps exist] Add gap items to next Phase? (yes/no)
-     ```
-
-### Step 7: Summary Report
-
-Provide completion summary:
-
-```
-## Development Complete
-
-**Sub-task**: [Sub-task number and title]
-**Status**: Complete
-
-### Changes Made:
-- Created: [List of new files]
-- Modified: [List of modified files]
-
-### Tests:
-- Added: [count] new tests
-- All tests passing: Yes/No
-
-### Documentation:
-- Session Log: [filename]
-- TECH-DEBT: [Added/resolved items, if any]
-
-### Feedback Loop Actions:
-- TECH-DEBT: [Added/resolved items]
-- Cross-Check: [Generated on Phase completion / Not needed]
-
-### Phase Completion: (if applicable)
-- Phase [N] complete: Yes/No
-- Cross-check generated: [filename]
-- Compliance rate: [X]% complete
-- Gaps added to next Phase: [count]
-
-### Development Plan Updated:
-- [List of checkbox changes]
-- Current status: [Component] → [New status]
-
-### Next Sub-task Preview:
-[Brief description of next incomplete sub-task, if any]
+```bash
+uv run pytest <targeted tests>
+uv run pytest
+uv run black src tests scripts
+uv run ruff check src tests scripts
+uv run mypy src
 ```
 
----
+Record any checks not run and why.
 
-## Guidelines
+### Step 5: Document
 
-### Commit Policy
+Create or update the relevant construction artifacts:
 
-**No Auto-Commit**: Do not automatically commit changes. Always show changes to the user and get explicit approval before committing.
+- `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
+- `aidlc-docs/construction/<unit>/<stage>/...` for design artifacts or code
+  summaries
+- `aidlc-docs/aidlc-state.md` for stage/unit progress
 
-### Sub-task Selection Rules
+Create a session log under `docs/sessions/YYYY-MM-DD-<unit>-<task>.md` for
+substantial changes. Include:
 
-1. **One sub-task per execution** - Don't develop multiple sub-tasks in a single run
-2. **Skip deferred items** - Items marked "deferred" or "— *deferred to Phase X*" are not development targets
-3. **Partial completion** - For sub-tasks with some completed items, only develop remaining incomplete items
-4. **Sequential order** - Always process Phases and sub-tasks in document order (top to bottom)
+- Unit
+- Related requirements
+- Files changed
+- Tests/checks run
+- Decisions
+- Risks
+- Debt added/resolved
 
-### Development Standards
+For completed unit-level changes, create or update a cross-check under
+`docs/cross-checks/`.
 
-1. **Requirements Compliance**:
-   - All implementations must match `docs/requirements.md`
-   - Reference requirement IDs in code comments (e.g., FR-001, NFR-001)
+Do not use `docs/development-plan.md` as the progress tracker for new work.
+`docs/legacy/development-plan.md` may be cited as legacy context only.
 
-2. **Python Best Practices**:
-   - Follow PEP 8 style guide
-   - Use type hints
-   - Error handling with context
-   - Test with pytest
+### Step 6: Report
 
-3. **Test Requirements**:
-   - Unit tests required for all new functions/methods
-   - Test both success and error paths
-   - Use `tmp_path` fixture for file-based tests
-   - Mock external dependencies
+Summarize changed files, tests, documentation, and any remaining risks.
 
-4. **Code Structure**:
-   - New code goes in `src/` package
-   - Follow existing project structure patterns
+## Brownfield Rules
 
-### Development Plan Update Rules
-
-1. **Checkbox Updates**:
-   ```markdown
-   - [x] Completed item    # Check when complete
-   - [ ] Pending item      # Unchecked when incomplete
-   ```
-
-2. **Status Mapping**:
-   | Condition | Status |
-   |-----------|--------|
-   | All sub-tasks complete | `✅ Complete` |
-   | At least one sub-task complete | `🔄 In Progress` |
-   | No sub-tasks started | `❌ Missing` |
-
-3. **Adding New Sub-tasks**:
-   - Suggest only, don't add without user approval
-   - Format suggestions clearly with rationale
-
----
-
-## Error Handling
-
-- **No incomplete sub-tasks**: Report "All sub-tasks in development plan are complete!"
-- **Test failures**: Don't mark sub-task as complete; report failures and suggest fixes
-- **Build errors**: Fix before proceeding; don't update development plan until resolved
-
----
-
-## Example Invocations
-
-Develop next pending task:
-```
-/dev-crypto
-```
-
-Work on specific Phase:
-```
-/dev-crypto phase2
-```
-
-Work on specific sub-task:
-```
-/dev-crypto 2.1
-```
+- Do not delete or migrate `data/` as part of normal development.
+- Do not replace Claude CLI integration with API calls unless requirements
+  change.
+- Keep exchange and live-trading changes conservative and well-tested.
+- Keep `docs/legacy/development-plan.md` as historical chronology; new planning
+  must cite units and construction plan files.

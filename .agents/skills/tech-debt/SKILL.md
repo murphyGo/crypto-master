@@ -12,7 +12,7 @@ description: Inspect and manage Crypto Master technical debt by priority and bro
   - `aged`: show items past escalation thresholds
   - `critical`, `high`, `medium`, `low`: filter by priority
   - `unit:<unit>`: show debt related to a brownfield unit
-  - `promote DEBT-NNN`: propose a development task for a debt item
+  - `promote DEBT-NNN`: propose an AI-DLC construction task for a debt item
 
 ## Objective
 
@@ -33,12 +33,16 @@ review should be fixed immediately when small and safe, or tracked in
 
 1. Read `docs/TECH-DEBT.md`.
 2. Parse active items, priority, creation date, component, and related paths.
-3. Load `aidlc-docs/inception/units/debt-unit-map.md` if present.
-4. Map new or unmapped items to units using
+3. Load `aidlc-docs/inception/requirements/requirements.md`.
+4. Load `aidlc-docs/inception/user-stories/stories.md`.
+5. Load `aidlc-docs/inception/application-design/unit-of-work-story-map.md`.
+6. Load `aidlc-docs/inception/units/debt-unit-map.md` if present.
+7. Map new or unmapped items to units using
    `aidlc-docs/inception/units/unit-of-work.md` and
    `aidlc-docs/inception/units/legacy-phase-map.md`.
-5. Present a concise dashboard or filtered list.
-6. For promotion, propose a unit-oriented task and target tests.
+8. Present a concise dashboard or filtered list.
+9. For promotion, propose a unit-oriented construction task, target stories,
+   target requirements, and target tests.
 
 ## Promotion Output
 
@@ -47,7 +51,10 @@ review should be fixed immediately when small and safe, or tracked in
 
 **Debt**: DEBT-NNN - <title>
 **Unit**: <unit>
+**Related Requirements**: FR/NFR IDs
+**Related Stories**: US IDs
 **Priority/Age**: <priority>, <age>
+**Construction Plan**: `aidlc-docs/construction/plans/<unit>-<stage>-plan.md`
 
 ### Proposed Task
 - [ ] <implementation step>

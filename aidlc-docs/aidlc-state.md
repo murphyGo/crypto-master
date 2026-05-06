@@ -33,6 +33,11 @@
 | Artifact | Status | Path |
 |----------|--------|------|
 | Workspace Detection | Complete | `aidlc-docs/aidlc-state.md` |
+| Requirements | Complete | `aidlc-docs/inception/requirements/requirements.md` |
+| Requirement Verification Questions | Complete | `aidlc-docs/inception/requirements/requirement-verification-questions.md` |
+| User Stories | Complete | `aidlc-docs/inception/user-stories/stories.md` |
+| Personas | Complete | `aidlc-docs/inception/user-stories/personas.md` |
+| Application Design | Complete | `aidlc-docs/inception/application-design/` |
 | Reverse Engineering | Complete | `aidlc-docs/inception/reverse-engineering/` |
 | Unit Breakdown | Complete | `aidlc-docs/inception/units/unit-of-work.md` |
 | Legacy Phase Crosswalk | Complete | `aidlc-docs/inception/units/legacy-phase-map.md` |
@@ -85,10 +90,30 @@ New work is tracked in `aidlc-docs/construction/plans/` and unit-specific
 subdirectories under `aidlc-docs/construction/`.
 `docs/legacy/development-plan.md` is legacy chronology, not the active queue.
 
+## Canonical Inception Paths
+
+The brownfield overlay keeps reverse-engineering and legacy maps as evidence,
+but AI-DLC planning should now start from the standard inception tree:
+
+1. Requirements: `aidlc-docs/inception/requirements/requirements.md`
+2. Verification questions:
+   `aidlc-docs/inception/requirements/requirement-verification-questions.md`
+3. Personas and stories: `aidlc-docs/inception/user-stories/`
+4. Application design: `aidlc-docs/inception/application-design/`
+5. Unit ownership and legacy/debt crosswalks: `aidlc-docs/inception/units/`
+
+`docs/requirements.md` remains the historical detailed requirements document and
+change log. The AI-DLC requirements index points back to it for full text.
+
 ## Legacy References
 
 - Chronological plan archive: `docs/legacy/development-plan.md`
 - Development plan pointer: `docs/development-plan.md`
+- Canonical AI-DLC requirements:
+  `aidlc-docs/inception/requirements/requirements.md`
+- Canonical AI-DLC stories: `aidlc-docs/inception/user-stories/stories.md`
+- Canonical AI-DLC application design:
+  `aidlc-docs/inception/application-design/`
 - Legacy phase to unit map: `aidlc-docs/inception/units/legacy-phase-map.md`
 - Debt to unit map: `aidlc-docs/inception/units/debt-unit-map.md`
 - Requirements: `docs/requirements.md`
