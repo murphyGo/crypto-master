@@ -13,7 +13,9 @@ Related Requirements:
 
 from src.trading.experiment_marketplace import (
     ExperimentTemplate,
+    ExperimentTemplateValidationError,
     render_sub_account_yaml_fragment,
+    validate_experiment_template,
 )
 from src.trading.live import (
     LiveConfirmationRejectedError,
@@ -78,7 +80,9 @@ __all__ = [
     "DEFAULT_FEE_CONFIGS",
     # Experiment Marketplace
     "ExperimentTemplate",
+    "ExperimentTemplateValidationError",
     "render_sub_account_yaml_fragment",
+    "validate_experiment_template",
     # Live Trading Classes
     "LiveTrader",
     # Portfolio Classes

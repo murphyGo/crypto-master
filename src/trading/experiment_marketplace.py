@@ -14,15 +14,21 @@ Related Requirements:
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from decimal import Decimal
 from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.config import Settings
 from src.trading.sub_account import RiskOverrides, SubAccount
 
 _TEMPLATE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+class ExperimentTemplateValidationError(ValueError):
+    """Raised when a template is not safe to publish into runtime config."""
 
 
 class ExperimentTemplate(BaseModel):
@@ -116,4 +122,36 @@ def render_sub_account_yaml_fragment(
     )
 
 
-__all__ = ["ExperimentTemplate", "render_sub_account_yaml_fragment"]
+def validate_experiment_template(
+    template: ExperimentTemplate,
+    *,
+    settings: Settings | None = None,
+    notification_routes: Collection[str] | None = None,
+) -> None:
+    """Validate template overrides against runtime guardrails."""
+    routes = (
+        set(notification_routes)
+        if notification_routes is not None
+        else set((settings or Settings()).notification_slack_webhook_urls)
+    )
+    errors: list[str] = []
+    risk_percent = template.risk_overrides.risk_percent
+    if risk_percent is not None and not (Decimal("0") < risk_percent <= Decimal("100")):
+        errors.append("risk_percent must be > 0 and <= 100")
+    if (
+        template.notification_route is not None
+        and template.notification_route not in routes
+    ):
+        errors.append(
+            f"notification_route {template.notification_route!r} is not configured"
+        )
+    if errors:
+        raise ExperimentTemplateValidationError("; ".join(errors))
+
+
+__all__ = [
+    "ExperimentTemplate",
+    "ExperimentTemplateValidationError",
+    "render_sub_account_yaml_fragment",
+    "validate_experiment_template",
+]

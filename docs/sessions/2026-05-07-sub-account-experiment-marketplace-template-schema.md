@@ -18,6 +18,10 @@ The follow-up step adds YAML fragment rendering. Templates can now emit a
 copyable `sub_accounts` document that round-trips through the existing
 `SubAccountRegistry` parser.
 
+The final code-generation step adds publish-time validation for risk overrides
+and notification routes. Templates with invalid `risk_percent` values or
+unknown route keys are rejected before they become runtime config.
+
 ## Files Changed
 
 - Created: `src/trading/experiment_marketplace.py`
@@ -35,6 +39,7 @@ copyable `sub_accounts` document that round-trips through the existing
 | Keep rendering out of the first step | The schema should be pinned before YAML fragment generation. |
 | Reject empty strategy filters | `null` means all strategies; an empty list is ambiguous and likely an operator mistake. |
 | Render registry-compatible YAML | Template examples should be directly copyable into `config/sub_accounts.yaml`. |
+| Validate before publish | Marketplace templates should fail before they are pasted into runtime config when routes or risk values are unsafe. |
 
 ## Verification
 
@@ -44,4 +49,4 @@ copyable `sub_accounts` document that round-trips through the existing
 
 ## Follow-Up
 
-- Validate template risk overrides and notification routes against configured runtime surfaces.
+- Add dashboard/operator tooling for browsing and applying marketplace templates.

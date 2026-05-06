@@ -16,6 +16,8 @@ produce existing sub-account runtime records.
 | Ambiguous strategy filters are rejected | Complete | Test rejects an empty strategy filter while preserving `None` semantics for all strategies. |
 | Templates render YAML fragments | Complete | `render_sub_account_yaml_fragment` emits a `sub_accounts` document. |
 | Rendered fragments round-trip | Complete | Test writes rendered YAML and loads it through `SubAccountRegistry`. |
+| Risk overrides are guarded before publish | Complete | Test rejects `risk_percent` outside `(0, 100]`. |
+| Notification routes are validated | Complete | Tests accept configured route keys and reject unknown route keys. |
 
 ## Implementation Evidence
 
@@ -31,8 +33,7 @@ produce existing sub-account runtime records.
 
 ## Gaps and Risks
 
-- Runtime validation against configured notification routes is not part of this
-  schema/rendering step.
+- Dashboard/operator tooling is not part of this code-generation pass.
 
 ## Unit Mapping
 

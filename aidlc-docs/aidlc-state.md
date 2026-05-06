@@ -71,7 +71,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `persistence-data-integrity` | Complete | Brownfield-complete; construction-ready | Track future timestamp/atomic persistence changes in construction plans |
 | `quality-governance` | Complete | Brownfield-complete; construction-ready | Track future AI-DLC hygiene, debt, and review changes in construction plans |
 | `strategy-promotion-lab` | Complete | First-pass scoring, observation persistence, dashboard recommendations, and operator action helper shipped | Track future lab workflow refinements in construction plans |
-| `sub-account-experiment-marketplace` | New | Product unit registered; construction-ready | Plan reusable sub-account experiment templates |
+| `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, and publish-time validation shipped | Track future marketplace dashboard/operator tooling in construction plans |
 | `trade-quality-autopsy` | New | Product unit registered; construction-ready | Plan closed-trade quality diagnostics |
 | `runtime-safety-score` | New | Product unit registered; construction-ready | Plan operator-facing safety score |
 | `proposal-replay-simulator` | New | Product unit registered; construction-ready | Plan proposal replay and threshold sensitivity |

@@ -11,7 +11,9 @@ from pydantic import ValidationError
 from src.config import Settings
 from src.trading.experiment_marketplace import (
     ExperimentTemplate,
+    ExperimentTemplateValidationError,
     render_sub_account_yaml_fragment,
+    validate_experiment_template,
 )
 from src.trading.sub_account import RiskOverrides, SubAccount
 from src.trading.sub_account_registry import SubAccountRegistry
@@ -138,3 +140,45 @@ def test_render_sub_account_yaml_fragment_round_trips_through_registry(
     assert list(parsed) == ["sub_accounts"]
     assert registry.get("btc_swing_lab").initial_balance == {"USDT": Decimal("5000")}
     assert registry.get("btc_swing_lab").strategy_filter == ["rsi_4h"]
+
+
+def test_validate_experiment_template_accepts_configured_route() -> None:
+    template = ExperimentTemplate(
+        template_id="btc_swing_lab",
+        name="BTC Swing Lab",
+        description="BTC-only swing strategy lab",
+        starting_balance=Decimal("5000"),
+        risk_overrides=RiskOverrides(risk_percent=Decimal("0.5")),
+        notification_route="lab",
+    )
+
+    validate_experiment_template(
+        template,
+        settings=Settings(notification_slack_webhook_urls={"lab": "https://hook"}),
+    )
+
+
+def test_validate_experiment_template_rejects_unknown_route() -> None:
+    template = ExperimentTemplate(
+        template_id="btc_swing_lab",
+        name="BTC Swing Lab",
+        description="BTC-only swing strategy lab",
+        starting_balance=Decimal("5000"),
+        notification_route="lab",
+    )
+
+    with pytest.raises(ExperimentTemplateValidationError, match="not configured"):
+        validate_experiment_template(template, notification_routes={"ops"})
+
+
+def test_validate_experiment_template_rejects_invalid_risk_percent() -> None:
+    template = ExperimentTemplate(
+        template_id="btc_swing_lab",
+        name="BTC Swing Lab",
+        description="BTC-only swing strategy lab",
+        starting_balance=Decimal("5000"),
+        risk_overrides=RiskOverrides(risk_percent=Decimal("150")),
+    )
+
+    with pytest.raises(ExperimentTemplateValidationError, match="risk_percent"):
+        validate_experiment_template(template)
