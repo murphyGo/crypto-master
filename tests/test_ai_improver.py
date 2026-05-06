@@ -163,6 +163,97 @@ body
 ```
 """
 
+ORIGINAL_WITH_OUTPUT_CONTRACT = """\
+---
+name: chasulang_fixture
+version: 1.0.0
+description: Prompt strategy with runtime contract
+technique_type: prompt
+---
+
+# Chasulang Fixture
+
+## Output Contract
+
+Return JSON with:
+
+{
+  "signal": "long" | "short" | "neutral",
+  "entry_price": <decimal> | null,
+  "stop_loss": <decimal> | null,
+  "take_profit": <decimal> | null
+}
+"""
+
+IMPROVEMENT_WITH_OUTPUT_CONTRACT = """\
+```markdown
+---
+name: chasulang_fixture_v2
+version: 1.1.0
+description: Refined prompt preserving runtime contract
+technique_type: prompt
+hypothesis: Preserving the runtime JSON contract keeps prompt outputs parseable.
+---
+
+# Chasulang Fixture v2
+
+## Failure Analysis
+
+The original strategy overreacted to weak structure shifts.
+
+## Output Contract
+
+Return JSON with:
+
+{
+  "signal": "long" | "short" | "neutral",
+  "entry_price": <decimal> | null,
+  "stop_loss": <decimal> | null,
+  "take_profit": <decimal> | null
+}
+```
+"""
+
+IMPROVEMENT_WITHOUT_OUTPUT_CONTRACT = """\
+```markdown
+---
+name: chasulang_fixture_v2
+version: 1.1.0
+description: Refined prompt that accidentally dropped the contract
+technique_type: prompt
+---
+
+# Chasulang Fixture v2
+
+## Failure Analysis
+
+The original strategy overreacted to weak structure shifts.
+```
+"""
+
+IMPROVEMENT_WITH_OUTPUT_CONTRACT_MISSING_KEY = """\
+```markdown
+---
+name: chasulang_fixture_v2
+version: 1.1.0
+description: Refined prompt with incomplete runtime contract
+technique_type: prompt
+---
+
+# Chasulang Fixture v2
+
+## Output Contract
+
+Return JSON with:
+
+{
+  "signal": "long" | "short" | "neutral",
+  "entry_price": <decimal> | null,
+  "stop_loss": <decimal> | null
+}
+```
+"""
+
 
 # =============================================================================
 # suggest_improvement
@@ -632,6 +723,64 @@ class TestNewIdeaOutputContract:
         )
         prompt = claude.complete.await_args.args[0]
         assert "Output Contract" not in prompt
+
+
+class TestImprovementOutputContract:
+    """DEBT-023 — improvement generations must preserve an existing
+    runtime Output Contract instead of silently accepting a body that
+    reintroduces prompt-type parse failures."""
+
+    @pytest.mark.asyncio
+    async def test_improvement_preserves_existing_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        improver, _ = make_improver(tmp_path, IMPROVEMENT_WITH_OUTPUT_CONTRACT)
+
+        generated = await improver.suggest_improvement(
+            technique=sample_technique(),
+            original_source=ORIGINAL_WITH_OUTPUT_CONTRACT,
+            performance=sample_performance(),
+            records=sample_records(),
+            save=False,
+        )
+
+        assert "## Output Contract" in generated.content
+        assert '"signal"' in generated.content
+        assert '"entry_price"' in generated.content
+        assert '"stop_loss"' in generated.content
+        assert '"take_profit"' in generated.content
+
+    @pytest.mark.asyncio
+    async def test_improvement_rejects_dropped_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        improver, _ = make_improver(tmp_path, IMPROVEMENT_WITHOUT_OUTPUT_CONTRACT)
+
+        with pytest.raises(GeneratedTechniqueError, match="Output Contract"):
+            await improver.suggest_improvement(
+                technique=sample_technique(),
+                original_source=ORIGINAL_WITH_OUTPUT_CONTRACT,
+                performance=sample_performance(),
+                records=sample_records(),
+            )
+
+        assert not improver.experimental_dir.exists()
+
+    @pytest.mark.asyncio
+    async def test_improvement_rejects_missing_contract_key(
+        self, tmp_path: Path
+    ) -> None:
+        improver, _ = make_improver(
+            tmp_path, IMPROVEMENT_WITH_OUTPUT_CONTRACT_MISSING_KEY
+        )
+
+        with pytest.raises(GeneratedTechniqueError, match="take_profit"):
+            await improver.suggest_improvement(
+                technique=sample_technique(),
+                original_source=ORIGINAL_WITH_OUTPUT_CONTRACT,
+                performance=sample_performance(),
+                records=sample_records(),
+            )
 
 
 # =============================================================================

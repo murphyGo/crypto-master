@@ -10,10 +10,9 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
-| `ai-feedback-loop` | DEBT-023, DEBT-049 | 2 Low | Strategy generation and auto-research regression coverage. |
+| `ai-feedback-loop` | DEBT-049 | 1 Low | Auto-research regression coverage. |
 | `backtesting-validation` | DEBT-022, DEBT-049 | 2 Low | Circuit breaker completeness and code-type trade path. |
 | `proposal-runtime` | DEBT-052 | 1 Low | Notification attribution/routing. |
-| `strategy-framework` | DEBT-023 | 1 Low | Output-contract preservation. |
 | `notifications-ops` | DEBT-052 | 1 Low | Per-sub-account routing is deferred. |
 
 ## Debt Details
@@ -21,7 +20,6 @@ when debt is added or resolved, then refresh this map.
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-022 | Low | `backtesting-validation` | | Add cumulative/rate-based parse failure breaker when a real workload needs it. |
-| DEBT-023 | Low | `ai-feedback-loop` | `strategy-framework` | Add regression test for preserving `## Output Contract` during improvement. |
 | DEBT-049 | Low | `ai-feedback-loop` | `backtesting-validation` | Add code-type integration fixture that emits a trade-producing long/short signal. |
 | DEBT-052 | Low | `proposal-runtime` | `notifications-ops` | Add optional per-sub-account notification routing config when operationally needed. |
 

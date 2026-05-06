@@ -94,61 +94,6 @@ real workload demands it).
 - DEBT-019 (parent — broader "circuit breaker hardening" umbrella)
 - DEBT-020 (sibling — same cycle's breaker tuning)
 
-### DEBT-023: No test pins improvement-prompt preservation of existing Output Contract block
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 17.2 |
-| **Component** | `tests/test_ai_improver.py` (improvement-prompt regression coverage) |
-
-**Description:**
-Phase 17.2 deliberately does NOT inject the Output Contract
-instruction into `_build_improvement_prompt` — improvement is
-targeted failure-mode analysis on an existing strategy, and the
-existing strategy's `original_source` already carries its
-`## Output Contract` block. The improver's job is to refine the
-hypothesis / rules / parameters; the contract should pass through
-unchanged.
-
-But there is no regression test that the **Claude output** of
-`_build_improvement_prompt` actually preserves the `## Output
-Contract` block. If a future Claude version condenses the body
-(e.g. drops the contract block as "boilerplate") or paraphrases it
-in a way that breaks the JSON schema match, the resulting strategy
-file would land back in the broken-`prompt`-type state that
-DEBT-019 just resolved — silently re-creating the 9-hour-hang
-failure mode with no test guard against it.
-
-**Impact:**
-Low frequency until an improvement cycle actually fires against
-chasulang or any other contract-dependent `prompt`-type strategy.
-But the consequence is high (recurrence of DEBT-019), so the
-asymmetry argues for a cheap regression guard now.
-
-**Suggested Resolution:**
-Add a `TestImprovementOutputContract` class to
-`tests/test_ai_improver.py` that:
-
-1. Constructs an `original_source` containing a `## Output
-   Contract` block with the canonical chasulang JSON schema.
-2. Mocks `claude.run` to return a refined-but-shape-preserving
-   improvement (the typical Claude output shape).
-3. Asserts the returned strategy body still contains the literal
-   `## Output Contract` heading and the four canonical keys
-   (`signal`, `entry_price`, `stop_loss`, `take_profit`).
-4. Inverse case: a Claude mock that drops the block triggers a
-   detectable failure (raise / warn / both — implementation choice).
-
-Cheap test surface; high regression-prevention value.
-
-**Related:**
-- Phase 17.2 quant-trader-expert review Q5
-- `src/ai/improver.py::_build_improvement_prompt` (deliberate non-injection — correct shape)
-- `strategies/chasulang_ict_smc.md` (the canonical `## Output Contract` block)
-- DEBT-019 (parent — the failure mode the regression guard prevents)
-
 ### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path)
 
 | Field | Value |
@@ -254,6 +199,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-30 |
 | **Resolved** | 2026-05-05 |
 | **Resolution** | Archived the truncated Donchian artefact to `docs/archive/strategy-artifacts/donchian_turtle_system_2_20260430_002157.truncated.md` with an explicit warning that it is evidence only and must not be loaded or promoted. Removed it from `strategies/experimental/`, leaving only `.gitkeep`, and added `.gitignore` rules for generated `strategies/experimental/*.md` / `*.py` candidates so future auto-research runtime artefacts are not committed accidentally. |
+
+### DEBT-023: No test pins improvement-prompt preservation of existing Output Contract block ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-06 |
+| **Resolution** | Added a post-generation guard in `StrategyImprover.suggest_improvement`: when the original source contains `## Output Contract`, the improved body must preserve the heading and the original contract's runtime trade keys. Invalid improvements raise `GeneratedTechniqueError` before any file is saved. Added `TestImprovementOutputContract` coverage for preservation, dropped-contract rejection, and missing-key rejection. |
 
 ### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files ✅
 

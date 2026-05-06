@@ -32,6 +32,7 @@ of unfinished historical tasks.
 - [x] Support multi-technique scans and Chasulang parsing/timeout mitigations.
 - [x] Preserve generated-code catalog steering and robustness polish behavior.
 - [x] Archive the truncated Donchian experimental artefact outside runtime strategy discovery.
+- [x] Preserve prompt-strategy Output Contracts during improvement generations.
 
 ## Evidence
 

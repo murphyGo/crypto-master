@@ -193,13 +193,25 @@ class StrategyImprover:
             performance=performance,
             records=records or [],
         )
-        return await self._run(
+        generated = await self._run(
             prompt=prompt,
             kind="improvement",
             parent=technique.name,
             fallback_name=f"{technique.name}_improved",
-            save=save,
+            save=False,
         )
+        self._validate_improvement_preserves_output_contract(
+            original_source=original_source,
+            generated_content=generated.content,
+        )
+        if save:
+            path = self._save(generated)
+            generated = generated.model_copy(update={"saved_path": path})
+            logger.info(
+                "Saved generated technique "
+                f"'{generated.name}' (improvement) to {path}"
+            )
+        return generated
 
     async def generate_idea(
         self,
@@ -433,6 +445,40 @@ class StrategyImprover:
         timestamp = now_utc().strftime("%Y%m%d_%H%M%S")
         extension = ".py" if output_kind == "python" else ".md"
         return f"{slug}_{timestamp}{extension}"
+
+    @staticmethod
+    def _validate_improvement_preserves_output_contract(
+        *,
+        original_source: str,
+        generated_content: str,
+    ) -> None:
+        """Ensure improvement generations do not drop runtime contracts."""
+        if "## Output Contract" not in original_source:
+            return
+
+        if "## Output Contract" not in generated_content:
+            raise GeneratedTechniqueError(
+                "Improved technique dropped the existing ## Output Contract block."
+            )
+
+        contract_keys = (
+            "signal",
+            "entry_price",
+            "stop_loss",
+            "take_profit",
+            "take_profit_1",
+            "take_profit_2",
+        )
+        missing = [
+            key
+            for key in contract_keys
+            if key in original_source and key not in generated_content
+        ]
+        if missing:
+            keys = ", ".join(missing)
+            raise GeneratedTechniqueError(
+                f"Improved technique dropped Output Contract keys: {keys}."
+            )
 
     def _save(self, generated: GeneratedTechnique) -> Path:
         """Write a generated technique to disk."""

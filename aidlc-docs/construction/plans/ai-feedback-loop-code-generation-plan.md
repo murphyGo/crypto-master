@@ -27,6 +27,7 @@ of unfinished historical tasks.
 - [x] Wire auto-research operator workflow and catalog-aware improvement.
 - [x] Preserve deterministic catalog steering for generated code strategies.
 - [x] Thread auto-research parameter sensitivity grids into feedback-loop gating.
+- [x] Guard improvement generations from dropping existing runtime Output Contracts.
 
 ## Evidence
 
