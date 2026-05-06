@@ -37,7 +37,7 @@ from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityL
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
-    inputs_from_activity_events,
+    inputs_from_recent_activity_events,
 )
 
 logger = get_logger("crypto_master.dashboard.engine")
@@ -406,7 +406,7 @@ def build_sub_account_metrics_dataframe(events: list[ActivityEvent]) -> pd.DataF
 
 def build_runtime_safety_score(events: list[ActivityEvent]) -> RuntimeSafetyScore:
     """Compute the dashboard safety score from activity events."""
-    return compute_runtime_safety_score(inputs_from_activity_events(events))
+    return compute_runtime_safety_score(inputs_from_recent_activity_events(events))
 
 
 # =============================================================================

@@ -18,6 +18,7 @@ from src.dashboard.pages.engine import (
     build_timeline_dataframe,
 )
 from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
+from src.utils.time import now_utc
 
 # =============================================================================
 # Helpers
@@ -399,18 +400,19 @@ def test_sub_account_metrics_dataframe_has_aggregate_row() -> None:
 
 
 def test_build_runtime_safety_score_from_activity_events() -> None:
+    now = now_utc()
     events = [
         make_event(
             event_type=ActivityEventType.CYCLE_ERRORED,
-            timestamp=datetime(2026, 4, 27, 12, 0, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=3),
         ),
         make_event(
             event_type=ActivityEventType.NOTIFICATION_FAILED,
-            timestamp=datetime(2026, 4, 27, 12, 1, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=2),
         ),
         make_event(
             event_type=ActivityEventType.PROPOSAL_REJECTED,
-            timestamp=datetime(2026, 4, 27, 12, 2, tzinfo=timezone.utc),
+            timestamp=now - timedelta(minutes=1),
             details={"reason": "stale_quote_past_sl"},
         ),
     ]
@@ -422,6 +424,25 @@ def test_build_runtime_safety_score_from_activity_events() -> None:
     assert safety.inputs.recent_cycle_errors == 1
     assert safety.inputs.recent_notification_failures == 1
     assert safety.inputs.stale_quote_warnings == 1
+
+
+def test_build_runtime_safety_score_ignores_old_activity_events() -> None:
+    now = now_utc()
+    events = [
+        make_event(
+            event_type=ActivityEventType.LIQUIDATED,
+            timestamp=now - timedelta(days=2),
+        ),
+        make_event(
+            event_type=ActivityEventType.CORRELATION_WARNING,
+            timestamp=now - timedelta(minutes=1),
+        ),
+    ]
+
+    safety = build_runtime_safety_score(events)
+
+    assert safety.inputs.liquidation_events == 0
+    assert safety.inputs.correlation_warnings == 1
 
 
 # =============================================================================

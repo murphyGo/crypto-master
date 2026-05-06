@@ -36,6 +36,11 @@ only when the opt-in gate flag is enabled. Correlation inputs now allow an empty
 existing exposure set and expose an `open_only` filter so closed historical
 trades do not block new candidates.
 
+Subagent review follow-up fixed the production multi-account path: the engine now
+collects open trades from every active sub-account trader before evaluating a
+candidate, and enriches existing runtime trades from proposal history so
+strategy-specific duplicate gates can match `proposal.technique_name`.
+
 ## Files Changed
 
 - Created: `src/runtime/correlation_governor.py`
@@ -56,6 +61,8 @@ trades do not block new candidates.
 | Count distinct sub-accounts, not repeated trades alone | The unit target is cross-account duplicate exposure; repeated trades inside one account are a separate sizing concern. |
 | Default the gate to disabled | The unit plan calls for optional gating; advisory mode avoids surprising live/paper rejection until operators opt in. |
 | Log warnings even when not rejecting | Operators and the runtime safety score need concentration visibility before hard blocking is enabled. |
+| Evaluate existing runtime exposure engine-wide | The unit targets cross-account duplicate exposure, so per-sub-account trader-local state is insufficient. |
+| Use proposal history as runtime strategy lookup | Open `TradeHistory` rows do not always carry a performance record id, but accepted proposal records carry the executed trade id and technique name. |
 
 ## Verification
 
@@ -64,6 +71,7 @@ trades do not block new candidates.
 - `uv run black --check src/runtime/correlation_governor.py src/runtime/__init__.py tests/test_runtime_correlation_governor.py`
 - `uv run mypy src`
 - `uv run pytest tests/test_runtime_correlation_governor.py tests/test_runtime_safety_score.py tests/test_runtime_engine.py::test_notification_receives_runtime_safety_score tests/test_runtime_engine.py::test_correlation_warning_is_advisory_by_default tests/test_runtime_engine.py::test_correlation_gate_rejects_when_enabled -q`
+- `uv run pytest tests/test_runtime_engine.py::test_correlation_warning_is_advisory_by_default tests/test_runtime_engine.py::test_correlation_gate_rejects_when_enabled tests/test_runtime_engine.py::test_correlation_gate_uses_proposal_history_strategy_lookup -q`
 
 ## Follow-Up
 

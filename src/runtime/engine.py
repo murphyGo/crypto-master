@@ -66,7 +66,7 @@ from src.runtime.correlation_governor import (
 )
 from src.runtime.safety_score import (
     compute_runtime_safety_score,
-    inputs_from_activity_events,
+    inputs_from_recent_activity_events,
 )
 from src.strategy.performance import (
     PerformanceRecord,
@@ -515,7 +515,7 @@ class TradingEngine:
 
         try:
             safety_score = compute_runtime_safety_score(
-                inputs_from_activity_events(self.activity_log.read_all())
+                inputs_from_recent_activity_events(self.activity_log.read_all())
             )
             await self.notification_dispatcher.notify_proposal(
                 proposal,
@@ -699,8 +699,10 @@ class TradingEngine:
         result: CycleResult,
     ) -> str | None:
         """Emit advisory correlation warnings or reject when opt-in gate is enabled."""
+        del trader  # Existing exposure is collected engine-wide when possible.
         existing = CorrelationInputSet.from_trade_history(
-            [trade for trade in trader.get_open_trades() if trade.status == "open"]
+            self._open_trades_for_correlation(),
+            strategy_lookup=self._strategy_lookup_for_open_trades(),
         ).open_only()
         candidate = _proposal_to_correlation_exposure(proposal)
         decision = evaluate_correlation_gate(
@@ -756,6 +758,35 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
         return reason
+
+    def _open_trades_for_correlation(self) -> list[TradeHistory]:
+        """Collect open trades across active sub-account traders."""
+        if self.sub_account_registry is None:
+            traders = [self.trader]
+        else:
+            traders = [
+                self.sub_account_registry.get_trader(sub_account.id)
+                for sub_account in self.sub_account_registry.list_active()
+            ]
+
+        trades: list[TradeHistory] = []
+        seen: set[str] = set()
+        for trader in traders:
+            for trade in trader.get_open_trades():
+                if trade.status != "open" or trade.id in seen:
+                    continue
+                seen.add(trade.id)
+                trades.append(trade)
+        return trades
+
+    def _strategy_lookup_for_open_trades(self) -> dict[str, str]:
+        """Map open trade ids to proposal technique names when available."""
+        lookup: dict[str, str] = {}
+        for record in self.proposal_history.list_all():
+            if record.trade_id is None:
+                continue
+            lookup[record.trade_id] = record.proposal.technique_name
+        return lookup
 
     async def _stale_quote_gate(
         self,

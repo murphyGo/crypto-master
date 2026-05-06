@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from pydantic import ValidationError
 
@@ -14,7 +16,10 @@ from src.runtime.safety_score import (
     compute_runtime_safety_score,
     format_runtime_safety_summary,
     inputs_from_activity_events,
+    inputs_from_recent_activity_events,
+    recent_activity_events,
 )
+from src.utils.time import now_utc
 
 
 def test_runtime_safety_inputs_defaults_are_zero() -> None:
@@ -84,6 +89,35 @@ def test_inputs_from_activity_events_counts_safety_signals() -> None:
     assert inputs.stale_quote_warnings == 1
     assert inputs.correlation_warnings == 1
     assert inputs.open_drawdown_percent == 12.5
+
+
+def test_inputs_from_recent_activity_events_ignores_old_incidents() -> None:
+    now = now_utc()
+    events = [
+        ActivityEvent(
+            event_type=ActivityEventType.LIQUIDATED,
+            timestamp=now - timedelta(hours=25),
+        ),
+        ActivityEvent(
+            event_type=ActivityEventType.CORRELATION_WARNING,
+            timestamp=now - timedelta(minutes=5),
+        ),
+    ]
+
+    inputs = inputs_from_recent_activity_events(events, now=now, lookback_hours=24)
+
+    assert inputs.liquidation_events == 0
+    assert inputs.correlation_warnings == 1
+
+
+def test_recent_activity_events_can_disable_window() -> None:
+    now = now_utc()
+    old = ActivityEvent(
+        event_type=ActivityEventType.CYCLE_ERRORED,
+        timestamp=now - timedelta(days=7),
+    )
+
+    assert recent_activity_events([old], now=now, lookback_hours=0) == [old]
 
 
 def test_compute_runtime_safety_score_safe_when_no_penalties() -> None:

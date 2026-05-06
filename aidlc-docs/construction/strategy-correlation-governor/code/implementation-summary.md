@@ -26,3 +26,8 @@ Review follow-up wires the gate into `TradingEngine`: duplicate exposure emits
 only when the opt-in gate is enabled. Existing exposure inputs now allow empty
 sets and can filter to open-only trades so closed history does not block new
 candidates.
+
+Subagent review follow-up fixes the production multi-account path. Runtime gate
+evaluation now collects open trades across all active sub-account traders and
+uses proposal history to enrich existing open trades with technique names for
+strategy-specific duplicate checks.

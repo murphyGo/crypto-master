@@ -20,3 +20,7 @@ email payloads when supplied by the dispatcher.
 Review follow-up connects the runtime path: `TradingEngine` now passes the
 current safety score into proposal notifications, and correlation-warning
 activity events count as concentration warnings in the score.
+
+Subagent review follow-up adds recent-window scoring for runtime surfaces.
+Notification and dashboard paths use `inputs_from_recent_activity_events`, so
+audit-retained historical incidents age out of the operator-facing safety score.

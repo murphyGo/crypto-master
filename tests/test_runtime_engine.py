@@ -17,6 +17,7 @@ from src.proposal.interaction import (
     ProposalDecision,
     ProposalHistory,
     ProposalInteraction,
+    ProposalRecord,
 )
 from src.proposal.notification import NotificationDispatcher
 from src.runtime.activity_log import ActivityEventType, ActivityLog
@@ -86,6 +87,7 @@ def make_trade(
     exit_price: str | None = None,
     pnl_percent: float | None = None,
     status: str = "open",
+    performance_record_id: str | None = None,
 ) -> TradeHistory:
     return TradeHistory(
         id=trade_id,
@@ -99,6 +101,7 @@ def make_trade(
         exit_quantity=Decimal(quantity) if exit_price is not None else None,
         pnl_percent=pnl_percent,
         status=status,  # type: ignore[arg-type]
+        performance_record_id=performance_record_id,
     )
 
 
@@ -811,17 +814,46 @@ async def test_correlation_warning_is_advisory_by_default(tmp_path: Path) -> Non
     )
     engine, mocks = build_engine(
         tmp_path=tmp_path,
-        btc_proposal=proposal,
+        btc_proposal=None,
         config=EngineConfig(
             auto_approve_threshold=1.0,
             max_open_positions_per_symbol=2,
         ),
-        open_trades=[existing_trade],
     )
+    alpha = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    beta = SubAccount(
+        id="beta",
+        name="Beta",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    alpha_trader = make_mock_trader()
+    beta_trader = make_mock_trader()
+    alpha_trader.get_open_trades.return_value = [existing_trade]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [alpha, beta],
+        {"alpha": alpha_trader, "beta": beta_trader},
+    )  # type: ignore[assignment]
+    mocks["proposal_engine"].strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal | None:
+        if kwargs["sub_account_id"] == "alpha":
+            return None
+        return proposal
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
 
     result = await engine.run_cycle()
 
     assert result.positions_opened == 1
+    beta_trader.open_position.assert_awaited_once()
     warnings = mocks["activity_log"].filter(
         event_type=ActivityEventType.CORRELATION_WARNING
     )
@@ -841,26 +873,131 @@ async def test_correlation_gate_rejects_when_enabled(tmp_path: Path) -> None:
     ).model_copy(update={"sub_account_id": "beta"})
     engine, mocks = build_engine(
         tmp_path=tmp_path,
-        btc_proposal=proposal,
+        btc_proposal=None,
         config=EngineConfig(
             auto_approve_threshold=1.0,
             max_open_positions_per_symbol=2,
             correlation_gate_enabled=True,
         ),
-        open_trades=[existing_trade],
     )
+    alpha = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    beta = SubAccount(
+        id="beta",
+        name="Beta",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    alpha_trader = make_mock_trader()
+    beta_trader = make_mock_trader()
+    alpha_trader.get_open_trades.return_value = [existing_trade]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [alpha, beta],
+        {"alpha": alpha_trader, "beta": beta_trader},
+    )  # type: ignore[assignment]
+    mocks["proposal_engine"].strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal | None:
+        if kwargs["sub_account_id"] == "alpha":
+            return None
+        return proposal
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
 
     result = await engine.run_cycle()
 
     assert result.proposals_accepted == 1
     assert result.proposals_rejected == 1
     assert result.positions_opened == 0
-    mocks["trader"].open_position.assert_not_called()
+    beta_trader.open_position.assert_not_called()
     record = mocks["history"].load("btc-corr-reject")
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason == (
         "correlation gate rejected excessive duplicate exposure"
     )
+
+
+async def test_correlation_gate_uses_proposal_history_strategy_lookup(
+    tmp_path: Path,
+) -> None:
+    existing_trade = make_trade(
+        trade_id="t-btc-existing",
+        symbol="BTC/USDT",
+        side="long",
+    ).model_copy(update={"sub_account_id": "alpha"})
+    existing_proposal = make_proposal(
+        proposal_id="btc-existing-proposal",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "alpha"})
+    proposal = make_proposal(
+        proposal_id="btc-strategy-reject",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "beta"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=None,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=2,
+            correlation_gate_enabled=True,
+            correlation_max_sub_accounts_per_symbol_side=2,
+            correlation_max_sub_accounts_per_strategy_symbol_side=1,
+        ),
+    )
+    mocks["history"].save(
+        ProposalRecord(
+            proposal=existing_proposal,
+            decision=ProposalDecision.ACCEPTED,
+            trade_id=existing_trade.id,
+        )
+    )
+    alpha = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    beta = SubAccount(
+        id="beta",
+        name="Beta",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    alpha_trader = make_mock_trader()
+    beta_trader = make_mock_trader()
+    alpha_trader.get_open_trades.return_value = [existing_trade]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [alpha, beta],
+        {"alpha": alpha_trader, "beta": beta_trader},
+    )  # type: ignore[assignment]
+    mocks["proposal_engine"].strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal | None:
+        if kwargs["sub_account_id"] == "alpha":
+            return None
+        return proposal
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_rejected == 1
+    beta_trader.open_position.assert_not_called()
+    warning = mocks["activity_log"].filter(
+        event_type=ActivityEventType.CORRELATION_WARNING
+    )[0]
+    assert warning.details["warnings"][0]["warning_type"] == (
+        "duplicate_strategy_symbol_side"
+    )
+    assert warning.details["warnings"][0]["strategy_id"] == "tech_a"
 
 
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:

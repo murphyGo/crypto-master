@@ -13,11 +13,15 @@ Related Requirements:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from enum import Enum
 
 from pydantic import BaseModel, Field, model_validator
 
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.utils.time import ensure_utc, now_utc
+
+DEFAULT_RECENT_LOOKBACK_HOURS = 24
 
 
 class RuntimeSafetyBand(str, Enum):
@@ -98,6 +102,33 @@ def inputs_from_activity_events(
         correlation_warnings=_count(events, ActivityEventType.CORRELATION_WARNING),
         liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
         cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
+        open_drawdown_percent=open_drawdown_percent,
+    )
+
+
+def recent_activity_events(
+    events: list[ActivityEvent],
+    *,
+    lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
+    now: datetime | None = None,
+) -> list[ActivityEvent]:
+    """Return events inside the runtime safety recency window."""
+    if lookback_hours <= 0:
+        return list(events)
+    cutoff = ensure_utc(now or now_utc()) - timedelta(hours=lookback_hours)
+    return [event for event in events if ensure_utc(event.timestamp) >= cutoff]
+
+
+def inputs_from_recent_activity_events(
+    events: list[ActivityEvent],
+    *,
+    lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
+    now: datetime | None = None,
+    open_drawdown_percent: float = 0.0,
+) -> RuntimeSafetyInputs:
+    """Aggregate safety inputs from only recent runtime activity events."""
+    return inputs_from_activity_events(
+        recent_activity_events(events, lookback_hours=lookback_hours, now=now),
         open_drawdown_percent=open_drawdown_percent,
     )
 
@@ -201,4 +232,6 @@ __all__ = [
     "compute_runtime_safety_score",
     "format_runtime_safety_summary",
     "inputs_from_activity_events",
+    "inputs_from_recent_activity_events",
+    "recent_activity_events",
 ]

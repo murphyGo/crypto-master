@@ -89,8 +89,12 @@ class CorrelationExposure(BaseModel):
     ) -> CorrelationExposure:
         """Normalize one runtime trade history record into an exposure."""
         strategy_id = "unknown"
-        if trade.performance_record_id is not None and strategy_lookup is not None:
-            strategy_id = strategy_lookup.get(trade.performance_record_id, "unknown")
+        if strategy_lookup is not None:
+            if trade.performance_record_id is not None:
+                strategy_id = strategy_lookup.get(
+                    trade.performance_record_id, "unknown"
+                )
+            strategy_id = strategy_lookup.get(trade.id, strategy_id)
         return cls(
             source=CorrelationExposureSource.RUNTIME,
             exposure_id=trade.id,
