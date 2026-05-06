@@ -28,6 +28,7 @@ from src.ai.exceptions import ClaudeParseError
 from src.logger import get_logger
 from src.strategy.base import TechniqueInfo
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
+from src.strategy.trade_autopsy import TradeAutopsy
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.ai.improver")
@@ -169,6 +170,7 @@ class StrategyImprover:
         original_source: str,
         performance: TechniquePerformance,
         records: list[PerformanceRecord] | None = None,
+        autopsies: list[TradeAutopsy] | None = None,
         save: bool = True,
     ) -> GeneratedTechnique:
         """Ask Claude to propose an improved revision of a technique.
@@ -178,6 +180,7 @@ class StrategyImprover:
             original_source: The current technique file's text.
             performance: Aggregate stats for the technique.
             records: Optional recent performance records for context.
+            autopsies: Optional post-trade diagnostic summaries.
             save: If True, write the result to ``experimental_dir``.
 
         Returns:
@@ -192,6 +195,7 @@ class StrategyImprover:
             original_source=original_source,
             performance=performance,
             records=records or [],
+            autopsies=autopsies or [],
         )
         generated = await self._run(
             prompt=prompt,
@@ -604,6 +608,7 @@ class StrategyImprover:
         original_source: str,
         performance: TechniquePerformance,
         records: list[PerformanceRecord],
+        autopsies: list[TradeAutopsy],
     ) -> str:
         """Construct the improvement prompt (FR-022)."""
         perf_summary = (
@@ -621,6 +626,11 @@ class StrategyImprover:
             self._format_records(records[-10:])
             if records
             else ("(no detailed records supplied)")
+        )
+        autopsy_block = (
+            self._format_autopsies(autopsies[-10:])
+            if autopsies
+            else ("(no trade autopsies supplied)")
         )
 
         suggested_name = f"{technique.name}_v2"
@@ -641,6 +651,8 @@ class StrategyImprover:
             f"{perf_summary}\n\n"
             "## Recent Trades\n"
             f"{records_block}\n\n"
+            "## Trade Autopsies\n"
+            f"{autopsy_block}\n\n"
             "## Required Reasoning Process\n"
             "Before writing the revised technique, work through these "
             "steps in your reply (inside the markdown body, as a "
@@ -878,6 +890,36 @@ class StrategyImprover:
             lines.append(
                 f"- {r.symbol} {r.timeframe} signal={r.signal} "
                 f"outcome={outcome} pnl={pnl}"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_autopsies(autopsies: list[TradeAutopsy]) -> str:
+        """Render trade autopsies as compact improvement context."""
+        if not autopsies:
+            return "(none)"
+        lines = []
+        for autopsy in autopsies:
+            pnl = (
+                f"{autopsy.pnl_percent:.2f}%"
+                if autopsy.pnl_percent is not None
+                else str(autopsy.pnl)
+            )
+            mfe = (
+                f"{autopsy.max_favorable_excursion_percent:.2f}%"
+                if autopsy.max_favorable_excursion_percent is not None
+                else "n/a"
+            )
+            mae = (
+                f"{autopsy.max_adverse_excursion_percent:.2f}%"
+                if autopsy.max_adverse_excursion_percent is not None
+                else "n/a"
+            )
+            lines.append(
+                f"- {autopsy.symbol} {autopsy.side} "
+                f"outcome={autopsy.outcome.value} close={autopsy.close_reason} "
+                f"pnl={pnl} mfe={mfe} mae={mae} "
+                f"hold={autopsy.holding_seconds:.0f}s"
             )
         return "\n".join(lines)
 

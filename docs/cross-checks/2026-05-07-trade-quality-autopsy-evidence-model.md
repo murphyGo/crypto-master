@@ -16,6 +16,7 @@ autopsy evidence model.
 | Outcome bucket is explicit | Complete | Tests cover win and breakeven outcomes. |
 | Candle-window MFE/MAE are computed | Complete | Tests cover long and short trades with side-aware favorable/adverse excursion. |
 | Missing candle overlap is rejected | Complete | Test asserts `TradeAutopsyError` when no candle falls inside the trade window. |
+| Autopsies feed improvement context | Complete | Test asserts improvement prompt includes close reason, MFE, and MAE when autopsies are supplied. |
 
 ## Implementation Evidence
 
@@ -26,12 +27,15 @@ autopsy evidence model.
 ## Test Evidence
 
 - `uv run pytest tests/test_strategy_trade_autopsy.py -q`
+- `uv run pytest tests/test_ai_improver.py tests/test_strategy_trade_autopsy.py -q`
 - `uv run ruff check src/strategy/trade_autopsy.py src/strategy/__init__.py tests/test_strategy_trade_autopsy.py`
+- `uv run ruff check src/ai/improver.py tests/test_ai_improver.py`
 - `uv run black --check src/strategy/trade_autopsy.py src/strategy/__init__.py tests/test_strategy_trade_autopsy.py`
+- `uv run black --check src/ai/improver.py tests/test_ai_improver.py`
 
 ## Gaps and Risks
 
-- Strategy improvement prompts do not consume autopsy summaries yet.
+- No dashboard drill-down exists yet for the new autopsy records.
 
 ## Unit Mapping
 

@@ -1,5 +1,6 @@
 """Tests for StrategyImprover."""
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -19,6 +20,7 @@ from src.strategy.performance import (
     TechniquePerformance,
     TradeOutcome,
 )
+from src.strategy.trade_autopsy import TradeAutopsy, TradeAutopsyOutcome
 
 # =============================================================================
 # Helpers
@@ -100,6 +102,30 @@ def sample_records() -> list[PerformanceRecord]:
             outcome=TradeOutcome.LOSS,
             exit_price=Decimal("49000"),
             pnl_percent=-2.0,
+        )
+    ]
+
+
+def sample_autopsies() -> list[TradeAutopsy]:
+    return [
+        TradeAutopsy(
+            trade_id="autopsy-1",
+            symbol="BTC/USDT",
+            side="long",
+            mode="paper",
+            entry_time=datetime(2026, 5, 7, 1, tzinfo=timezone.utc),
+            exit_time=datetime(2026, 5, 7, 3, tzinfo=timezone.utc),
+            entry_price=Decimal("50000"),
+            exit_price=Decimal("49000"),
+            quantity=Decimal("0.1"),
+            leverage=1,
+            pnl=Decimal("-100"),
+            pnl_percent=-2.0,
+            close_reason="stop_loss",
+            holding_seconds=7200,
+            outcome=TradeAutopsyOutcome.LOSS,
+            max_favorable_excursion_percent=1.5,
+            max_adverse_excursion_percent=3.0,
         )
     ]
 
@@ -301,6 +327,24 @@ class TestSuggestImprovement:
         assert "BTC/USDT" in prompt  # from records
         # Output format boilerplate
         assert "fenced markdown code block" in prompt
+
+    @pytest.mark.asyncio
+    async def test_prompt_includes_trade_autopsies(self, tmp_path: Path) -> None:
+        """Autopsy summaries should feed the improvement prompt."""
+        improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
+        await improver.suggest_improvement(
+            technique=sample_technique(),
+            original_source="ORIGINAL_SOURCE_MARKER",
+            performance=sample_performance(),
+            records=sample_records(),
+            autopsies=sample_autopsies(),
+        )
+
+        prompt = claude.complete.await_args.args[0]
+        assert "Trade Autopsies" in prompt
+        assert "close=stop_loss" in prompt
+        assert "mfe=1.50%" in prompt
+        assert "mae=3.00%" in prompt
 
     @pytest.mark.asyncio
     async def test_no_records_still_works(self, tmp_path: Path) -> None:

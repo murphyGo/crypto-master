@@ -72,7 +72,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `quality-governance` | Complete | Brownfield-complete; construction-ready | Track future AI-DLC hygiene, debt, and review changes in construction plans |
 | `strategy-promotion-lab` | Complete | First-pass scoring, observation persistence, dashboard recommendations, and operator action helper shipped | Track future lab workflow refinements in construction plans |
 | `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, and publish-time validation shipped | Track future marketplace dashboard/operator tooling in construction plans |
-| `trade-quality-autopsy` | New | Product unit registered; construction-ready | Plan closed-trade quality diagnostics |
+| `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, and improvement-context summaries shipped | Track future dashboard autopsy drill-downs in construction plans |
 | `runtime-safety-score` | New | Product unit registered; construction-ready | Plan operator-facing safety score |
 | `proposal-replay-simulator` | New | Product unit registered; construction-ready | Plan proposal replay and threshold sensitivity |
 | `strategy-correlation-governor` | New | Product unit registered; construction-ready | Plan correlation-aware exposure controls |
