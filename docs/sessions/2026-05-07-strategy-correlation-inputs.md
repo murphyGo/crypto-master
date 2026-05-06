@@ -19,6 +19,12 @@ PnL.
 runtime trade history and includes simple sub-account and symbol filters for the
 next duplicate-exposure warning step.
 
+The warning step adds `compute_duplicate_exposure_warnings`, which groups
+normalized exposures by `symbol+side` and `strategy+symbol+side` across
+sub-accounts. Warnings include the involved sub-account ids, exposure ids, total
+notional, and an operator-readable message. Thresholds are configurable through
+`CorrelationWarningPolicy`.
+
 ## Files Changed
 
 - Created: `src/runtime/correlation_governor.py`
@@ -36,6 +42,7 @@ next duplicate-exposure warning step.
 | Use strategy lookup for runtime history | `TradeHistory` stores `performance_record_id`, so strategy names remain an optional enrichment. |
 | Keep this step advisory-input only | Correlation blocking semantics belong in the later gate step. |
 | Avoid runtime imports of backtest classes | `runtime.__init__` is imported by trading modules; type-only imports prevent a circular import. |
+| Count distinct sub-accounts, not repeated trades alone | The unit target is cross-account duplicate exposure; repeated trades inside one account are a separate sizing concern. |
 
 ## Verification
 
@@ -46,4 +53,4 @@ next duplicate-exposure warning step.
 
 ## Follow-Up
 
-- Compute duplicate-exposure warnings across sub-accounts.
+- Add optional runtime rejection gate for excessive correlated exposure.

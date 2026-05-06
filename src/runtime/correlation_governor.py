@@ -34,6 +34,13 @@ class CorrelationExposureSource(str, Enum):
     RUNTIME = "runtime"
 
 
+class CorrelationWarningType(str, Enum):
+    """Duplicate-exposure warning category."""
+
+    DUPLICATE_SYMBOL_SIDE = "duplicate_symbol_side"
+    DUPLICATE_STRATEGY_SYMBOL_SIDE = "duplicate_strategy_symbol_side"
+
+
 class CorrelationExposure(BaseModel):
     """A strategy/symbol exposure sample used by correlation governance."""
 
@@ -148,8 +155,124 @@ class CorrelationInputSet(BaseModel):
         return [exposure for exposure in self.exposures if exposure.symbol == symbol]
 
 
+class CorrelationWarningPolicy(BaseModel):
+    """Thresholds for duplicate-exposure advisory warnings."""
+
+    max_sub_accounts_per_symbol_side: int = Field(default=1, ge=1)
+    max_sub_accounts_per_strategy_symbol_side: int = Field(default=1, ge=1)
+
+
+class CorrelationWarning(BaseModel):
+    """Advisory duplicate-exposure warning across sub-accounts."""
+
+    warning_type: CorrelationWarningType
+    symbol: str
+    side: Literal["long", "short"]
+    strategy_id: str | None = None
+    sub_account_ids: list[str]
+    exposure_ids: list[str]
+    total_notional: Decimal
+    message: str
+
+
+def compute_duplicate_exposure_warnings(
+    inputs: CorrelationInputSet,
+    *,
+    policy: CorrelationWarningPolicy | None = None,
+) -> list[CorrelationWarning]:
+    """Compute advisory duplicate-exposure warnings across sub-accounts."""
+    policy = policy or CorrelationWarningPolicy()
+    warnings: list[CorrelationWarning] = []
+    warnings.extend(_symbol_side_warnings(inputs.exposures, policy))
+    warnings.extend(_strategy_symbol_side_warnings(inputs.exposures, policy))
+    return warnings
+
+
+def _symbol_side_warnings(
+    exposures: list[CorrelationExposure],
+    policy: CorrelationWarningPolicy,
+) -> list[CorrelationWarning]:
+    grouped: dict[tuple[str, Literal["long", "short"]], list[CorrelationExposure]] = {}
+    for exposure in exposures:
+        grouped.setdefault((exposure.symbol, exposure.side), []).append(exposure)
+
+    warnings: list[CorrelationWarning] = []
+    for (symbol, side), group in sorted(grouped.items()):
+        sub_accounts = _distinct_sub_accounts(group)
+        if len(sub_accounts) <= policy.max_sub_accounts_per_symbol_side:
+            continue
+        warnings.append(
+            CorrelationWarning(
+                warning_type=CorrelationWarningType.DUPLICATE_SYMBOL_SIDE,
+                symbol=symbol,
+                side=side,
+                sub_account_ids=sub_accounts,
+                exposure_ids=_exposure_ids(group),
+                total_notional=_total_notional(group),
+                message=(
+                    f"{symbol} {side} exposure spans "
+                    f"{len(sub_accounts)} sub-accounts"
+                ),
+            )
+        )
+    return warnings
+
+
+def _strategy_symbol_side_warnings(
+    exposures: list[CorrelationExposure],
+    policy: CorrelationWarningPolicy,
+) -> list[CorrelationWarning]:
+    grouped: dict[
+        tuple[str, str, Literal["long", "short"]],
+        list[CorrelationExposure],
+    ] = {}
+    for exposure in exposures:
+        grouped.setdefault(
+            (exposure.strategy_id, exposure.symbol, exposure.side),
+            [],
+        ).append(exposure)
+
+    warnings: list[CorrelationWarning] = []
+    for (strategy_id, symbol, side), group in sorted(grouped.items()):
+        sub_accounts = _distinct_sub_accounts(group)
+        if len(sub_accounts) <= policy.max_sub_accounts_per_strategy_symbol_side:
+            continue
+        warnings.append(
+            CorrelationWarning(
+                warning_type=CorrelationWarningType.DUPLICATE_STRATEGY_SYMBOL_SIDE,
+                strategy_id=strategy_id,
+                symbol=symbol,
+                side=side,
+                sub_account_ids=sub_accounts,
+                exposure_ids=_exposure_ids(group),
+                total_notional=_total_notional(group),
+                message=(
+                    f"{strategy_id} repeats {symbol} {side} across "
+                    f"{len(sub_accounts)} sub-accounts"
+                ),
+            )
+        )
+    return warnings
+
+
+def _distinct_sub_accounts(exposures: list[CorrelationExposure]) -> list[str]:
+    return sorted({exposure.sub_account_id for exposure in exposures})
+
+
+def _exposure_ids(exposures: list[CorrelationExposure]) -> list[str]:
+    return sorted(exposure.exposure_id for exposure in exposures)
+
+
+def _total_notional(exposures: list[CorrelationExposure]) -> Decimal:
+    return sum((exposure.notional for exposure in exposures), Decimal("0"))
+
+
 __all__ = [
     "CorrelationExposure",
     "CorrelationExposureSource",
     "CorrelationInputSet",
+    "CorrelationWarning",
+    "CorrelationWarningPolicy",
+    "CorrelationWarningType",
+    "compute_duplicate_exposure_warnings",
 ]

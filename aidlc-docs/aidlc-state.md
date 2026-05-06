@@ -75,7 +75,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, and improvement-context summaries shipped | Track future dashboard autopsy drill-downs in construction plans |
 | `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, and notification summary hooks shipped | Track future hard pause gates and signal calibration in construction plans |
 | `proposal-replay-simulator` | Complete | Replay input model, threshold/exit comparison, and operator Markdown report shipped | Track future CLI/dashboard replay tooling in construction plans |
-| `strategy-correlation-governor` | In Progress | Backtest/runtime exposure input model shipped | Continue duplicate-exposure warnings and advisory gate |
+| `strategy-correlation-governor` | In Progress | Backtest/runtime exposure inputs and duplicate-exposure warnings shipped | Continue optional runtime rejection gate |
 
 ## Construction Stage Policy
 

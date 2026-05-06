@@ -8,7 +8,7 @@ New product-intelligence unit for correlation-aware exposure control.
 
 - [x] Register the strategy correlation governor unit and construction plan.
 - [x] Define strategy and asset correlation inputs from backtest and runtime data.
-- [ ] Compute duplicate-exposure warnings across sub-accounts.
+- [x] Compute duplicate-exposure warnings across sub-accounts.
 - [ ] Add optional runtime rejection gate for excessive correlated exposure.
 
 ## Evidence

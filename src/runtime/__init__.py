@@ -13,6 +13,10 @@ from src.runtime.correlation_governor import (
     CorrelationExposure,
     CorrelationExposureSource,
     CorrelationInputSet,
+    CorrelationWarning,
+    CorrelationWarningPolicy,
+    CorrelationWarningType,
+    compute_duplicate_exposure_warnings,
 )
 from src.runtime.safety_score import (
     RuntimeSafetyBand,
@@ -27,6 +31,10 @@ __all__ = [
     "CorrelationExposure",
     "CorrelationExposureSource",
     "CorrelationInputSet",
+    "CorrelationWarning",
+    "CorrelationWarningPolicy",
+    "CorrelationWarningType",
+    "compute_duplicate_exposure_warnings",
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",

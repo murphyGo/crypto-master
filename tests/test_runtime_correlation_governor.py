@@ -12,6 +12,9 @@ from src.backtest.engine import BacktestResult, BacktestTrade
 from src.runtime.correlation_governor import (
     CorrelationExposureSource,
     CorrelationInputSet,
+    CorrelationWarningPolicy,
+    CorrelationWarningType,
+    compute_duplicate_exposure_warnings,
 )
 from src.strategy.performance import TradeHistory
 
@@ -155,3 +158,81 @@ def test_correlation_input_filters_by_sub_account_and_symbol() -> None:
 def test_correlation_input_requires_at_least_one_exposure() -> None:
     with pytest.raises(ValidationError, match="at least 1 item"):
         CorrelationInputSet.from_backtest_results([make_backtest_result([])])
+
+
+def test_duplicate_exposure_warns_on_same_symbol_side_across_sub_accounts() -> None:
+    alpha = make_backtest_trade("a", symbol="BTC/USDT", sub_account_id="alpha")
+    beta = make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="beta")
+    inputs = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([alpha, beta])]
+    )
+
+    warnings = compute_duplicate_exposure_warnings(inputs)
+
+    symbol_warning = next(
+        warning
+        for warning in warnings
+        if warning.warning_type == CorrelationWarningType.DUPLICATE_SYMBOL_SIDE
+    )
+    assert symbol_warning.symbol == "BTC/USDT"
+    assert symbol_warning.side == "long"
+    assert symbol_warning.sub_account_ids == ["alpha", "beta"]
+    assert symbol_warning.exposure_ids == ["a", "b"]
+    assert symbol_warning.total_notional == Decimal("40.0")
+
+
+def test_duplicate_exposure_warns_on_same_strategy_symbol_side() -> None:
+    alpha = make_backtest_trade(
+        "a",
+        symbol="ETH/USDT",
+        sub_account_id="alpha",
+        technique_name="breakout",
+    )
+    beta = make_backtest_trade(
+        "b",
+        symbol="ETH/USDT",
+        sub_account_id="beta",
+        technique_name="breakout",
+    )
+    inputs = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([alpha, beta])]
+    )
+
+    warnings = compute_duplicate_exposure_warnings(inputs)
+
+    strategy_warning = next(
+        warning
+        for warning in warnings
+        if warning.warning_type == CorrelationWarningType.DUPLICATE_STRATEGY_SYMBOL_SIDE
+    )
+    assert strategy_warning.strategy_id == "breakout"
+    assert strategy_warning.symbol == "ETH/USDT"
+    assert "breakout repeats ETH/USDT long" in strategy_warning.message
+
+
+def test_duplicate_exposure_policy_can_allow_multiple_sub_accounts() -> None:
+    alpha = make_backtest_trade("a", symbol="BTC/USDT", sub_account_id="alpha")
+    beta = make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="beta")
+    inputs = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([alpha, beta])]
+    )
+
+    warnings = compute_duplicate_exposure_warnings(
+        inputs,
+        policy=CorrelationWarningPolicy(
+            max_sub_accounts_per_symbol_side=2,
+            max_sub_accounts_per_strategy_symbol_side=2,
+        ),
+    )
+
+    assert warnings == []
+
+
+def test_duplicate_exposure_ignores_repeated_same_sub_account() -> None:
+    first = make_backtest_trade("a", symbol="BTC/USDT", sub_account_id="alpha")
+    second = make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="alpha")
+    inputs = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([first, second])]
+    )
+
+    assert compute_duplicate_exposure_warnings(inputs) == []
