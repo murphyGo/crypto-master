@@ -44,6 +44,10 @@ from pydantic import BaseModel, Field
 from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
+from src.runtime.safety_score import (
+    RuntimeSafetyScore,
+    format_runtime_safety_summary,
+)
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.proposal.notification")
@@ -84,6 +88,8 @@ class Notification(BaseModel):
         message: Short human-readable hook displayed by console
             backends. Free-form; defaults are produced by
             :func:`build_default_message`.
+        safety_score: Optional operator-facing runtime safety rollup to
+            include in rich notification summaries.
     """
 
     notification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -91,6 +97,7 @@ class Notification(BaseModel):
     level: NotificationLevel
     proposal: Proposal
     message: str
+    safety_score: RuntimeSafetyScore | None = None
 
     model_config = {"use_enum_values": True}
 
@@ -264,11 +271,14 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
       prices vertically without rendering issues.
     """
     proposal = notification.proposal
+    safety_summary = _format_optional_safety_summary(notification)
     summary = (
         f"[{proposal.sub_account_id}] {proposal.symbol} {proposal.signal} "
         f"score={proposal.score.composite:.2f} "
         f"entry={proposal.entry_price}"
     )
+    if safety_summary is not None:
+        summary = f"{summary} {safety_summary}"
     detail = (
         "```\n"
         f"proposal_id: {proposal.proposal_id}\n"
@@ -279,6 +289,7 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
         f"qty: {proposal.quantity}\n"
         f"leverage: {proposal.leverage}x\n"
         f"rr: {proposal.risk_reward_ratio:.2f}\n"
+        f"{_format_optional_safety_detail(notification)}"
         "```"
     )
     return {
@@ -293,6 +304,7 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
                         f"{proposal.symbol} {proposal.signal}* "
                         f"score={proposal.score.composite:.2f} "
                         f"entry={proposal.entry_price}"
+                        f"{_format_optional_safety_suffix(notification)}"
                     ),
                 },
             },
@@ -382,10 +394,12 @@ def _build_telegram_text(notification: Notification) -> str:
     via ``parse_mode=Markdown`` on the request.
     """
     proposal = notification.proposal
+    safety_summary = _format_optional_safety_suffix(notification)
     headline = (
         f"*[{proposal.sub_account_id}] {proposal.symbol} {proposal.signal}* "
         f"score={proposal.score.composite:.2f} "
         f"entry={proposal.entry_price}"
+        f"{safety_summary}"
     )
     detail = (
         "```\n"
@@ -397,9 +411,30 @@ def _build_telegram_text(notification: Notification) -> str:
         f"qty: {proposal.quantity}\n"
         f"leverage: {proposal.leverage}x\n"
         f"rr: {proposal.risk_reward_ratio:.2f}\n"
+        f"{_format_optional_safety_detail(notification)}"
         "```"
     )
     return f"{headline}\n{detail}"
+
+
+def _format_optional_safety_summary(notification: Notification) -> str | None:
+    if notification.safety_score is None:
+        return None
+    return format_runtime_safety_summary(notification.safety_score)
+
+
+def _format_optional_safety_suffix(notification: Notification) -> str:
+    safety_summary = _format_optional_safety_summary(notification)
+    if safety_summary is None:
+        return ""
+    return f" {safety_summary}"
+
+
+def _format_optional_safety_detail(notification: Notification) -> str:
+    safety_summary = _format_optional_safety_summary(notification)
+    if safety_summary is None:
+        return ""
+    return f"{safety_summary}\n"
 
 
 class TelegramNotifier:
@@ -680,6 +715,7 @@ class NotificationDispatcher:
         proposal: Proposal,
         level: NotificationLevel | None = None,
         message: str | None = None,
+        safety_score: RuntimeSafetyScore | None = None,
     ) -> Notification | None:
         """Emit a notification for one proposal across all backends.
 
@@ -689,6 +725,8 @@ class NotificationDispatcher:
                 meeting ``min_score`` are tagged ``GOOD_OPPORTUNITY``;
                 anything else is ``INFO``.
             message: Override the default message text.
+            safety_score: Optional runtime safety rollup to include in
+                Slack/Telegram/email notification summaries.
 
         Returns:
             The constructed ``Notification`` if it was dispatched (even
@@ -708,6 +746,7 @@ class NotificationDispatcher:
             level=resolved_level,
             proposal=proposal,
             message=message or build_default_message(proposal, resolved_level),
+            safety_score=safety_score,
         )
 
         for notifier in self._notifiers:
@@ -752,6 +791,7 @@ class RoutedNotificationDispatcher(NotificationDispatcher):
         proposal: Proposal,
         level: NotificationLevel | None = None,
         message: str | None = None,
+        safety_score: RuntimeSafetyScore | None = None,
     ) -> Notification | None:
         """Dispatch using a sub-account route when one is configured."""
         route = self.sub_account_routes.get(proposal.sub_account_id)
@@ -761,11 +801,13 @@ class RoutedNotificationDispatcher(NotificationDispatcher):
                 proposal,
                 level=level,
                 message=message,
+                safety_score=safety_score,
             )
         return await dispatcher.notify_proposal(
             proposal,
             level=level,
             message=message,
+            safety_score=safety_score,
         )
 
 

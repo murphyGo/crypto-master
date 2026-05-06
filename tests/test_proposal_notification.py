@@ -30,6 +30,11 @@ from src.proposal.notification import (
     _build_telegram_text,
     build_default_message,
 )
+from src.runtime.safety_score import (
+    RuntimeSafetyInputs,
+    RuntimeSafetyScore,
+    compute_runtime_safety_score,
+)
 
 # =============================================================================
 # Helpers
@@ -82,12 +87,23 @@ def make_notification(
     proposal: Proposal | None = None,
     level: NotificationLevel = NotificationLevel.GOOD_OPPORTUNITY,
     message: str | None = None,
+    safety_score: RuntimeSafetyScore | None = None,
 ) -> Notification:
     proposal = proposal or make_proposal()
     return Notification(
         level=level,
         proposal=proposal,
         message=message or build_default_message(proposal, level),
+        safety_score=safety_score,
+    )
+
+
+def make_safety_score() -> RuntimeSafetyScore:
+    return compute_runtime_safety_score(
+        RuntimeSafetyInputs(
+            recent_cycle_errors=1,
+            recent_notification_failures=1,
+        )
     )
 
 
@@ -346,6 +362,21 @@ async def test_dispatcher_respects_explicit_level_and_message() -> None:
     assert sent.message == "custom hook"
 
 
+async def test_dispatcher_attaches_runtime_safety_score() -> None:
+    notifier = RecordingNotifier()
+    dispatcher = NotificationDispatcher(notifiers=[notifier])
+    safety_score = make_safety_score()
+
+    notification = await dispatcher.notify_proposal(
+        make_proposal(),
+        safety_score=safety_score,
+    )
+
+    assert notification is not None
+    assert notification.safety_score == safety_score
+    assert notifier.received[0].safety_score == safety_score
+
+
 async def test_dispatcher_with_empty_notifier_list_still_returns_notification() -> None:
     dispatcher = NotificationDispatcher(notifiers=[])
 
@@ -482,6 +513,16 @@ def test_build_slack_payload_blocks_have_summary_and_detail() -> None:
     assert f"TP: {proposal.take_profit}" in detail_text
     assert f"qty: {proposal.quantity}" in detail_text
     assert f"leverage: {proposal.leverage}x" in detail_text
+
+
+def test_build_slack_payload_includes_runtime_safety_summary() -> None:
+    notification = make_notification(safety_score=make_safety_score())
+
+    payload = _build_slack_payload(notification)
+    detail_text = payload["blocks"][1]["text"]["text"]
+
+    assert "runtime_safety: 75/100 degraded" in payload["text"]
+    assert "runtime_safety: 75/100 degraded" in detail_text
 
 
 def test_slack_notifier_repr_redacts_url() -> None:
@@ -644,6 +685,14 @@ def test_build_telegram_text_has_summary_and_detail() -> None:
     assert f"qty: {proposal.quantity}" in text
     assert f"leverage: {proposal.leverage}x" in text
     assert "rr: 3.00" in text
+
+
+def test_build_telegram_text_includes_runtime_safety_summary() -> None:
+    notification = make_notification(safety_score=make_safety_score())
+
+    text = _build_telegram_text(notification)
+
+    assert "runtime_safety: 75/100 degraded" in text
 
 
 def test_telegram_notifier_repr_masks_token() -> None:
@@ -876,6 +925,12 @@ def test_build_email_body_matches_telegram_text() -> None:
     notification = make_notification(proposal=proposal)
 
     assert _build_email_body(notification) == _build_telegram_text(notification)
+
+
+def test_build_email_body_includes_runtime_safety_summary() -> None:
+    notification = make_notification(safety_score=make_safety_score())
+
+    assert "runtime_safety: 75/100 degraded" in _build_email_body(notification)
 
 
 async def test_email_notifier_subject_and_body_format(

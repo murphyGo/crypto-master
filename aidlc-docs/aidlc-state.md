@@ -73,7 +73,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `strategy-promotion-lab` | Complete | First-pass scoring, observation persistence, dashboard recommendations, and operator action helper shipped | Track future lab workflow refinements in construction plans |
 | `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, and publish-time validation shipped | Track future marketplace dashboard/operator tooling in construction plans |
 | `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, and improvement-context summaries shipped | Track future dashboard autopsy drill-downs in construction plans |
-| `runtime-safety-score` | New | Product unit registered; construction-ready | Plan operator-facing safety score |
+| `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, and notification summary hooks shipped | Track future hard pause gates and signal calibration in construction plans |
 | `proposal-replay-simulator` | New | Product unit registered; construction-ready | Plan proposal replay and threshold sensitivity |
 | `strategy-correlation-governor` | New | Product unit registered; construction-ready | Plan correlation-aware exposure controls |
 

@@ -16,12 +16,15 @@ bands before event extraction is implemented.
 | Activity events aggregate into inputs | Complete | Test counts cycle errors, notification failures, LLM timeouts, stale-quote rejection, liquidation, and cold-start events. |
 | Score computation applies penalties | Complete | Tests cover safe no-penalty score, risky mixed penalties, and pause-recommended liquidation penalties. |
 | Engine dashboard surfaces score | Complete | `build_runtime_safety_score` feeds the Engine page Runtime Safety section. |
+| Notification summaries can surface score | Complete | Slack, Telegram, and email builders include the optional compact safety summary when `Notification.safety_score` is present. |
 
 ## Implementation Evidence
 
 - `src/runtime/safety_score.py`
 - `src/runtime/__init__.py`
+- `src/proposal/notification.py`
 - `tests/test_runtime_safety_score.py`
+- `tests/test_proposal_notification.py`
 
 ## Test Evidence
 
@@ -31,10 +34,14 @@ bands before event extraction is implemented.
 - `uv run ruff check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 - `uv run black --check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
 - `uv run black --check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
+- `uv run pytest tests/test_proposal_notification.py tests/test_runtime_safety_score.py -q`
+- `uv run ruff check src/proposal/notification.py src/runtime/safety_score.py tests/test_proposal_notification.py tests/test_runtime_safety_score.py`
+- `uv run black --check src/proposal/notification.py src/runtime/safety_score.py tests/test_proposal_notification.py tests/test_runtime_safety_score.py`
 
 ## Gaps and Risks
 
-- Notification summary surfacing is not implemented yet.
+- Runtime code does not yet choose a hard pause gate from the safety score;
+  current behavior is advisory and presentation-focused.
 
 ## Unit Mapping
 

@@ -12,6 +12,7 @@ from src.runtime.safety_score import (
     RuntimeSafetyPolicy,
     RuntimeSafetyScore,
     compute_runtime_safety_score,
+    format_runtime_safety_summary,
     inputs_from_activity_events,
 )
 
@@ -113,3 +114,11 @@ def test_compute_runtime_safety_score_recommends_pause_on_liquidation() -> None:
 
     assert safety.score == 20
     assert safety.band == RuntimeSafetyBand.PAUSE_RECOMMENDED
+
+
+def test_format_runtime_safety_summary_is_compact() -> None:
+    safety = compute_runtime_safety_score(
+        RuntimeSafetyInputs(recent_cycle_errors=1),
+    )
+
+    assert format_runtime_safety_summary(safety) == "runtime_safety: 85/100 safe"

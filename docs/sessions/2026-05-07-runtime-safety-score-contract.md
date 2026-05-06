@@ -22,11 +22,18 @@ factors.
 The dashboard surfacing step adds a Runtime Safety section to the Engine page,
 showing score, band, and factors from the same pure scoring helper.
 
+The notification summary step adds a compact formatter and lets proposal
+notifications carry an optional `RuntimeSafetyScore`. Slack, Telegram, and
+email payloads now surface `runtime_safety: <score>/100 <band>` when the
+dispatcher is given a score.
+
 ## Files Changed
 
 - Created: `src/runtime/safety_score.py`
 - Created: `tests/test_runtime_safety_score.py`
 - Modified: `src/runtime/__init__.py`
+- Modified: `src/proposal/notification.py`
+- Modified: `tests/test_proposal_notification.py`
 - Modified: `aidlc-docs/construction/plans/runtime-safety-score-code-generation-plan.md`
 - Modified: `aidlc-docs/construction/runtime-safety-score/code/implementation-summary.md`
 - Created: `docs/cross-checks/2026-05-07-runtime-safety-score-contract.md`
@@ -40,6 +47,7 @@ showing score, band, and factors from the same pure scoring helper.
 | Validate threshold ordering | Misordered score thresholds would silently invert operator semantics. |
 | Keep scoring pure | Dashboard and notification surfaces can call the same deterministic function without side effects. |
 | Surface dashboard before notifications | The dashboard already consumes activity events, so it is the lowest-risk first surface. |
+| Make notification safety optional | Existing proposal notification callers continue to work until runtime paths decide when to attach the latest score. |
 
 ## Verification
 
@@ -49,7 +57,10 @@ showing score, band, and factors from the same pure scoring helper.
 - `uv run ruff check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
 - `uv run black --check src/runtime/safety_score.py src/runtime/__init__.py tests/test_runtime_safety_score.py`
 - `uv run black --check src/dashboard/pages/engine.py tests/test_dashboard_engine.py`
+- `uv run pytest tests/test_proposal_notification.py tests/test_runtime_safety_score.py -q`
+- `uv run ruff check src/proposal/notification.py src/runtime/safety_score.py tests/test_proposal_notification.py tests/test_runtime_safety_score.py`
+- `uv run black --check src/proposal/notification.py src/runtime/safety_score.py tests/test_proposal_notification.py tests/test_runtime_safety_score.py`
 
 ## Follow-Up
 
-- Surface score in notification summaries.
+- Decide which signals become hard pause gates versus advisory warnings.

@@ -12,3 +12,7 @@ stale-quote rejections, liquidations, cold-start blocks, and open drawdown.
 
 The Engine dashboard now computes and displays the runtime safety score, safety
 band, and explanatory factors from the same pure scoring helpers.
+
+Notification summaries now accept an optional `RuntimeSafetyScore` and include
+the compact `runtime_safety: <score>/100 <band>` line in Slack, Telegram, and
+email payloads when supplied by the dispatcher.

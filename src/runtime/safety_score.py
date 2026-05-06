@@ -75,6 +75,11 @@ class RuntimeSafetyScore(BaseModel):
     factors: list[str] = Field(default_factory=list)
 
 
+def format_runtime_safety_summary(score: RuntimeSafetyScore) -> str:
+    """Render a compact safety summary for operator notification surfaces."""
+    return f"runtime_safety: {score.score}/100 {score.band.value}"
+
+
 def inputs_from_activity_events(
     events: list[ActivityEvent],
     *,
@@ -186,5 +191,6 @@ __all__ = [
     "RuntimeSafetyPolicy",
     "RuntimeSafetyScore",
     "compute_runtime_safety_score",
+    "format_runtime_safety_summary",
     "inputs_from_activity_events",
 ]

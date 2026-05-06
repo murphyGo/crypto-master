@@ -9,7 +9,7 @@ New product-intelligence unit for operator safety rollups.
 - [x] Register the runtime safety score unit and construction plan.
 - [x] Define safety score inputs and status bands.
 - [x] Compute score from activity, notification, LLM, quote freshness, drawdown, and liquidation signals.
-- [ ] Surface score in engine dashboard and notification summaries.
+- [x] Surface score in engine dashboard and notification summaries.
 
 ## Evidence
 
