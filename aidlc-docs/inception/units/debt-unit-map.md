@@ -10,8 +10,7 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
-| `ai-feedback-loop` | DEBT-049 | 1 Low | Auto-research regression coverage. |
-| `backtesting-validation` | DEBT-022, DEBT-049 | 2 Low | Circuit breaker completeness and code-type trade path. |
+| `backtesting-validation` | DEBT-022 | 1 Low | Circuit breaker completeness. |
 | `proposal-runtime` | DEBT-052 | 1 Low | Notification attribution/routing. |
 | `notifications-ops` | DEBT-052 | 1 Low | Per-sub-account routing is deferred. |
 
@@ -20,7 +19,6 @@ when debt is added or resolved, then refresh this map.
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-022 | Low | `backtesting-validation` | | Add cumulative/rate-based parse failure breaker when a real workload needs it. |
-| DEBT-049 | Low | `ai-feedback-loop` | `backtesting-validation` | Add code-type integration fixture that emits a trade-producing long/short signal. |
 | DEBT-052 | Low | `proposal-runtime` | `notifications-ops` | Add optional per-sub-account notification routing config when operationally needed. |
 
 ## Promotion Candidates

@@ -575,6 +575,59 @@ class DonchianCodepathFixture(BaseStrategy):
 ```
 '''
 
+TRADE_PRODUCING_PYTHON_STRATEGY = '''\
+```python
+"""Trade-producing code-type fixture."""
+
+from datetime import datetime
+from decimal import Decimal
+
+from src.models import OHLCV, AnalysisResult
+from src.strategy.base import BaseStrategy, TechniqueInfo
+
+TECHNIQUE_INFO = {
+    "name": "donchian_trade_fixture",
+    "version": "0.1.0",
+    "description": "Trade-producing fixture for code-path integration test",
+    "author": "system",
+    "symbols": ["BTC/USDT"],
+    "timeframes": ["1h"],
+    "status": "experimental",
+    "changelog": "fixture",
+}
+
+
+class DonchianTradeFixture(BaseStrategy):
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+    ) -> AnalysisResult:
+        self.validate_input(ohlcv, min_candles=20)
+        price = Decimal(str(ohlcv[-1].close))
+        if len(ohlcv) == 60:
+            return AnalysisResult(
+                signal="long",
+                confidence=0.9,
+                entry_price=price,
+                stop_loss=price * Decimal("0.999"),
+                take_profit=price * Decimal("1.003"),
+                reasoning="fixture long breakout",
+                timestamp=datetime.now(),
+            )
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.1,
+            entry_price=price,
+            stop_loss=price * Decimal("0.99"),
+            take_profit=price * Decimal("1.01"),
+            reasoning="fixture waiting",
+            timestamp=datetime.now(),
+        )
+```
+'''
+
 
 def _make_code_type_loop(
     tmp_path: Path, audit_path: Path, claude_mock: AsyncMock
@@ -719,3 +772,87 @@ async def test_code_type_pick_runs_without_per_bar_claude_calls(
         "code-type strategies is no LLM in the hot path. Phase 17.5 "
         "regression."
     )
+
+
+@pytest.mark.asyncio
+async def test_code_type_pick_produces_backtest_trade_without_claude_analyze(
+    tmp_path: Path,
+) -> None:
+    """DEBT-049: code-type integration must exercise the trade path.
+
+    The original load-bearing fixture was neutral-only. This companion
+    fixture emits one long signal, lets the real Backtester open and
+    close the trade, and still asserts zero per-bar Claude calls.
+    """
+    from src.ai.claude import ClaudeCLI
+    from src.ai.improver import StrategyImprover
+    from src.backtest.analyzer import PerformanceAnalyzer
+    from src.backtest.engine import BacktestConfig, Backtester
+    from src.backtest.validator import RobustnessGate, RobustnessReport
+    from src.strategy.loader import load_strategy
+
+    claude = AsyncMock(spec=ClaudeCLI)
+    claude.complete.return_value = TRADE_PRODUCING_PYTHON_STRATEGY
+    claude.analyze = AsyncMock(return_value={})
+
+    captured: dict[str, object] = {}
+    backtester = Backtester(BacktestConfig(), data_dir=tmp_path / "backtest")
+    original_run_for_strategy = backtester.run_for_strategy
+
+    async def _capturing_run_for_strategy(*args, **kwargs):
+        result = await original_run_for_strategy(*args, **kwargs)
+        captured["backtest"] = result
+        return result
+
+    backtester.run_for_strategy = _capturing_run_for_strategy  # type: ignore[assignment]
+    gate = RobustnessGate(backtester=backtester)
+
+    async def _stub_evaluate(*args, **kwargs):
+        return RobustnessReport(
+            overall_passed=True,
+            gates=[],
+            summary="stubbed pass for trade-producing code-type integration",
+            baseline_sharpe=1.0,
+            baseline_trades=1,
+        )
+
+    gate.evaluate = _stub_evaluate  # type: ignore[assignment]
+    loop = FeedbackLoop(
+        improver=StrategyImprover(
+            claude=claude,
+            experimental_dir=tmp_path / "experimental",
+            catalog_path=tmp_path / "no_catalog.md",
+        ),
+        backtester=backtester,
+        analyzer=PerformanceAnalyzer(),
+        gate=gate,
+        audit_log=AuditLog(path=tmp_path / "audit.jsonl"),
+        experimental_dir=tmp_path / "experimental",
+        active_dir=tmp_path / "active",
+        state_dir=tmp_path / "state",
+    )
+    candles = _synthetic_ohlcv(120)
+    exchange = _FakeExchange({"1h": candles})
+    pick = Pick(
+        slug="donchian_trade",
+        context="Trade-producing Donchian fixture",
+        timeframe="1h",
+        candles=120,
+        code_type=True,
+    )
+
+    results = await run_picks([pick], symbol="BTC/USDT", loop=loop, exchange=exchange)
+
+    assert results[0].status == LoopStatus.AWAITING_APPROVAL.value
+    assert results[0].technique_name == "donchian_trade_fixture"
+    assert results[0].saved_path is not None
+
+    backtest = captured["backtest"]
+    assert backtest.total_trades >= 1
+    assert backtest.trades[0].side == "long"
+    assert backtest.trades[0].close_reason in {"take_profit", "stop_loss"}
+
+    reloaded = load_strategy(Path(results[0].saved_path))
+    assert reloaded.name == "donchian_trade_fixture"
+    assert claude.complete.call_count == 1
+    assert claude.analyze.call_count == 0

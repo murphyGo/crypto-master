@@ -94,46 +94,6 @@ real workload demands it).
 - DEBT-019 (parent — broader "circuit breaker hardening" umbrella)
 - DEBT-020 (sibling — same cycle's breaker tuning)
 
-### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path)
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-02 |
-| **Phase** | Phase 17.5 (origin) |
-| **Component** | `tests/test_scripts_auto_research_candidates.py` (`GOOD_PYTHON_STRATEGY` fixture, lines 427-468) |
-
-**Description:**
-Phase 17.5's load-bearing integration test
-`test_code_type_pick_runs_without_per_bar_claude_calls` proves the
-zero-per-bar-LLM invariant by running a real `Backtester` over 300
-synthetic candles and asserting `claude.analyze.call_count == 0`.
-However, the `GOOD_PYTHON_STRATEGY` fixture hardcodes
-`signal="neutral"` always, so the backtest produces zero trades —
-the loader/dispatch path is exercised but the actual trade-producing
-branch (`signal="long"`/`"short"` → entry → SL/TP → close) is not.
-Existing baseline strategies (`rsi.py`, `ma_crossover.py`) cover the
-trade-execution path through the same `Backtester`, so this gap is
-test-density only, not a correctness blind spot.
-
-**Impact:**
-- A regression that breaks code-type strategies' ability to *emit
-  signals* (vs just load) wouldn't be caught by Phase 17.5's test
-  alone — it would need to ride a baseline strategy regression.
-
-**Suggested Resolution:**
-Add a follow-up test where the fixture flips `signal="long"` on a
-Donchian-shaped trigger (e.g. `close > rolling_max(20)`) so the
-backtest produces real `Trade` objects and the code-type-strategy
-trade-execution path is pinned end-to-end. Trivial — copy the
-existing test structure, swap one method body in the fixture.
-
-**Related:**
-- Phase 17.5 quant-trader-expert review (2026-05-02 — flagged as
-  ship-with-note, non-blocking)
-- `tests/test_scripts_auto_research_candidates.py:427-468`
-- `test_code_type_pick_runs_without_per_bar_claude_calls`
-
 ### DEBT-052: Per-sub-account notification routing overrides deferred
 
 | Field | Value |
@@ -208,6 +168,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-30 |
 | **Resolved** | 2026-05-06 |
 | **Resolution** | Added a post-generation guard in `StrategyImprover.suggest_improvement`: when the original source contains `## Output Contract`, the improved body must preserve the heading and the original contract's runtime trade keys. Invalid improvements raise `GeneratedTechniqueError` before any file is saved. Added `TestImprovementOutputContract` coverage for preservation, dropped-contract rejection, and missing-key rejection. |
+
+### DEBT-049: Phase 17.5 code-type integration test fixture uses `signal="neutral"` (does not exercise trade-producing path) ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-02 |
+| **Resolved** | 2026-05-06 |
+| **Resolution** | Added `TRADE_PRODUCING_PYTHON_STRATEGY` and `test_code_type_pick_produces_backtest_trade_without_claude_analyze` to `tests/test_scripts_auto_research_candidates.py`. The fixture emits a long signal, the real `Backtester` opens/closes at least one trade, the saved code strategy reloads through `load_strategy`, and `ClaudeCLI.analyze` remains at zero calls. |
 
 ### DEBT-051: `SubAccountRegistry._load` YAML config dead branch silently ignores pre-staged files ✅
 

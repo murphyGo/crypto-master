@@ -38,6 +38,7 @@ of unfinished historical tasks.
 - [x] Align backtest leverage/liquidation behavior with trading and portfolio math.
 - [x] Add strategy-combination A/B harness and operator baseline runbook behavior.
 - [x] Enable auto-research catalog picks to exercise the robustness sensitivity gate.
+- [x] Verify code-type auto-research strategies can emit signals that produce backtest trades.
 
 ## Evidence
 

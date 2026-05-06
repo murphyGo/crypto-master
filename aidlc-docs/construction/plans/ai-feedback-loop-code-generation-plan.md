@@ -28,6 +28,7 @@ of unfinished historical tasks.
 - [x] Preserve deterministic catalog steering for generated code strategies.
 - [x] Thread auto-research parameter sensitivity grids into feedback-loop gating.
 - [x] Guard improvement generations from dropping existing runtime Output Contracts.
+- [x] Pin code-type auto-research fixtures through a trade-producing backtest path.
 
 ## Evidence
 
