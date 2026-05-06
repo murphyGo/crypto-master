@@ -11,6 +11,7 @@ Related Requirements:
 - FR-010: Paper Trading Mode
 """
 
+from src.trading.experiment_marketplace import ExperimentTemplate
 from src.trading.live import (
     LiveConfirmationRejectedError,
     LiveModeError,
@@ -72,6 +73,8 @@ __all__ = [
     "OpenPosition",
     "FeeConfig",
     "DEFAULT_FEE_CONFIGS",
+    # Experiment Marketplace
+    "ExperimentTemplate",
     # Live Trading Classes
     "LiveTrader",
     # Portfolio Classes
