@@ -33,6 +33,10 @@ sub_accounts:
     initial_balance:
       USDT: 2500
     strategy_filter: null
+    # Optional. Route this sub-account's push notifications to the
+    # matching key in NOTIFICATION_SLACK_WEBHOOK_URLS instead of the
+    # global SLACK_WEBHOOK_URL.
+    notification_route: experimental
     risk_overrides:
       risk_percent: 0.5
       max_open_positions_total: 1

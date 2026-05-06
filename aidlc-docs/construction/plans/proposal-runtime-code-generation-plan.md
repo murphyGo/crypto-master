@@ -31,6 +31,7 @@ of unfinished historical tasks.
 - [x] Add multi-technique scan, OHLCV cache use, and notification dispatch hooks.
 - [x] Add purge wiring, cross-cycle cap, diagnostic clarity, and stale-quote gates.
 - [x] Integrate portfolio snapshots, trade-quality diagnostics, and sub-account runtime behavior.
+- [x] Route proposal notifications by sub-account notification route refs when configured.
 
 ## Evidence
 

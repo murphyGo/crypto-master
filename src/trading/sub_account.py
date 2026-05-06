@@ -98,6 +98,9 @@ class SubAccount(BaseModel):
             sub-account; a list narrows it.
         risk_overrides: Per-sub-account risk-knob overrides; see
             :class:`RiskOverrides`.
+        notification_route: Optional route ref used by the runtime
+            notification router. ``None`` means the account uses the
+            global notification push backends.
         enabled: Soft-disable switch. ``False`` excludes the
             sub-account from ``SubAccountRegistry.list_active``
             without deleting its on-disk records.
@@ -110,6 +113,7 @@ class SubAccount(BaseModel):
     initial_balance: dict[str, Decimal] = Field(default_factory=dict)
     strategy_filter: list[str] | None = None
     risk_overrides: RiskOverrides = Field(default_factory=RiskOverrides)
+    notification_route: str | None = None
     enabled: bool = True
 
     # Frozen so registry consumers can't mutate behind the registry's

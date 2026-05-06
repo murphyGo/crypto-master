@@ -14,6 +14,7 @@ Verifies:
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -547,6 +548,77 @@ class TestBuildEngineEnvOverride:
         assert engine.config.bitcoin_symbol == "BTC/USD"
         assert engine.config.altcoin_top_k == 5
         assert engine.config.actor == "fly-prod-1"
+
+    def test_sub_account_notification_route_builds_routed_dispatcher(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from src.config import Settings
+        from src.main import build_engine
+        from src.proposal.notification import (
+            RoutedNotificationDispatcher,
+            SlackNotifier,
+        )
+        from src.trading.sub_account_registry import SubAccountRegistry
+
+        config_path = tmp_path / "sub_accounts.yaml"
+        config_path.write_text(
+            """
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 10000}
+  - id: experimental
+    name: Experimental
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 2500}
+    notification_route: lab
+""",
+            encoding="utf-8",
+        )
+        bn = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="testnet-bn-key",
+            testnet_api_secret="testnet-bn-secret",
+            testnet=False,
+        )
+        settings = Settings(
+            trading_mode="paper",
+            binance=bn,
+            notification_slack_webhook_urls={
+                "lab": "https://hooks.slack.com/services/T0/B0/LAB"
+            },
+        )
+        exchange = build_exchange(settings)
+        trader = PaperTrader(data_dir=tmp_path / "trades")
+        registry = SubAccountRegistry(
+            settings=settings,
+            trader=trader,
+            config_path=config_path,
+        )
+
+        with (
+            patch("src.main.load_all_strategies", return_value={}),
+            patch("src.main.PerformanceTracker"),
+            patch("src.main.ProposalHistory"),
+            patch("src.main.ActivityLog"),
+        ):
+            engine = build_engine(
+                settings,
+                exchange,
+                registry=registry,
+                trader=trader,
+            )
+
+        dispatcher = engine.notification_dispatcher
+        assert isinstance(dispatcher, RoutedNotificationDispatcher)
+        assert dispatcher.sub_account_routes == {"experimental": "lab"}
+        route_notifiers = dispatcher.route_dispatchers["lab"]._notifiers
+        assert any(isinstance(notifier, SlackNotifier) for notifier in route_notifiers)
 
     def test_explicit_config_argument_still_wins(self) -> None:
         """``build_engine`` allows callers (tests / one-shots) to pass

@@ -21,6 +21,7 @@ from src.proposal.notification import (
     Notification,
     NotificationDispatcher,
     NotificationLevel,
+    RoutedNotificationDispatcher,
     SlackNotifier,
     TelegramNotifier,
     _build_email_body,
@@ -351,6 +352,42 @@ async def test_dispatcher_with_empty_notifier_list_still_returns_notification() 
     result = await dispatcher.notify_proposal(make_proposal())
 
     assert result is not None
+
+
+async def test_routed_dispatcher_sends_matching_sub_account_to_route() -> None:
+    default = RecordingNotifier()
+    experimental = RecordingNotifier()
+    dispatcher = RoutedNotificationDispatcher(
+        default_dispatcher=NotificationDispatcher(notifiers=[default]),
+        sub_account_routes={"experimental": "lab"},
+        route_dispatchers={"lab": NotificationDispatcher(notifiers=[experimental])},
+    )
+
+    notification = await dispatcher.notify_proposal(
+        make_proposal(sub_account_id="experimental")
+    )
+
+    assert notification is not None
+    assert experimental.received == [notification]
+    assert default.received == []
+
+
+async def test_routed_dispatcher_falls_back_without_route_match() -> None:
+    default = RecordingNotifier()
+    experimental = RecordingNotifier()
+    dispatcher = RoutedNotificationDispatcher(
+        default_dispatcher=NotificationDispatcher(notifiers=[default]),
+        sub_account_routes={"experimental": "missing"},
+        route_dispatchers={"lab": NotificationDispatcher(notifiers=[experimental])},
+    )
+
+    notification = await dispatcher.notify_proposal(
+        make_proposal(sub_account_id="experimental")
+    )
+
+    assert notification is not None
+    assert default.received == [notification]
+    assert experimental.received == []
 
 
 # =============================================================================

@@ -428,6 +428,37 @@ credential refs in `config/sub_accounts.yaml`.
    The legacy pair remains available as the `binance_main` alias for
    single-account deployments.
 
+### Per-sub-account notification routes
+
+Sub-accounts can optionally send Slack push notifications to separate
+channels while preserving the always-on console/file notification log.
+Add a `notification_route` ref in `config/sub_accounts.yaml`:
+
+```yaml
+sub_accounts:
+  - id: experimental
+    name: Experimental Paper
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 2500}
+    notification_route: experimental
+```
+
+Then bind that route ref to a webhook:
+
+```bash
+fly secrets set \
+  NOTIFICATION_SLACK_WEBHOOK_URLS=experimental=https://hooks.slack.com/services/...
+```
+
+The value also accepts a JSON object when a secret manager handles one
+structured value more cleanly:
+
+```bash
+fly secrets set \
+  NOTIFICATION_SLACK_WEBHOOK_URLS='{"experimental":"https://hooks.slack.com/services/..."}'
+```
+
 ## Operator tools
 
 ### Proposal-history retention

@@ -43,6 +43,7 @@ from src.proposal.notification import (
     FileNotifier,
     NotificationDispatcher,
     Notifier,
+    RoutedNotificationDispatcher,
     SlackNotifier,
     TelegramNotifier,
 )
@@ -276,13 +277,14 @@ def build_engine(
     # half-configured deploy does not fail at runtime); Email is
     # opt-in via the SMTP quintet (host/user/password/from/to — port
     # has a default of 587 for STARTTLS).
-    notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
+    base_notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
+    push_notifiers: list[Notifier] = []
     if settings.slack_webhook_url:
-        notifiers.append(SlackNotifier(settings.slack_webhook_url))
+        push_notifiers.append(SlackNotifier(settings.slack_webhook_url))
         # Deliberately log presence only — never the URL itself.
         logger.info("Slack push notifier enabled.")
     if settings.telegram_bot_token and settings.telegram_chat_id:
-        notifiers.append(
+        push_notifiers.append(
             TelegramNotifier(
                 bot_token=settings.telegram_bot_token,
                 chat_id=settings.telegram_chat_id,
@@ -307,7 +309,7 @@ def build_engine(
         assert settings.email_smtp_password is not None
         assert settings.email_from is not None
         assert settings.email_to is not None
-        notifiers.append(
+        push_notifiers.append(
             EmailNotifier(
                 host=settings.email_smtp_host,
                 port=settings.email_smtp_port,
@@ -323,10 +325,32 @@ def build_engine(
         )
         # Deliberately log presence only — never the password.
         logger.info("Email push notifier enabled.")
-    notifier = NotificationDispatcher(
-        notifiers=notifiers,
+    default_dispatcher = NotificationDispatcher(
+        notifiers=[*base_notifiers, *push_notifiers],
         min_score=config.auto_approve_threshold,
     )
+    route_dispatchers = {
+        route: NotificationDispatcher(
+            notifiers=[*base_notifiers, SlackNotifier(webhook_url)],
+            min_score=config.auto_approve_threshold,
+        )
+        for route, webhook_url in settings.notification_slack_webhook_urls.items()
+    }
+    sub_account_routes = {
+        sub.id: sub.notification_route
+        for sub in registry.list_active()
+        if sub.notification_route is not None
+    }
+    notifier: NotificationDispatcher
+    if sub_account_routes and route_dispatchers:
+        notifier = RoutedNotificationDispatcher(
+            default_dispatcher=default_dispatcher,
+            sub_account_routes=sub_account_routes,
+            route_dispatchers=route_dispatchers,
+        )
+        logger.info("Per-sub-account notification routing enabled.")
+    else:
+        notifier = default_dispatcher
 
     logger.info(
         f"Trading mode: {settings.trading_mode} "

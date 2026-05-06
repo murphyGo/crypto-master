@@ -94,39 +94,6 @@ real workload demands it).
 - DEBT-019 (parent — broader "circuit breaker hardening" umbrella)
 - DEBT-020 (sibling — same cycle's breaker tuning)
 
-### DEBT-052: Per-sub-account notification routing overrides deferred
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-03 |
-| **Phase** | Phase 19.3 |
-| **Component** | `src/proposal/notification.py` / runtime notification wiring |
-
-**Description:**
-Phase 19.3 adds `sub_account_id` to notification headlines and
-structured details, but all sub-accounts still fan out to the same
-global notifier set. The Phase 19.3 plan explicitly deferred
-per-sub-account routing overrides such as `experimental` →
-`slack_webhook_url_experimental`.
-
-**Impact:**
-Low for 19.3 because alerts are now attributable by sub-account.
-Operators cannot yet route noisy experimental accounts to a separate
-channel without adding a second process or custom notifier wiring.
-
-**Suggested Resolution:**
-Add optional per-sub-account notifier config in a later 19.x pass:
-extend sub-account config with notification route refs, construct
-route-specific dispatchers, and route `notify_proposal` by
-`proposal.sub_account_id`.
-
-**Related:**
-- Phase 19.3 spec (`src/proposal/notification.py` bullet)
-- `src/proposal/notification.py`
-
----
-
 ## Resolved Debt Items
 
 <!--
@@ -150,6 +117,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-29 |
 | **Resolved** | 2026-05-05 |
 | **Resolution** | Added per-pick `param_grid` declarations for all auto-research catalog picks, threaded those grids into `FeedbackLoop.propose_new`, and added an automatic generated-code strategy factory so code-type candidates can be instantiated with swept constructor tunables during the robustness sensitivity gate. The generation context now names the exact tunables Claude must expose. |
+
+### DEBT-052: Per-sub-account notification routing overrides deferred ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-03 |
+| **Resolved** | 2026-05-06 |
+| **Resolution** | Added optional `notification_route` refs to sub-account config, parsed route-specific Slack webhooks through `Settings.notification_slack_webhook_urls`, and introduced `RoutedNotificationDispatcher` so a proposal's `sub_account_id` can choose a route-specific dispatcher while preserving default console/file notification logging. `src/main.py::build_engine` now builds route dispatchers from configured refs. |
 
 ### DEBT-026: Donchian experimental strategy file truncated and untracked ✅
 
@@ -580,12 +556,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 10 |
+| Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 3 |
-| Low | 7 |
-| Resolved (All Time) | 42 |
+| Medium | 0 |
+| Low | 1 |
+| Resolved (All Time) | 49 |
 
 ---
 
@@ -593,6 +569,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-06 | Resolved | DEBT-052 Per-sub-account notification routing overrides — added `notification_route` refs, env-backed route-specific Slack webhook map, and runtime routed dispatcher wiring |
 | 2026-04-05 | Created | Initial TECH-DEBT tracker |
 | 2026-04-28 | Added | DEBT-001 Pre-Existing Lint/Type Sweep (Medium) — surfaced during Phase 10.5 |
 | 2026-04-28 | Added | DEBT-002 OHLCV Per-Technique Refetch in Multi-Technique Scan (Low) — surfaced during Phase 10.6 |

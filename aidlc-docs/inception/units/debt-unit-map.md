@@ -11,20 +11,17 @@ when debt is added or resolved, then refresh this map.
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
 | `backtesting-validation` | DEBT-022 | 1 Low | Circuit breaker completeness. |
-| `proposal-runtime` | DEBT-052 | 1 Low | Notification attribution/routing. |
-| `notifications-ops` | DEBT-052 | 1 Low | Per-sub-account routing is deferred. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-022 | Low | `backtesting-validation` | | Add cumulative/rate-based parse failure breaker when a real workload needs it. |
-| DEBT-052 | Low | `proposal-runtime` | `notifications-ops` | Add optional per-sub-account notification routing config when operationally needed. |
 
 ## Promotion Candidates
 
-No Medium-or-higher active debt remains in this map. The next candidates are
-Low-priority hardening items selected by operational need.
+No Medium-or-higher active debt remains in this map. The remaining candidate is
+a Low-priority hardening item selected by operational need.
 
 ## Update Rules
 

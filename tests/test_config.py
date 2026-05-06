@@ -533,6 +533,34 @@ class TestEngineSettings:
         s = Settings(engine_symbols=["A/USDT", "B/USDT"])
         assert s.engine_symbols == ["A/USDT", "B/USDT"]
 
+    def test_notification_slack_webhook_routes_parse_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "NOTIFICATION_SLACK_WEBHOOK_URLS": (
+                    "experimental=https://hooks.slack.com/services/T0/B0/EXP,"
+                    "btc=https://hooks.slack.com/services/T0/B0/BTC"
+                )
+            },
+        ):
+            assert Settings().notification_slack_webhook_urls == {
+                "experimental": "https://hooks.slack.com/services/T0/B0/EXP",
+                "btc": "https://hooks.slack.com/services/T0/B0/BTC",
+            }
+
+    def test_notification_slack_webhook_routes_parse_json_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "NOTIFICATION_SLACK_WEBHOOK_URLS": (
+                    '{"experimental":"https://hooks.slack.com/services/T0/B0/EXP"}'
+                )
+            },
+        ):
+            assert Settings().notification_slack_webhook_urls == {
+                "experimental": "https://hooks.slack.com/services/T0/B0/EXP"
+            }
+
     def test_engine_balance_loads_from_env(self) -> None:
         with patch.dict(os.environ, {"ENGINE_BALANCE": "5000.50"}):
             assert Settings().engine_balance == Decimal("5000.50")

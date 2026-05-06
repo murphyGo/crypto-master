@@ -277,6 +277,7 @@ sub_accounts:
     mode: paper
     exchange_ref: default
     initial_balance: {USDT: 2500}
+    notification_route: lab
     risk_overrides:
       risk_percent: 0.5
       max_open_positions_total: 1
@@ -294,6 +295,7 @@ sub_accounts:
     assert registry.get("experimental").enabled is False
     assert registry.get("btc_only").strategy_filter == ["rsi_4h"]
     assert registry.get("experimental").risk_overrides.risk_percent == Decimal("0.5")
+    assert registry.get("experimental").notification_route == "lab"
     assert registry.get_trader("btc_only") is not registry.get_trader("default")
 
 

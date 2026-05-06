@@ -8,6 +8,7 @@ Related Requirements:
 - NFR-011: API Key Protection
 """
 
+import json
 import os
 import re
 from decimal import Decimal
@@ -279,6 +280,16 @@ class Settings(BaseSettings):
     # the application MUST NOT log it. Generate one at
     # https://api.slack.com/messaging/webhooks.
     slack_webhook_url: str | None = Field(default=None)
+    # Optional per-route Slack webhooks for sub-account notification
+    # overrides. Format:
+    # ``NOTIFICATION_SLACK_WEBHOOK_URLS=experimental=https://hooks...``.
+    # Multiple entries are comma-separated. JSON objects are also
+    # accepted for secret managers that prefer a single structured env
+    # value. Route keys are referenced by ``notification_route`` in
+    # ``config/sub_accounts.yaml``.
+    notification_slack_webhook_urls: Annotated[dict[str, str], NoDecode] = Field(
+        default_factory=dict
+    )
 
     # Telegram Notification Backend (Phase 12.4)
     # Bot token + chat id pair for the Telegram Bot API. Both must be
@@ -354,6 +365,42 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [s.strip() for s in v.split(",") if s.strip()]
         return v
+
+    @field_validator("notification_slack_webhook_urls", mode="before")
+    @classmethod
+    def _parse_notification_slack_webhook_urls(cls, v: object) -> object:
+        """Parse route-specific Slack webhook refs from env input."""
+        if not isinstance(v, str):
+            return v
+        stripped = v.strip()
+        if not stripped:
+            return {}
+        if stripped.startswith("{"):
+            parsed = json.loads(stripped)
+            if not isinstance(parsed, dict):
+                raise ValueError(
+                    "NOTIFICATION_SLACK_WEBHOOK_URLS JSON must be an object"
+                )
+            return {str(key): str(value) for key, value in parsed.items()}
+
+        routes: dict[str, str] = {}
+        for item in stripped.split(","):
+            part = item.strip()
+            if not part:
+                continue
+            if "=" not in part:
+                raise ValueError(
+                    "NOTIFICATION_SLACK_WEBHOOK_URLS entries must use route=url"
+                )
+            route, url = part.split("=", 1)
+            route = route.strip()
+            url = url.strip()
+            if not route or not url:
+                raise ValueError(
+                    "NOTIFICATION_SLACK_WEBHOOK_URLS route and url must be non-empty"
+                )
+            routes[route] = url
+        return routes
 
     @model_validator(mode="after")
     def _load_exchange_credentials(self) -> "Settings":

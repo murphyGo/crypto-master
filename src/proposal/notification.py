@@ -724,6 +724,51 @@ class NotificationDispatcher:
         return notification
 
 
+class RoutedNotificationDispatcher(NotificationDispatcher):
+    """Route proposal notifications by sub-account route refs.
+
+    The default dispatcher remains the fallback for every proposal.
+    When ``proposal.sub_account_id`` has a configured route and that
+    route has a dispatcher, only the route dispatcher sends the event.
+    This lets noisy experimental accounts use a separate push channel
+    while preserving the base console/file notifier set inside the
+    route dispatcher.
+    """
+
+    def __init__(
+        self,
+        *,
+        default_dispatcher: NotificationDispatcher,
+        sub_account_routes: dict[str, str],
+        route_dispatchers: dict[str, NotificationDispatcher],
+    ) -> None:
+        super().__init__(notifiers=[], min_score=default_dispatcher.min_score)
+        self.default_dispatcher = default_dispatcher
+        self.sub_account_routes = dict(sub_account_routes)
+        self.route_dispatchers = dict(route_dispatchers)
+
+    async def notify_proposal(
+        self,
+        proposal: Proposal,
+        level: NotificationLevel | None = None,
+        message: str | None = None,
+    ) -> Notification | None:
+        """Dispatch using a sub-account route when one is configured."""
+        route = self.sub_account_routes.get(proposal.sub_account_id)
+        dispatcher = self.route_dispatchers.get(route) if route is not None else None
+        if dispatcher is None:
+            return await self.default_dispatcher.notify_proposal(
+                proposal,
+                level=level,
+                message=message,
+            )
+        return await dispatcher.notify_proposal(
+            proposal,
+            level=level,
+            message=message,
+        )
+
+
 __all__ = [
     "ConsoleNotifier",
     "DEFAULT_NOTIFICATION_LOG",
@@ -733,6 +778,7 @@ __all__ = [
     "NotificationDispatcher",
     "NotificationLevel",
     "Notifier",
+    "RoutedNotificationDispatcher",
     "SlackNotifier",
     "TelegramNotifier",
     "build_default_message",

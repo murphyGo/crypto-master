@@ -28,6 +28,7 @@ of unfinished historical tasks.
 - [x] Add log retention behavior and notification push backends.
 - [x] Add Telegram, email, and SMTP_SSL notification support.
 - [x] Improve diagnostic clarity, observability, and logger test friendliness.
+- [x] Add optional per-sub-account Slack notification routing overrides.
 
 ## Evidence
 
