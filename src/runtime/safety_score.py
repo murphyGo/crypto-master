@@ -17,6 +17,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, model_validator
 
+from src.runtime.activity_log import ActivityEvent, ActivityEventType
+
 
 class RuntimeSafetyBand(str, Enum):
     """Operator-facing safety status band."""
@@ -73,9 +75,116 @@ class RuntimeSafetyScore(BaseModel):
     factors: list[str] = Field(default_factory=list)
 
 
+def inputs_from_activity_events(
+    events: list[ActivityEvent],
+    *,
+    open_drawdown_percent: float = 0.0,
+) -> RuntimeSafetyInputs:
+    """Aggregate safety inputs from runtime activity events."""
+    return RuntimeSafetyInputs(
+        recent_cycle_errors=_count(events, ActivityEventType.CYCLE_ERRORED),
+        recent_notification_failures=_count(
+            events,
+            ActivityEventType.NOTIFICATION_FAILED,
+        ),
+        recent_llm_timeouts=_count(events, ActivityEventType.LLM_TIMEOUT),
+        stale_quote_warnings=sum(1 for event in events if _is_stale_quote(event)),
+        liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
+        cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
+        open_drawdown_percent=open_drawdown_percent,
+    )
+
+
+def compute_runtime_safety_score(
+    inputs: RuntimeSafetyInputs,
+    *,
+    policy: RuntimeSafetyPolicy | None = None,
+) -> RuntimeSafetyScore:
+    """Compute an operator-facing safety score from aggregated inputs."""
+    policy = policy or RuntimeSafetyPolicy()
+    score = 100
+    factors: list[str] = []
+
+    score = _apply_penalty(
+        score,
+        min(inputs.recent_cycle_errors * 15, 45),
+        f"cycle errors={inputs.recent_cycle_errors}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.recent_notification_failures * 10, 30),
+        f"notification failures={inputs.recent_notification_failures}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.recent_llm_timeouts * 5, 20),
+        f"llm timeouts={inputs.recent_llm_timeouts}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.stale_quote_warnings * 10, 30),
+        f"stale quote warnings={inputs.stale_quote_warnings}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.liquidation_events * 40, 80),
+        f"liquidations={inputs.liquidation_events}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.cold_start_blocks * 5, 15),
+        f"cold-start blocks={inputs.cold_start_blocks}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(int(inputs.open_drawdown_percent), 30),
+        f"open drawdown={inputs.open_drawdown_percent:.2f}%",
+        factors,
+    )
+
+    score = max(0, min(100, score))
+    if not factors:
+        factors.append("no recent safety penalties")
+    return RuntimeSafetyScore(
+        score=score,
+        band=policy.band_for_score(score),
+        inputs=inputs,
+        factors=factors,
+    )
+
+
+def _count(events: list[ActivityEvent], event_type: ActivityEventType) -> int:
+    return sum(1 for event in events if event.event_type == event_type.value)
+
+
+def _is_stale_quote(event: ActivityEvent) -> bool:
+    reason = str(event.details.get("reason", ""))
+    return "stale_quote" in reason or "stale-quote" in event.message
+
+
+def _apply_penalty(
+    score: int,
+    penalty: int,
+    factor: str,
+    factors: list[str],
+) -> int:
+    if penalty <= 0:
+        return score
+    factors.append(f"{factor} (-{penalty})")
+    return score - penalty
+
+
 __all__ = [
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",
     "RuntimeSafetyScore",
+    "compute_runtime_safety_score",
+    "inputs_from_activity_events",
 ]

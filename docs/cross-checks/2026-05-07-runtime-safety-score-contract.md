@@ -13,6 +13,8 @@ bands before event extraction is implemented.
 | Status bands exist | Complete | `RuntimeSafetyBand` defines safe/degraded/risky/pause-recommended states. |
 | Score thresholds are validated | Complete | `RuntimeSafetyPolicy` rejects non-descending threshold configuration. |
 | Score output shape exists | Complete | `RuntimeSafetyScore` carries score, band, inputs, and explanatory factors. |
+| Activity events aggregate into inputs | Complete | Test counts cycle errors, notification failures, LLM timeouts, stale-quote rejection, liquidation, and cold-start events. |
+| Score computation applies penalties | Complete | Tests cover safe no-penalty score, risky mixed penalties, and pause-recommended liquidation penalties. |
 
 ## Implementation Evidence
 
@@ -28,8 +30,6 @@ bands before event extraction is implemented.
 
 ## Gaps and Risks
 
-- Activity-log extraction and actual score computation are intentionally
-  deferred to the next construction step.
 - Dashboard and notification surfacing are not implemented yet.
 
 ## Unit Mapping

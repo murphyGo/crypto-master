@@ -14,6 +14,11 @@ module defines bounded input counters, score threshold policy, operator-facing
 bands, and the final score shape without yet extracting events from the
 activity log.
 
+The follow-up step adds pure activity aggregation and score computation.
+Runtime activity events now map into `RuntimeSafetyInputs`, and
+`compute_runtime_safety_score` applies capped penalties with explanatory
+factors.
+
 ## Files Changed
 
 - Created: `src/runtime/safety_score.py`
@@ -30,6 +35,7 @@ activity log.
 | Separate inputs from score computation | Event extraction can evolve while the operator-facing score contract stays stable. |
 | Use explicit status bands | Operators need scan-friendly states, not only a raw number. |
 | Validate threshold ordering | Misordered score thresholds would silently invert operator semantics. |
+| Keep scoring pure | Dashboard and notification surfaces can call the same deterministic function without side effects. |
 
 ## Verification
 
@@ -39,5 +45,4 @@ activity log.
 
 ## Follow-Up
 
-- Compute score from activity, notification, LLM, quote freshness, drawdown, and liquidation signals.
 - Surface score in the engine dashboard and notification summaries.

@@ -14,6 +14,8 @@ from src.runtime.safety_score import (
     RuntimeSafetyInputs,
     RuntimeSafetyPolicy,
     RuntimeSafetyScore,
+    compute_runtime_safety_score,
+    inputs_from_activity_events,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",
     "RuntimeSafetyScore",
+    "compute_runtime_safety_score",
+    "inputs_from_activity_events",
 ]
