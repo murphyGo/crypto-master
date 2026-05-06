@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.trading.sub_account import RiskOverrides, SubAccount
@@ -88,5 +89,31 @@ class ExperimentTemplate(BaseModel):
             enabled=self.enabled,
         )
 
+    def to_sub_account_fragment(
+        self,
+        *,
+        sub_account_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Return a YAML-ready ``config/sub_accounts.yaml`` mapping."""
+        return self.to_sub_account(
+            sub_account_id=sub_account_id,
+            name=name,
+        ).model_dump(mode="json")
 
-__all__ = ["ExperimentTemplate"]
+
+def render_sub_account_yaml_fragment(
+    templates: list[ExperimentTemplate],
+) -> str:
+    """Render templates as a copyable ``sub_accounts`` YAML fragment."""
+    return yaml.safe_dump(
+        {
+            "sub_accounts": [
+                template.to_sub_account_fragment() for template in templates
+            ]
+        },
+        sort_keys=False,
+    )
+
+
+__all__ = ["ExperimentTemplate", "render_sub_account_yaml_fragment"]

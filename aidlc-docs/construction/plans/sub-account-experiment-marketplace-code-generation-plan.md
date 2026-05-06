@@ -8,7 +8,7 @@ New product-intelligence unit built on the existing sub-account foundation.
 
 - [x] Register the sub-account experiment marketplace unit and construction plan.
 - [x] Define reusable experiment template schema.
-- [ ] Render template examples into `config/sub_accounts.yaml` fragments.
+- [x] Render template examples into `config/sub_accounts.yaml` fragments.
 - [ ] Validate template risk overrides and notification routes.
 
 ## Evidence

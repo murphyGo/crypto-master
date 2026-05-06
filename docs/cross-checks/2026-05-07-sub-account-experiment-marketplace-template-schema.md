@@ -14,6 +14,8 @@ produce existing sub-account runtime records.
 | Unsafe ids are rejected | Complete | Test covers path-like template id rejection. |
 | Quote currency is normalized by contract | Complete | Test rejects lowercase quote currency. |
 | Ambiguous strategy filters are rejected | Complete | Test rejects an empty strategy filter while preserving `None` semantics for all strategies. |
+| Templates render YAML fragments | Complete | `render_sub_account_yaml_fragment` emits a `sub_accounts` document. |
+| Rendered fragments round-trip | Complete | Test writes rendered YAML and loads it through `SubAccountRegistry`. |
 
 ## Implementation Evidence
 
@@ -29,10 +31,8 @@ produce existing sub-account runtime records.
 
 ## Gaps and Risks
 
-- YAML fragment rendering is intentionally deferred to the next construction
-  step.
 - Runtime validation against configured notification routes is not part of this
-  first schema step.
+  schema/rendering step.
 
 ## Unit Mapping
 

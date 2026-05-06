@@ -14,6 +14,10 @@ schema. `ExperimentTemplate` captures reusable account-lab intent and
 materialises a normal `SubAccount`, keeping runtime account handling anchored
 on the existing sub-account model.
 
+The follow-up step adds YAML fragment rendering. Templates can now emit a
+copyable `sub_accounts` document that round-trips through the existing
+`SubAccountRegistry` parser.
+
 ## Files Changed
 
 - Created: `src/trading/experiment_marketplace.py`
@@ -30,6 +34,7 @@ on the existing sub-account model.
 | Materialise to `SubAccount` | Avoids a parallel runtime account model and reuses existing validation. |
 | Keep rendering out of the first step | The schema should be pinned before YAML fragment generation. |
 | Reject empty strategy filters | `null` means all strategies; an empty list is ambiguous and likely an operator mistake. |
+| Render registry-compatible YAML | Template examples should be directly copyable into `config/sub_accounts.yaml`. |
 
 ## Verification
 
@@ -39,5 +44,4 @@ on the existing sub-account model.
 
 ## Follow-Up
 
-- Render template examples into `config/sub_accounts.yaml` fragments.
 - Validate template risk overrides and notification routes against configured runtime surfaces.
