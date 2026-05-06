@@ -11,10 +11,12 @@ from pydantic import ValidationError
 from src.backtest.engine import BacktestResult, BacktestTrade
 from src.runtime.correlation_governor import (
     CorrelationExposureSource,
+    CorrelationGateConfig,
     CorrelationInputSet,
     CorrelationWarningPolicy,
     CorrelationWarningType,
     compute_duplicate_exposure_warnings,
+    evaluate_correlation_gate,
 )
 from src.strategy.performance import TradeHistory
 
@@ -236,3 +238,99 @@ def test_duplicate_exposure_ignores_repeated_same_sub_account() -> None:
     )
 
     assert compute_duplicate_exposure_warnings(inputs) == []
+
+
+def test_correlation_gate_allows_non_duplicate_candidate() -> None:
+    existing = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([make_backtest_trade("a", symbol="BTC/USDT")])]
+    )
+    candidate = CorrelationInputSet.from_backtest_results(
+        [
+            make_backtest_result(
+                [make_backtest_trade("b", symbol="ETH/USDT", sub_account_id="beta")]
+            )
+        ]
+    ).exposures[0]
+
+    decision = evaluate_correlation_gate(
+        existing,
+        candidate,
+        config=CorrelationGateConfig(enabled=True),
+    )
+
+    assert decision.allowed is True
+    assert decision.warnings == []
+    assert decision.reason == "no correlated duplicate exposure detected"
+
+
+def test_correlation_gate_disabled_allows_with_advisory_warnings() -> None:
+    existing = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([make_backtest_trade("a", symbol="BTC/USDT")])]
+    )
+    candidate = CorrelationInputSet.from_backtest_results(
+        [
+            make_backtest_result(
+                [make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="beta")]
+            )
+        ]
+    ).exposures[0]
+
+    decision = evaluate_correlation_gate(existing, candidate)
+
+    assert decision.allowed is True
+    assert decision.reason == "correlation gate disabled; advisory warnings only"
+    assert len(decision.warnings) == 2
+
+
+def test_correlation_gate_enabled_rejects_duplicate_candidate() -> None:
+    existing = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([make_backtest_trade("a", symbol="BTC/USDT")])]
+    )
+    candidate = CorrelationInputSet.from_backtest_results(
+        [
+            make_backtest_result(
+                [make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="beta")]
+            )
+        ]
+    ).exposures[0]
+
+    decision = evaluate_correlation_gate(
+        existing,
+        candidate,
+        config=CorrelationGateConfig(enabled=True),
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == "correlation gate rejected excessive duplicate exposure"
+    assert {warning.warning_type for warning in decision.warnings} == {
+        CorrelationWarningType.DUPLICATE_SYMBOL_SIDE,
+        CorrelationWarningType.DUPLICATE_STRATEGY_SYMBOL_SIDE,
+    }
+
+
+def test_correlation_gate_respects_relaxed_warning_policy() -> None:
+    existing = CorrelationInputSet.from_backtest_results(
+        [make_backtest_result([make_backtest_trade("a", symbol="BTC/USDT")])]
+    )
+    candidate = CorrelationInputSet.from_backtest_results(
+        [
+            make_backtest_result(
+                [make_backtest_trade("b", symbol="BTC/USDT", sub_account_id="beta")]
+            )
+        ]
+    ).exposures[0]
+
+    decision = evaluate_correlation_gate(
+        existing,
+        candidate,
+        config=CorrelationGateConfig(
+            enabled=True,
+            warning_policy=CorrelationWarningPolicy(
+                max_sub_accounts_per_symbol_side=2,
+                max_sub_accounts_per_strategy_symbol_side=2,
+            ),
+        ),
+    )
+
+    assert decision.allowed is True
+    assert decision.warnings == []

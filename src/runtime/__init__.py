@@ -12,11 +12,14 @@ what the engine is doing without coupling the engine to Streamlit.
 from src.runtime.correlation_governor import (
     CorrelationExposure,
     CorrelationExposureSource,
+    CorrelationGateConfig,
+    CorrelationGateDecision,
     CorrelationInputSet,
     CorrelationWarning,
     CorrelationWarningPolicy,
     CorrelationWarningType,
     compute_duplicate_exposure_warnings,
+    evaluate_correlation_gate,
 )
 from src.runtime.safety_score import (
     RuntimeSafetyBand,
@@ -30,11 +33,14 @@ from src.runtime.safety_score import (
 __all__ = [
     "CorrelationExposure",
     "CorrelationExposureSource",
+    "CorrelationGateConfig",
+    "CorrelationGateDecision",
     "CorrelationInputSet",
     "CorrelationWarning",
     "CorrelationWarningPolicy",
     "CorrelationWarningType",
     "compute_duplicate_exposure_warnings",
+    "evaluate_correlation_gate",
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",

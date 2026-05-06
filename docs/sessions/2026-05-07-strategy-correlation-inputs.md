@@ -25,6 +25,11 @@ sub-accounts. Warnings include the involved sub-account ids, exposure ids, total
 notional, and an operator-readable message. Thresholds are configurable through
 `CorrelationWarningPolicy`.
 
+The gate step adds `evaluate_correlation_gate`. The gate is disabled by default,
+so correlated candidates are allowed with advisory warnings. When
+`CorrelationGateConfig.enabled` is true, candidates that participate in
+duplicate-exposure warnings are rejected with the relevant warning list attached.
+
 ## Files Changed
 
 - Created: `src/runtime/correlation_governor.py`
@@ -43,6 +48,7 @@ notional, and an operator-readable message. Thresholds are configurable through
 | Keep this step advisory-input only | Correlation blocking semantics belong in the later gate step. |
 | Avoid runtime imports of backtest classes | `runtime.__init__` is imported by trading modules; type-only imports prevent a circular import. |
 | Count distinct sub-accounts, not repeated trades alone | The unit target is cross-account duplicate exposure; repeated trades inside one account are a separate sizing concern. |
+| Default the gate to disabled | The unit plan calls for optional gating; advisory mode avoids surprising live/paper rejection until operators opt in. |
 
 ## Verification
 
@@ -53,4 +59,4 @@ notional, and an operator-readable message. Thresholds are configurable through
 
 ## Follow-Up
 
-- Add optional runtime rejection gate for excessive correlated exposure.
+- Wire the optional gate into engine/dashboard workflows when operators choose a policy.

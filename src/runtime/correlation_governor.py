@@ -175,6 +175,23 @@ class CorrelationWarning(BaseModel):
     message: str
 
 
+class CorrelationGateConfig(BaseModel):
+    """Optional runtime rejection gate configuration."""
+
+    enabled: bool = False
+    warning_policy: CorrelationWarningPolicy = Field(
+        default_factory=CorrelationWarningPolicy
+    )
+
+
+class CorrelationGateDecision(BaseModel):
+    """Runtime gate decision for one candidate exposure."""
+
+    allowed: bool
+    reason: str
+    warnings: list[CorrelationWarning] = Field(default_factory=list)
+
+
 def compute_duplicate_exposure_warnings(
     inputs: CorrelationInputSet,
     *,
@@ -186,6 +203,41 @@ def compute_duplicate_exposure_warnings(
     warnings.extend(_symbol_side_warnings(inputs.exposures, policy))
     warnings.extend(_strategy_symbol_side_warnings(inputs.exposures, policy))
     return warnings
+
+
+def evaluate_correlation_gate(
+    existing: CorrelationInputSet,
+    candidate: CorrelationExposure,
+    *,
+    config: CorrelationGateConfig | None = None,
+) -> CorrelationGateDecision:
+    """Evaluate the optional runtime rejection gate for a candidate exposure."""
+    config = config or CorrelationGateConfig()
+    combined = CorrelationInputSet(exposures=[*existing.exposures, candidate])
+    warnings = compute_duplicate_exposure_warnings(
+        combined,
+        policy=config.warning_policy,
+    )
+    candidate_warnings = [
+        warning for warning in warnings if candidate.exposure_id in warning.exposure_ids
+    ]
+    if not candidate_warnings:
+        return CorrelationGateDecision(
+            allowed=True,
+            reason="no correlated duplicate exposure detected",
+            warnings=[],
+        )
+    if not config.enabled:
+        return CorrelationGateDecision(
+            allowed=True,
+            reason="correlation gate disabled; advisory warnings only",
+            warnings=candidate_warnings,
+        )
+    return CorrelationGateDecision(
+        allowed=False,
+        reason="correlation gate rejected excessive duplicate exposure",
+        warnings=candidate_warnings,
+    )
 
 
 def _symbol_side_warnings(
@@ -271,8 +323,11 @@ __all__ = [
     "CorrelationExposure",
     "CorrelationExposureSource",
     "CorrelationInputSet",
+    "CorrelationGateConfig",
+    "CorrelationGateDecision",
     "CorrelationWarning",
     "CorrelationWarningPolicy",
     "CorrelationWarningType",
     "compute_duplicate_exposure_warnings",
+    "evaluate_correlation_gate",
 ]
