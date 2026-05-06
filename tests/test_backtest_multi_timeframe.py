@@ -22,7 +22,9 @@ from pathlib import Path
 
 import pytest
 
+from src.ai.exceptions import ClaudeParseError
 from src.backtest.engine import (
+    BacktestAbortedError,
     BacktestConfig,
     Backtester,
     BacktestError,
@@ -137,6 +139,44 @@ class StaticStrategy(BaseStrategy):
             }
         )
         return self._signal
+
+
+class AlternatingMultiTfParseError(BaseStrategy):
+    """Fails every other multi-TF analysis call."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            info=TechniqueInfo(
+                name="alternating_mtf_parse_error",
+                version="1.0.0",
+                description="fails every other multi-TF bar",
+                technique_type="prompt",
+                requires_multi_timeframe=True,
+                timeframes=["5m", "15m"],
+            )
+        )
+        self.calls = 0
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
+    ) -> AnalysisResult:
+        self.calls += 1
+        if self.calls % 2 == 1:
+            raise ClaudeParseError("intermittent multi-TF parse failure")
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.0,
+            entry_price=current_price or Decimal("50000"),
+            stop_loss=Decimal("49500"),
+            take_profit=Decimal("51000"),
+            reasoning="neutral",
+        )
 
 
 def make_backtester(tmp_path: Path, *, warmup: int = 5) -> Backtester:
@@ -394,6 +434,39 @@ class TestRunMultiTimeframeSemantics:
         # Find the analyze call at primary index 10 (primary_len=11).
         match = next(c for c in strat.calls if c["primary_len"] == 11)
         assert match["current_price"] == Decimal("12345.67")
+
+    @pytest.mark.asyncio
+    async def test_cumulative_parse_failure_rate_trips_multi_tf_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        primary = make_5m(130)
+        higher = aligned_higher(primary, 15)
+        strat = AlternatingMultiTfParseError()
+        bt = Backtester(
+            config=BacktestConfig(
+                initial_balance=Decimal("10000"),
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                warmup_candles=2,
+                max_parse_failures=1000,
+                min_cumulative_parse_failures=50,
+                max_cumulative_parse_failure_rate=0.5,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+
+        with pytest.raises(BacktestAbortedError) as excinfo:
+            await bt.run_multi_timeframe(
+                strategy=strat,
+                ohlcv_by_timeframe={"5m": primary, "15m": higher},
+                symbol="BTC/USDT",
+                primary_timeframe="5m",
+            )
+
+        assert excinfo.value.reason == "cumulative_parse_failure_rate"
+        assert excinfo.value.candle_index == 103
+        assert strat.calls == 101
 
 
 # =============================================================================

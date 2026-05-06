@@ -623,6 +623,14 @@ class TestBacktestEngineSettings:
 
         assert settings.engine_backtest_per_bar_timeout == bc.per_bar_timeout
         assert settings.engine_backtest_max_parse_failures == bc.max_parse_failures
+        assert (
+            settings.engine_backtest_min_cumulative_parse_failures
+            == bc.min_cumulative_parse_failures
+        )
+        assert (
+            settings.engine_backtest_max_cumulative_parse_failure_rate
+            == bc.max_cumulative_parse_failure_rate
+        )
 
     def test_per_bar_timeout_default_and_env(self) -> None:
         """Default 600.0 (DEBT-020); env override propagates."""
@@ -645,6 +653,28 @@ class TestBacktestEngineSettings:
         """``ge=1`` floor — zero would trip on the first error."""
         with pytest.raises(ValidationError):
             Settings(engine_backtest_max_parse_failures=0)
+
+    def test_cumulative_parse_failure_defaults_and_env(self) -> None:
+        assert Settings().engine_backtest_min_cumulative_parse_failures == 50
+        assert Settings().engine_backtest_max_cumulative_parse_failure_rate == 0.5
+        with patch.dict(
+            os.environ,
+            {
+                "ENGINE_BACKTEST_MIN_CUMULATIVE_PARSE_FAILURES": "75",
+                "ENGINE_BACKTEST_MAX_CUMULATIVE_PARSE_FAILURE_RATE": "0.25",
+            },
+        ):
+            settings = Settings()
+            assert settings.engine_backtest_min_cumulative_parse_failures == 75
+            assert settings.engine_backtest_max_cumulative_parse_failure_rate == 0.25
+
+    def test_cumulative_parse_failure_bounds_enforced(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(engine_backtest_min_cumulative_parse_failures=0)
+        with pytest.raises(ValidationError):
+            Settings(engine_backtest_max_cumulative_parse_failure_rate=-0.1)
+        with pytest.raises(ValidationError):
+            Settings(engine_backtest_max_cumulative_parse_failure_rate=1.1)
 
 
 class TestLogRetentionSettings:

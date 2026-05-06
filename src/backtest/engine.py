@@ -69,8 +69,10 @@ class BacktestAbortedError(Exception):
 
     Attributes:
         reason: ``"per_bar_timeout"`` when ``asyncio.wait_for`` fires,
-            or ``"consecutive_parse_failures"`` when the failure
-            counter saturates.
+            ``"consecutive_parse_failures"`` when the consecutive
+            failure counter saturates, or
+            ``"cumulative_parse_failure_rate"`` when intermittent
+            failures waste too much of the backtest window.
         candle_index: 0-indexed candle position at which the breaker
             tripped (the bar whose `analyze` call timed out, or the
             bar of the final consecutive failure).
@@ -80,8 +82,9 @@ class BacktestAbortedError(Exception):
         """Initialize BacktestAbortedError.
 
         Args:
-            reason: One of ``"per_bar_timeout"`` /
-                ``"consecutive_parse_failures"``.
+            reason: Breaker reason, such as ``"per_bar_timeout"``,
+                ``"consecutive_parse_failures"``, or
+                ``"cumulative_parse_failure_rate"``.
             candle_index: The candle index where the breaker tripped.
         """
         super().__init__(f"Backtest aborted at candle {candle_index}: {reason}")
@@ -131,6 +134,16 @@ class BacktestConfig(BaseModel):
             resets the counter, so transient blips don't trip the
             breaker. Defaults mirror
             ``Settings.engine_backtest_max_parse_failures`` (5).
+        min_cumulative_parse_failures: Phase 27 / DEBT-022 circuit
+            breaker — minimum number of cumulative parse/strategy
+            failures before the failure-rate breaker can fire. Default
+            50 so small early samples do not abort statistically noisy
+            strategies.
+        max_cumulative_parse_failure_rate: Phase 27 / DEBT-022 circuit
+            breaker — maximum tolerated cumulative failure ratio after
+            ``min_cumulative_parse_failures`` is exceeded. Default 0.5
+            aborts when more than half of attempted analysis calls
+            have failed.
         liquidation_threshold: Phase 26.4 / DEBT-047 — equity floor at
             which the backtester emits a ``liquidated`` marker on the
             trade and stops adding to the equity curve. Default 0 =
@@ -155,6 +168,8 @@ class BacktestConfig(BaseModel):
     # don't change behaviour without an explicit env setting.
     per_bar_timeout: float = Field(default=600.0, ge=1.0)
     max_parse_failures: int = Field(default=5, ge=1)
+    min_cumulative_parse_failures: int = Field(default=50, ge=1)
+    max_cumulative_parse_failure_rate: float = Field(default=0.5, ge=0.0, le=1.0)
     # Phase 26.4 / DEBT-047: backtester liquidation parity with the
     # post-Phase-22.2 ``PaperTrader``. Default 0 = literal liquidation
     # (balance ≤ 0); operators wanting maintenance-margin parity can
@@ -442,6 +457,8 @@ class Backtester:
         # per-bar circuit breaker. A single non-error bar resets it;
         # see _check_breaker / the extended try/except below.
         consecutive_failures = 0
+        analyzed_bars = 0
+        cumulative_failures = 0
 
         warmup_candles = self.effective_warmup_candles(strategy)
 
@@ -512,6 +529,8 @@ class Backtester:
                 )
                 continue
             except (ClaudeParseError, StrategyError) as e:
+                analyzed_bars += 1
+                cumulative_failures += 1
                 consecutive_failures += 1
                 logger.debug(
                     f"Strategy raised on candle {i} "
@@ -530,8 +549,16 @@ class Backtester:
                         reason="consecutive_parse_failures",
                         candle_index=i,
                     ) from e
+                self._raise_if_cumulative_failure_rate_exceeded(
+                    candle_index=i,
+                    analyzed_bars=analyzed_bars,
+                    cumulative_failures=cumulative_failures,
+                    context="backtest",
+                    source=e,
+                )
                 continue
             else:
+                analyzed_bars += 1
                 consecutive_failures = 0
 
             if analysis.signal == "neutral":
@@ -675,6 +702,8 @@ class Backtester:
         # Phase 17.2 / DEBT-019: consecutive-failure counter for the
         # per-bar circuit breaker (mirrors single-TF run loop).
         consecutive_failures = 0
+        analyzed_bars = 0
+        cumulative_failures = 0
         warmup_candles = self.effective_warmup_candles(strategy)
 
         for i, current_candle in enumerate(primary_ohlcv):
@@ -749,6 +778,8 @@ class Backtester:
                 )
                 continue
             except (ClaudeParseError, StrategyError) as e:
+                analyzed_bars += 1
+                cumulative_failures += 1
                 consecutive_failures += 1
                 logger.debug(
                     f"Strategy raised on candle {i} "
@@ -767,8 +798,16 @@ class Backtester:
                         reason="consecutive_parse_failures",
                         candle_index=i,
                     ) from e
+                self._raise_if_cumulative_failure_rate_exceeded(
+                    candle_index=i,
+                    analyzed_bars=analyzed_bars,
+                    cumulative_failures=cumulative_failures,
+                    context="multi-TF backtest",
+                    source=e,
+                )
                 continue
             else:
+                analyzed_bars += 1
                 consecutive_failures = 0
 
             if analysis.signal == "neutral":
@@ -915,6 +954,33 @@ class Backtester:
         if profile is not None:
             return profile.risk_percent, profile.default_leverage
         return self.config.risk_percent, self.config.leverage
+
+    def _raise_if_cumulative_failure_rate_exceeded(
+        self,
+        *,
+        candle_index: int,
+        analyzed_bars: int,
+        cumulative_failures: int,
+        context: str,
+        source: Exception,
+    ) -> None:
+        """Abort when intermittent parse failures waste too many calls."""
+        if cumulative_failures <= self.config.min_cumulative_parse_failures:
+            return
+        failure_rate = cumulative_failures / analyzed_bars
+        if failure_rate <= self.config.max_cumulative_parse_failure_rate:
+            return
+
+        logger.warning(
+            f"Strategy.analyze exceeded cumulative parse failure rate "
+            f"({cumulative_failures}/{analyzed_bars}={failure_rate:.2%}, "
+            f"threshold={self.config.max_cumulative_parse_failure_rate:.2%}) "
+            f"by candle {candle_index}; aborting {context}"
+        )
+        raise BacktestAbortedError(
+            reason="cumulative_parse_failure_rate",
+            candle_index=candle_index,
+        ) from source
 
     def _apply_slippage(
         self,

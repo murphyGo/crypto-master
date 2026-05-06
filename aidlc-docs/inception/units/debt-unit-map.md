@@ -10,18 +10,17 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
-| `backtesting-validation` | DEBT-022 | 1 Low | Circuit breaker completeness. |
+| (none) | | | No active TECH-DEBT items remain. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
-| DEBT-022 | Low | `backtesting-validation` | | Add cumulative/rate-based parse failure breaker when a real workload needs it. |
+| (none) | | | |
 
 ## Promotion Candidates
 
-No Medium-or-higher active debt remains in this map. The remaining candidate is
-a Low-priority hardening item selected by operational need.
+No active debt remains in this map.
 
 ## Update Rules
 

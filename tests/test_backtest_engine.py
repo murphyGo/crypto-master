@@ -794,9 +794,11 @@ class TestPerBarCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_intermittent_failures_do_not_trip(self, tmp_path: Path) -> None:
-        """4 failures then a success must reset the counter — only
-        *consecutive* failures saturate the breaker. Pins the
-        consecutive-only contract."""
+        """4 failures then a success must reset the consecutive counter.
+
+        The cumulative-rate breaker has a 50-failure floor, so this
+        small intermittent sample still completes normally.
+        """
         from src.ai.exceptions import ClaudeParseError
 
         class FlakyThenStable(BaseStrategy):
@@ -845,6 +847,60 @@ class TestPerBarCircuitBreaker:
         # 4 errors then 19 - 4 = 15 successful neutral calls = 19 calls
         # over the 19 post-warmup bars (indices 1..19 inclusive).
         assert strategy.calls == 19
+
+    @pytest.mark.asyncio
+    async def test_cumulative_parse_failure_rate_trips_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        """Alternating failure/success avoids the consecutive breaker
+        but must abort once cumulative failures exceed the rate floor."""
+        from src.ai.exceptions import ClaudeParseError
+        from src.backtest.engine import BacktestAbortedError
+
+        class AlternatingParseError(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="alternating_parse_error",
+                        version="1.0.0",
+                        description="fails every other bar",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                if self.calls % 2 == 1:
+                    raise ClaudeParseError("intermittent parse failure")
+                return neutral_analysis()
+
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                max_parse_failures=1000,
+                min_cumulative_parse_failures=50,
+                max_cumulative_parse_failure_rate=0.5,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = AlternatingParseError()
+        candles = make_flat_candles(130)
+
+        with pytest.raises(BacktestAbortedError) as excinfo:
+            await bt.run(strategy, candles, "BTC/USDT")
+
+        assert excinfo.value.reason == "cumulative_parse_failure_rate"
+        assert excinfo.value.candle_index == 101
+        assert strategy.calls == 101
 
 
 # =============================================================================

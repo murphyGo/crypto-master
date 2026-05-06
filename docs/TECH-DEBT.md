@@ -41,59 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-04-30 |
-| **Phase** | Phase 17.2 |
-| **Component** | `src/backtest/engine.py` (`Backtester.run` + `_run_multi_timeframe` per-bar circuit breaker) |
-
-**Description:**
-Phase 17.2's circuit breaker counts **consecutive** parse failures —
-a single non-error bar resets the counter. This is the right shape
-for catching the structural failure mode DEBT-019 surfaced (every
-bar fails, the loop should abort within `max_parse_failures` bars).
-But it never trips on alternating fail-success-fail-success
-patterns: a structurally-broken strategy that happens to produce a
-parseable response every other bar would burn the full backtest
-window producing a low-trade-count `BacktestResult` that ostensibly
-"ran cleanly" but actually represents 50% Claude API spend wasted.
-
-**Impact:**
-Low until the workflow exercises a strategy with intermittent
-parse-failure behaviour. The current threshold (5 consecutive
-failures, ~5 minutes of wallclock) bounds the worst case for the
-**structural** failure mode (all bars failing). The
-**intermittent** failure mode is unbounded by design.
-
-**Suggested Resolution:**
-Add a secondary cumulative-failure-rate guard alongside the
-consecutive-counter. Pseudocode:
-
-```python
-analyzed_bars += 1
-if cumulative_failures > 50 and cumulative_failures /
-   analyzed_bars > 0.5:
-    raise BacktestAbortedError(
-        reason="cumulative_parse_failure_rate",
-        candle_index=i,
-    )
-```
-
-50-bar minimum sample so the rate has statistical meaning; 0.5
-threshold matches the 50%-spend-wasted floor above. Both
-thresholds operator-tunable via new `Settings.engine_backtest_*`
-fields when the use case crystallises (don't add config until a
-real workload demands it).
-
-**Related:**
-- Phase 17.2 quant-trader-expert review Q3
-- `src/backtest/engine.py::Backtester.run` per-bar breaker block
-- DEBT-019 (parent — broader "circuit breaker hardening" umbrella)
-- DEBT-020 (sibling — same cycle's breaker tuning)
-
 ## Resolved Debt Items
 
 <!--
@@ -117,6 +64,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-04-29 |
 | **Resolved** | 2026-05-05 |
 | **Resolution** | Added per-pick `param_grid` declarations for all auto-research catalog picks, threaded those grids into `FeedbackLoop.propose_new`, and added an automatic generated-code strategy factory so code-type candidates can be instantiated with swept constructor tunables during the robustness sensitivity gate. The generation context now names the exact tunables Claude must expose. |
+
+### DEBT-022: Cumulative / rate-based breaker counterpart for failure-rate ≫ 0 strategies ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-04-30 |
+| **Resolved** | 2026-05-07 |
+| **Resolution** | Added cumulative parse-failure counters alongside the existing consecutive breaker in both `Backtester.run` and `Backtester.run_multi_timeframe`. `BacktestConfig` now exposes `min_cumulative_parse_failures` and `max_cumulative_parse_failure_rate`, mirrored by `Settings.engine_backtest_*` env fields. Intermittent failure patterns now abort with `BacktestAbortedError(reason="cumulative_parse_failure_rate")` once the sample exceeds 50 cumulative failures and the failed-call ratio is above 50%. |
 
 ### DEBT-052: Per-sub-account notification routing overrides deferred ✅
 
@@ -556,12 +512,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 1 |
-| Resolved (All Time) | 49 |
+| Low | 0 |
+| Resolved (All Time) | 50 |
 
 ---
 
@@ -569,6 +525,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-07 | Resolved | DEBT-022 Cumulative / rate-based breaker counterpart — added single-TF and multi-TF cumulative parse-failure-rate aborts plus env-backed thresholds |
 | 2026-05-06 | Resolved | DEBT-052 Per-sub-account notification routing overrides — added `notification_route` refs, env-backed route-specific Slack webhook map, and runtime routed dispatcher wiring |
 | 2026-04-05 | Created | Initial TECH-DEBT tracker |
 | 2026-04-28 | Added | DEBT-001 Pre-Existing Lint/Type Sweep (Medium) — surfaced during Phase 10.5 |

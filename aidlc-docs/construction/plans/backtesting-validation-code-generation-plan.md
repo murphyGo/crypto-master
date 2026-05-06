@@ -39,6 +39,7 @@ of unfinished historical tasks.
 - [x] Add strategy-combination A/B harness and operator baseline runbook behavior.
 - [x] Enable auto-research catalog picks to exercise the robustness sensitivity gate.
 - [x] Verify code-type auto-research strategies can emit signals that produce backtest trades.
+- [x] Add cumulative parse-failure-rate breaker for intermittent LLM parse failures.
 
 ## Evidence
 

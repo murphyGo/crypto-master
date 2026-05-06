@@ -246,7 +246,9 @@ class Settings(BaseSettings):
     # setting. ``per_bar_timeout`` wraps every per-bar
     # ``strategy.analyze`` call in ``asyncio.wait_for``;
     # ``max_parse_failures`` is the consecutive-failure ceiling
-    # before the engine raises ``BacktestAbortedError``.
+    # before the engine raises ``BacktestAbortedError``. DEBT-022 adds
+    # a cumulative failure-rate counterpart for intermittent failures
+    # that never saturate the consecutive counter.
     # DEBT-020: default 600s = chasulang's 480s per-call ceiling
     # (``claude_timeout_seconds`` in ``strategies/chasulang_ict_smc.md``,
     # applied per ``analyze()`` call by ``src/strategy/loader.py``)
@@ -255,6 +257,12 @@ class Settings(BaseSettings):
     # the breaker on every bar.
     engine_backtest_per_bar_timeout: float = Field(default=600.0, ge=1.0)
     engine_backtest_max_parse_failures: int = Field(default=5, ge=1)
+    engine_backtest_min_cumulative_parse_failures: int = Field(default=50, ge=1)
+    engine_backtest_max_cumulative_parse_failure_rate: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+    )
 
     # Phase 25.2: active-use freshness window for the snapshot-pinned
     # baseline regenerator (``scripts/backtest_baselines.py``). A
