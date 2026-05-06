@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.models import OHLCV
 from src.strategy.performance import TradeHistory
 from src.utils.time import ensure_utc
 
@@ -58,6 +59,9 @@ class TradeAutopsy(BaseModel):
     close_reason: str
     holding_seconds: float = Field(ge=0.0)
     outcome: TradeAutopsyOutcome
+    max_favorable_excursion_percent: float | None = None
+    max_adverse_excursion_percent: float | None = None
+    drawdown_before_exit_percent: float | None = None
     evidence: list[str] = Field(default_factory=list)
 
     @field_validator("entry_time", "exit_time", mode="after")
@@ -126,6 +130,39 @@ class TradeAutopsy(BaseModel):
             evidence=[f"closed by {trade.close_reason}", "mode=backtest"],
         )
 
+    def with_candle_window(self, candles: list[OHLCV]) -> TradeAutopsy:
+        """Return a copy enriched with candle-window excursion metrics."""
+        window = [
+            candle
+            for candle in candles
+            if self.entry_time <= ensure_utc(candle.timestamp) <= self.exit_time
+        ]
+        if not window:
+            raise TradeAutopsyError(f"no candles overlap trade {self.trade_id}")
+
+        highs = [candle.high for candle in window]
+        lows = [candle.low for candle in window]
+        if self.side == "long":
+            mfe = _percent_move(max(highs) - self.entry_price, self.entry_price)
+            mae = _percent_move(self.entry_price - min(lows), self.entry_price)
+        else:
+            mfe = _percent_move(self.entry_price - min(lows), self.entry_price)
+            mae = _percent_move(max(highs) - self.entry_price, self.entry_price)
+
+        return self.model_copy(
+            update={
+                "max_favorable_excursion_percent": mfe,
+                "max_adverse_excursion_percent": mae,
+                "drawdown_before_exit_percent": mae,
+                "evidence": [
+                    *self.evidence,
+                    f"candle_window={len(window)}",
+                    f"mfe={mfe:.4f}%",
+                    f"mae={mae:.4f}%",
+                ],
+            }
+        )
+
 
 def _outcome_for_pnl(pnl: Decimal) -> TradeAutopsyOutcome:
     if pnl > 0:
@@ -149,6 +186,12 @@ def _pnl_percent(
     if notional == 0:
         return None
     return float(pnl / notional) * 100
+
+
+def _percent_move(numerator: Decimal, denominator: Decimal) -> float:
+    if denominator == 0:
+        return 0.0
+    return max(0.0, float(numerator / denominator) * 100)
 
 
 __all__ = [

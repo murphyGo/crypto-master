@@ -14,6 +14,8 @@ autopsy evidence model.
 | Open runtime trades are rejected | Complete | Test asserts `TradeAutopsyError` for `status="open"`. |
 | Backtest trades convert | Complete | Test converts `BacktestTrade` and computes normalized fees/PnL percentage. |
 | Outcome bucket is explicit | Complete | Tests cover win and breakeven outcomes. |
+| Candle-window MFE/MAE are computed | Complete | Tests cover long and short trades with side-aware favorable/adverse excursion. |
+| Missing candle overlap is rejected | Complete | Test asserts `TradeAutopsyError` when no candle falls inside the trade window. |
 
 ## Implementation Evidence
 
@@ -29,8 +31,6 @@ autopsy evidence model.
 
 ## Gaps and Risks
 
-- MFE/MAE and drawdown-before-exit are intentionally deferred to the next
-  construction step.
 - Strategy improvement prompts do not consume autopsy summaries yet.
 
 ## Unit Mapping
