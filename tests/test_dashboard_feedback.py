@@ -5,8 +5,13 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
 
 from src.dashboard.pages.feedback import (
+    CandidateDecisionAction,
+    apply_candidate_decision,
     build_audit_timeline_dataframe,
     build_candidates_dataframe,
     build_summary_metrics,
@@ -314,6 +319,71 @@ def test_audit_timeline_serializes_details() -> None:
     details_str = df.iloc[0]["Details"]
     assert "failed_gates" in details_str
     assert "oos" in details_str
+
+
+# =============================================================================
+# apply_candidate_decision
+# =============================================================================
+
+
+def test_apply_candidate_decision_promotes_through_feedback_loop() -> None:
+    loop = MagicMock()
+    promoted = make_record(status=LoopStatus.PROMOTED)
+    loop.approve.return_value = promoted
+
+    updated = apply_candidate_decision(
+        loop,
+        candidate_id=promoted.candidate_id,
+        action=CandidateDecisionAction.PROMOTE,
+        approver=" alice ",
+    )
+
+    assert updated == promoted
+    loop.approve.assert_called_once_with(promoted.candidate_id, approver="alice")
+    loop.reject.assert_not_called()
+
+
+def test_apply_candidate_decision_rejects_through_feedback_loop() -> None:
+    loop = MagicMock()
+    rejected = make_record(status=LoopStatus.DISCARDED)
+    loop.reject.return_value = rejected
+
+    updated = apply_candidate_decision(
+        loop,
+        candidate_id=rejected.candidate_id,
+        action=CandidateDecisionAction.REJECT,
+        approver="alice",
+        reason=" weak evidence ",
+    )
+
+    assert updated == rejected
+    loop.reject.assert_called_once_with(
+        rejected.candidate_id,
+        approver="alice",
+        reason="weak evidence",
+    )
+    loop.approve.assert_not_called()
+
+
+def test_apply_candidate_decision_requires_approver() -> None:
+    with pytest.raises(ValueError, match="approver is required"):
+        apply_candidate_decision(
+            MagicMock(),
+            candidate_id="cand-1",
+            action=CandidateDecisionAction.PROMOTE,
+            approver=" ",
+        )
+
+
+def test_apply_candidate_decision_requires_rejection_reason() -> None:
+    with pytest.raises(ValueError, match="rejection reason is required"):
+        apply_candidate_decision(
+            MagicMock(),
+            candidate_id="cand-1",
+            action=CandidateDecisionAction.REJECT,
+            approver="alice",
+            reason=" ",
+        )
 
 
 # =============================================================================

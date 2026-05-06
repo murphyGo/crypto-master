@@ -19,6 +19,7 @@ test coverage.
 | Observation state is persisted atomically | Complete | `PromotionObservationStore` writes per-candidate JSON snapshots using `atomic_write_text`. |
 | Repeated evaluations preserve observation history | Complete | Tests cover first-seen preservation, evaluation count increment, and most-recent-first listing. |
 | Dashboard surfaces lab recommendations | Complete | `build_candidates_dataframe` merges promotion decision/score and candidate detail renders factors/blockers. |
+| Operator actions use existing approval paths | Complete | `apply_candidate_decision` delegates to `FeedbackLoop.approve` or `FeedbackLoop.reject` with explicit approver/reason validation. |
 
 ## Implementation Evidence
 
@@ -31,6 +32,7 @@ test coverage.
 
 - `uv run pytest tests/test_feedback_promotion_lab.py -q`
 - `uv run pytest tests/test_dashboard_feedback.py tests/test_feedback_promotion_lab.py -q`
+- `uv run pytest tests/test_dashboard_feedback.py -q`
 - `uv run ruff check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
 - `uv run ruff check src/dashboard/pages/feedback.py tests/test_dashboard_feedback.py`
 - `uv run black --check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
@@ -38,8 +40,9 @@ test coverage.
 
 ## Gaps and Risks
 
-- Recommendations are still computed only from supplied evidence in this pass.
-  Operator actions remain an explicit follow-up step in the construction plan.
+- The default dashboard render remains read-only because the production app does
+  not yet inject a `FeedbackLoop` instance. The mutation path is implemented and
+  pinned as an optional operational binding.
 
 ## Unit Mapping
 

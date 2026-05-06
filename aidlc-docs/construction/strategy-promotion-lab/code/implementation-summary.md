@@ -20,3 +20,8 @@ decision/score/factors, and uses the project atomic-write helper.
 The Feedback Loop dashboard now loads promotion observations, merges
 recommendation and score into the candidates table, and shows the latest
 promotion factors/blockers in candidate detail.
+
+Operator decision wiring is exposed through `apply_candidate_decision`, which
+validates explicit approver/rejection inputs and calls the existing
+`FeedbackLoop.approve` / `FeedbackLoop.reject` APIs. The Streamlit page renders
+the controls only when an operational `FeedbackLoop` is injected.

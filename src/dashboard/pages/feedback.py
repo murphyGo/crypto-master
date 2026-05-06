@@ -24,13 +24,19 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from enum import Enum
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from src.feedback.audit import DEFAULT_AUDIT_PATH, AuditEvent, AuditLog
-from src.feedback.loop import DEFAULT_STATE_DIR, CandidateRecord, LoopStatus
+from src.feedback.loop import (
+    DEFAULT_STATE_DIR,
+    CandidateRecord,
+    FeedbackLoop,
+    LoopStatus,
+)
 from src.feedback.promotion_lab import (
     DEFAULT_PROMOTION_LAB_STATE_DIR,
     PromotionObservation,
@@ -38,6 +44,13 @@ from src.feedback.promotion_lab import (
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.dashboard.feedback")
+
+
+class CandidateDecisionAction(str, Enum):
+    """Operator action available from the promotion lab UI."""
+
+    PROMOTE = "promote"
+    REJECT = "reject"
 
 
 # =============================================================================
@@ -197,6 +210,28 @@ def build_audit_timeline_dataframe(events: list[AuditEvent]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def apply_candidate_decision(
+    feedback_loop: FeedbackLoop,
+    *,
+    candidate_id: str,
+    action: CandidateDecisionAction,
+    approver: str,
+    reason: str = "",
+) -> CandidateRecord:
+    """Apply an explicit operator decision through ``FeedbackLoop`` APIs."""
+    approver = approver.strip()
+    if not approver:
+        raise ValueError("approver is required")
+
+    if action == CandidateDecisionAction.PROMOTE:
+        return feedback_loop.approve(candidate_id, approver=approver)
+
+    reason = reason.strip()
+    if not reason:
+        raise ValueError("rejection reason is required")
+    return feedback_loop.reject(candidate_id, approver=approver, reason=reason)
+
+
 # =============================================================================
 # Streamlit render
 # =============================================================================
@@ -206,6 +241,7 @@ def render(
     state_dir: Path | None = None,
     promotion_state_dir: Path | None = None,
     audit_log: AuditLog | None = None,
+    feedback_loop: FeedbackLoop | None = None,
 ) -> None:
     """Render the Feedback Loop page.
 
@@ -216,6 +252,8 @@ def render(
             Defaults to ``data/feedback/promotion_lab``.
         audit_log: Override the audit log. Defaults to
             ``AuditLog()`` reading from ``data/audit/feedback.jsonl``.
+        feedback_loop: Optional operational loop. When supplied, awaiting
+            candidates get explicit promote/reject actions.
     """
     st.title("🔁 Feedback Loop")
     st.caption(
@@ -269,6 +307,11 @@ def render(
 
     record = _record_for(records, selected_id)
     _render_record_detail(record, observations.get(selected_id))
+    if (
+        feedback_loop is not None
+        and record.status == LoopStatus.AWAITING_APPROVAL.value
+    ):
+        _render_operator_actions(feedback_loop, record)
 
     # ---- Audit timeline for this candidate ----
     st.markdown("**Audit timeline**")
@@ -326,9 +369,49 @@ def _render_record_detail(
             )
 
 
+def _render_operator_actions(
+    feedback_loop: FeedbackLoop,
+    record: CandidateRecord,
+) -> None:
+    """Render explicit promotion/rejection controls for awaiting candidates."""
+    st.markdown("**Operator actions**")
+    approver = st.text_input(
+        "Approver",
+        value="dashboard",
+        key=f"promotion-approver-{record.candidate_id}",
+    )
+    reject_reason = st.text_input(
+        "Reject reason",
+        value="Rejected from promotion lab",
+        key=f"promotion-reject-reason-{record.candidate_id}",
+    )
+    promote_col, reject_col = st.columns(2)
+    if promote_col.button("Promote", key=f"promote-{record.candidate_id}"):
+        updated = apply_candidate_decision(
+            feedback_loop,
+            candidate_id=record.candidate_id,
+            action=CandidateDecisionAction.PROMOTE,
+            approver=approver,
+        )
+        st.success(f"Promoted candidate {updated.candidate_id}.")
+        st.rerun()
+    if reject_col.button("Reject", key=f"reject-{record.candidate_id}"):
+        updated = apply_candidate_decision(
+            feedback_loop,
+            candidate_id=record.candidate_id,
+            action=CandidateDecisionAction.REJECT,
+            approver=approver,
+            reason=reject_reason,
+        )
+        st.success(f"Rejected candidate {updated.candidate_id}.")
+        st.rerun()
+
+
 __all__ = [
+    "CandidateDecisionAction",
     "DEFAULT_AUDIT_PATH",
     "DEFAULT_STATE_DIR",
+    "apply_candidate_decision",
     "build_audit_timeline_dataframe",
     "build_candidates_dataframe",
     "build_summary_metrics",

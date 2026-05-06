@@ -18,7 +18,7 @@ New product-intelligence unit. No legacy phase owns this workflow end to end.
 - [x] Add a first-pass promotion scoring model for candidate evidence.
 - [x] Persist observation-period state for watched candidates.
 - [x] Surface promote / reject / keep-watching recommendations in the dashboard.
-- [ ] Add operator actions that call existing approval/rejection paths.
+- [x] Add operator actions that call existing approval/rejection paths.
 
 ## Evidence
 

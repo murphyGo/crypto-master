@@ -27,6 +27,11 @@ The third implementation step surfaces the stored recommendation in the
 Feedback Loop dashboard. Candidate rows now include promotion decision and
 score, and candidate detail shows the latest lab factors and blockers.
 
+The final code-generation step wires explicit operator actions through the
+existing `FeedbackLoop.approve` and `FeedbackLoop.reject` paths. The dashboard
+only renders those controls when an operational loop is supplied, preserving
+read-only behavior for the default static status page.
+
 ## Files Changed
 
 - Modified: `aidlc-docs/aidlc-state.md`
@@ -52,11 +57,13 @@ score, and candidate detail shows the latest lab factors and blockers.
 | Default promotion threshold is 90 | A candidate with one meaningful warning should remain in observation rather than receive an immediate promote recommendation. |
 | Persist observations outside candidate state | Promotion lab recommendations are operator workflow state, so they live under `feedback/promotion_lab` without mutating `CandidateRecord`. |
 | Keep dashboard display read-only | The page can show promote / reject / keep-watching guidance without performing the approval action itself. |
+| Reuse existing approval APIs | Dashboard actions delegate to `FeedbackLoop.approve` and `FeedbackLoop.reject` so CON-003 remains centralized. |
 
 ## Verification
 
 - `uv run pytest tests/test_feedback_promotion_lab.py -q`
 - `uv run pytest tests/test_dashboard_feedback.py tests/test_feedback_promotion_lab.py -q`
+- `uv run pytest tests/test_dashboard_feedback.py -q`
 - `uv run ruff check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
 - `uv run ruff check src/dashboard/pages/feedback.py tests/test_dashboard_feedback.py`
 - `uv run black --check src/feedback/promotion_lab.py src/feedback/__init__.py tests/test_feedback_promotion_lab.py`
@@ -64,4 +71,5 @@ score, and candidate detail shows the latest lab factors and blockers.
 
 ## Follow-Up
 
-- Wire operator promote/reject actions through existing approval and rejection paths.
+- Bind a production `FeedbackLoop` instance into the running Streamlit app when
+  the operator wants dashboard-side mutation enabled.
