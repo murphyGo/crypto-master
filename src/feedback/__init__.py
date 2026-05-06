@@ -23,6 +23,8 @@ from src.feedback.loop import (
 from src.feedback.promotion_lab import (
     PromotionDecision,
     PromotionEvaluation,
+    PromotionObservation,
+    PromotionObservationStore,
     PromotionPolicy,
     evaluate_promotion_candidate,
 )
@@ -37,6 +39,8 @@ __all__ = [
     "LoopStatus",
     "PromotionDecision",
     "PromotionEvaluation",
+    "PromotionObservation",
+    "PromotionObservationStore",
     "PromotionPolicy",
     "evaluate_promotion_candidate",
 ]

@@ -9,14 +9,22 @@ under observation.
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
 from src.backtest.engine import BacktestResult
 from src.backtest.validator import GateStatus, RobustnessReport
+from src.config import get_settings
 from src.feedback.loop import CandidateRecord, LoopStatus
+from src.utils.io import atomic_write_text
+from src.utils.time import ensure_utc, now_utc
+
+DEFAULT_PROMOTION_LAB_STATE_DIR = Path("data/feedback/promotion_lab")
 
 
 class PromotionDecision(str, Enum):
@@ -47,6 +55,106 @@ class PromotionEvaluation(BaseModel):
     score: int = Field(ge=0, le=100)
     factors: list[str] = Field(default_factory=list)
     blocking_reasons: list[str] = Field(default_factory=list)
+
+
+class PromotionObservation(BaseModel):
+    """Persisted observation-period state for one candidate."""
+
+    candidate_id: str
+    technique_name: str
+    decision: PromotionDecision
+    score: int = Field(ge=0, le=100)
+    evaluations_count: int = Field(default=1, ge=1)
+    first_seen_at: datetime = Field(default_factory=now_utc)
+    last_evaluated_at: datetime = Field(default_factory=now_utc)
+    factors: list[str] = Field(default_factory=list)
+    blocking_reasons: list[str] = Field(default_factory=list)
+
+    @field_validator("first_seen_at", "last_evaluated_at", mode="after")
+    @classmethod
+    def _coerce_timestamps_to_utc(cls, value: datetime) -> datetime:
+        return ensure_utc(value)
+
+
+class PromotionObservationStore:
+    """Atomic JSON snapshot store for promotion-lab observations."""
+
+    def __init__(
+        self,
+        state_dir: Path | None = None,
+        *,
+        data_dir: Path | None = None,
+    ) -> None:
+        if state_dir is not None:
+            self.state_dir = state_dir
+        else:
+            base = data_dir if data_dir is not None else get_settings().data_dir
+            self.state_dir = base / "feedback" / "promotion_lab"
+
+    def path_for(self, candidate_id: str) -> Path:
+        """Return the snapshot path for a candidate observation."""
+        return self.state_dir / f"{candidate_id}.json"
+
+    def save(self, observation: PromotionObservation) -> None:
+        """Persist an observation snapshot atomically."""
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            self.path_for(observation.candidate_id),
+            observation.model_dump_json(indent=2),
+        )
+
+    def load(self, candidate_id: str) -> PromotionObservation:
+        """Load a persisted observation by candidate ID."""
+        path = self.path_for(candidate_id)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return PromotionObservation(**payload)
+
+    def list_observations(self) -> list[PromotionObservation]:
+        """Return readable observations sorted by most recent evaluation."""
+        if not self.state_dir.exists():
+            return []
+        observations: list[PromotionObservation] = []
+        for path in sorted(self.state_dir.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                observations.append(PromotionObservation(**payload))
+            except (json.JSONDecodeError, ValueError):
+                continue
+        return sorted(
+            observations,
+            key=lambda observation: observation.last_evaluated_at,
+            reverse=True,
+        )
+
+    def record_evaluation(
+        self,
+        evaluation: PromotionEvaluation,
+        *,
+        evaluated_at: datetime | None = None,
+    ) -> PromotionObservation:
+        """Upsert observation state from the latest promotion evaluation."""
+        evaluated_at = ensure_utc(evaluated_at or now_utc())
+        existing = self._load_if_exists(evaluation.candidate_id)
+        observation = PromotionObservation(
+            candidate_id=evaluation.candidate_id,
+            technique_name=evaluation.technique_name,
+            decision=evaluation.decision,
+            score=evaluation.score,
+            evaluations_count=(existing.evaluations_count + 1) if existing else 1,
+            first_seen_at=existing.first_seen_at if existing else evaluated_at,
+            last_evaluated_at=evaluated_at,
+            factors=list(evaluation.factors),
+            blocking_reasons=list(evaluation.blocking_reasons),
+        )
+        self.save(observation)
+        return observation
+
+    def _load_if_exists(self, candidate_id: str) -> PromotionObservation | None:
+        path = self.path_for(candidate_id)
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return PromotionObservation(**payload)
 
 
 def evaluate_promotion_candidate(

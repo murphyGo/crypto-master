@@ -16,6 +16,8 @@ test coverage.
 | Promotion scoring is side-effect free | Complete | `evaluate_promotion_candidate` returns `PromotionEvaluation` and does not mutate `CandidateRecord` or approval state. |
 | Hard blockers reject candidates | Complete | Tests cover failed robustness and liquidated backtests. |
 | Weak but non-blocking evidence stays under observation | Complete | Tests cover small trade samples and stricter Sharpe policy thresholds. |
+| Observation state is persisted atomically | Complete | `PromotionObservationStore` writes per-candidate JSON snapshots using `atomic_write_text`. |
+| Repeated evaluations preserve observation history | Complete | Tests cover first-seen preservation, evaluation count increment, and most-recent-first listing. |
 
 ## Implementation Evidence
 
@@ -32,9 +34,9 @@ test coverage.
 
 ## Gaps and Risks
 
-- Recommendations are computed only from supplied evidence in this first pass.
-  Persistence, dashboard presentation, and operator actions remain explicit
-  follow-up steps in the construction plan.
+- Recommendations are still computed only from supplied evidence in this pass.
+  Dashboard presentation and operator actions remain explicit follow-up steps
+  in the construction plan.
 
 ## Unit Mapping
 

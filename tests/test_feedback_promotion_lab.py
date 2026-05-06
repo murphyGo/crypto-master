@@ -12,6 +12,7 @@ from src.backtest.validator import GateResult, GateStatus, RobustnessReport
 from src.feedback.loop import CandidateRecord, LoopStatus
 from src.feedback.promotion_lab import (
     PromotionDecision,
+    PromotionObservationStore,
     PromotionPolicy,
     evaluate_promotion_candidate,
 )
@@ -150,3 +151,84 @@ def test_policy_can_make_watch_band_stricter() -> None:
 
     assert evaluation.decision == PromotionDecision.KEEP_WATCHING
     assert any("sharpe below floor" in factor for factor in evaluation.factors)
+
+
+def test_observation_store_records_first_evaluation(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_candidate(
+        record=make_record(),
+        backtest=make_backtest(),
+        robustness=make_robustness(),
+        metrics=make_metrics(total_trades=8),
+    )
+    store = PromotionObservationStore(state_dir=tmp_path / "promotion_lab")
+
+    observation = store.record_evaluation(
+        evaluation,
+        evaluated_at=datetime(2026, 5, 7, 1, 0, tzinfo=timezone.utc),
+    )
+    loaded = store.load(evaluation.candidate_id)
+
+    assert observation == loaded
+    assert observation.candidate_id == "cand-1"
+    assert observation.decision == PromotionDecision.KEEP_WATCHING
+    assert observation.evaluations_count == 1
+    assert observation.first_seen_at == datetime(2026, 5, 7, 1, 0, tzinfo=timezone.utc)
+
+
+def test_observation_store_preserves_first_seen_on_update(tmp_path: Path) -> None:
+    store = PromotionObservationStore(state_dir=tmp_path / "promotion_lab")
+    first = evaluate_promotion_candidate(
+        record=make_record(),
+        backtest=make_backtest(),
+        robustness=make_robustness(),
+        metrics=make_metrics(total_trades=8),
+    )
+    second = evaluate_promotion_candidate(
+        record=make_record(),
+        backtest=make_backtest(),
+        robustness=make_robustness(),
+        metrics=make_metrics(),
+    )
+
+    store.record_evaluation(
+        first,
+        evaluated_at=datetime(2026, 5, 7, 1, 0, tzinfo=timezone.utc),
+    )
+    observation = store.record_evaluation(
+        second,
+        evaluated_at=datetime(2026, 5, 7, 2, 0, tzinfo=timezone.utc),
+    )
+
+    assert observation.decision == PromotionDecision.PROMOTE
+    assert observation.evaluations_count == 2
+    assert observation.first_seen_at == datetime(2026, 5, 7, 1, 0, tzinfo=timezone.utc)
+    assert observation.last_evaluated_at == datetime(
+        2026, 5, 7, 2, 0, tzinfo=timezone.utc
+    )
+
+
+def test_observation_store_lists_most_recent_first(tmp_path: Path) -> None:
+    store = PromotionObservationStore(state_dir=tmp_path / "promotion_lab")
+    first = evaluate_promotion_candidate(
+        record=make_record(),
+        backtest=make_backtest(),
+        robustness=make_robustness(),
+        metrics=make_metrics(total_trades=8),
+    )
+    second = first.model_copy(
+        update={"candidate_id": "cand-2", "technique_name": "lab_candidate_2"}
+    )
+
+    store.record_evaluation(
+        first,
+        evaluated_at=datetime(2026, 5, 7, 1, 0, tzinfo=timezone.utc),
+    )
+    store.record_evaluation(
+        second,
+        evaluated_at=datetime(2026, 5, 7, 3, 0, tzinfo=timezone.utc),
+    )
+
+    assert [observation.candidate_id for observation in store.list_observations()] == [
+        "cand-2",
+        "cand-1",
+    ]

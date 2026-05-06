@@ -19,6 +19,10 @@ for feedback-loop candidates. The lab evaluates existing candidate, backtest,
 robustness, and performance evidence, then recommends `promote`, `reject`, or
 `keep_watching` without changing candidate state.
 
+The second implementation step adds atomic observation persistence. Repeated
+candidate evaluations now update a per-candidate snapshot while preserving the
+original first-seen timestamp and tracking evaluation count.
+
 ## Files Changed
 
 - Modified: `aidlc-docs/aidlc-state.md`
@@ -42,6 +46,7 @@ robustness, and performance evidence, then recommends `promote`, `reject`, or
 | Start with a pure scoring function | Avoids mutating strategy state before persistence, dashboard, and operator-action wiring are designed. |
 | Keep hard blockers separate from score factors | Failed robustness, wrong candidate state, and liquidation should reject even if other metrics are strong. |
 | Default promotion threshold is 90 | A candidate with one meaningful warning should remain in observation rather than receive an immediate promote recommendation. |
+| Persist observations outside candidate state | Promotion lab recommendations are operator workflow state, so they live under `feedback/promotion_lab` without mutating `CandidateRecord`. |
 
 ## Verification
 
@@ -51,6 +56,5 @@ robustness, and performance evidence, then recommends `promote`, `reject`, or
 
 ## Follow-Up
 
-- Persist observation-period state for watched candidates.
 - Surface promotion recommendations in the dashboard feedback workflow.
 - Wire operator promote/reject actions through existing approval and rejection paths.

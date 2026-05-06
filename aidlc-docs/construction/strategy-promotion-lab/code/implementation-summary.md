@@ -11,3 +11,8 @@ Initial implementation target:
 The first pass is intentionally side-effect free: it computes a recommendation
 from already available candidate evidence. Persistence, dashboard actions, and
 operator workflow wiring are tracked as later construction steps.
+
+Observation persistence now lives in `PromotionObservationStore`. It writes
+per-candidate JSON snapshots under `<data_dir>/feedback/promotion_lab`, keeps
+the first-seen timestamp stable across repeated evaluations, updates the latest
+decision/score/factors, and uses the project atomic-write helper.
