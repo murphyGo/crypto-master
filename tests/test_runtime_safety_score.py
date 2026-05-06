@@ -24,6 +24,7 @@ def test_runtime_safety_inputs_defaults_are_zero() -> None:
     assert inputs.recent_notification_failures == 0
     assert inputs.recent_llm_timeouts == 0
     assert inputs.stale_quote_warnings == 0
+    assert inputs.correlation_warnings == 0
     assert inputs.liquidation_events == 0
     assert inputs.cold_start_blocks == 0
     assert inputs.open_drawdown_percent == 0.0
@@ -65,6 +66,7 @@ def test_inputs_from_activity_events_counts_safety_signals() -> None:
         ActivityEvent(event_type=ActivityEventType.LLM_TIMEOUT),
         ActivityEvent(event_type=ActivityEventType.LIQUIDATED),
         ActivityEvent(event_type=ActivityEventType.COLD_START_BLOCKED),
+        ActivityEvent(event_type=ActivityEventType.CORRELATION_WARNING),
         ActivityEvent(
             event_type=ActivityEventType.PROPOSAL_REJECTED,
             message="Stale-quote rejected BTC/USDT long",
@@ -80,6 +82,7 @@ def test_inputs_from_activity_events_counts_safety_signals() -> None:
     assert inputs.liquidation_events == 1
     assert inputs.cold_start_blocks == 1
     assert inputs.stale_quote_warnings == 1
+    assert inputs.correlation_warnings == 1
     assert inputs.open_drawdown_percent == 12.5
 
 
@@ -98,11 +101,12 @@ def test_compute_runtime_safety_score_applies_penalties() -> None:
             recent_notification_failures=1,
             recent_llm_timeouts=2,
             stale_quote_warnings=1,
-            open_drawdown_percent=6.5,
+            correlation_warnings=1,
+            open_drawdown_percent=5.5,
         )
     )
 
-    assert safety.score == 49
+    assert safety.score == 40
     assert safety.band == RuntimeSafetyBand.RISKY
     assert any("cycle errors=1" in factor for factor in safety.factors)
 

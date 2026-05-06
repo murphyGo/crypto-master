@@ -203,6 +203,13 @@ def _engine_config_from_settings(settings: Settings) -> EngineConfig:
         # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection when
         # the stale-quote gate has no live data to cross-check against.
         reject_if_stale_quote=settings.engine_reject_if_stale_quote,
+        correlation_gate_enabled=settings.engine_correlation_gate_enabled,
+        correlation_max_sub_accounts_per_symbol_side=(
+            settings.engine_correlation_max_sub_accounts_per_symbol_side
+        ),
+        correlation_max_sub_accounts_per_strategy_symbol_side=(
+            settings.engine_correlation_max_sub_accounts_per_strategy_symbol_side
+        ),
         # Phase 22.2 / DEBT-027 paper-mode liquidation visibility.
         paper_auto_deposit_on_liquidation=(settings.paper_auto_deposit_on_liquidation),
     )

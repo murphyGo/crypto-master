@@ -16,3 +16,7 @@ band, and explanatory factors from the same pure scoring helpers.
 Notification summaries now accept an optional `RuntimeSafetyScore` and include
 the compact `runtime_safety: <score>/100 <band>` line in Slack, Telegram, and
 email payloads when supplied by the dispatcher.
+
+Review follow-up connects the runtime path: `TradingEngine` now passes the
+current safety score into proposal notifications, and correlation-warning
+activity events count as concentration warnings in the score.

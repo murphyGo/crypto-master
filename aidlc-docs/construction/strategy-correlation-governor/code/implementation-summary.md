@@ -20,3 +20,9 @@ Final code generation step adds the optional runtime rejection gate.
 exposure, returns advisory warnings while the gate is disabled, and rejects the
 candidate only when `CorrelationGateConfig.enabled` is true and the candidate is
 part of excessive duplicate exposure under the configured warning policy.
+
+Review follow-up wires the gate into `TradingEngine`: duplicate exposure emits
+`correlation_warning` in advisory mode and becomes a post-acceptance rejection
+only when the opt-in gate is enabled. Existing exposure inputs now allow empty
+sets and can filter to open-only trades so closed history does not block new
+candidates.

@@ -238,6 +238,12 @@ class Settings(BaseSettings):
     # cross-check is unacceptable. See
     # ``EngineConfig.reject_if_stale_quote`` for the runtime semantics.
     engine_reject_if_stale_quote: bool = Field(default=False)
+    engine_correlation_gate_enabled: bool = Field(default=False)
+    engine_correlation_max_sub_accounts_per_symbol_side: int = Field(default=1, ge=1)
+    engine_correlation_max_sub_accounts_per_strategy_symbol_side: int = Field(
+        default=1,
+        ge=1,
+    )
 
     # Phase 17.2 (DEBT-019): backtest engine circuit breaker. Defaults
     # match ``src.backtest.engine.BacktestConfig``'s

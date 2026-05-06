@@ -55,6 +55,19 @@ from src.proposal.interaction import (
 )
 from src.proposal.notification import NotificationDispatcher
 from src.runtime.activity_log import ActivityEventType, ActivityLog
+from src.runtime.correlation_governor import (
+    CorrelationExposure,
+    CorrelationExposureSource,
+    CorrelationGateConfig,
+    CorrelationInputSet,
+    CorrelationWarning,
+    CorrelationWarningPolicy,
+    evaluate_correlation_gate,
+)
+from src.runtime.safety_score import (
+    compute_runtime_safety_score,
+    inputs_from_activity_events,
+)
 from src.strategy.performance import (
     PerformanceRecord,
     TradeHistory,
@@ -158,6 +171,12 @@ class EngineConfig(BaseModel):
     # after a paper liquidation. Either way, a ``LIQUIDATED`` activity
     # event is emitted so the shortfall is never silently swallowed.
     paper_auto_deposit_on_liquidation: bool = Field(default=False)
+    correlation_gate_enabled: bool = Field(default=False)
+    correlation_max_sub_accounts_per_symbol_side: int = Field(default=1, ge=1)
+    correlation_max_sub_accounts_per_strategy_symbol_side: int = Field(
+        default=1,
+        ge=1,
+    )
 
 
 # =============================================================================
@@ -495,7 +514,13 @@ class TradingEngine:
         )
 
         try:
-            await self.notification_dispatcher.notify_proposal(proposal)
+            safety_score = compute_runtime_safety_score(
+                inputs_from_activity_events(self.activity_log.read_all())
+            )
+            await self.notification_dispatcher.notify_proposal(
+                proposal,
+                safety_score=safety_score,
+            )
         except Exception as e:
             # Phase 26.3 / DEBT-038: emit-then-swallow. The dispatcher
             # already isolates per-notifier failures (see
@@ -531,6 +556,15 @@ class TradingEngine:
                 details=_proposal_summary(proposal),
                 cycle_id=cycle_id,
             )
+
+            correlation_rejection = self._correlation_gate(
+                proposal,
+                trader,
+                cycle_id,
+                result,
+            )
+            if correlation_rejection is not None:
+                return
 
             # Phase 12.1: cross-cycle position cap. The composite
             # gate has accepted this proposal, but we may already be
@@ -656,6 +690,72 @@ class TradingEngine:
             },
             cycle_id=cycle_id,
         )
+
+    def _correlation_gate(
+        self,
+        proposal: Proposal,
+        trader: Trader,
+        cycle_id: str,
+        result: CycleResult,
+    ) -> str | None:
+        """Emit advisory correlation warnings or reject when opt-in gate is enabled."""
+        existing = CorrelationInputSet.from_trade_history(
+            [trade for trade in trader.get_open_trades() if trade.status == "open"]
+        ).open_only()
+        candidate = _proposal_to_correlation_exposure(proposal)
+        decision = evaluate_correlation_gate(
+            existing,
+            candidate,
+            config=CorrelationGateConfig(
+                enabled=self.config.correlation_gate_enabled,
+                warning_policy=CorrelationWarningPolicy(
+                    max_sub_accounts_per_symbol_side=(
+                        self.config.correlation_max_sub_accounts_per_symbol_side
+                    ),
+                    max_sub_accounts_per_strategy_symbol_side=(
+                        self.config.correlation_max_sub_accounts_per_strategy_symbol_side
+                    ),
+                ),
+            ),
+        )
+        if not decision.warnings:
+            return None
+
+        warning_details = _correlation_warning_details(decision.warnings)
+        self.activity_log.append(
+            ActivityEventType.CORRELATION_WARNING,
+            f"Correlation warning for {proposal.symbol} {proposal.signal}",
+            details={
+                **_proposal_summary(proposal),
+                "warnings": warning_details,
+                "gate_enabled": self.config.correlation_gate_enabled,
+            },
+            cycle_id=cycle_id,
+        )
+        if decision.allowed:
+            return None
+
+        reason = decision.reason
+        rejected_record = self.proposal_history.load(proposal.proposal_id).model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+            }
+        )
+        self.proposal_history.save(rejected_record)
+        result.proposals_rejected += 1
+        self.activity_log.append(
+            ActivityEventType.PROPOSAL_REJECTED,
+            f"Correlation-rejected {proposal.symbol} {proposal.signal}",
+            details={
+                **_proposal_summary(proposal),
+                "reason": reason,
+                "warnings": warning_details,
+            },
+            cycle_id=cycle_id,
+        )
+        return reason
 
     async def _stale_quote_gate(
         self,
@@ -1249,6 +1349,39 @@ def _proposal_to_position(proposal: Proposal) -> Position:
         take_profit=proposal.take_profit,
         leverage=proposal.leverage,
     )
+
+
+def _proposal_to_correlation_exposure(proposal: Proposal) -> CorrelationExposure:
+    return CorrelationExposure(
+        source=CorrelationExposureSource.RUNTIME,
+        exposure_id=f"proposal:{proposal.proposal_id}",
+        sub_account_id=proposal.sub_account_id,
+        strategy_id=proposal.technique_name,
+        symbol=proposal.symbol,
+        side=proposal.signal,
+        opened_at=now_utc(),
+        entry_price=proposal.entry_price,
+        quantity=proposal.quantity,
+        notional=abs(proposal.entry_price * proposal.quantity),
+    )
+
+
+def _correlation_warning_details(
+    warnings: list[CorrelationWarning],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "warning_type": warning.warning_type.value,
+            "symbol": warning.symbol,
+            "side": warning.side,
+            "strategy_id": warning.strategy_id,
+            "sub_account_ids": warning.sub_account_ids,
+            "exposure_ids": warning.exposure_ids,
+            "total_notional": str(warning.total_notional),
+            "message": warning.message,
+        }
+        for warning in warnings
+    ]
 
 
 def _proposal_summary(proposal: Proposal) -> dict[str, object]:

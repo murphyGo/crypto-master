@@ -36,6 +36,7 @@ class RuntimeSafetyInputs(BaseModel):
     recent_notification_failures: int = Field(default=0, ge=0)
     recent_llm_timeouts: int = Field(default=0, ge=0)
     stale_quote_warnings: int = Field(default=0, ge=0)
+    correlation_warnings: int = Field(default=0, ge=0)
     liquidation_events: int = Field(default=0, ge=0)
     cold_start_blocks: int = Field(default=0, ge=0)
     open_drawdown_percent: float = Field(default=0.0, ge=0.0)
@@ -94,6 +95,7 @@ def inputs_from_activity_events(
         ),
         recent_llm_timeouts=_count(events, ActivityEventType.LLM_TIMEOUT),
         stale_quote_warnings=sum(1 for event in events if _is_stale_quote(event)),
+        correlation_warnings=_count(events, ActivityEventType.CORRELATION_WARNING),
         liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
         cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
         open_drawdown_percent=open_drawdown_percent,
@@ -132,6 +134,12 @@ def compute_runtime_safety_score(
         score,
         min(inputs.stale_quote_warnings * 10, 30),
         f"stale quote warnings={inputs.stale_quote_warnings}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
+        min(inputs.correlation_warnings * 10, 30),
+        f"correlation warnings={inputs.correlation_warnings}",
         factors,
     )
     score = _apply_penalty(

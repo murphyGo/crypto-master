@@ -140,6 +140,13 @@ class ActivityEventType(str, Enum):
     #     error_message (str)      ``str(exception)`` — short
     NOTIFICATION_FAILED = "notification_failed"
 
+    # Correlation governor advisory (Strategy Correlation Governor).
+    # Emitted when a candidate proposal would duplicate symbol/strategy
+    # exposure across sub-accounts. The gate may still be disabled, so
+    # this event is the advisory operator surface and the safety-score
+    # concentration signal.
+    CORRELATION_WARNING = "correlation_warning"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

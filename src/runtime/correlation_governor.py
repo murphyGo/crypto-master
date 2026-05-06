@@ -110,7 +110,7 @@ class CorrelationExposure(BaseModel):
 class CorrelationInputSet(BaseModel):
     """Normalized exposure set consumed by the correlation governor."""
 
-    exposures: list[CorrelationExposure] = Field(min_length=1)
+    exposures: list[CorrelationExposure] = Field(default_factory=list)
 
     @classmethod
     def from_backtest_results(
@@ -153,6 +153,18 @@ class CorrelationInputSet(BaseModel):
     def for_symbol(self, symbol: str) -> list[CorrelationExposure]:
         """Return exposures for one trading symbol."""
         return [exposure for exposure in self.exposures if exposure.symbol == symbol]
+
+    def open_only(self) -> CorrelationInputSet:
+        """Return inputs containing only currently open exposures."""
+        return self.model_copy(
+            update={
+                "exposures": [
+                    exposure
+                    for exposure in self.exposures
+                    if exposure.closed_at is None
+                ]
+            }
+        )
 
 
 class CorrelationWarningPolicy(BaseModel):

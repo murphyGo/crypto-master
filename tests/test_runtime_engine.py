@@ -786,6 +786,83 @@ async def test_cap_counts_only_matching_symbol(tmp_path: Path) -> None:
     mocks["trader"].open_position.assert_called_once()
 
 
+async def test_notification_receives_runtime_safety_score(tmp_path: Path) -> None:
+    proposal = make_proposal(proposal_id="safety-notify", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+
+    await engine.run_cycle()
+
+    kwargs = mocks["notification_dispatcher"].notify_proposal.await_args.kwargs
+    assert kwargs["safety_score"].score <= 100
+
+
+async def test_correlation_warning_is_advisory_by_default(tmp_path: Path) -> None:
+    existing_trade = make_trade(
+        trade_id="t-btc-existing",
+        symbol="BTC/USDT",
+        side="long",
+    ).model_copy(update={"sub_account_id": "alpha"})
+    proposal = make_proposal(proposal_id="btc-dup", composite=2.0).model_copy(
+        update={"sub_account_id": "beta"}
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=2,
+        ),
+        open_trades=[existing_trade],
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    warnings = mocks["activity_log"].filter(
+        event_type=ActivityEventType.CORRELATION_WARNING
+    )
+    assert len(warnings) == 1
+    assert warnings[0].details["gate_enabled"] is False
+
+
+async def test_correlation_gate_rejects_when_enabled(tmp_path: Path) -> None:
+    existing_trade = make_trade(
+        trade_id="t-btc-existing",
+        symbol="BTC/USDT",
+        side="long",
+    ).model_copy(update={"sub_account_id": "alpha"})
+    proposal = make_proposal(
+        proposal_id="btc-corr-reject",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "beta"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=2,
+            correlation_gate_enabled=True,
+        ),
+        open_trades=[existing_trade],
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("btc-corr-reject")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == (
+        "correlation gate rejected excessive duplicate exposure"
+    )
+
+
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
     """Cap counts trades regardless of side: long blocks a same-symbol short.
 

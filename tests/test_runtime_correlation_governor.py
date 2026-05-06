@@ -5,9 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-import pytest
-from pydantic import ValidationError
-
 from src.backtest.engine import BacktestResult, BacktestTrade
 from src.runtime.correlation_governor import (
     CorrelationExposureSource,
@@ -157,9 +154,10 @@ def test_correlation_input_filters_by_sub_account_and_symbol() -> None:
     assert [e.exposure_id for e in inputs.for_symbol("ETH/USDT")] == ["bt-2"]
 
 
-def test_correlation_input_requires_at_least_one_exposure() -> None:
-    with pytest.raises(ValidationError, match="at least 1 item"):
-        CorrelationInputSet.from_backtest_results([make_backtest_result([])])
+def test_correlation_input_allows_empty_exposure_set() -> None:
+    inputs = CorrelationInputSet.from_backtest_results([make_backtest_result([])])
+
+    assert inputs.exposures == []
 
 
 def test_duplicate_exposure_warns_on_same_symbol_side_across_sub_accounts() -> None:
@@ -240,10 +238,19 @@ def test_duplicate_exposure_ignores_repeated_same_sub_account() -> None:
     assert compute_duplicate_exposure_warnings(inputs) == []
 
 
+def test_correlation_input_open_only_filters_closed_exposures() -> None:
+    open_trade = make_runtime_trade("open")
+    open_trade = open_trade.model_copy(update={"exit_time": None, "status": "open"})
+    closed_trade = make_runtime_trade("closed")
+    inputs = CorrelationInputSet.from_trade_history([open_trade, closed_trade])
+
+    open_inputs = inputs.open_only()
+
+    assert [exposure.exposure_id for exposure in open_inputs.exposures] == ["open"]
+
+
 def test_correlation_gate_allows_non_duplicate_candidate() -> None:
-    existing = CorrelationInputSet.from_backtest_results(
-        [make_backtest_result([make_backtest_trade("a", symbol="BTC/USDT")])]
-    )
+    existing = CorrelationInputSet()
     candidate = CorrelationInputSet.from_backtest_results(
         [
             make_backtest_result(

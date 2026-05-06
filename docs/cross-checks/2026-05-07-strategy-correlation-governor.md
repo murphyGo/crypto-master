@@ -14,6 +14,8 @@ duplicate-exposure warnings, and an optional runtime rejection gate.
 | Duplicate exposure warnings exist | Complete | `compute_duplicate_exposure_warnings` emits symbol/side and strategy/symbol/side warnings across distinct sub-accounts. |
 | Warning thresholds are configurable | Complete | `CorrelationWarningPolicy` controls tolerated sub-account counts for each warning type. |
 | Runtime rejection gate is optional | Complete | `evaluate_correlation_gate` allows advisory mode by default and rejects only when `CorrelationGateConfig.enabled` is true. |
+| Runtime advisory/rejection wiring exists | Complete | `TradingEngine` emits `correlation_warning` in advisory mode and rejects when the opt-in gate is enabled. |
+| Empty/open-only runtime states are safe | Complete | `CorrelationInputSet` supports empty existing exposure sets and `open_only()` filters closed historical trades. |
 
 ## Implementation Evidence
 
@@ -31,9 +33,8 @@ duplicate-exposure warnings, and an optional runtime rejection gate.
 
 ## Gaps and Risks
 
-- The gate is implemented as a pure decision helper and is not yet wired into
-  `TradingEngine`; this preserves the unit's optional/advisory posture until an
-  operator policy is chosen.
+- The gate is wired at the engine level but policy tuning is still code/env
+  driven; there is no dashboard control for changing correlation thresholds.
 
 ## Unit Mapping
 

@@ -30,6 +30,12 @@ so correlated candidates are allowed with advisory warnings. When
 `CorrelationGateConfig.enabled` is true, candidates that participate in
 duplicate-exposure warnings are rejected with the relevant warning list attached.
 
+Review follow-up wiring now connects the pure gate to `TradingEngine`. The
+engine emits `correlation_warning` activity events in advisory mode and rejects
+only when the opt-in gate flag is enabled. Correlation inputs now allow an empty
+existing exposure set and expose an `open_only` filter so closed historical
+trades do not block new candidates.
+
 ## Files Changed
 
 - Created: `src/runtime/correlation_governor.py`
@@ -49,6 +55,7 @@ duplicate-exposure warnings are rejected with the relevant warning list attached
 | Avoid runtime imports of backtest classes | `runtime.__init__` is imported by trading modules; type-only imports prevent a circular import. |
 | Count distinct sub-accounts, not repeated trades alone | The unit target is cross-account duplicate exposure; repeated trades inside one account are a separate sizing concern. |
 | Default the gate to disabled | The unit plan calls for optional gating; advisory mode avoids surprising live/paper rejection until operators opt in. |
+| Log warnings even when not rejecting | Operators and the runtime safety score need concentration visibility before hard blocking is enabled. |
 
 ## Verification
 
@@ -56,7 +63,8 @@ duplicate-exposure warnings are rejected with the relevant warning list attached
 - `uv run ruff check src/runtime/correlation_governor.py src/runtime/__init__.py tests/test_runtime_correlation_governor.py`
 - `uv run black --check src/runtime/correlation_governor.py src/runtime/__init__.py tests/test_runtime_correlation_governor.py`
 - `uv run mypy src`
+- `uv run pytest tests/test_runtime_correlation_governor.py tests/test_runtime_safety_score.py tests/test_runtime_engine.py::test_notification_receives_runtime_safety_score tests/test_runtime_engine.py::test_correlation_warning_is_advisory_by_default tests/test_runtime_engine.py::test_correlation_gate_rejects_when_enabled -q`
 
 ## Follow-Up
 
-- Wire the optional gate into engine/dashboard workflows when operators choose a policy.
+- Add dashboard controls if operators need to tune correlation policy from UI.
