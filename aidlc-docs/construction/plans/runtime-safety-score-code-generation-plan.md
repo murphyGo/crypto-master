@@ -7,7 +7,7 @@ New product-intelligence unit for operator safety rollups.
 ## Planned Code Generation Steps
 
 - [x] Register the runtime safety score unit and construction plan.
-- [ ] Define safety score inputs and status bands.
+- [x] Define safety score inputs and status bands.
 - [ ] Compute score from activity, notification, LLM, quote freshness, drawdown, and liquidation signals.
 - [ ] Surface score in engine dashboard and notification summaries.
 
