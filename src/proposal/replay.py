@@ -165,6 +165,67 @@ def compare_replay_scenarios(
     return [_run_scenario(replay_input, scenario) for scenario in scenarios]
 
 
+def render_replay_report(results: list[ProposalReplayScenarioResult]) -> str:
+    """Render scenario results as a Markdown report for operator tuning."""
+    if not results:
+        raise ProposalReplayInputError("at least one scenario result is required")
+
+    ranked = sorted(
+        results,
+        key=lambda result: (result.average_pnl_percent, result.total_gross_pnl),
+        reverse=True,
+    )
+    best = ranked[0]
+    lines = [
+        "# Proposal Replay Report",
+        "",
+        "## Scenario Summary",
+        "",
+        "| Scenario | Approved | Total Gross PnL | Average PnL % |",
+        "|----------|----------|-----------------|---------------|",
+    ]
+    for result in ranked:
+        lines.append(
+            "| "
+            f"{result.scenario.scenario_id} | "
+            f"{result.approved_count} | "
+            f"{_format_decimal(result.total_gross_pnl)} | "
+            f"{_format_decimal(result.average_pnl_percent)} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Recommended Scenario",
+            "",
+            (
+                f"`{best.scenario.scenario_id}` with "
+                f"{best.approved_count} approved proposals, "
+                f"{_format_decimal(best.total_gross_pnl)} total gross PnL, "
+                f"and {_format_decimal(best.average_pnl_percent)} average PnL %."
+            ),
+            "",
+            "## Outcome Detail",
+            "",
+            "| Scenario | Proposal | Decision | Exit | Gross PnL | PnL % |",
+            "|----------|----------|----------|------|-----------|-------|",
+        ]
+    )
+    for result in ranked:
+        for outcome in result.outcomes:
+            decision = "approved" if outcome.approved else "filtered"
+            lines.append(
+                "| "
+                f"{result.scenario.scenario_id} | "
+                f"{outcome.proposal_id} | "
+                f"{decision} | "
+                f"{outcome.exit_reason} | "
+                f"{_format_decimal(outcome.gross_pnl)} | "
+                f"{_format_decimal(outcome.pnl_percent)} |"
+            )
+    return "\n".join(lines)
+
+
 def _run_scenario(
     replay_input: ProposalReplayInput,
     scenario: ProposalReplayScenario,
@@ -294,6 +355,10 @@ def _pnl_percent(
     return ((entry_price - exit_price) / entry_price) * Decimal("100")
 
 
+def _format_decimal(value: Decimal) -> str:
+    return f"{value.quantize(Decimal('0.01'))}"
+
+
 __all__ = [
     "ProposalReplayExitAssumption",
     "ProposalReplayCase",
@@ -303,4 +368,5 @@ __all__ = [
     "ProposalReplayScenario",
     "ProposalReplayScenarioResult",
     "compare_replay_scenarios",
+    "render_replay_report",
 ]

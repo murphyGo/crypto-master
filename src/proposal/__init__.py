@@ -47,6 +47,7 @@ from src.proposal.replay import (
     ProposalReplayScenario,
     ProposalReplayScenarioResult,
     compare_replay_scenarios,
+    render_replay_report,
 )
 
 __all__ = [
@@ -78,4 +79,5 @@ __all__ = [
     "default_decision_prompt",
     "format_proposal",
     "compare_replay_scenarios",
+    "render_replay_report",
 ]

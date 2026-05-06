@@ -18,6 +18,7 @@ from src.proposal.replay import (
     ProposalReplayInputError,
     ProposalReplayScenario,
     compare_replay_scenarios,
+    render_replay_report,
 )
 
 
@@ -291,3 +292,34 @@ def test_compare_replay_scenarios_handles_short_take_profit() -> None:
     assert outcome.exit_price == Decimal("90")
     assert outcome.gross_pnl == Decimal("1.0")
     assert outcome.pnl_percent == Decimal("10.0")
+
+
+def test_render_replay_report_ranks_and_details_scenarios() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {"p1": [candle(base, high="112", low="94")]},
+    )
+    results = compare_replay_scenarios(
+        replay_input,
+        [
+            ProposalReplayScenario(
+                exit_assumption=ProposalReplayExitAssumption.STOP_FIRST,
+            ),
+            ProposalReplayScenario(
+                exit_assumption=ProposalReplayExitAssumption.TAKE_PROFIT_FIRST,
+            ),
+        ],
+    )
+
+    report = render_replay_report(results)
+
+    assert report.startswith("# Proposal Replay Report")
+    assert "## Recommended Scenario" in report
+    assert "`score>=0.0000:take_profit_first`" in report
+    assert "| score>=0.0000:take_profit_first | 1 | 1.00 | 10.00 |" in report
+    assert (
+        "| score>=0.0000:stop_first | p1 | approved | stop_loss | -0.50 | -5.00 |"
+        in report
+    )

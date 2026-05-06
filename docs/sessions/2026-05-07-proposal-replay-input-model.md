@@ -24,6 +24,10 @@ post-proposal candles for stop-loss/take-profit touches, resolves same-candle
 ambiguity with either `stop_first` or `take_profit_first`, and falls back to the
 last candle close for end-of-data exits.
 
+The report step adds a Markdown renderer for operator threshold tuning. Reports
+rank scenarios, show approved count, total gross PnL, average PnL percent,
+highlight the recommended scenario, and list per-proposal outcomes.
+
 ## Files Changed
 
 - Created: `src/proposal/replay.py`
@@ -43,6 +47,7 @@ last candle close for end-of-data exits.
 | Keep threshold logic out of the input model | The next plan step can compare approval thresholds without changing the data contract. |
 | Use explicit same-candle exit assumptions | OHLCV candles cannot reveal intrabar order, so operators need conservative and optimistic replay views. |
 | Reuse `pnl_for_trade` for gross PnL | Replay should follow the project-wide no-double-leverage PnL convention. |
+| Emit Markdown first | Markdown can be persisted, reviewed in sessions, or embedded in a future CLI/dashboard without adding a new output dependency. |
 
 ## Verification
 
@@ -54,4 +59,4 @@ last candle close for end-of-data exits.
 
 ## Follow-Up
 
-- Emit replay reports for operator threshold tuning.
+- Add CLI/dashboard replay tooling when operators need a direct entrypoint.
