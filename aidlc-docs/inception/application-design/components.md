@@ -13,7 +13,7 @@
 | Runtime Engine | Run proposal/trading cycles and emit activity logs | `src/runtime/`, `src/main.py` | `proposal-runtime` |
 | Trading Core | Execute paper/live trades, risk math, portfolios, profiles, and sub-accounts | `src/trading/`, `src/utils/trading_math.py`, `trading_profiles/` | `trading-core`, `sub-account-capital-segmentation` |
 | Persistence Utilities | Provide atomic writes, timestamp helpers, and JSONL rotation | `src/utils/io.py`, `src/utils/time.py`, `src/runtime/jsonl_rotator.py` | `persistence-data-integrity` |
-| Dashboard | Present operator UI for runtime, trading, strategies, and feedback | `src/dashboard/` | `dashboard-operator-ui` |
+| Dashboard | Present operator UI for runtime, trading, strategies, feedback, and command-center safety workflows | `src/dashboard/` | `dashboard-operator-ui`, `dashboard-operator-command-center` |
 | Notification Backends | Deliver proposal/operator notifications | `src/proposal/notification.py` | `notifications-ops` |
 | Quality Governance | Maintain AI-DLC overlay, generated skills, debt, sessions, and cross-checks | `aidlc-docs/`, `.agents/`, `.claude/`, `docs/` | `quality-governance` |
 

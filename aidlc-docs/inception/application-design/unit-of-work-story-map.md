@@ -11,6 +11,7 @@ This map connects standard AI-DLC user stories to the brownfield unit breakdown.
 | `ai-feedback-loop` | US-004 | FR-021 - FR-027, FR-033, FR-035, NFR-002, CON-001 | `tests/test_ai_*`, `tests/test_feedback_*`, auto-research script tests |
 | `proposal-runtime` | US-005, US-006, US-013 | FR-011 - FR-015, FR-026, CON-003 | `tests/test_proposal_*`, `tests/test_runtime_*`, main dispatch tests |
 | `dashboard-operator-ui` | US-012 | FR-028 - FR-032, FR-036, FR-038, NFR-003 | `tests/test_dashboard_*` |
+| `dashboard-operator-command-center` | US-012, US-017, US-020, US-022, US-023 | FR-028 - FR-032, FR-036, FR-039, FR-042 - FR-044, NFR-003, NFR-007, NFR-008 | `tests/test_dashboard_app.py`, `tests/test_dashboard_trading.py`, `tests/test_dashboard_engine.py`, `tests/test_dashboard_feedback.py`, `tests/test_dashboard_strategies.py` |
 | `notifications-ops` | US-013, US-014 | FR-015, NFR-004, NFR-011, NFR-012 | notification tests, deployment/runbook review |
 | `sub-account-capital-segmentation` | US-009, US-010, US-011 | FR-036 - FR-038 | `tests/test_trading_sub_account*`, backtest harness tests |
 | `persistence-data-integrity` | US-006, US-007, US-015 | FR-014, NFR-006 - NFR-008 | `tests/test_utils_atomic_write.py`, `tests/test_utils_time.py`, `tests/test_jsonl_rotator.py` |

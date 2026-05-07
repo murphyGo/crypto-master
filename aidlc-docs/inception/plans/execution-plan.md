@@ -29,6 +29,7 @@ should be routed by unit.
 | `ai-feedback-loop` | Conditional | Required for timeout/audit/safety changes | Usually N/A | Required for changes | Required |
 | `proposal-runtime` | Required for proposal lifecycle changes | Required for stale-quote, cap, logging, or execution safety | Conditional | Required for changes | Required |
 | `dashboard-operator-ui` | Conditional | Conditional for operator safety/visibility | Usually N/A | Required for changes | Required |
+| `dashboard-operator-command-center` | Required for command-center workflow, navigation, and evidence-drilldown semantics | Required for safety, freshness, exposure, and actionability semantics | Usually N/A | Required for changes | Required |
 | `notifications-ops` | Conditional | Required for delivery/retry/failure semantics | Required for deployment/runtime changes | Required for changes | Required |
 | `sub-account-capital-segmentation` | Required for allocation or credential semantics | Required for isolation/safety | Conditional for live mode | Required for changes | Required |
 | `persistence-data-integrity` | Conditional | Required | Usually N/A | Required for changes | Required |

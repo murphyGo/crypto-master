@@ -24,6 +24,7 @@ For active technical debt grouped by these units, see
 | `ai-feedback-loop` | Claude CLI integration, strategy improver, feedback loop, audit | `src/ai/`, `src/feedback/`, `scripts/auto_research_candidates.py`, `tests/test_ai_*`, `tests/test_feedback_*` |
 | `proposal-runtime` | Proposal lifecycle, runtime cycles, activity logs, stale-quote and cap gates | `src/proposal/`, `src/runtime/`, `src/main.py`, `tests/test_proposal_*`, `tests/test_runtime_*` |
 | `dashboard-operator-ui` | Streamlit dashboard and operator-facing monitoring/control pages | `src/dashboard/`, `tests/test_dashboard_*` |
+| `dashboard-operator-command-center` | Operator-first safety, exposure, sub-account, and strategy-evidence command center | `src/dashboard/`, `src/runtime/safety_score.py`, `src/runtime/correlation_governor.py`, `src/proposal/replay.py`, `tests/test_dashboard_*`, `tests/test_runtime_safety_score.py` |
 | `notifications-ops` | Notification backends, deployment, runtime operations, log retention | `src/proposal/notification.py`, `Dockerfile`, `fly.toml`, `start.sh`, `docs/deployment.md` |
 | `sub-account-capital-segmentation` | Independent capital pools, credential bindings, A/B harness | `src/trading/sub_account*.py`, `config/sub_accounts.yaml.example`, `src/backtest/harness.py`, `tests/test_trading_sub_account*` |
 | `persistence-data-integrity` | Atomic writes, JSON/JSONL rotation, UTC timestamp contracts | `src/utils/io.py`, `src/utils/time.py`, `src/runtime/jsonl_rotator.py`, `tests/test_utils_*`, `tests/test_jsonl_rotator.py` |
@@ -140,6 +141,24 @@ For active technical debt grouped by these units, see
   `tests/test_dashboard_engine.py`, `tests/test_dashboard_feedback.py`,
   `tests/test_dashboard_strategies.py`,
   `tests/test_dashboard_trading.py`.
+
+### `dashboard-operator-command-center`
+
+- **Responsibilities**: Operator-first dashboard workflow that answers whether
+  the bot is safe to keep running, then points to the next investigation path
+  across runtime safety, open exposure, sub-account context, data freshness,
+  notification/correlation/liquidation events, and strategy evidence.
+- **Related Requirements**: FR-028, FR-029, FR-030, FR-031, FR-032, FR-036,
+  FR-039, FR-042, FR-043, FR-044, NFR-003, NFR-007, NFR-008.
+- **Existing Status**: New construction unit created from the 2026-05-07
+  user-perspective UI review.
+- **Future Change Triggers**: Home/status redesign, common safety header,
+  account context band, cross-account exposure summary, strategy evidence
+  drilldown, dashboard replay tooling, or operator actionability changes.
+- **Suggested Tests**: `tests/test_dashboard_app.py`,
+  `tests/test_dashboard_trading.py`, `tests/test_dashboard_engine.py`,
+  `tests/test_dashboard_feedback.py`, `tests/test_dashboard_strategies.py`,
+  `tests/test_runtime_safety_score.py`.
 
 ### `notifications-ops`
 

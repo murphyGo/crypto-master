@@ -22,7 +22,7 @@ change history.
 | Feedback loop and validation | FR-021 - FR-027, FR-034, FR-035, NFR-002, NFR-006 | `ai-feedback-loop`, `backtesting-validation`, `strategy-framework` |
 | Sub-account capital segmentation | FR-036 - FR-038 | `sub-account-capital-segmentation`, `trading-core`, `backtesting-validation`, `dashboard-operator-ui` |
 | Product intelligence expansion | FR-039 - FR-044 | `strategy-promotion-lab`, `sub-account-experiment-marketplace`, `trade-quality-autopsy`, `runtime-safety-score`, `proposal-replay-simulator`, `strategy-correlation-governor` |
-| Operator dashboard | FR-028 - FR-032, NFR-003 | `dashboard-operator-ui` |
+| Operator dashboard | FR-028 - FR-032, FR-036, FR-039, FR-042 - FR-044, NFR-003, NFR-007, NFR-008 | `dashboard-operator-ui`, `dashboard-operator-command-center` |
 | Security and constraints | NFR-004, NFR-011, NFR-012, CON-001 - CON-003 | `exchange-integration`, `notifications-ops`, `trading-core`, `quality-governance` |
 
 ## Functional Requirement Index
@@ -56,11 +56,11 @@ change history.
 | FR-025 | Execute backtests against historical data | High | `backtesting-validation` |
 | FR-026 | Automate backtest, analysis, improvement, and revalidation loops | High | `ai-feedback-loop`, `backtesting-validation`, `proposal-runtime` |
 | FR-027 | Promote validated techniques after operator approval | High | `strategy-framework`, `ai-feedback-loop` |
-| FR-028 | Show strategy status in the dashboard | Medium | `dashboard-operator-ui` |
-| FR-029 | Show active trading state | Medium | `dashboard-operator-ui` |
-| FR-030 | Show feedback loop progress | Medium | `dashboard-operator-ui` |
-| FR-031 | Show asset and performance summaries | Medium | `dashboard-operator-ui` |
-| FR-032 | Provide a Streamlit web dashboard | Medium | `dashboard-operator-ui` |
+| FR-028 | Show strategy status in the dashboard | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
+| FR-029 | Show active trading state | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
+| FR-030 | Show feedback loop progress | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
+| FR-031 | Show asset and performance summaries | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
+| FR-032 | Provide a Streamlit web dashboard | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
 | FR-033 | Require falsifiable hypotheses for Claude-generated techniques | High | `strategy-framework`, `ai-feedback-loop` |
 | FR-034 | Gate strategy promotion through robustness validation | High | `backtesting-validation`, `strategy-framework` |
 | FR-035 | Require failure-mode analysis before strategy improvement | High | `ai-feedback-loop`, `strategy-framework` |
