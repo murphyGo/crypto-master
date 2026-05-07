@@ -66,7 +66,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready | Track future Claude/improver loop changes in construction plans |
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready | Track future proposal/runtime cycle changes in construction plans |
 | `dashboard-operator-ui` | Complete | Brownfield-complete; construction-ready | Track future Streamlit/operator UI changes in construction plans |
-| `dashboard-operator-command-center` | Planned | User-perspective review complete; functional design queued | Create operator-first command center design for safety, account context, exposure, and strategy evidence |
+| `dashboard-operator-command-center` | In Progress | Functional design complete; first Home command-center safety/freshness/exposure summary shipped | Continue with account-context controls, exposure drilldown, and strategy evidence links in future slices |
 | `notifications-ops` | Complete | Brownfield-complete; construction-ready | Track future notification/deployment changes in construction plans |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |
 | `persistence-data-integrity` | Complete | Brownfield-complete; construction-ready | Track future timestamp/atomic persistence changes in construction plans |

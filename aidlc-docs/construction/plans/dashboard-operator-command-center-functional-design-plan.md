@@ -78,5 +78,5 @@ uv run pytest tests/test_dashboard_app.py tests/test_dashboard_trading.py tests/
 - [x] Construction plan updated with implementation slice and tests.
 - [x] Code-generation stage plan created or this plan advanced to code
   generation after design approval.
-- [ ] Session log created when implementation begins.
-- [ ] Cross-check created after the command-center slice ships.
+- [x] Session log created when implementation begins.
+- [x] Cross-check created after the command-center slice ships.
