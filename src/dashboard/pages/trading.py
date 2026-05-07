@@ -37,6 +37,7 @@ from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.portfolio import AssetSnapshot, PortfolioTracker
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
+from src.utils.trading_math import pnl_for_trade
 
 logger = get_logger("crypto_master.dashboard.trading")
 
@@ -77,7 +78,10 @@ class TradingSummaryMetrics(TypedDict):
 # =============================================================================
 
 
-def build_open_positions_dataframe(trades: list[TradeHistory]) -> pd.DataFrame:
+def build_open_positions_dataframe(
+    trades: list[TradeHistory],
+    current_prices: dict[str, Decimal] | None = None,
+) -> pd.DataFrame:
     """Build the open-positions table (FR-029).
 
     Only ``status == "open"`` trades. Sorted by entry time, most
@@ -85,14 +89,31 @@ def build_open_positions_dataframe(trades: list[TradeHistory]) -> pd.DataFrame:
 
     Args:
         trades: Raw trade list (any status); only open trades are kept.
+        current_prices: Optional symbol -> mark price map from the
+            latest portfolio snapshot. When a symbol is present, the
+            row includes current price and gross unrealized PnL.
 
     Returns:
         DataFrame with one row per open position. Empty if nothing is open.
     """
+    prices = current_prices or {}
     rows: list[dict[str, object]] = []
     for trade in trades:
         if trade.status != "open":
             continue
+        current_price = prices.get(trade.symbol)
+        pnl: Decimal | None = None
+        pnl_pct: float | None = None
+        if current_price is not None:
+            pnl = pnl_for_trade(
+                entry=trade.entry_price,
+                exit=current_price,
+                qty=trade.entry_quantity,
+                side=trade.side,
+            )
+            entry_notional = trade.entry_price * trade.entry_quantity
+            if entry_notional:
+                pnl_pct = float((pnl / entry_notional) * Decimal("100"))
         rows.append(
             {
                 "Trade ID": trade.id[:8],
@@ -100,6 +121,11 @@ def build_open_positions_dataframe(trades: list[TradeHistory]) -> pd.DataFrame:
                 "Side": trade.side.upper(),
                 "Quantity": float(trade.entry_quantity),
                 "Entry Price": float(trade.entry_price),
+                "Current Price": (
+                    float(current_price) if current_price is not None else None
+                ),
+                "Current P&L": float(pnl) if pnl is not None else None,
+                "Current P&L %": round(pnl_pct, 2) if pnl_pct is not None else None,
                 "Leverage": f"{trade.leverage}x",
                 "Entry Time": trade.entry_time,
             }
@@ -112,6 +138,9 @@ def build_open_positions_dataframe(trades: list[TradeHistory]) -> pd.DataFrame:
                 "Side",
                 "Quantity",
                 "Entry Price",
+                "Current Price",
+                "Current P&L",
+                "Current P&L %",
                 "Leverage",
                 "Entry Time",
             ]
@@ -299,6 +328,16 @@ def build_summary_metrics(
     }
 
 
+def latest_snapshot_current_prices(
+    snapshots: list[AssetSnapshot],
+) -> dict[str, Decimal]:
+    """Return mark prices from the newest snapshot, if any."""
+    if not snapshots:
+        return {}
+    latest = max(snapshots, key=lambda s: s.timestamp)
+    return dict(latest.current_prices)
+
+
 def _count_threshold_rejections(history: ProposalHistory) -> int:
     """Count proposal records rejected by the composite-threshold gate.
 
@@ -445,7 +484,10 @@ def render(
     # ---- Active positions ----
     st.subheader("Active Positions")
     pos_col, rej_col = st.columns([3, 1])
-    open_df = build_open_positions_dataframe(trades)
+    open_df = build_open_positions_dataframe(
+        trades,
+        current_prices=latest_snapshot_current_prices(snapshots),
+    )
     requested_symbol = _query_param_first("symbol")
     if requested_symbol and "Symbol" in open_df.columns:
         open_df = open_df[open_df["Symbol"] == requested_symbol]
@@ -517,5 +559,6 @@ __all__ = [
     "build_summary_metrics",
     "build_trade_history_dataframe",
     "discover_sub_account_ids",
+    "latest_snapshot_current_prices",
     "render",
 ]

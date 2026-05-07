@@ -16,6 +16,7 @@ from src.dashboard.pages.trading import (
     build_summary_metrics,
     build_trade_history_dataframe,
     discover_sub_account_ids,
+    latest_snapshot_current_prices,
 )
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
@@ -75,6 +76,7 @@ def make_snapshot(
     quote_balance: str = "10000",
     realized_pnl: str = "0",
     unrealized_pnl: str = "0",
+    current_prices: dict[str, Decimal] | None = None,
 ) -> AssetSnapshot:
     return AssetSnapshot(
         timestamp=timestamp,
@@ -83,6 +85,7 @@ def make_snapshot(
         balances={quote_currency: Decimal(quote_balance)},
         realized_pnl=Decimal(realized_pnl),
         unrealized_pnl=Decimal(unrealized_pnl),
+        current_prices=current_prices or {},
     )
 
 
@@ -166,6 +169,48 @@ def test_open_positions_uppercase_side() -> None:
 
     sides = set(df["Side"])
     assert sides == {"LONG", "SHORT"}
+
+
+def test_open_positions_includes_current_pnl_when_price_available() -> None:
+    long_trade = make_trade(
+        trade_id="long-1",
+        side="long",
+        entry_price="50000",
+        entry_quantity="0.1",
+    )
+    short_trade = make_trade(
+        trade_id="short-1",
+        symbol="ETH/USDT",
+        side="short",
+        entry_price="3000",
+        entry_quantity="2",
+    )
+
+    df = build_open_positions_dataframe(
+        [long_trade, short_trade],
+        current_prices={
+            "BTC/USDT": Decimal("51000"),
+            "ETH/USDT": Decimal("2900"),
+        },
+    )
+
+    by_symbol = {row["Symbol"]: row for row in df.to_dict("records")}
+    assert by_symbol["BTC/USDT"]["Current Price"] == 51000.0
+    assert by_symbol["BTC/USDT"]["Current P&L"] == pytest.approx(100.0)
+    assert by_symbol["BTC/USDT"]["Current P&L %"] == pytest.approx(2.0)
+    assert by_symbol["ETH/USDT"]["Current P&L"] == pytest.approx(200.0)
+    assert by_symbol["ETH/USDT"]["Current P&L %"] == pytest.approx(3.33)
+
+
+def test_open_positions_leaves_current_pnl_blank_without_price() -> None:
+    trade = make_trade(symbol="BTC/USDT")
+
+    df = build_open_positions_dataframe([trade], current_prices={})
+
+    row = df.iloc[0]
+    assert row["Current Price"] is None
+    assert row["Current P&L"] is None
+    assert row["Current P&L %"] is None
 
 
 # =============================================================================
@@ -459,6 +504,21 @@ def test_summary_metrics_uses_latest_snapshot() -> None:
     assert metrics["latest_snapshot_at"] == datetime(2026, 1, 5, tzinfo=timezone.utc)
     assert metrics["latest_equity"] == pytest.approx(11200.0)  # 11000 + 200
     assert metrics["unrealized_pnl"] == pytest.approx(200.0)
+
+
+def test_latest_snapshot_current_prices_uses_newest_snapshot() -> None:
+    snapshots = [
+        make_snapshot(
+            timestamp=datetime(2026, 1, 1),
+            current_prices={"BTC/USDT": Decimal("50000")},
+        ),
+        make_snapshot(
+            timestamp=datetime(2026, 1, 2),
+            current_prices={"BTC/USDT": Decimal("51000")},
+        ),
+    ]
+
+    assert latest_snapshot_current_prices(snapshots) == {"BTC/USDT": Decimal("51000")}
 
 
 # =============================================================================

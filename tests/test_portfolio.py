@@ -145,6 +145,20 @@ class TestAssetSnapshot:
         )
         assert snap.total_pnl == Decimal("700")
 
+    def test_current_prices_coercion(self) -> None:
+        """String/float mark prices are coerced to Decimal."""
+        snap = AssetSnapshot(
+            mode="paper",
+            quote_currency="USDT",
+            current_prices={
+                "BTC/USDT": "50000",
+                "ETH/USDT": 3000.5,  # type: ignore[dict-item]
+            },
+        )
+
+        assert snap.current_prices["BTC/USDT"] == Decimal("50000")
+        assert snap.current_prices["ETH/USDT"] == Decimal("3000.5")
+
 
 # =============================================================================
 # Portfolio model

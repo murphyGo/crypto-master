@@ -69,6 +69,9 @@ class AssetSnapshot(BaseModel):
             :func:`src.utils.trading_math.pnl_for_trade`; do not
             re-multiply by ``leverage`` downstream (DEBT-024 /
             Phase 20.1).
+        current_prices: Symbol -> mark price map used to compute
+            ``unrealized_pnl``. Older snapshots may omit it; dashboards
+            should treat a missing symbol as unavailable, not as zero.
     """
 
     timestamp: datetime = Field(default_factory=now_utc)
@@ -78,6 +81,7 @@ class AssetSnapshot(BaseModel):
     balances: dict[str, Decimal] = Field(default_factory=dict)
     realized_pnl: Decimal = Decimal("0")
     unrealized_pnl: Decimal = Decimal("0")
+    current_prices: dict[str, Decimal] = Field(default_factory=dict)
 
     model_config = {"validate_assignment": True}
 
@@ -87,6 +91,16 @@ class AssetSnapshot(BaseModel):
         cls, v: dict[str, str | int | float | Decimal] | None
     ) -> dict[str, Decimal]:
         """Coerce balance values to Decimal."""
+        if v is None:
+            return {}
+        return {k: _coerce_decimal(val) for k, val in v.items()}
+
+    @field_validator("current_prices", mode="before")
+    @classmethod
+    def coerce_current_prices(
+        cls, v: dict[str, str | int | float | Decimal] | None
+    ) -> dict[str, Decimal]:
+        """Coerce persisted mark prices to Decimal."""
         if v is None:
             return {}
         return {k: _coerce_decimal(val) for k, val in v.items()}
@@ -349,6 +363,7 @@ class PortfolioTracker:
             balances=dict(balances),
             realized_pnl=realized,
             unrealized_pnl=unrealized,
+            current_prices=dict(prices),
         )
 
         snapshots = self.load_snapshots(mode)
@@ -438,6 +453,7 @@ class PortfolioTracker:
             "balances": {k: str(v) for k, v in snapshot.balances.items()},
             "realized_pnl": str(snapshot.realized_pnl),
             "unrealized_pnl": str(snapshot.unrealized_pnl),
+            "current_prices": {k: str(v) for k, v in snapshot.current_prices.items()},
         }
 
     def get_equity_curve(
