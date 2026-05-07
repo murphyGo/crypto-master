@@ -15,7 +15,7 @@ New product-intelligence unit for replaying historical proposal decisions.
 ## Evidence
 
 - Requirements: FR-013, FR-014, FR-025, FR-043.
-- Primary paths: `src/proposal/`, `src/backtest/`, `scripts/`.
+- Primary paths: `src/proposal/`, `src/backtest/`, `src/tools/`.
 
 ## Future Work
 

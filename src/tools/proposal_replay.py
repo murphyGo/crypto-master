@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -36,7 +37,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--min-score",
         action="append",
-        type=float,
+        type=_nonnegative_finite_float,
         default=[],
         help=(
             "Approval threshold to replay. Can be repeated. "
@@ -56,11 +57,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _nonnegative_finite_float(raw: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError("must be a nonnegative finite number")
+    return value
+
+
 def load_replay_input(path: Path) -> ProposalReplayInput:
     """Load a replay input JSON file."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        return ProposalReplayInput(**payload)
+        return ProposalReplayInput.model_validate(payload)
     except OSError as exc:
         raise ProposalReplayInputError(
             f"failed to read replay input {path}: {exc}"
@@ -105,8 +116,13 @@ def run_report(
     if output_path is None:
         stdout.write(report + "\n")
         return
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(report + "\n", encoding="utf-8")
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(report + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise ProposalReplayInputError(
+            f"failed to write replay report {output_path}: {exc}"
+        ) from exc
 
 
 def main(argv: list[str] | None = None, stdout: TextIO = sys.stdout) -> int:

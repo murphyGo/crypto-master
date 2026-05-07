@@ -24,3 +24,9 @@ CLI follow-up adds `src.tools.proposal_replay`. Operators can now run a
 file-based replay input through a scenario grid built from repeated
 `--min-score` and `--exit-assumption` options, then write the Markdown report to
 stdout or an explicit output path.
+
+Runnable form:
+
+```bash
+python -m src.tools.proposal_replay --input replay.json --min-score 1.0 --exit-assumption stop_first --output reports/replay.md
+```

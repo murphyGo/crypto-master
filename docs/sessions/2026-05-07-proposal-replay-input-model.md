@@ -33,6 +33,17 @@ test-pinned replay contract directly from a JSON file. Repeated `--min-score`
 and `--exit-assumption` options build a scenario grid, and the generated
 Markdown report can be written to stdout or an output path.
 
+Runnable form:
+
+```bash
+python -m src.tools.proposal_replay --input replay.json --min-score 1.0 --exit-assumption stop_first --output reports/replay.md
+```
+
+The `replay.json` file is the JSON serialization of `ProposalReplayInput`, with
+top-level `cases` entries containing a `ProposalRecord` and its explicit
+`OHLCV` candle window. Invalid top-level JSON shapes, negative/non-finite score
+options, and output write failures now exit with code 2 and a short CLI error.
+
 ## Files Changed
 
 - Created: `src/proposal/replay.py`
@@ -57,6 +68,7 @@ Markdown report can be written to stdout or an output path.
 | Emit Markdown first | Markdown can be persisted, reviewed in sessions, or embedded in a future CLI/dashboard without adding a new output dependency. |
 | Keep CLI input equal to `ProposalReplayInput` JSON | Avoids inventing a second replay file contract and keeps fixtures round-trippable. |
 | Build scenario grids from repeated options | Operators can compare multiple thresholds and same-candle assumptions without writing custom code. |
+| Treat malformed CLI inputs as usage errors | Operator tooling should return stable exit code 2 and concise errors instead of tracebacks. |
 
 ## Verification
 
@@ -68,6 +80,7 @@ Markdown report can be written to stdout or an output path.
 - `uv run pytest tests/test_tools_proposal_replay.py tests/test_proposal_replay.py -q`
 - `uv run ruff check src/tools/proposal_replay.py tests/test_tools_proposal_replay.py`
 - `uv run black --check src/tools/proposal_replay.py tests/test_tools_proposal_replay.py`
+- `uv run pytest -q`
 
 ## Follow-Up
 

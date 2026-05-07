@@ -15,6 +15,7 @@ scenario comparison, and operator-readable report output.
 | Exit assumptions are explicit | Complete | Same-candle TP/SL ambiguity is resolved by `stop_first` or `take_profit_first`. |
 | Operator report is emitted | Complete | `render_replay_report` produces Markdown summary, recommendation, and outcome detail tables. |
 | CLI entrypoint is wired | Complete | `src.tools.proposal_replay` loads `ProposalReplayInput` JSON, builds scenario grids, and writes Markdown to stdout or a file. |
+| CLI errors are operator-readable | Complete | Invalid top-level JSON, invalid score options, and output write failures return exit code 2 instead of traceback. |
 
 ## Implementation Evidence
 

@@ -7,6 +7,8 @@ from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 
+import pytest
+
 from src.models import OHLCV
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import ProposalDecision, ProposalRecord
@@ -128,3 +130,36 @@ def test_main_writes_report_to_file(tmp_path: Path) -> None:
         "# Proposal Replay Report"
     )
     assert "score>=2.0000:stop_first" in output_path.read_text(encoding="utf-8")
+
+
+def test_main_reports_invalid_top_level_json_shape(tmp_path: Path) -> None:
+    input_path = tmp_path / "replay.json"
+    input_path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--input", str(input_path)], stdout=StringIO())
+
+    assert exc_info.value.code == 2
+
+
+def test_main_rejects_negative_min_score(tmp_path: Path) -> None:
+    input_path = tmp_path / "replay.json"
+    input_path.write_text(_replay_input().model_dump_json(), encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--input", str(input_path), "--min-score", "-1"], stdout=StringIO())
+
+    assert exc_info.value.code == 2
+
+
+def test_main_reports_output_write_failure(tmp_path: Path) -> None:
+    input_path = tmp_path / "replay.json"
+    input_path.write_text(_replay_input().model_dump_json(), encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            ["--input", str(input_path), "--output", str(tmp_path)],
+            stdout=StringIO(),
+        )
+
+    assert exc_info.value.code == 2
