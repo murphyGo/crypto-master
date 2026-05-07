@@ -374,6 +374,102 @@ async def test_weinstein_stage2_long_on_rising_ma_breakout(weinstein_module) -> 
     assert result.take_profit > result.entry_price
 
 
+@pytest.fixture
+def momentum_pinball_module():
+    return _load_strategy_module("momentum_pinball_orb.py")
+
+
+async def test_momentum_pinball_orb_long_after_oversold_daily_pinball(
+    momentum_pinball_module,
+) -> None:
+    strategy = _build(momentum_pinball_module)
+    closes = []
+    start = datetime(2026, 1, 1)
+    # Completed daily closes create falling ROC momentum and therefore
+    # an oversold Pinball reading.
+    for daily_close in [100.0, 106.0, 105.0, 103.0, 100.0]:
+        closes.extend(
+            [
+                daily_close - 1.0,
+                daily_close - 0.8,
+                daily_close - 0.6,
+                daily_close - 0.4,
+                daily_close - 0.2,
+                daily_close,
+            ]
+        )
+    session = [99.5, 99.8, 100.0, 100.1, 101.5]
+    closes.extend(session)
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    highs[-5:-1] = [99.8, 100.0, 100.2, 100.3]
+    lows[-5:-1] = [99.2, 99.5, 99.7, 99.8]
+    highs[-1] = 101.7
+    ohlcv = _make_ohlcv(
+        closes,
+        start=start,
+        delta=timedelta(hours=4),
+        highs=highs,
+        lows=lows,
+    )
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
+@pytest.fixture
+def turtle_soup_module():
+    return _load_strategy_module("turtle_soup_reclaim.py")
+
+
+async def test_turtle_soup_reclaim_long_after_swept_low(turtle_soup_module) -> None:
+    strategy = _build(turtle_soup_module)
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(25)] + [99.2]
+    highs = [close + 0.5 for close in closes]
+    lows = [close - 0.5 for close in closes]
+    lows[-12] = 98.8
+    lows[-1] = 98.4
+    closes[-1] = 99.1
+    volumes = [1000.0] * (len(closes) - 1) + [1300.0]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows, volumes=volumes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "4h")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
+@pytest.fixture
+def holy_grail_module():
+    return _load_strategy_module("raschke_holy_grail.py")
+
+
+async def test_raschke_holy_grail_long_on_trend_pullback_reclaim(
+    holy_grail_module,
+) -> None:
+    strategy = _build(holy_grail_module)
+    closes = [100.0 + i * 0.8 for i in range(45)]
+    highs = [close + 0.5 for close in closes]
+    lows = [close - 0.5 for close in closes]
+    closes[-2] = closes[-3] - 0.8
+    highs[-2] = closes[-2] + 0.4
+    lows[-2] = closes[-2] - 6.0
+    closes[-1] = highs[-2] + 1.2
+    highs[-1] = closes[-1] + 0.6
+    lows[-1] = closes[-1] - 0.5
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
 async def test_ma_short_on_bearish_cross(ma_module) -> None:
     strategy = _build(ma_module)
     closes = [100.0] * 28 + [80.0]  # crash on the final bar

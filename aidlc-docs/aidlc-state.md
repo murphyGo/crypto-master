@@ -60,7 +60,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | Unit | Existing Implementation | AI-DLC State | Next Action |
 |------|-------------------------|--------------|-------------|
 | `exchange-integration` | Complete | Brownfield-complete; construction-ready | Track future exchange changes in construction plans |
-| `strategy-framework` | Complete | Brownfield-complete; construction-ready; 2026-05-08 deterministic market-strategy expansion logged | Track future strategy loader/indicator changes in construction plans |
+| `strategy-framework` | Complete | Brownfield-complete; construction-ready; 2026-05-08 deterministic market/swing strategy expansions logged | Track future strategy loader/indicator changes in construction plans |
 | `trading-core` | Complete | Brownfield-complete; construction-ready | Track future paper/live/risk math changes in construction plans |
 | `backtesting-validation` | Complete | Brownfield-complete; construction-ready | Track future robustness/baseline changes in construction plans |
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready | Track future Claude/improver loop changes in construction plans |
