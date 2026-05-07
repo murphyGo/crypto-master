@@ -16,8 +16,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.config import ExchangeCredential, Settings
+from src.runtime.activity_log import ActivityLog
 from src.strategy.base import BaseStrategy, TechniqueInfo
+from src.strategy.loader import load_all_strategies
 from src.trading.live import LiveTrader
+from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     RiskOverrides,
     SubAccount,
@@ -297,6 +300,64 @@ sub_accounts:
     assert registry.get("experimental").risk_overrides.risk_percent == Decimal("0.5")
     assert registry.get("experimental").notification_route == "lab"
     assert registry.get_trader("btc_only") is not registry.get_trader("default")
+
+
+def test_yaml_paper_sub_account_inherits_runtime_wiring(tmp_path: Path) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 10000}
+  - id: lab
+    name: Lab
+    mode: paper
+    exchange_ref: default
+    initial_balance: {USDT: 2500}
+""",
+    )
+    exchange = MagicMock()
+    exchange.testnet = True
+    exchange.name = "binance"
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+        exchange=exchange,
+        activity_log=activity_log,
+        paper_auto_deposit_on_liquidation=True,
+    )
+
+    trader = registry.get_trader("lab")
+    assert isinstance(trader, PaperTrader)
+    assert trader._exchange is exchange
+    assert trader._activity_log is activity_log
+    assert trader._auto_deposit_on_liquidation is True
+
+
+def test_committed_sub_account_config_filters_existing_strategies() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=repo_root / "config" / "sub_accounts.yaml",
+    )
+    strategies = load_all_strategies(repo_root / "strategies")
+    strategy_names = set(strategies)
+    active = registry.list_active()
+
+    assert len(active) == 12
+    for sub in active:
+        strategy_filter = sub.effective_strategy_filter()
+        assert strategy_filter is not None
+        assert len(strategy_filter) == 1
+        assert strategy_filter[0] in strategy_names
 
 
 def test_yaml_config_live_sub_account_uses_named_credentials(tmp_path: Path) -> None:

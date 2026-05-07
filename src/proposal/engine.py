@@ -293,6 +293,7 @@ class ProposalEngine:
         timeframe: str | None = None,
         strategies: list[BaseStrategy] | None = None,
         risk_percent: float | None = None,
+        leverage: int | None = None,
         sub_account_id: str = "default",
     ) -> Proposal | None:
         """FR-011: best-technique proposal for a single symbol.
@@ -330,6 +331,7 @@ class ProposalEngine:
                 ohlcv_cache=cache,
                 strategies=strategies,
                 risk_percent=risk_percent,
+                leverage=leverage,
                 sub_account_id=sub_account_id,
             )
 
@@ -343,6 +345,7 @@ class ProposalEngine:
             ohlcv_cache=cache,
             strategies=strategies,
             risk_percent=risk_percent,
+            leverage=leverage,
             sub_account_id=sub_account_id,
         )
         if not candidates:
@@ -358,6 +361,7 @@ class ProposalEngine:
         top_k: int = 3,
         strategies: list[BaseStrategy] | None = None,
         risk_percent: float | None = None,
+        leverage: int | None = None,
         sub_account_id: str = "default",
     ) -> list[Proposal]:
         """FR-012: scan symbols and return the top-K highest-scored.
@@ -398,6 +402,7 @@ class ProposalEngine:
                         ohlcv_cache=cache,
                         strategies=strategies,
                         risk_percent=risk_percent,
+                        leverage=leverage,
                         sub_account_id=sub_account_id,
                     )
                     candidates.extend(per_symbol)
@@ -409,6 +414,7 @@ class ProposalEngine:
                         ohlcv_cache=cache,
                         strategies=strategies,
                         risk_percent=risk_percent,
+                        leverage=leverage,
                         sub_account_id=sub_account_id,
                     )
                     if proposal is not None:
@@ -447,6 +453,7 @@ class ProposalEngine:
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
         strategies: list[BaseStrategy] | None = None,
         risk_percent: float | None = None,
+        leverage: int | None = None,
         sub_account_id: str = "default",
     ) -> Proposal | None:
         """Build a proposal for one symbol, or return None if unfit.
@@ -479,6 +486,7 @@ class ProposalEngine:
             perf=perf,
             ohlcv_cache=ohlcv_cache if ohlcv_cache is not None else {},
             risk_percent=risk_percent,
+            leverage=leverage,
             sub_account_id=sub_account_id,
         )
 
@@ -490,6 +498,7 @@ class ProposalEngine:
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]] | None = None,
         strategies: list[BaseStrategy] | None = None,
         risk_percent: float | None = None,
+        leverage: int | None = None,
         sub_account_id: str = "default",
     ) -> list[Proposal]:
         """Phase 10.6: run every applicable technique for ``symbol``.
@@ -524,6 +533,7 @@ class ProposalEngine:
                 perf=perf,
                 ohlcv_cache=cache,
                 risk_percent=risk_percent,
+                leverage=leverage,
                 sub_account_id=sub_account_id,
             )
             if proposal is not None:
@@ -540,6 +550,7 @@ class ProposalEngine:
         perf: TechniquePerformance | None,
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
         risk_percent: float | None = None,
+        leverage: int | None = None,
         sub_account_id: str = "default",
     ) -> Proposal | None:
         """Run ``strategy`` against fresh OHLCV and build a Proposal.
@@ -662,7 +673,7 @@ class ProposalEngine:
                 analysis=analysis,
                 symbol=symbol,
                 balance=balance,
-                leverage=self.config.leverage,
+                leverage=leverage if leverage is not None else self.config.leverage,
                 risk_percent=(
                     risk_percent
                     if risk_percent is not None

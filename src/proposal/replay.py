@@ -300,6 +300,8 @@ def _resolve_exit(
 ) -> tuple[Decimal, datetime, Literal["take_profit", "stop_loss", "end_of_data"]]:
     proposal = case.record.proposal
     for candle in candles:
+        if ensure_utc(candle.timestamp) <= case.created_at:
+            continue
         tp_hit = _touches_take_profit(candle, proposal.signal, proposal.take_profit)
         sl_hit = _touches_stop_loss(candle, proposal.signal, proposal.stop_loss)
         if not tp_hit and not sl_hit:

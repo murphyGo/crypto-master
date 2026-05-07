@@ -203,7 +203,7 @@ def test_compare_replay_scenarios_resolves_same_candle_stop_first() -> None:
     record = make_record("p1", base)
     replay_input = ProposalReplayInput.from_records(
         [record],
-        {"p1": [candle(base, high="112", low="94")]},
+        {"p1": [candle(base + timedelta(hours=1), high="112", low="94")]},
     )
 
     result = compare_replay_scenarios(
@@ -227,7 +227,7 @@ def test_compare_replay_scenarios_resolves_same_candle_take_profit_first() -> No
     record = make_record("p1", base)
     replay_input = ProposalReplayInput.from_records(
         [record],
-        {"p1": [candle(base, high="112", low="94")]},
+        {"p1": [candle(base + timedelta(hours=1), high="112", low="94")]},
     )
 
     result = compare_replay_scenarios(
@@ -267,6 +267,29 @@ def test_compare_replay_scenarios_uses_end_of_data_close() -> None:
     assert result.average_pnl_percent == Decimal("3.00")
 
 
+def test_compare_replay_scenarios_ignores_proposal_candle_extremes() -> None:
+    base = datetime(2026, 5, 7, tzinfo=timezone.utc)
+    record = make_record("p1", base)
+    replay_input = ProposalReplayInput.from_records(
+        [record],
+        {
+            "p1": [
+                candle(base, close="101", high="112", low="94"),
+                candle(base + timedelta(hours=1), close="103", high="104", low="99"),
+            ]
+        },
+    )
+
+    result = compare_replay_scenarios(
+        replay_input,
+        [ProposalReplayScenario()],
+    )[0]
+
+    outcome = result.outcomes[0]
+    assert outcome.exit_reason == "end_of_data"
+    assert outcome.exit_price == Decimal("103")
+
+
 def test_compare_replay_scenarios_handles_short_take_profit() -> None:
     base = datetime(2026, 5, 7, tzinfo=timezone.utc)
     record = make_record(
@@ -279,7 +302,11 @@ def test_compare_replay_scenarios_handles_short_take_profit() -> None:
     )
     replay_input = ProposalReplayInput.from_records(
         [record],
-        {"short": [candle(base, close="92", high="101", low="89")]},
+        {
+            "short": [
+                candle(base + timedelta(hours=1), close="92", high="101", low="89")
+            ]
+        },
     )
 
     result = compare_replay_scenarios(
@@ -299,7 +326,7 @@ def test_render_replay_report_ranks_and_details_scenarios() -> None:
     record = make_record("p1", base)
     replay_input = ProposalReplayInput.from_records(
         [record],
-        {"p1": [candle(base, high="112", low="94")]},
+        {"p1": [candle(base + timedelta(hours=1), high="112", low="94")]},
     )
     results = compare_replay_scenarios(
         replay_input,

@@ -87,10 +87,17 @@ def build_exchange(settings: Settings) -> BaseExchange:
             return BinanceExchange(settings.binance, testnet=False)
         if settings.bybit.api_key and settings.bybit.api_secret:
             return BybitExchange(settings.bybit, testnet=False)
+        if settings.exchange_credentials:
+            ref = sorted(settings.exchange_credentials)[0]
+            credential = settings.exchange_credentials[ref]
+            if credential.exchange == "binance":
+                return BinanceExchange(credential.to_binance_config(), testnet=False)
+            return BybitExchange(credential.to_bybit_config(), testnet=False)
         raise RuntimeError(
             "TRADING_MODE=live requires live (mainnet) API keys. "
             "Set BINANCE_API_KEY/BINANCE_API_SECRET or "
-            "BYBIT_API_KEY/BYBIT_API_SECRET."
+            "BYBIT_API_KEY/BYBIT_API_SECRET, or configure an "
+            "EXCHANGE_<REF> credential."
         )
 
     configured = settings.get_configured_exchanges()
@@ -98,9 +105,22 @@ def build_exchange(settings: Settings) -> BaseExchange:
         return BinanceExchange(settings.binance, testnet=True)
     if "bybit" in configured:
         return BybitExchange(settings.bybit, testnet=True)
+    if settings.exchange_credentials:
+        ref = sorted(settings.exchange_credentials)[0]
+        credential = settings.exchange_credentials[ref]
+        if credential.exchange == "binance":
+            return BinanceExchange(
+                credential.to_binance_config(),
+                testnet=credential.testnet,
+            )
+        return BybitExchange(
+            credential.to_bybit_config(),
+            testnet=credential.testnet,
+        )
     raise RuntimeError(
         "No exchange configured. Set BINANCE_API_KEY/BINANCE_API_SECRET "
-        "or BYBIT_API_KEY/BYBIT_API_SECRET (testnet keys are fine)."
+        "or BYBIT_API_KEY/BYBIT_API_SECRET (testnet keys are fine), or "
+        "configure an EXCHANGE_<REF> credential."
     )
 
 
@@ -280,7 +300,15 @@ def build_engine(
     # fan out ``cycle`` per sub-account), but the parameter is in
     # place so 19.2 doesn't churn ``build_engine``'s signature.
     if registry is None:
-        registry = SubAccountRegistry(settings=settings, trader=trader)
+        registry = SubAccountRegistry(
+            settings=settings,
+            trader=trader,
+            exchange=exchange,
+            activity_log=activity,
+            paper_auto_deposit_on_liquidation=(
+                config.paper_auto_deposit_on_liquidation
+            ),
+        )
 
     # Notifier list grows with optional push backends (Phase 11.3,
     # 12.4, 13.4). Console + File are always-on. Slack is opt-in via
@@ -467,7 +495,15 @@ async def run() -> None:
     engine_config = _engine_config_from_settings(settings)
     activity = ActivityLog()
     trader = build_trader(settings, exchange, engine_config, activity_log=activity)
-    registry = SubAccountRegistry(settings=settings, trader=trader)
+    registry = SubAccountRegistry(
+        settings=settings,
+        trader=trader,
+        exchange=exchange,
+        activity_log=activity,
+        paper_auto_deposit_on_liquidation=(
+            engine_config.paper_auto_deposit_on_liquidation
+        ),
+    )
     await registry.connect_owned_exchanges()
     build_traders(registry, settings)
 

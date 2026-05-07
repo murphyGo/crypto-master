@@ -29,8 +29,10 @@ import yaml
 from pydantic import ValidationError
 
 from src.config import ExchangeCredential, Settings
+from src.exchange.base import BaseExchange
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
+from src.runtime.activity_log import ActivityLog
 from src.strategy.base import BaseStrategy
 from src.trading.base import Trader
 from src.trading.live import LiveTrader
@@ -82,6 +84,9 @@ class SubAccountRegistry:
         settings: Settings,
         trader: Trader,
         config_path: Path | None = None,
+        exchange: BaseExchange | None = None,
+        activity_log: ActivityLog | None = None,
+        paper_auto_deposit_on_liquidation: bool = False,
     ) -> None:
         """Build the registry.
 
@@ -99,6 +104,9 @@ class SubAccountRegistry:
         """
         self.settings = settings
         self.config_path = config_path or DEFAULT_CONFIG_PATH
+        self.exchange = exchange
+        self.activity_log = activity_log
+        self.paper_auto_deposit_on_liquidation = paper_auto_deposit_on_liquidation
 
         # Single shared trader — the wiring seam for 19.2's per-sub
         # trader map. The default sub-account keeps this exact object;
@@ -214,6 +222,9 @@ class SubAccountRegistry:
             return PaperTrader(
                 initial_balance=sub.effective_initial_balance(),
                 data_dir=self.settings.data_dir / "trades",
+                exchange=self.exchange,
+                activity_log=self.activity_log,
+                auto_deposit_on_liquidation=self.paper_auto_deposit_on_liquidation,
                 sub_account_id=sub.id,
             )
         if sub.exchange_ref is None:

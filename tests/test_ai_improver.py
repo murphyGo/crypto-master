@@ -41,7 +41,20 @@ def make_claude_mock(
 
 def make_improver(
     tmp_path: Path,
-    response: str | Exception = "```markdown\n---\nname: test\n---\nbody\n```",
+    response: str | Exception = (
+        "```markdown\n"
+        "---\n"
+        "name: test\n"
+        "version: 0.1.0\n"
+        "description: test\n"
+        "technique_type: prompt\n"
+        "hypothesis: A test setup predicts a measurable next-bar move.\n"
+        "---\n"
+        "body\n\n"
+        "## Output Contract\n"
+        "Return JSON keys: signal, entry_price, stop_loss, take_profit.\n"
+        "```"
+    ),
     catalog_path: Path | None = None,
 ) -> tuple[StrategyImprover, AsyncMock]:
     """Build a StrategyImprover with a mocked ClaudeCLI.
@@ -140,6 +153,7 @@ name: rsi_divergence_v2
 version: 1.1.0
 description: Tighter confirmation + ATR-adaptive stops
 technique_type: prompt
+hypothesis: RSI divergence with volume confirmation predicts short-term reversal after exhaustion.
 ---
 
 # RSI Divergence v2
@@ -147,6 +161,11 @@ technique_type: prompt
 Analyze the last 50 candles and look for a bullish divergence
 confirmed by a volume spike of at least 1.5x the 20-period
 average. Only trade when RSI < 30 at the divergence point.
+
+## Output Contract
+
+Return one fenced JSON object with keys: signal, entry_price, stop_loss,
+take_profit.
 ```
 """
 
@@ -157,9 +176,15 @@ name: bare_markdown
 version: 0.2.0
 description: A bare response with no fences
 technique_type: prompt
+hypothesis: SMA breakouts after compression predict continuation over the next hour.
 ---
 
 Some body content here.
+
+## Output Contract
+
+Return one fenced JSON object with keys: signal, entry_price, stop_loss,
+take_profit.
 """
 
 # Response with a fenced block but no frontmatter — fallback_name used.
@@ -247,6 +272,7 @@ name: chasulang_fixture_v2
 version: 1.1.0
 description: Refined prompt that accidentally dropped the contract
 technique_type: prompt
+hypothesis: Preserving structure filters should improve reversals after liquidity sweeps.
 ---
 
 # Chasulang Fixture v2
@@ -264,6 +290,7 @@ name: chasulang_fixture_v2
 version: 1.1.0
 description: Refined prompt with incomplete runtime contract
 technique_type: prompt
+hypothesis: Structure confirmation should reduce false positive prompt reversals.
 ---
 
 # Chasulang Fixture v2
@@ -452,14 +479,13 @@ class TestResponseParsing:
         assert generated.version == "0.2.0"
 
     @pytest.mark.asyncio
-    async def test_missing_frontmatter_uses_fallback_name(self, tmp_path: Path) -> None:
+    async def test_missing_frontmatter_rejected_for_missing_hypothesis(
+        self,
+        tmp_path: Path,
+    ) -> None:
         improver, _ = make_improver(tmp_path, NO_FRONTMATTER_RESPONSE)
-        generated = await improver.generate_idea()
-        # Fallback name for new_idea flow is "new_idea"
-        assert generated.name == "new_idea"
-        assert generated.version == "0.1.0"
-        # Content still carried verbatim
-        assert "SMA(50)" in generated.content
+        with pytest.raises(GeneratedTechniqueError, match="hypothesis"):
+            await improver.generate_idea()
 
     @pytest.mark.asyncio
     async def test_empty_block_raises(self, tmp_path: Path) -> None:
@@ -468,12 +494,12 @@ class TestResponseParsing:
             await improver.generate_idea()
 
     @pytest.mark.asyncio
-    async def test_malformed_frontmatter_ignored(self, tmp_path: Path) -> None:
-        """Broken YAML in frontmatter → use fallback instead of crashing."""
+    async def test_malformed_frontmatter_rejected(self, tmp_path: Path) -> None:
+        """Broken YAML cannot satisfy the generated-technique contract."""
         response = "```markdown\n" "---\n" "name: [unclosed\n" "---\n" "body\n" "```"
         improver, _ = make_improver(tmp_path, response)
-        generated = await improver.generate_idea()
-        assert generated.name == "new_idea"  # fallback
+        with pytest.raises(GeneratedTechniqueError, match="hypothesis"):
+            await improver.generate_idea()
 
 
 # =============================================================================
@@ -512,8 +538,11 @@ class TestPersistence:
             "version: 0.1.0\n"
             "description: test\n"
             "technique_type: prompt\n"
+            "hypothesis: Strange names still represent a falsifiable reversal setup.\n"
             "---\n"
-            "body\n"
+            "body\n\n"
+            "## Output Contract\n"
+            "Return JSON keys: signal, entry_price, stop_loss, take_profit.\n"
             "```"
         )
         improver, _ = make_improver(tmp_path, response)
@@ -589,11 +618,16 @@ class TestPromptQualityGuards:
         assert "Funding rate above 0.05%" in gen.hypothesis
 
     @pytest.mark.asyncio
-    async def test_hypothesis_defaults_empty_when_missing(self, tmp_path: Path) -> None:
-        """Existing techniques without hypothesis still parse cleanly."""
-        improver, _ = make_improver(tmp_path, GOOD_RESPONSE)
-        gen = await improver.generate_idea()
-        assert gen.hypothesis == ""
+    async def test_missing_hypothesis_is_rejected(self, tmp_path: Path) -> None:
+        """Generated techniques without a falsifiable hypothesis are rejected."""
+        response = GOOD_RESPONSE.replace(
+            "hypothesis: RSI divergence with volume confirmation predicts "
+            "short-term reversal after exhaustion.\n",
+            "",
+        )
+        improver, _ = make_improver(tmp_path, response)
+        with pytest.raises(GeneratedTechniqueError, match="hypothesis"):
+            await improver.generate_idea()
 
 
 class TestErrorPropagation:
@@ -759,16 +793,18 @@ class TestNewIdeaOutputContract:
         assert '"take_profit"' in prompt
 
     @pytest.mark.asyncio
-    async def test_user_idea_prompt_omits_output_contract(self, tmp_path: Path) -> None:
-        """User-idea is anchored on the user's text; injecting the
-        Output Contract framing would push Claude toward a JSON-
-        contract template instead of expanding the user's intent.
-        Regression guard parallel to
-        ``test_catalog_not_in_user_idea_prompt``."""
+    async def test_user_idea_prompt_contains_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """User-idea generations still need the runtime JSON contract."""
         improver, claude = make_improver(tmp_path, GOOD_RESPONSE)
         await improver.generate_from_user_idea("scalp BTC")
         prompt = claude.complete.await_args.args[0]
-        assert "Output Contract" not in prompt
+        assert "Output Contract" in prompt
+        assert '"signal"' in prompt
+        assert '"entry_price"' in prompt
+        assert '"stop_loss"' in prompt
+        assert '"take_profit"' in prompt
 
     @pytest.mark.asyncio
     async def test_improvement_prompt_omits_output_contract(
@@ -870,6 +906,7 @@ TECHNIQUE_INFO = {
     "version": "0.1.0",
     "description": "Donchian breakout fixture",
     "author": "system",
+    "hypothesis": "Donchian channel compression predicts continuation breakouts in liquid crypto pairs.",
     "symbols": ["BTC/USDT"],
     "timeframes": ["1h"],
     "status": "experimental",
@@ -975,15 +1012,10 @@ class TestCodeTypeNewIdea:
         assert gen.version == "0.1.0"
 
     @pytest.mark.asyncio
-    async def test_code_type_metadata_extracted_via_ast_literal_eval(
+    async def test_code_type_rejects_top_level_side_effect(
         self, tmp_path: Path
     ) -> None:
-        """The improver must extract TECHNIQUE_INFO via ``ast``, never
-        ``exec`` — a generated file with a side-effect at import time
-        must NOT trigger that side effect during metadata extraction.
-        """
-        # Module-level ``raise`` would crash any executor. The improver
-        # only parses, so this is harmless; the test asserts that.
+        """Generated code with top-level side effects is rejected before save."""
         hostile_response = (
             "```python\n"
             "raise RuntimeError('module-level side effect')\n\n"
@@ -991,12 +1023,20 @@ class TestCodeTypeNewIdea:
             '    "name": "hostile",\n'
             '    "version": "0.1.0",\n'
             '    "description": "should still parse",\n'
+            '    "hypothesis": "Side effects should never be needed for a signal.",\n'
             "}\n"
             "```\n"
         )
         improver, _ = make_improver(tmp_path, hostile_response)
-        gen = await improver.generate_idea(code_type=True)
-        # ast.literal_eval extracted the metadata without executing the
-        # raise statement.
-        assert gen.name == "hostile"
-        assert gen.version == "0.1.0"
+        with pytest.raises(GeneratedTechniqueError, match="top-level"):
+            await improver.generate_idea(code_type=True)
+
+    @pytest.mark.asyncio
+    async def test_code_type_rejects_banned_io_import(self, tmp_path: Path) -> None:
+        hostile_response = GOOD_CODE_RESPONSE.replace(
+            "from decimal import Decimal\n",
+            "from decimal import Decimal\nimport subprocess\n",
+        )
+        improver, _ = make_improver(tmp_path, hostile_response)
+        with pytest.raises(GeneratedTechniqueError, match="banned import"):
+            await improver.generate_idea(code_type=True)

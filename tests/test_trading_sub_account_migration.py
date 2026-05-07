@@ -150,9 +150,8 @@ def test_skip_when_target_already_exists(tmp_path: Path) -> None:
     """When BOTH the legacy file AND the new-layout target exist
     simultaneously (a half-completed prior run, or operator pre-stage
     mid-flight), the migrator leaves the legacy file alone rather
-    than clobbering the target. Marker still gets written so the
-    process does not loop on it forever — operators reconcile the
-    leftover manually."""
+    than clobbering the target. Marker is not written because a later
+    boot must keep surfacing the unresolved legacy record."""
     # Plant only paper-mode legacy + pre-staged target.
     paper_dir = tmp_path / "trades" / "paper"
     paper_dir.mkdir(parents=True, exist_ok=True)
@@ -171,8 +170,8 @@ def test_skip_when_target_already_exists(tmp_path: Path) -> None:
     # contents, untouched.
     assert legacy.read_text() == '{"legacy":"data"}'
     assert target.read_text() == '{"target":"existing"}'
-    # Marker still written.
-    assert (tmp_path / MARKER_FILENAME).is_file()
+    # Marker withheld so unresolved legacy data is not permanently hidden.
+    assert not (tmp_path / MARKER_FILENAME).exists()
 
 
 def test_performance_tree_migrates_under_default_even_after_19_1_marker(

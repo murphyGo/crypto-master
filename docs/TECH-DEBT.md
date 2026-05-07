@@ -41,6 +41,66 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-053: Persisted open-position hydration after runtime restart
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-08 |
+| **Phase** | Review follow-up |
+| **Component** | trading-core / sub-account-capital-segmentation |
+
+**Description:**
+PaperTrader and LiveTrader keep SL/TP position state in memory while trade
+history persists open trades. The runtime now surfaces orphaned persisted open
+trades as monitor errors instead of silently skipping them, but it does not yet
+hydrate full position state after restart.
+
+**Impact:**
+After a process restart, persisted open trades require operator reconciliation
+before SL/TP monitoring can close them safely.
+
+**Suggested Resolution:**
+Persist or reconstruct `OpenPosition` / live `Position` state at startup,
+including stop loss, take profit, margin, quote currency, and fee context. In
+live mode, reconcile persisted trades against exchange-side open position/order
+state before enabling monitoring.
+
+**Related:**
+- `src/runtime/engine.py`
+- `src/trading/paper.py`
+- `src/trading/live.py`
+
+### DEBT-054: Account-scoped exchange router for sub-account runtime
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-08 |
+| **Phase** | Review follow-up |
+| **Component** | exchange-integration / sub-account-capital-segmentation |
+
+**Description:**
+Sub-account config can reference named exchange credentials, but the runtime
+proposal engine, stale quote gate, monitor ticker fetch, and portfolio snapshot
+still share one market-data exchange. The engine now rejects active non-default
+`exchange_ref` values at startup so proposals are not validated on one exchange
+and executed on another.
+
+**Impact:**
+Multi-exchange sub-account deployments are intentionally blocked until runtime
+market-data and execution routing are account-scoped.
+
+**Suggested Resolution:**
+Introduce an account runtime context that owns both the execution trader and the
+market-data exchange for proposal generation, stale quote checks, monitoring,
+and portfolio snapshots.
+
+**Related:**
+- `src/runtime/engine.py`
+- `src/trading/sub_account_registry.py`
+- `src/main.py`
+
 ## Resolved Debt Items
 
 <!--

@@ -9,6 +9,7 @@ Related Requirements:
 - NFR-010: Analysis Technique Extensibility
 """
 
+import ast
 import decimal
 import importlib.util
 import re
@@ -36,6 +37,27 @@ FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 # ``{current_price}``, etc. but NOT JSON-shaped ``{"foo": ...}``
 # fragments inside example blocks.
 _TEMPLATE_PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+_BANNED_PY_STRATEGY_MODULES = {
+    "aiohttp",
+    "httpx",
+    "os",
+    "pathlib",
+    "requests",
+    "shutil",
+    "socket",
+    "subprocess",
+    "sys",
+    "urllib",
+}
+_BANNED_PY_STRATEGY_CALLS = {
+    "__import__",
+    "compile",
+    "eval",
+    "exec",
+    "input",
+    "open",
+}
 
 
 class PromptStrategy(BaseStrategy):
@@ -289,6 +311,67 @@ class PromptStrategy(BaseStrategy):
             ) from e
 
 
+def validate_python_strategy_source(source: str) -> None:
+    """Reject code-strategy sources with I/O, subprocess, or import side effects."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        raise StrategyValidationError(f"Invalid Python strategy syntax: {e}") from e
+
+    errors: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            modules: list[str] = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif node.module is not None:
+                modules = [node.module]
+            for module in modules:
+                root = module.split(".", 1)[0]
+                if root in _BANNED_PY_STRATEGY_MODULES:
+                    errors.append(f"banned import: {module}")
+
+        if isinstance(node, ast.Call):
+            name = _call_name(node.func)
+            root = name.split(".", 1)[0]
+            if name in _BANNED_PY_STRATEGY_CALLS or root in _BANNED_PY_STRATEGY_CALLS:
+                errors.append(f"banned call: {name}")
+            if root in _BANNED_PY_STRATEGY_MODULES:
+                errors.append(f"banned call: {name}")
+
+    for node in tree.body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            continue
+        if isinstance(
+            node,
+            (
+                ast.Import,
+                ast.ImportFrom,
+                ast.Assign,
+                ast.AnnAssign,
+                ast.ClassDef,
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.Pass,
+            ),
+        ):
+            continue
+        errors.append(f"unsafe top-level statement: {type(node).__name__}")
+
+    if errors:
+        details = "; ".join(dict.fromkeys(errors))
+        raise StrategyValidationError(f"Unsafe Python strategy source: {details}")
+
+
+def _call_name(func: ast.expr) -> str:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        prefix = _call_name(func.value)
+        return f"{prefix}.{func.attr}" if prefix else func.attr
+    return ""
+
+
 def load_technique_info_from_md(file_path: Path) -> tuple[TechniqueInfo, str]:
     """Load technique info and content from a markdown file.
 
@@ -361,6 +444,14 @@ def load_technique_info_from_py(
     """
     if not file_path.exists():
         raise StrategyLoadError(f"File not found: {file_path}", str(file_path))
+
+    try:
+        source = file_path.read_text(encoding="utf-8")
+        validate_python_strategy_source(source)
+    except StrategyValidationError:
+        raise
+    except OSError as e:
+        raise StrategyLoadError(f"Cannot read file: {e}", str(file_path)) from e
 
     # Load module dynamically
     module_name = file_path.stem

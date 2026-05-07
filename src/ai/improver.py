@@ -26,7 +26,8 @@ from pydantic import BaseModel, Field
 from src.ai.claude import ClaudeCLI
 from src.ai.exceptions import ClaudeParseError
 from src.logger import get_logger
-from src.strategy.base import TechniqueInfo
+from src.strategy.base import StrategyValidationError, TechniqueInfo
+from src.strategy.loader import validate_python_strategy_source
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.strategy.trade_autopsy import TradeAutopsy
 from src.utils.time import now_utc
@@ -346,6 +347,10 @@ class StrategyImprover:
                 content = match.group(1).strip()
             if not content:
                 raise GeneratedTechniqueError("Claude returned no technique content")
+            try:
+                validate_python_strategy_source(content)
+            except StrategyValidationError as e:
+                raise GeneratedTechniqueError(str(e)) from e
             metadata = self._extract_technique_info_from_python(content)
         else:
             match = _MARKDOWN_BLOCK_PATTERN.search(raw)
@@ -364,6 +369,16 @@ class StrategyImprover:
         version = str(metadata.get("version", "0.1.0"))
         description = str(metadata.get("description", ""))
         hypothesis = str(metadata.get("hypothesis", ""))
+        if not hypothesis.strip():
+            raise GeneratedTechniqueError(
+                "Generated technique must include a falsifiable hypothesis."
+            )
+        self._validate_generated_runtime_contract(
+            content=content,
+            kind=kind,
+            output_kind=output_kind,
+            technique_type=str(metadata.get("technique_type", "")),
+        )
 
         suggested_filename = self._build_filename(name, output_kind=output_kind)
 
@@ -379,6 +394,33 @@ class StrategyImprover:
             raw_response=raw,
             output_kind=output_kind,
         )
+
+    @staticmethod
+    def _validate_generated_runtime_contract(
+        *,
+        content: str,
+        kind: GenerationKind,
+        output_kind: OutputKind,
+        technique_type: str,
+    ) -> None:
+        """Reject generated prompt strategies that cannot run per bar."""
+        if output_kind != "markdown" or kind not in {"new_idea", "user_idea"}:
+            return
+        if technique_type and technique_type != "prompt":
+            return
+        required = (
+            "## Output Contract",
+            "signal",
+            "entry_price",
+            "stop_loss",
+            "take_profit",
+        )
+        missing = [key for key in required if key not in content]
+        if missing:
+            keys = ", ".join(missing)
+            raise GeneratedTechniqueError(
+                f"Prompt technique missing runtime Output Contract keys: {keys}."
+            )
 
     @staticmethod
     def _extract_technique_info_from_python(source: str) -> dict[str, object]:
@@ -780,7 +822,8 @@ class StrategyImprover:
             "the math.\n"
             "3. A module-level ``TECHNIQUE_INFO`` dict with keys "
             "``name``, ``version``, ``description``, ``author``, "
-            "``symbols``, ``timeframes``, ``status``, ``changelog``. "
+            "``hypothesis``, ``symbols``, ``timeframes``, ``status``, "
+            "``changelog``. "
             "Use a short snake_case ``name``, semantic ``version`` "
             '(e.g. ``"1.0.0"``), and one-line ``description``. The '
             "``technique_type`` key is set automatically by the loader "
@@ -825,10 +868,13 @@ class StrategyImprover:
             "cases by returning a neutral ``AnalysisResult`` with "
             "valid placeholder prices (mirror the canonical "
             "``_neutral_result`` helper in the baseline files).\n"
-            "- ``hypothesis`` is still required as a brief docstring "
-            "comment near the top of the file — one falsifiable "
-            "sentence stating the structural inefficiency the "
-            "technique exploits.\n\n"
+            "- ``hypothesis`` in ``TECHNIQUE_INFO`` is mandatory: one "
+            "falsifiable sentence stating the structural inefficiency "
+            "the technique exploits.\n"
+            "- Do not import or call file/network/process APIs "
+            "(``open``, ``pathlib``, ``os``, ``subprocess``, "
+            "``requests``, ``urllib``, sockets, or dynamic execution); "
+            "the loader rejects those before execution.\n\n"
             f"{context_line}"
             "## Output format\n"
             "Respond ONLY with a single fenced code block labeled "
@@ -876,6 +922,7 @@ class StrategyImprover:
             "(stop-loss, position sizing).\n"
             "- If the idea requires data the system may not have, "
             "list it in a ## Data Requirements section.\n\n"
+            + self._new_idea_output_contract()
             + self._output_format_instructions()
         )
 

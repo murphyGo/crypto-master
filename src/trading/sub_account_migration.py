@@ -91,13 +91,57 @@ def migrate_legacy_paths(data_dir: Path) -> dict[str, int]:
             leaf_name="snapshots.json",
         )
         counts["proposals"] = _migrate_proposals(data_dir / "proposals")
-        marker.write_text("")
+        if not _has_v19_1_conflicts(data_dir):
+            marker.write_text("")
 
     performance_marker = data_dir / PERFORMANCE_MARKER_FILENAME
     if not performance_marker.exists():
         counts["performance"] = _migrate_performance(data_dir / "performance")
-        performance_marker.write_text("")
+        if not _has_performance_conflicts(data_dir / "performance"):
+            performance_marker.write_text("")
     return counts
+
+
+def _has_v19_1_conflicts(data_dir: Path) -> bool:
+    return (
+        _has_mode_subtree_conflicts(data_dir / "trades", "trades.json")
+        or _has_mode_subtree_conflicts(data_dir / "portfolio", "snapshots.json")
+        or _has_proposal_conflicts(data_dir / "proposals")
+    )
+
+
+def _has_mode_subtree_conflicts(root: Path, leaf_name: str) -> bool:
+    for mode in _MODE_DIRS:
+        mode_dir = root / mode
+        legacy_leaf = mode_dir / leaf_name
+        target_leaf = mode_dir / DEFAULT_SUB_ACCOUNT_ID / leaf_name
+        if legacy_leaf.exists() and target_leaf.exists():
+            return True
+    return False
+
+
+def _has_proposal_conflicts(root: Path) -> bool:
+    if not root.exists():
+        return False
+    for entry in root.iterdir():
+        if entry.is_file() and entry.suffix == ".json":
+            if (root / DEFAULT_SUB_ACCOUNT_ID / entry.name).exists():
+                return True
+    return False
+
+
+def _has_performance_conflicts(root: Path) -> bool:
+    if not root.exists():
+        return False
+    target_root = root / DEFAULT_SUB_ACCOUNT_ID
+    for entry in root.iterdir():
+        if not entry.is_dir() or entry.name == DEFAULT_SUB_ACCOUNT_ID:
+            continue
+        if not ((entry / "records.json").exists() or (entry / "summary.json").exists()):
+            continue
+        if (target_root / entry.name).exists():
+            return True
+    return False
 
 
 def _migrate_mode_subtree(*, root: Path, leaf_name: str) -> int:

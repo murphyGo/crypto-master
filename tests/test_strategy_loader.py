@@ -683,6 +683,40 @@ class TestLoadTechniqueInfoFromPy:
             load_technique_info_from_py(py_file)
         assert "dict" in str(exc_info.value).lower()
 
+    def test_load_py_rejects_banned_io_import(self, tmp_path: Path) -> None:
+        py_content = dedent("""
+            import subprocess
+
+            TECHNIQUE_INFO = {
+                "name": "unsafe",
+                "version": "1.0.0",
+                "description": "Unsafe",
+            }
+        """)
+
+        py_file = tmp_path / "unsafe.py"
+        py_file.write_text(py_content)
+
+        with pytest.raises(StrategyValidationError, match="banned import"):
+            load_technique_info_from_py(py_file)
+
+    def test_load_py_rejects_top_level_side_effect(self, tmp_path: Path) -> None:
+        py_content = dedent("""
+            TECHNIQUE_INFO = {
+                "name": "unsafe",
+                "version": "1.0.0",
+                "description": "Unsafe",
+            }
+
+            open("leak.txt", "w")
+        """)
+
+        py_file = tmp_path / "unsafe_side_effect.py"
+        py_file.write_text(py_content)
+
+        with pytest.raises(StrategyValidationError, match="banned call"):
+            load_technique_info_from_py(py_file)
+
     def test_load_py_no_strategy_class(self, tmp_path: Path) -> None:
         """Test file must have a BaseStrategy subclass."""
         py_content = dedent("""

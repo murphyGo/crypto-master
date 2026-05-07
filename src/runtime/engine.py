@@ -71,6 +71,7 @@ from src.runtime.safety_score import (
 )
 from src.strategy.performance import (
     PerformanceRecord,
+    PerformanceTracker,
     TradeHistory,
     TradeOutcome,
 )
@@ -204,6 +205,7 @@ class AccountRuntimePolicy:
     altcoin_top_k: int
     sizing_balance: Decimal
     risk_percent: Decimal | None
+    leverage: int
     auto_approve_threshold: float
     max_open_positions_total: int | None
     max_open_positions_per_symbol: int
@@ -326,6 +328,7 @@ class TradingEngine:
         self.portfolio_tracker = portfolio_tracker
         self.mode = mode
         self.quote_currency = quote_currency
+        self._validate_exchange_refs_supported()
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
@@ -337,6 +340,21 @@ class TradingEngine:
 
         self._stop_event = asyncio.Event()
         self._cycle_index = 0
+
+    def _validate_exchange_refs_supported(self) -> None:
+        if self.sub_account_registry is None:
+            return
+        unsupported = [
+            sub
+            for sub in self.sub_account_registry.list_active()
+            if sub.exchange_ref not in (None, "default")
+        ]
+        if unsupported:
+            ids = ", ".join(f"{sub.id}:{sub.exchange_ref}" for sub in unsupported)
+            raise RuntimeError(
+                "Account-scoped exchange refs are not supported by the runtime "
+                f"market-data router yet: {ids}"
+            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -490,6 +508,7 @@ class TradingEngine:
                 balance=policy.sizing_balance,
                 strategies=strategies,
                 risk_percent=risk_percent,
+                leverage=policy.leverage,
                 sub_account_id=sub_account_id,
             )
         except ExchangeError as e:
@@ -516,6 +535,7 @@ class TradingEngine:
                 top_k=policy.altcoin_top_k,
                 strategies=strategies,
                 risk_percent=risk_percent,
+                leverage=policy.leverage,
                 sub_account_id=sub_account_id,
             )
         except ExchangeError as e:
@@ -1216,6 +1236,22 @@ class TradingEngine:
         closed_count = 0
 
         for trade in open_trades:
+            if self._missing_position_state(trader, trade.id):
+                message = (
+                    f"Open trade {trade.id} has no in-memory position state; "
+                    "operator reconciliation required before SL/TP monitoring"
+                )
+                self.activity_log.append(
+                    ActivityEventType.MONITOR_ERRORED,
+                    message,
+                    details={
+                        "trade_id": trade.id,
+                        "sub_account_id": self._sub_account_id(sub_account),
+                    },
+                    cycle_id=cycle_id,
+                )
+                result.errors.append(f"orphan_open_trade:{trade.id}")
+                continue
             try:
                 ticker = await self.exchange.get_ticker(trade.symbol)
             except Exception as e:
@@ -1228,9 +1264,7 @@ class TradingEngine:
                 result.errors.append(f"ticker:{trade.symbol}:{e}")
                 continue
 
-            should_exit, reason = self.trader.check_exit_conditions(
-                trade.id, ticker.price
-            )
+            should_exit, reason = trader.check_exit_conditions(trade.id, ticker.price)
             if not should_exit or reason is None:
                 continue
 
@@ -1254,6 +1288,16 @@ class TradingEngine:
             },
             cycle_id=cycle_id,
         )
+
+    @staticmethod
+    def _missing_position_state(trader: Trader, trade_id: str) -> bool:
+        get_open_position = getattr(trader, "get_open_position", None)
+        if not callable(get_open_position):
+            return False
+        try:
+            return get_open_position(trade_id) is None
+        except Exception:
+            return False
 
     async def _record_portfolio_snapshot(
         self,
@@ -1377,6 +1421,14 @@ class TradingEngine:
         tracker = getattr(self.proposal_engine, "performance_tracker", None)
         if tracker is None:
             return
+        if (
+            isinstance(tracker, PerformanceTracker)
+            and tracker.sub_account_id != trade.sub_account_id
+        ):
+            tracker = PerformanceTracker(
+                data_dir=tracker.data_dir,
+                sub_account_id=trade.sub_account_id,
+            )
 
         proposal = proposal_record.proposal
         outcome = self._classify_close_reason(reason)
@@ -1497,6 +1549,7 @@ class TradingEngine:
                 if sub_account is not None
                 else None
             ),
+            leverage=self._runtime_leverage_for(sub_account),
             auto_approve_threshold=(
                 sub_account.effective_auto_approve_threshold()
                 if sub_account is not None
@@ -1565,6 +1618,15 @@ class TradingEngine:
                 else self.config.correlation_max_sub_accounts_per_strategy_symbol_side
             ),
         )
+
+    def _runtime_leverage_for(self, sub_account: SubAccount | None) -> int:
+        default = getattr(getattr(self.proposal_engine, "config", None), "leverage", 1)
+        if sub_account is None:
+            return int(default)
+        cap = sub_account.effective_leverage_cap()
+        if cap is None:
+            return int(default)
+        return min(int(default), cap)
 
     async def _auto_decide(
         self,

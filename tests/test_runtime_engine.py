@@ -25,7 +25,7 @@ from src.runtime.engine import (
     EngineConfig,
     TradingEngine,
 )
-from src.strategy.performance import TradeHistory
+from src.strategy.performance import PerformanceTracker, TradeHistory
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
@@ -219,7 +219,16 @@ class FakeSubAccountRegistry:
 
     def filter_strategies(self, id: str, available: list[object]) -> list[object]:
         self.filter_calls.append((id, available))
-        return available
+        sub_account = self.get(id)
+        strategy_filter = sub_account.effective_strategy_filter()
+        if strategy_filter is None:
+            return available
+        allowed = set(strategy_filter)
+        return [
+            s
+            for s in available
+            if getattr(getattr(s, "info", None), "name", None) in allowed
+        ]
 
 
 def make_mock_trader() -> MagicMock:
@@ -511,6 +520,33 @@ async def test_run_cycle_fans_out_per_active_sub_account(tmp_path: Path) -> None
     assert {r.sub_account_id for r in history.list_all()} == {"alpha", "beta"}
 
 
+def test_engine_rejects_non_default_exchange_ref_until_router_exists(
+    tmp_path: Path,
+) -> None:
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    sub = SubAccount(
+        id="alt",
+        name="Alt",
+        mode="paper",
+        exchange_ref="bybit_alt",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    registry = FakeSubAccountRegistry([sub], {"alt": mocks["trader"]})
+
+    with pytest.raises(RuntimeError, match="exchange refs"):
+        TradingEngine(
+            exchange=mocks["exchange"],
+            proposal_engine=mocks["proposal_engine"],
+            proposal_interaction=mocks["interaction"],
+            proposal_history=mocks["history"],
+            trader=mocks["trader"],
+            registry=registry,  # type: ignore[arg-type]
+            notification_dispatcher=mocks["notification_dispatcher"],
+            activity_log=mocks["activity_log"],
+            config=EngineConfig(auto_approve_threshold=1.0),
+        )
+
+
 async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> None:
     """Risk override is passed to ProposalEngine per sub-account."""
     engine, mocks = build_engine(
@@ -523,11 +559,12 @@ async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> No
         mode="paper",
         exchange_ref="default",
         initial_balance={"USDT": Decimal("10000")},
-        risk_overrides=RiskOverrides(risk_percent=Decimal("0.25")),
+        risk_overrides=RiskOverrides(risk_percent=Decimal("0.25"), leverage_cap=2),
     )
     registry = FakeSubAccountRegistry([sub], {"alpha": mocks["trader"]})
     engine.sub_account_registry = registry  # type: ignore[assignment]
     mocks["proposal_engine"].strategies = {}
+    mocks["proposal_engine"].config = MagicMock(leverage=5)
 
     async def propose_bitcoin(**kwargs: object) -> Proposal:
         return make_proposal(proposal_id="alpha-proposal").model_copy(
@@ -541,6 +578,39 @@ async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> No
     call = mocks["proposal_engine"].propose_bitcoin.await_args
     assert call.kwargs["sub_account_id"] == "alpha"
     assert call.kwargs["risk_percent"] == 0.25
+    assert call.kwargs["leverage"] == 2
+
+
+async def test_run_cycle_threads_sub_account_strategy_filter(tmp_path: Path) -> None:
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=make_proposal(proposal_id="alpha-proposal"),
+    )
+    sub = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_filter=["alpha_only"],
+    )
+    registry = FakeSubAccountRegistry([sub], {"alpha": mocks["trader"]})
+    engine.sub_account_registry = registry  # type: ignore[assignment]
+    alpha_strategy = MagicMock()
+    alpha_strategy.info.name = "alpha_only"
+    beta_strategy = MagicMock()
+    beta_strategy.info.name = "beta_only"
+    mocks["proposal_engine"].strategies = {
+        "alpha_only": alpha_strategy,
+        "beta_only": beta_strategy,
+    }
+
+    await engine.run_cycle()
+
+    btc_call = mocks["proposal_engine"].propose_bitcoin.await_args
+    alt_call = mocks["proposal_engine"].propose_altcoins.await_args
+    assert btc_call.kwargs["strategies"] == [alpha_strategy]
+    assert alt_call.kwargs["strategies"] == [alpha_strategy]
 
 
 async def test_run_cycle_threads_account_policy_scan_scope(
@@ -683,6 +753,98 @@ async def test_monitor_pass_closes_position_on_sl_hit(tmp_path: Path) -> None:
     # POSITION_CLOSED event was logged.
     closed = mocks["activity_log"].filter(event_type=ActivityEventType.POSITION_CLOSED)
     assert len(closed) == 1
+
+
+async def test_monitor_pass_uses_sub_account_trader_for_exit_check(
+    tmp_path: Path,
+) -> None:
+    """Non-default accounts must evaluate exits against their own trader state."""
+    open_trade = make_trade(trade_id="beta-open")
+    closed_trade = make_trade(
+        trade_id="beta-open",
+        exit_price="51500",
+        pnl_percent=3.0,
+        status="closed",
+    )
+    default_trader = make_mock_trader()
+    beta_trader = make_mock_trader()
+    beta_trader.get_open_trades.return_value = [open_trade]
+    default_trader.check_exit_conditions.return_value = (False, None)
+    beta_trader.check_exit_conditions.return_value = (True, "take_profit")
+    beta_trader.close_position.return_value = closed_trade
+
+    sub = SubAccount(
+        id="beta",
+        name="Beta",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+    )
+    registry = FakeSubAccountRegistry([sub], {"beta": beta_trader})
+    engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[])
+    mocks["proposal_engine"].strategies = {}
+    engine.sub_account_registry = registry  # type: ignore[assignment]
+    engine.trader = default_trader
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 1
+    default_trader.check_exit_conditions.assert_not_called()
+    beta_trader.check_exit_conditions.assert_called_once_with(
+        "beta-open",
+        Decimal("50000"),
+    )
+    beta_trader.close_position.assert_awaited_once_with(
+        "beta-open",
+        Decimal("50000"),
+        reason="take_profit",
+    )
+    closed = mocks["activity_log"].filter(event_type=ActivityEventType.POSITION_CLOSED)
+    assert len(closed) == 1
+
+
+async def test_monitor_pass_surfaces_orphan_open_trade_state(
+    tmp_path: Path,
+) -> None:
+    open_trade = make_trade(trade_id="orphan")
+    engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+    mocks["trader"].get_open_position.return_value = None
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    assert result.errors == ["orphan_open_trade:orphan"]
+    mocks["exchange"].get_ticker.assert_not_awaited()
+    errors = mocks["activity_log"].filter(event_type=ActivityEventType.MONITOR_ERRORED)
+    assert len(errors) == 1
+    assert errors[0].details["trade_id"] == "orphan"
+
+
+def test_closed_trade_performance_record_uses_trade_sub_account_path(
+    tmp_path: Path,
+) -> None:
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    tracker = PerformanceTracker(data_dir=tmp_path / "performance")
+    mocks["proposal_engine"].performance_tracker = tracker
+    proposal = make_proposal(proposal_id="p-beta").model_copy(
+        update={"sub_account_id": "beta"}
+    )
+    record = ProposalRecord(proposal=proposal, decision=ProposalDecision.ACCEPTED)
+    closed_trade = make_trade(
+        trade_id="beta-closed",
+        exit_price="51500",
+        pnl_percent=3.0,
+        status="closed",
+    ).model_copy(update={"sub_account_id": "beta"})
+
+    engine._save_performance_record(record, closed_trade, "take_profit")
+
+    assert (
+        tmp_path / "performance" / "beta" / proposal.technique_name / "records.json"
+    ).exists()
+    assert not (
+        tmp_path / "performance" / "default" / proposal.technique_name / "records.json"
+    ).exists()
 
 
 async def test_monitor_pass_skips_when_ticker_fails(tmp_path: Path) -> None:

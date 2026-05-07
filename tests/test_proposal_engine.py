@@ -205,6 +205,23 @@ async def test_propose_bitcoin_returns_full_proposal() -> None:
     assert args.kwargs["symbol"] == "BTC/USDT"
 
 
+async def test_propose_bitcoin_uses_per_call_leverage_override() -> None:
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+
+    proposal = await engine.propose_bitcoin(
+        symbol="BTC/USDT",
+        balance=Decimal("10000"),
+        leverage=2,
+    )
+
+    assert proposal is not None
+    assert proposal.leverage == 2
+
+
 async def test_propose_bitcoin_returns_none_for_neutral_signal() -> None:
     strategy = make_strategy(analysis=make_analysis(signal="neutral"))
     engine, _ = make_engine(strategies={"tech_a": strategy})

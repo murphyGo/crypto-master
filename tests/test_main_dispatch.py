@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.config import BinanceConfig, BybitConfig, Settings
+from src.config import BinanceConfig, BybitConfig, ExchangeCredential, Settings
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
 from src.main import (
@@ -42,6 +42,7 @@ def _settings(
     binance_testnet: bool = False,
     bybit_live: bool = False,
     bybit_testnet: bool = False,
+    exchange_credentials: dict[str, ExchangeCredential] | None = None,
 ) -> Settings:
     """Build a ``Settings`` instance with explicit credential presence.
 
@@ -65,6 +66,7 @@ def _settings(
         trading_mode=mode,  # type: ignore[arg-type]
         binance=bn,
         bybit=by,
+        exchange_credentials=exchange_credentials or {},
     )
 
 
@@ -96,6 +98,25 @@ class TestBuildExchange:
     def test_live_falls_back_to_bybit_when_only_bybit_live(self) -> None:
         ex = build_exchange(_settings(mode="live", bybit_live=True))
         assert isinstance(ex, BybitExchange)
+        assert ex.testnet is False
+
+    def test_live_uses_named_credential_when_no_legacy_live_keys(self) -> None:
+        ex = build_exchange(
+            _settings(
+                mode="live",
+                exchange_credentials={
+                    "binance_alt": ExchangeCredential(
+                        ref="binance_alt",
+                        exchange="binance",
+                        api_key="alt-key",
+                        api_secret="alt-secret",
+                        testnet=False,
+                    )
+                },
+            )
+        )
+
+        assert isinstance(ex, BinanceExchange)
         assert ex.testnet is False
 
     def test_live_with_only_testnet_keys_raises(self) -> None:
