@@ -52,6 +52,7 @@ from src.config import get_settings
 from src.dashboard.pages import autopsy as autopsy_page
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
+from src.dashboard.pages import ops as ops_page
 from src.dashboard.pages import replay as replay_page
 from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.pages import trading as trading_page
@@ -975,6 +976,13 @@ def page_for_key(page_key: str) -> StreamlitPage:
             icon="🔎",
             url_path="autopsy",
         )
+    if page_key == "ops":
+        return st.Page(
+            ops_page.render,
+            title="Ops Diagnostics",
+            icon="🩺",
+            url_path="ops",
+        )
     if page_key == "engine":
         return st.Page(
             engine_page.render,
@@ -1015,11 +1023,20 @@ def build_navigation() -> StreamlitPage:
     feedback = page_for_key("feedback")
     replay = page_for_key("replay")
     autopsy = page_for_key("autopsy")
+    ops = page_for_key("ops")
     engine = page_for_key("engine")
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies, trading, feedback, replay, autopsy, engine],
+            "Sections": [
+                strategies,
+                trading,
+                feedback,
+                replay,
+                autopsy,
+                ops,
+                engine,
+            ],
         }
     )
 
