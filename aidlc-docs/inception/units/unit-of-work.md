@@ -35,6 +35,7 @@ For active technical debt grouped by these units, see
 | `runtime-safety-score` | Operator-facing runtime safety score and degraded-state signals | `src/runtime/`, `src/proposal/`, `src/dashboard/pages/engine.py`, `tests/test_runtime_*`, `tests/test_dashboard_engine.py` |
 | `proposal-replay-simulator` | Historical proposal replay and threshold/exit sensitivity reports | `src/proposal/`, `src/backtest/`, `scripts/`, `tests/test_proposal_*`, `tests/test_scripts_*` |
 | `strategy-correlation-governor` | Correlation-aware exposure limits across strategies, symbols, and sub-accounts | `src/backtest/`, `src/runtime/`, `src/trading/`, `tests/test_backtest_*`, `tests/test_runtime_*` |
+| `market-regime` | Current market regime classification and per-sub-account regime gating policy | `src/runtime/`, `src/trading/sub_account*.py`, `src/dashboard/`, `tests/test_runtime_*`, `tests/test_trading_sub_account*`, `tests/test_dashboard_*` |
 
 ## Detailed Units
 
@@ -281,3 +282,18 @@ For active technical debt grouped by these units, see
   runtime rejection event schema.
 - **Suggested Tests**: `tests/test_backtest_harness.py`,
   `tests/test_runtime_engine.py`, `tests/test_trading_sub_account_registry.py`.
+
+### `market-regime`
+
+- **Responsibilities**: Shared bull / bear / sideways / unknown market-regime
+  classification, per-sub-account regime-gating policy, runtime proposal
+  allow/block decisions, and operator dashboard visibility.
+- **Related Requirements**: FR-045, FR-036, FR-029, FR-031, NFR-003, NFR-007,
+  NFR-008.
+- **Existing Status**: New product unit; functional specification created.
+- **Future Change Triggers**: Regime classifier behavior, sub-account policy
+  schema, proposal gating semantics, dashboard regime status, account-level
+  strategy experiment routing.
+- **Suggested Tests**: regime classifier unit tests, sub-account policy
+  validation tests, runtime proposal-gating tests, activity event tests,
+  dashboard rendering tests.

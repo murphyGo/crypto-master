@@ -22,6 +22,7 @@ This map connects standard AI-DLC user stories to the brownfield unit breakdown.
 | `runtime-safety-score` | US-020 | FR-014, FR-015, FR-042, NFR-007 | runtime activity tests, dashboard engine tests |
 | `proposal-replay-simulator` | US-021 | FR-013, FR-014, FR-025, FR-043 | proposal/runtime tests, replay script tests |
 | `strategy-correlation-governor` | US-022 | FR-036, FR-038, FR-044 | backtest harness tests, runtime exposure tests |
+| `market-regime` | US-024 | FR-045, FR-036, FR-029, FR-031, NFR-003, NFR-007, NFR-008 | regime classifier tests, sub-account policy tests, runtime proposal-gating tests, dashboard tests |
 
 ## Planning Use
 

@@ -21,8 +21,8 @@ change history.
 | Exchange integration | FR-016 - FR-020, NFR-009, NFR-011 | `exchange-integration`, `notifications-ops` |
 | Feedback loop and validation | FR-021 - FR-027, FR-034, FR-035, NFR-002, NFR-006 | `ai-feedback-loop`, `backtesting-validation`, `strategy-framework` |
 | Sub-account capital segmentation | FR-036 - FR-038 | `sub-account-capital-segmentation`, `trading-core`, `backtesting-validation`, `dashboard-operator-ui` |
-| Product intelligence expansion | FR-039 - FR-044 | `strategy-promotion-lab`, `sub-account-experiment-marketplace`, `trade-quality-autopsy`, `runtime-safety-score`, `proposal-replay-simulator`, `strategy-correlation-governor` |
-| Operator dashboard | FR-028 - FR-032, FR-036, FR-039, FR-042 - FR-044, NFR-003, NFR-007, NFR-008 | `dashboard-operator-ui`, `dashboard-operator-command-center` |
+| Product intelligence expansion | FR-039 - FR-045 | `strategy-promotion-lab`, `sub-account-experiment-marketplace`, `trade-quality-autopsy`, `runtime-safety-score`, `proposal-replay-simulator`, `strategy-correlation-governor`, `market-regime` |
+| Operator dashboard | FR-028 - FR-032, FR-036, FR-039, FR-042 - FR-045, NFR-003, NFR-007, NFR-008 | `dashboard-operator-ui`, `dashboard-operator-command-center`, `market-regime` |
 | Security and constraints | NFR-004, NFR-011, NFR-012, CON-001 - CON-003 | `exchange-integration`, `notifications-ops`, `trading-core`, `quality-governance` |
 
 ## Functional Requirement Index
@@ -73,6 +73,7 @@ change history.
 | FR-042 | Compute an operator-facing runtime safety score from live health signals | High | `runtime-safety-score` |
 | FR-043 | Replay historical proposals under alternate approval and exit assumptions | Medium | `proposal-replay-simulator` |
 | FR-044 | Govern runtime exposure using strategy and asset correlation constraints | High | `strategy-correlation-governor` |
+| FR-045 | Classify current market regime and allow per-sub-account regime gating | Medium | `market-regime`, `sub-account-capital-segmentation`, `proposal-runtime`, `dashboard-operator-ui` |
 
 ## Non-Functional Requirement Index
 

@@ -77,6 +77,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, notification summary hooks, and opt-in runtime hard-pause gate shipped | Track future threshold calibration and default-policy changes in construction plans |
 | `proposal-replay-simulator` | Complete | Replay input model, threshold/exit comparison, operator Markdown report, file-based CLI, and Proposal Replay dashboard page shipped | Track future in-dashboard replay input generation in construction plans |
 | `strategy-correlation-governor` | Complete | Backtest/runtime exposure inputs, duplicate-exposure warnings, and optional rejection gate shipped | Track future engine/dashboard wiring in construction plans |
+| `market-regime` | Not started | Functional specification created for shared regime classification and per-sub-account regime gating | Implement classifier, account policy, runtime gating, dashboard visibility, and tests in construction plans |
 
 ## Construction Stage Policy
 
