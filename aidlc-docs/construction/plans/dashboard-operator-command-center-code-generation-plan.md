@@ -15,14 +15,14 @@
 
 ## Implementation Steps
 
-- [ ] Add pure command-center read-model helpers for empty/missing data,
+- [x] Add pure command-center read-model helpers for empty/missing data,
   snapshot freshness, actionable runtime events, and open exposure.
-- [ ] Render the Home command-center status section without replacing existing
+- [x] Render the Home command-center status section without replacing existing
   dashboard pages.
-- [ ] Add targeted AppTest/DataFrame tests for empty state and synthetic
+- [x] Add targeted AppTest/DataFrame tests for empty state and synthetic
   activity/trading fixtures.
-- [ ] Run targeted dashboard tests and formatting checks.
-- [ ] Write implementation notes/session log and mark the first slice complete.
+- [x] Run targeted dashboard tests and formatting checks.
+- [x] Write implementation notes/session log and mark the first slice complete.
 
 ## Target Files
 
