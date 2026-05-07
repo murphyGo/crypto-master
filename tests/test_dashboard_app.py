@@ -17,6 +17,8 @@ from src.dashboard.app import (
     build_command_center_status,
     build_exposure_dataframe,
     build_exposure_rows,
+    build_incident_dataframe,
+    build_incident_rows,
     count_actionable_events,
     estimate_open_notional,
     snapshot_freshness,
@@ -74,11 +76,14 @@ def make_event(
     timestamp: datetime,
     *,
     cycle_id: str | None = None,
+    message: str | None = None,
+    details: dict[str, object] | None = None,
 ) -> ActivityEvent:
     return ActivityEvent(
         event_type=event_type,
         timestamp=timestamp,
-        message=event_type.value,
+        message=message or event_type.value,
+        details=details or {},
         cycle_id=cycle_id,
     )
 
@@ -217,7 +222,25 @@ def test_count_actionable_events() -> None:
         make_event(ActivityEventType.CORRELATION_WARNING, now, cycle_id="cycle-1"),
     ]
 
-    assert count_actionable_events(events) == 2
+    assert count_actionable_events(events, now=now) == 2
+
+
+def test_count_actionable_events_uses_recent_window() -> None:
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    events = [
+        make_event(
+            ActivityEventType.NOTIFICATION_FAILED,
+            now - timedelta(hours=25),
+            cycle_id="old-cycle",
+        ),
+        make_event(
+            ActivityEventType.CORRELATION_WARNING,
+            now - timedelta(hours=1),
+            cycle_id="new-cycle",
+        ),
+    ]
+
+    assert count_actionable_events(events, now=now) == 1
 
 
 def test_build_command_center_status_summarizes_inputs() -> None:
@@ -263,6 +286,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.candidates_awaiting_approval == 1
     assert status.candidates_promoted == 1
     assert status.candidates_errored == 1
+    assert len(status.incident_rows) == 1
 
 
 def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
@@ -304,3 +328,33 @@ def test_build_exposure_dataframe_empty_has_operator_columns() -> None:
 
     assert df.empty
     assert "Duplicate Accounts" in df.columns
+
+
+def test_build_incident_rows_extracts_operator_fields() -> None:
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    rows = build_incident_rows(
+        [
+            make_event(
+                ActivityEventType.LIQUIDATED,
+                now,
+                message="liquidated BTC",
+                details={"sub_account_id": "default", "symbol": "BTC/USDT"},
+            )
+        ],
+        now=now,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.severity == "stop"
+    assert row.event_type == "liquidated"
+    assert row.sub_account_id == "default"
+    assert row.symbol == "BTC/USDT"
+    assert row.next_step == "Review Trading exposure"
+
+
+def test_build_incident_dataframe_empty_has_operator_columns() -> None:
+    df = build_incident_dataframe([])
+
+    assert df.empty
+    assert "Next Step" in df.columns

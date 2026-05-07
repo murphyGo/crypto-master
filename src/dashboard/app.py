@@ -62,6 +62,7 @@ from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
+    recent_activity_events,
 )
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.portfolio import AssetSnapshot, PortfolioTracker
@@ -79,6 +80,8 @@ ACTIONABLE_EVENT_TYPES = {
     ActivityEventType.COLD_START_BLOCKED.value,
     ActivityEventType.CORRELATION_WARNING.value,
 }
+ACTIONABLE_LOOKBACK_HOURS = 24
+INCIDENT_DISPLAY_LIMIT = 10
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,7 @@ class CommandCenterStatus:
     candidates_awaiting_approval: int
     candidates_promoted: int
     candidates_errored: int
+    incident_rows: list[CommandCenterIncidentRow]
 
 
 @dataclass(frozen=True)
@@ -118,6 +122,19 @@ class CommandCenterExposureRow:
     def duplicate_across_accounts(self) -> bool:
         """Whether this exposure spans more than one sub-account."""
         return len(self.sub_accounts) > 1
+
+
+@dataclass(frozen=True)
+class CommandCenterIncidentRow:
+    """Recent actionable event row for the Home command center."""
+
+    timestamp: datetime
+    severity: str
+    event_type: str
+    message: str
+    sub_account_id: str
+    symbol: str
+    next_step: str
 
 
 def render_home() -> None:
@@ -241,7 +258,13 @@ def build_command_center_status(
     """Build a compact operator-first status from persisted dashboard inputs."""
     cycles = engine_page.aggregate_cycles(events)
     cycle_metrics = engine_page.build_summary_metrics(events, cycles)
-    safety = compute_runtime_safety_score(inputs_from_recent_activity_events(events))
+    safety = compute_runtime_safety_score(
+        inputs_from_recent_activity_events(
+            events,
+            now=now,
+            lookback_hours=ACTIONABLE_LOOKBACK_HOURS,
+        )
+    )
     latest_snapshot_at = latest_snapshot_timestamp(snapshots)
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
@@ -255,7 +278,7 @@ def build_command_center_status(
         estimated_open_notional=estimate_open_notional(open_trades),
         latest_snapshot_at=latest_snapshot_at,
         snapshot_freshness=snapshot_freshness(latest_snapshot_at, now=now),
-        actionable_events=count_actionable_events(events),
+        actionable_events=count_actionable_events(events, now=now),
         sub_account_count=sub_account_count,
         mode=mode,
         scope=scope,
@@ -264,6 +287,7 @@ def build_command_center_status(
         candidates_awaiting_approval=candidate_metrics.get("awaiting_approval", 0),
         candidates_promoted=candidate_metrics.get("promoted", 0),
         candidates_errored=candidate_metrics.get("errored", 0),
+        incident_rows=build_incident_rows(events, now=now),
     )
 
 
@@ -330,9 +354,70 @@ def build_exposure_rows(
     return rows
 
 
-def count_actionable_events(events: list[ActivityEvent]) -> int:
-    """Count runtime events that deserve operator attention."""
-    return sum(1 for event in events if event.event_type in ACTIONABLE_EVENT_TYPES)
+def count_actionable_events(
+    events: list[ActivityEvent],
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Count recent runtime events that deserve operator attention."""
+    return len(build_incident_rows(events, now=now))
+
+
+def build_incident_rows(
+    events: list[ActivityEvent],
+    *,
+    now: datetime | None = None,
+    limit: int = INCIDENT_DISPLAY_LIMIT,
+) -> list[CommandCenterIncidentRow]:
+    """Build recent actionable event rows for the Home command center."""
+    recent = recent_activity_events(
+        events,
+        now=now,
+        lookback_hours=ACTIONABLE_LOOKBACK_HOURS,
+    )
+    incidents = [
+        event for event in recent if event.event_type in ACTIONABLE_EVENT_TYPES
+    ]
+    incidents.sort(key=lambda event: event.timestamp, reverse=True)
+    return [_incident_row(event) for event in incidents[:limit]]
+
+
+def _incident_row(event: ActivityEvent) -> CommandCenterIncidentRow:
+    event_type = str(event.event_type)
+    return CommandCenterIncidentRow(
+        timestamp=ensure_utc(event.timestamp),
+        severity=_incident_severity(event_type),
+        event_type=event_type,
+        message=event.message or "—",
+        sub_account_id=str(event.details.get("sub_account_id", "—")),
+        symbol=str(event.details.get("symbol", "—")),
+        next_step=_incident_next_step(event_type),
+    )
+
+
+def _incident_severity(event_type: str) -> str:
+    if event_type in {
+        ActivityEventType.CYCLE_ERRORED.value,
+        ActivityEventType.LIQUIDATED.value,
+    }:
+        return "stop"
+    if event_type in {
+        ActivityEventType.NOTIFICATION_FAILED.value,
+        ActivityEventType.CORRELATION_WARNING.value,
+    }:
+        return "watch"
+    return "info"
+
+
+def _incident_next_step(event_type: str) -> str:
+    mapping = {
+        ActivityEventType.CYCLE_ERRORED.value: "Open Engine timeline",
+        ActivityEventType.NOTIFICATION_FAILED.value: "Check notification route",
+        ActivityEventType.LIQUIDATED.value: "Review Trading exposure",
+        ActivityEventType.COLD_START_BLOCKED.value: "Review strategy evidence",
+        ActivityEventType.CORRELATION_WARNING.value: "Review duplicate exposure",
+    }
+    return mapping.get(event_type, "Open Engine timeline")
 
 
 def render_command_center_status(status: CommandCenterStatus) -> None:
@@ -379,6 +464,13 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
     else:
         st.dataframe(exposure_df, hide_index=True, use_container_width=True)
 
+    st.markdown("#### Recent Incidents")
+    incident_df = build_incident_dataframe(status.incident_rows)
+    if incident_df.empty:
+        st.success("No recent actionable incidents in the last 24 hours.")
+    else:
+        st.dataframe(incident_df, hide_index=True, use_container_width=True)
+
     st.markdown("#### Strategy Evidence")
     e1, e2, e3, e4 = st.columns(4)
     e1.metric("Candidates", status.candidate_total)
@@ -410,6 +502,36 @@ def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFra
                 "Estimated Notional": float(row.estimated_notional),
                 "Max Leverage": f"{row.max_leverage}x",
                 "Duplicate Accounts": row.duplicate_across_accounts,
+            }
+            for row in rows
+        ],
+        columns=columns,
+    )
+
+
+def build_incident_dataframe(rows: list[CommandCenterIncidentRow]) -> pd.DataFrame:
+    """Build the Home recent-incidents table."""
+    columns = [
+        "Severity",
+        "Event",
+        "Timestamp",
+        "Sub-account",
+        "Symbol",
+        "Message",
+        "Next Step",
+    ]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "Severity": row.severity,
+                "Event": row.event_type,
+                "Timestamp": row.timestamp.isoformat(timespec="seconds"),
+                "Sub-account": row.sub_account_id,
+                "Symbol": row.symbol,
+                "Message": row.message,
+                "Next Step": row.next_step,
             }
             for row in rows
         ],
