@@ -94,6 +94,7 @@ class CommandCenterStatus:
     open_positions: int
     estimated_open_notional: Decimal
     latest_snapshot_at: datetime | None
+    latest_equity: Decimal | None
     snapshot_freshness: str
     actionable_events: int
     sub_account_count: int
@@ -116,6 +117,8 @@ class CommandCenterExposureRow:
     sub_accounts: tuple[str, ...]
     open_count: int
     estimated_notional: Decimal
+    estimated_margin: Decimal
+    notional_pct_of_equity: float | None
     max_leverage: int
 
     @property
@@ -266,6 +269,7 @@ def build_command_center_status(
         )
     )
     latest_snapshot_at = latest_snapshot_timestamp(snapshots)
+    latest_equity = latest_snapshot_equity(snapshots)
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
     candidate_metrics = candidate_metrics or {}
@@ -277,12 +281,13 @@ def build_command_center_status(
         open_positions=len(open_trades),
         estimated_open_notional=estimate_open_notional(open_trades),
         latest_snapshot_at=latest_snapshot_at,
+        latest_equity=latest_equity,
         snapshot_freshness=snapshot_freshness(latest_snapshot_at, now=now),
         actionable_events=count_actionable_events(events, now=now),
         sub_account_count=sub_account_count,
         mode=mode,
         scope=scope,
-        exposure_rows=build_exposure_rows(scoped),
+        exposure_rows=build_exposure_rows(scoped, latest_equity=latest_equity),
         candidate_total=candidate_metrics.get("total", 0),
         candidates_awaiting_approval=candidate_metrics.get("awaiting_approval", 0),
         candidates_promoted=candidate_metrics.get("promoted", 0),
@@ -296,6 +301,14 @@ def latest_snapshot_timestamp(snapshots: list[AssetSnapshot]) -> datetime | None
     if not snapshots:
         return None
     return max(ensure_utc(snapshot.timestamp) for snapshot in snapshots)
+
+
+def latest_snapshot_equity(snapshots: list[AssetSnapshot]) -> Decimal | None:
+    """Return total equity from the newest persisted portfolio snapshot."""
+    if not snapshots:
+        return None
+    latest = max(snapshots, key=lambda snapshot: ensure_utc(snapshot.timestamp))
+    return latest.total_equity
 
 
 def snapshot_freshness(
@@ -326,6 +339,8 @@ def estimate_open_notional(trades: list[TradeHistory]) -> Decimal:
 
 def build_exposure_rows(
     scoped_trades: list[tuple[str, TradeHistory]],
+    *,
+    latest_equity: Decimal | None = None,
 ) -> list[CommandCenterExposureRow]:
     """Group open trades by symbol/side while preserving sub-account source."""
     grouped: dict[tuple[str, str], list[tuple[str, TradeHistory]]] = {}
@@ -338,15 +353,29 @@ def build_exposure_rows(
     rows: list[CommandCenterExposureRow] = []
     for (symbol, side), entries in sorted(grouped.items()):
         sub_accounts = tuple(sorted({sub_account_id for sub_account_id, _ in entries}))
+        estimated_notional = sum(
+            (trade.entry_price * trade.entry_quantity for _, trade in entries),
+            Decimal("0"),
+        )
+        estimated_margin = sum(
+            (
+                (trade.entry_price * trade.entry_quantity) / Decimal(trade.leverage)
+                for _, trade in entries
+            ),
+            Decimal("0"),
+        )
         rows.append(
             CommandCenterExposureRow(
                 symbol=symbol,
                 side=side,
                 sub_accounts=sub_accounts,
                 open_count=len(entries),
-                estimated_notional=sum(
-                    (trade.entry_price * trade.entry_quantity for _, trade in entries),
-                    Decimal("0"),
+                estimated_notional=estimated_notional,
+                estimated_margin=estimated_margin,
+                notional_pct_of_equity=(
+                    float((estimated_notional / latest_equity) * Decimal("100"))
+                    if latest_equity is not None and latest_equity > 0
+                    else None
                 ),
                 max_leverage=max(trade.leverage for _, trade in entries),
             )
@@ -487,6 +516,8 @@ def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFra
         "Sub-accounts",
         "Open Count",
         "Estimated Notional",
+        "Estimated Margin",
+        "Notional % Equity",
         "Max Leverage",
         "Duplicate Accounts",
     ]
@@ -500,6 +531,12 @@ def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFra
                 "Sub-accounts": ", ".join(row.sub_accounts),
                 "Open Count": row.open_count,
                 "Estimated Notional": float(row.estimated_notional),
+                "Estimated Margin": float(row.estimated_margin),
+                "Notional % Equity": (
+                    round(row.notional_pct_of_equity, 2)
+                    if row.notional_pct_of_equity is not None
+                    else None
+                ),
                 "Max Leverage": f"{row.max_leverage}x",
                 "Duplicate Accounts": row.duplicate_across_accounts,
             }

@@ -21,6 +21,7 @@ from src.dashboard.app import (
     build_incident_rows,
     count_actionable_events,
     estimate_open_notional,
+    latest_snapshot_equity,
     snapshot_freshness,
 )
 from src.dashboard.theme import (
@@ -277,6 +278,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.last_cycle_status == "ok"
     assert status.open_positions == 1
     assert status.estimated_open_notional == Decimal("5000.0")
+    assert status.latest_equity == Decimal("10000")
     assert status.snapshot_freshness == "fresh"
     assert status.actionable_events == 1
     assert status.sub_account_count == 2
@@ -309,7 +311,8 @@ def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
         [
             ("default", default_trade),
             ("experimental", experimental_trade),
-        ]
+        ],
+        latest_equity=Decimal("20000"),
     )
 
     assert len(rows) == 1
@@ -319,6 +322,8 @@ def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
     assert row.sub_accounts == ("default", "experimental")
     assert row.open_count == 2
     assert row.estimated_notional == Decimal("15200.0")
+    assert row.estimated_margin == Decimal("4540.0")
+    assert row.notional_pct_of_equity == 76.0
     assert row.max_leverage == 5
     assert row.duplicate_across_accounts is True
 
@@ -328,6 +333,15 @@ def test_build_exposure_dataframe_empty_has_operator_columns() -> None:
 
     assert df.empty
     assert "Duplicate Accounts" in df.columns
+
+
+def test_latest_snapshot_equity_uses_newest_snapshot() -> None:
+    older = make_snapshot(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    newer = make_snapshot(datetime(2026, 1, 2, tzinfo=timezone.utc))
+    newer.balances["USDT"] = Decimal("12000")
+    newer.unrealized_pnl = Decimal("-250")
+
+    assert latest_snapshot_equity([older, newer]) == Decimal("11750")
 
 
 def test_build_incident_rows_extracts_operator_fields() -> None:
