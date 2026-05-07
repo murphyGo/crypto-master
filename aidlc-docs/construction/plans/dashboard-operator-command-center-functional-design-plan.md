@@ -43,18 +43,18 @@
 
 ## Design Steps
 
-- [ ] Define the command-center information architecture and navigation
+- [x] Define the command-center information architecture and navigation
   contract: first-screen safety status, drilldown targets, and page ordering.
-- [ ] Define account-context and data-freshness semantics for paper/live,
+- [x] Define account-context and data-freshness semantics for paper/live,
   default/aggregate/sub-account states, including stale/missing data states.
-- [ ] Define cross-account exposure and correlation-warning presentation for
+- [x] Define cross-account exposure and correlation-warning presentation for
   open positions and runtime events.
-- [ ] Define promotion/evidence drilldown semantics linking strategy,
+- [x] Define promotion/evidence drilldown semantics linking strategy,
   candidate, robustness, promotion score, replay, audit, proposal, and trade
   evidence.
-- [ ] Define dashboard safety-score presentation, including severity bands,
+- [x] Define dashboard safety-score presentation, including severity bands,
   contributing factors, and recent actionable events.
-- [ ] Identify the smallest code-generation slice and targeted AppTest/DataFrame
+- [x] Identify the smallest code-generation slice and targeted AppTest/DataFrame
   verification plan.
 
 ## Verification Commands
@@ -73,10 +73,10 @@ uv run pytest tests/test_dashboard_app.py tests/test_dashboard_trading.py tests/
 
 ## Completion Checklist
 
-- [ ] Functional design artifact created under
+- [x] Functional design artifact created under
   `aidlc-docs/construction/dashboard-operator-command-center/functional-design/`.
-- [ ] Construction plan updated with implementation slice and tests.
-- [ ] Code-generation stage plan created or this plan advanced to code
+- [x] Construction plan updated with implementation slice and tests.
+- [x] Code-generation stage plan created or this plan advanced to code
   generation after design approval.
 - [ ] Session log created when implementation begins.
 - [ ] Cross-check created after the command-center slice ships.
