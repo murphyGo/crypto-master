@@ -351,6 +351,41 @@ async def test_run_cycle_rejects_low_score_proposal(tmp_path: Path) -> None:
     assert record.rejection_reason is not None
 
 
+async def test_run_cycle_runtime_safety_pause_blocks_accepted_fill(
+    tmp_path: Path,
+) -> None:
+    btc = make_proposal(proposal_id="btc-safety", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=btc,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_safety_pause_min_score=90,
+        ),
+    )
+    mocks["activity_log"].append(
+        ActivityEventType.CYCLE_ERRORED,
+        "prior cycle failed",
+        cycle_id="prior-cycle",
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("btc-safety")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert "runtime safety score" in (record.rejection_reason or "")
+    rejected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert any(
+        event.details.get("runtime_safety_pause_min_score") == 90 for event in rejected
+    )
+
+
 async def test_run_cycle_handles_no_proposals(tmp_path: Path) -> None:
     engine, mocks = build_engine(
         tmp_path=tmp_path,

@@ -482,6 +482,10 @@ class TestEngineSettings:
 
         assert settings.engine_cycle_interval == ec.cycle_interval_seconds
         assert settings.engine_auto_approve_threshold == ec.auto_approve_threshold
+        assert (
+            settings.engine_runtime_safety_pause_min_score
+            == ec.runtime_safety_pause_min_score
+        )
         assert settings.engine_symbols == ec.altcoin_symbols
         assert settings.engine_balance == ec.balance
         # Phase 13.2: remaining fields also default-match EngineConfig.
@@ -509,6 +513,14 @@ class TestEngineSettings:
     def test_engine_auto_approve_threshold_must_be_non_negative(self) -> None:
         with pytest.raises(ValidationError):
             Settings(engine_auto_approve_threshold=-0.1)
+
+    def test_engine_runtime_safety_pause_min_score_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"ENGINE_RUNTIME_SAFETY_PAUSE_MIN_SCORE": "90"}):
+            assert Settings().engine_runtime_safety_pause_min_score == 90
+
+    def test_engine_runtime_safety_pause_min_score_caps_at_100(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(engine_runtime_safety_pause_min_score=101)
 
     def test_engine_symbols_parses_comma_separated_env(self) -> None:
         with patch.dict(

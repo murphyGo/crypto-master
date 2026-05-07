@@ -65,6 +65,7 @@ from src.runtime.correlation_governor import (
     evaluate_correlation_gate,
 )
 from src.runtime.safety_score import (
+    RuntimeSafetyScore,
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
 )
@@ -101,6 +102,16 @@ class EngineConfig(BaseModel):
     cycle_interval_seconds: int = Field(default=300, ge=10)
     monitor_interval_seconds: int = Field(default=60, ge=10)
     auto_approve_threshold: float = Field(default=1.0, ge=0.0)
+    runtime_safety_pause_min_score: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description=(
+            "When set, accepted proposals are blocked before execution if "
+            "the recent runtime safety score is below this score. Default "
+            "None preserves existing behavior."
+        ),
+    )
     bitcoin_symbol: str = "BTC/USDT"
     altcoin_symbols: list[str] = Field(
         default_factory=lambda: [
@@ -513,10 +524,10 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
 
+        safety_score = compute_runtime_safety_score(
+            inputs_from_recent_activity_events(self.activity_log.read_all())
+        )
         try:
-            safety_score = compute_runtime_safety_score(
-                inputs_from_recent_activity_events(self.activity_log.read_all())
-            )
             await self.notification_dispatcher.notify_proposal(
                 proposal,
                 safety_score=safety_score,
@@ -564,6 +575,16 @@ class TradingEngine:
                 result,
             )
             if correlation_rejection is not None:
+                return
+
+            pause_rejection = self._runtime_safety_pause_gate(
+                proposal,
+                record,
+                safety_score,
+                cycle_id,
+                result,
+            )
+            if pause_rejection is not None:
                 return
 
             # Phase 12.1: cross-cycle position cap. The composite
@@ -690,6 +711,45 @@ class TradingEngine:
             },
             cycle_id=cycle_id,
         )
+
+    def _runtime_safety_pause_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        safety_score: RuntimeSafetyScore,
+        cycle_id: str,
+        result: CycleResult,
+    ) -> ProposalRecord | None:
+        pause_min_score = self.config.runtime_safety_pause_min_score
+        if pause_min_score is None or safety_score.score >= pause_min_score:
+            return None
+
+        reason = (
+            f"runtime safety score {safety_score.score} below pause minimum "
+            f"{pause_min_score}"
+        )
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+            }
+        )
+        self.proposal_history.save(rejected_record)
+        result.proposals_rejected += 1
+        self.activity_log.append(
+            ActivityEventType.PROPOSAL_REJECTED,
+            f"Runtime-safety rejected {proposal.symbol} {proposal.signal}",
+            details={
+                **_proposal_summary(proposal),
+                "reason": reason,
+                "runtime_safety_score": safety_score.score,
+                "runtime_safety_band": safety_score.band.value,
+                "runtime_safety_pause_min_score": pause_min_score,
+            },
+            cycle_id=cycle_id,
+        )
+        return rejected_record
 
     def _correlation_gate(
         self,

@@ -177,6 +177,11 @@ class Settings(BaseSettings):
     # deployments don't change behaviour without an explicit env setting.
     engine_cycle_interval: int = Field(default=300, ge=10)
     engine_auto_approve_threshold: float = Field(default=1.0, ge=0.0)
+    engine_runtime_safety_pause_min_score: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
     # ``NoDecode`` prevents pydantic-settings from JSON-parsing the env
     # string before the validator runs; without it,
     # ``ENGINE_SYMBOLS=BTC/USDT,ETH/USDT`` raises a JSON decode error.
