@@ -152,6 +152,8 @@ def test_app_home_renders_command_center() -> None:
     assert "Open positions" in metric_labels
     assert "Scope" in metric_labels
     assert "Actionable events" in metric_labels
+    assert "Candidates" in metric_labels
+    assert "Awaiting approval" in metric_labels
 
 
 def test_app_home_renders_command_center_controls() -> None:
@@ -239,6 +241,12 @@ def test_build_command_center_status_summarizes_inputs() -> None:
         sub_account_count=2,
         mode="paper",
         scope="Aggregate",
+        candidate_metrics={
+            "total": 3,
+            "awaiting_approval": 1,
+            "promoted": 1,
+            "errored": 1,
+        },
         now=now,
     )
 
@@ -251,6 +259,10 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.sub_account_count == 2
     assert status.scope == "Aggregate"
     assert len(status.exposure_rows) == 1
+    assert status.candidate_total == 3
+    assert status.candidates_awaiting_approval == 1
+    assert status.candidates_promoted == 1
+    assert status.candidates_errored == 1
 
 
 def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:

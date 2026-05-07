@@ -97,6 +97,10 @@ class CommandCenterStatus:
     mode: str
     scope: str
     exposure_rows: list[CommandCenterExposureRow]
+    candidate_total: int
+    candidates_awaiting_approval: int
+    candidates_promoted: int
+    candidates_errored: int
 
 
 @dataclass(frozen=True)
@@ -206,6 +210,9 @@ def load_command_center_status(
         trades.extend(loaded_trades)
         scoped_trades.extend((sub_account_id, trade) for trade in loaded_trades)
         snapshots.extend(portfolio_tracker.load_snapshots(mode))
+    candidate_metrics = feedback_page.build_summary_metrics(
+        feedback_page.load_candidate_records(feedback_page.DEFAULT_STATE_DIR)
+    )
 
     return build_command_center_status(
         events=events,
@@ -215,6 +222,7 @@ def load_command_center_status(
         sub_account_count=len(ids),
         mode=mode,
         scope=scope,
+        candidate_metrics=candidate_metrics,
     )
 
 
@@ -226,6 +234,7 @@ def build_command_center_status(
     sub_account_count: int,
     mode: str,
     scoped_trades: list[tuple[str, TradeHistory]] | None = None,
+    candidate_metrics: dict[str, int] | None = None,
     scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
     now: datetime | None = None,
 ) -> CommandCenterStatus:
@@ -236,6 +245,7 @@ def build_command_center_status(
     latest_snapshot_at = latest_snapshot_timestamp(snapshots)
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
+    candidate_metrics = candidate_metrics or {}
 
     return CommandCenterStatus(
         safety=safety,
@@ -250,6 +260,10 @@ def build_command_center_status(
         mode=mode,
         scope=scope,
         exposure_rows=build_exposure_rows(scoped),
+        candidate_total=candidate_metrics.get("total", 0),
+        candidates_awaiting_approval=candidate_metrics.get("awaiting_approval", 0),
+        candidates_promoted=candidate_metrics.get("promoted", 0),
+        candidates_errored=candidate_metrics.get("errored", 0),
     )
 
 
@@ -364,6 +378,13 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
         st.info("No open exposure in the selected command-center scope.")
     else:
         st.dataframe(exposure_df, hide_index=True, use_container_width=True)
+
+    st.markdown("#### Strategy Evidence")
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("Candidates", status.candidate_total)
+    e2.metric("Awaiting approval", status.candidates_awaiting_approval)
+    e3.metric("Promoted", status.candidates_promoted)
+    e4.metric("Errored", status.candidates_errored)
 
 
 def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFrame:
