@@ -46,8 +46,10 @@ import src.runtime.activity_log  # noqa: F401
 import src.strategy.base  # noqa: F401
 import src.strategy.loader  # noqa: F401
 import src.strategy.performance  # noqa: F401
+import src.strategy.trade_autopsy  # noqa: F401
 import src.trading.portfolio  # noqa: F401
 from src.config import get_settings
+from src.dashboard.pages import autopsy as autopsy_page
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import replay as replay_page
@@ -966,6 +968,13 @@ def page_for_key(page_key: str) -> StreamlitPage:
             icon="🧪",
             url_path="replay",
         )
+    if page_key == "autopsy":
+        return st.Page(
+            autopsy_page.render,
+            title="Trade Autopsy",
+            icon="🔎",
+            url_path="autopsy",
+        )
     if page_key == "engine":
         return st.Page(
             engine_page.render,
@@ -1005,11 +1014,12 @@ def build_navigation() -> StreamlitPage:
     trading = page_for_key("trading")
     feedback = page_for_key("feedback")
     replay = page_for_key("replay")
+    autopsy = page_for_key("autopsy")
     engine = page_for_key("engine")
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies, trading, feedback, replay, engine],
+            "Sections": [strategies, trading, feedback, replay, autopsy, engine],
         }
     )
 
