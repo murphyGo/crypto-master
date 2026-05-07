@@ -14,6 +14,8 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 from src.dashboard.app import (
+    build_candidate_dataframe,
+    build_candidate_rows,
     build_command_center_status,
     build_exposure_dataframe,
     build_exposure_rows,
@@ -31,6 +33,7 @@ from src.dashboard.theme import (
     INITIAL_SIDEBAR_STATE,
     PAGE_LAYOUT,
 )
+from src.feedback.loop import CandidateRecord, LoopStatus
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
 from src.strategy.performance import TradeHistory
 from src.trading.portfolio import AssetSnapshot
@@ -69,6 +72,32 @@ def make_snapshot(timestamp: datetime) -> AssetSnapshot:
         balances={"USDT": Decimal("10000")},
         realized_pnl=Decimal("0"),
         unrealized_pnl=Decimal("0"),
+    )
+
+
+def make_candidate(
+    *,
+    candidate_id: str = "candidate-12345678",
+    technique_name: str = "Breakout Guard",
+    status: LoopStatus = LoopStatus.AWAITING_APPROVAL,
+    updated_at: datetime | None = None,
+    robustness_passed: bool | None = True,
+    backtest_run_id: str | None = "bt-123",
+) -> CandidateRecord:
+    timestamp = updated_at or datetime(2026, 1, 1, tzinfo=timezone.utc)
+    return CandidateRecord(
+        candidate_id=candidate_id,
+        kind="improvement",
+        parent_technique="baseline",
+        technique_name=technique_name,
+        technique_version="v2",
+        source_path=Path("strategies/experimental/breakout_guard.py"),
+        status=status,
+        backtest_run_id=backtest_run_id,
+        robustness_passed=robustness_passed,
+        sub_account_id="default",
+        created_at=timestamp,
+        updated_at=timestamp,
     )
 
 
@@ -271,6 +300,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
             "promoted": 1,
             "errored": 1,
         },
+        candidate_records=[make_candidate()],
         now=now,
     )
 
@@ -289,6 +319,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.candidates_promoted == 1
     assert status.candidates_errored == 1
     assert len(status.incident_rows) == 1
+    assert len(status.candidate_rows) == 1
 
 
 def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
@@ -369,6 +400,36 @@ def test_build_incident_rows_extracts_operator_fields() -> None:
 
 def test_build_incident_dataframe_empty_has_operator_columns() -> None:
     df = build_incident_dataframe([])
+
+    assert df.empty
+    assert "Next Step" in df.columns
+
+
+def test_build_candidate_rows_sorts_recent_records_and_maps_next_steps() -> None:
+    older = make_candidate(
+        candidate_id="older-candidate",
+        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        status=LoopStatus.PROMOTED,
+    )
+    newer = make_candidate(
+        candidate_id="newer-candidate",
+        updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        status=LoopStatus.AWAITING_APPROVAL,
+        robustness_passed=False,
+        backtest_run_id=None,
+    )
+
+    rows = build_candidate_rows([older, newer])
+
+    assert [row.candidate_id for row in rows] == ["newer-candidate", "older-candidate"]
+    assert rows[0].robustness == "FAIL"
+    assert rows[0].backtest_run_id == "—"
+    assert rows[0].next_step == "Open Feedback Loop approval"
+    assert rows[1].next_step == "Verify promoted strategy"
+
+
+def test_build_candidate_dataframe_empty_has_operator_columns() -> None:
+    df = build_candidate_dataframe([])
 
     assert df.empty
     assert "Next Step" in df.columns

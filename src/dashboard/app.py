@@ -57,6 +57,7 @@ from src.dashboard.theme import (
     APP_TITLE,
     configure_page,
 )
+from src.feedback.loop import CandidateRecord
 from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
@@ -82,6 +83,7 @@ ACTIONABLE_EVENT_TYPES = {
 }
 ACTIONABLE_LOOKBACK_HOURS = 24
 INCIDENT_DISPLAY_LIMIT = 10
+CANDIDATE_DISPLAY_LIMIT = 5
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,7 @@ class CommandCenterStatus:
     candidates_promoted: int
     candidates_errored: int
     incident_rows: list[CommandCenterIncidentRow]
+    candidate_rows: list[CommandCenterCandidateRow]
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,21 @@ class CommandCenterIncidentRow:
     message: str
     sub_account_id: str
     symbol: str
+    next_step: str
+
+
+@dataclass(frozen=True)
+class CommandCenterCandidateRow:
+    """Recent strategy-candidate evidence row for the Home command center."""
+
+    candidate_id: str
+    technique: str
+    version: str
+    status: str
+    robustness: str
+    backtest_run_id: str
+    sub_account_id: str
+    updated_at: datetime
     next_step: str
 
 
@@ -230,9 +248,10 @@ def load_command_center_status(
         trades.extend(loaded_trades)
         scoped_trades.extend((sub_account_id, trade) for trade in loaded_trades)
         snapshots.extend(portfolio_tracker.load_snapshots(mode))
-    candidate_metrics = feedback_page.build_summary_metrics(
-        feedback_page.load_candidate_records(feedback_page.DEFAULT_STATE_DIR)
+    candidate_records = feedback_page.load_candidate_records(
+        feedback_page.DEFAULT_STATE_DIR
     )
+    candidate_metrics = feedback_page.build_summary_metrics(candidate_records)
 
     return build_command_center_status(
         events=events,
@@ -243,6 +262,7 @@ def load_command_center_status(
         mode=mode,
         scope=scope,
         candidate_metrics=candidate_metrics,
+        candidate_records=candidate_records,
     )
 
 
@@ -255,6 +275,7 @@ def build_command_center_status(
     mode: str,
     scoped_trades: list[tuple[str, TradeHistory]] | None = None,
     candidate_metrics: dict[str, int] | None = None,
+    candidate_records: list[CandidateRecord] | None = None,
     scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
     now: datetime | None = None,
 ) -> CommandCenterStatus:
@@ -293,6 +314,7 @@ def build_command_center_status(
         candidates_promoted=candidate_metrics.get("promoted", 0),
         candidates_errored=candidate_metrics.get("errored", 0),
         incident_rows=build_incident_rows(events, now=now),
+        candidate_rows=build_candidate_rows(candidate_records or []),
     )
 
 
@@ -449,6 +471,46 @@ def _incident_next_step(event_type: str) -> str:
     return mapping.get(event_type, "Open Engine timeline")
 
 
+def build_candidate_rows(
+    records: list[CandidateRecord],
+    *,
+    limit: int = CANDIDATE_DISPLAY_LIMIT,
+) -> list[CommandCenterCandidateRow]:
+    """Build recent candidate evidence rows for the Home command center."""
+    sorted_records = sorted(records, key=lambda record: record.updated_at, reverse=True)
+    return [_candidate_row(record) for record in sorted_records[:limit]]
+
+
+def _candidate_row(record: CandidateRecord) -> CommandCenterCandidateRow:
+    return CommandCenterCandidateRow(
+        candidate_id=record.candidate_id,
+        technique=record.technique_name,
+        version=record.technique_version,
+        status=str(record.status),
+        robustness=_candidate_robustness(record),
+        backtest_run_id=record.backtest_run_id or "—",
+        sub_account_id=record.sub_account_id,
+        updated_at=ensure_utc(record.updated_at),
+        next_step=_candidate_next_step(str(record.status)),
+    )
+
+
+def _candidate_robustness(record: CandidateRecord) -> str:
+    if record.robustness_passed is None:
+        return "—"
+    return "PASS" if record.robustness_passed else "FAIL"
+
+
+def _candidate_next_step(status: str) -> str:
+    mapping = {
+        "awaiting_approval": "Open Feedback Loop approval",
+        "errored": "Review candidate error",
+        "promoted": "Verify promoted strategy",
+        "discarded": "Review decision reason",
+    }
+    return mapping.get(status, "Monitor feedback loop")
+
+
 def render_command_center_status(status: CommandCenterStatus) -> None:
     """Render the Home command-center summary."""
     st.markdown("### Command Center")
@@ -506,6 +568,11 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
     e2.metric("Awaiting approval", status.candidates_awaiting_approval)
     e3.metric("Promoted", status.candidates_promoted)
     e4.metric("Errored", status.candidates_errored)
+    candidate_df = build_candidate_dataframe(status.candidate_rows)
+    if candidate_df.empty:
+        st.info("No strategy candidates recorded yet.")
+    else:
+        st.dataframe(candidate_df, hide_index=True, use_container_width=True)
 
 
 def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFrame:
@@ -568,6 +635,40 @@ def build_incident_dataframe(rows: list[CommandCenterIncidentRow]) -> pd.DataFra
                 "Sub-account": row.sub_account_id,
                 "Symbol": row.symbol,
                 "Message": row.message,
+                "Next Step": row.next_step,
+            }
+            for row in rows
+        ],
+        columns=columns,
+    )
+
+
+def build_candidate_dataframe(rows: list[CommandCenterCandidateRow]) -> pd.DataFrame:
+    """Build the Home recent-candidates table."""
+    columns = [
+        "Candidate ID",
+        "Technique",
+        "Version",
+        "Status",
+        "Robustness",
+        "Backtest Run",
+        "Sub-account",
+        "Updated",
+        "Next Step",
+    ]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "Candidate ID": row.candidate_id[:8],
+                "Technique": row.technique,
+                "Version": row.version,
+                "Status": row.status,
+                "Robustness": row.robustness,
+                "Backtest Run": row.backtest_run_id,
+                "Sub-account": row.sub_account_id,
+                "Updated": row.updated_at.isoformat(timespec="seconds"),
                 "Next Step": row.next_step,
             }
             for row in rows
