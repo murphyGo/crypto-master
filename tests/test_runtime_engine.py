@@ -26,7 +26,15 @@ from src.runtime.engine import (
     TradingEngine,
 )
 from src.strategy.performance import TradeHistory
-from src.trading.sub_account import RiskOverrides, SubAccount
+from src.trading.sub_account import (
+    CapitalPolicy,
+    ExecutionPolicy,
+    ProposalPolicy,
+    RiskOverrides,
+    RiskPolicy,
+    StrategyPolicy,
+    SubAccount,
+)
 from src.utils.time import now_utc
 
 # =============================================================================
@@ -305,6 +313,34 @@ async def test_auto_decide_uses_sub_account_threshold_override(
     assert "2.0000" in (decision.reason or "")
 
 
+async def test_auto_decide_uses_proposal_policy_threshold(
+    tmp_path: Path,
+) -> None:
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        config=EngineConfig(auto_approve_threshold=2.0),
+    )
+    sub = SubAccount(
+        id="paper_lab",
+        name="Paper Lab",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        proposal_policy=ProposalPolicy(auto_approve_threshold=0.0),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"paper_lab": mocks["trader"]},
+    )
+    proposal = make_proposal(composite=0.1).model_copy(
+        update={"sub_account_id": "paper_lab"}
+    )
+
+    decision = await engine._auto_decide(proposal)
+
+    assert decision.accepted is True
+
+
 # =============================================================================
 # run_cycle: happy path
 # =============================================================================
@@ -505,6 +541,61 @@ async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> No
     call = mocks["proposal_engine"].propose_bitcoin.await_args
     assert call.kwargs["sub_account_id"] == "alpha"
     assert call.kwargs["risk_percent"] == 0.25
+
+
+async def test_run_cycle_threads_account_policy_scan_scope(
+    tmp_path: Path,
+) -> None:
+    """Account policy can override scan symbols, top-k, sizing balance, and risk."""
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=make_proposal(proposal_id="alpha-btc"),
+        altcoin_proposals=[],
+        config=EngineConfig(
+            bitcoin_symbol="BTC/USDT",
+            altcoin_symbols=["ETH/USDT"],
+            altcoin_top_k=1,
+            balance=Decimal("10000"),
+        ),
+    )
+    sub = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        capital_policy=CapitalPolicy(sizing_balance=Decimal("2500")),
+        strategy_policy=StrategyPolicy(
+            bitcoin_symbol="SOL/USDT",
+            symbols=["XRP/USDT", "DOGE/USDT"],
+            top_k=2,
+        ),
+        risk_policy=RiskPolicy(risk_percent=Decimal("0.5")),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"alpha": mocks["trader"]},
+    )
+    mocks["proposal_engine"].strategies = {}
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal:
+        return make_proposal(
+            proposal_id="alpha-btc",
+            symbol=str(kwargs["symbol"]),
+        ).model_copy(update={"sub_account_id": kwargs["sub_account_id"]})
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
+
+    await engine.run_cycle()
+
+    btc_call = mocks["proposal_engine"].propose_bitcoin.await_args
+    alt_call = mocks["proposal_engine"].propose_altcoins.await_args
+    assert btc_call.kwargs["symbol"] == "SOL/USDT"
+    assert btc_call.kwargs["balance"] == Decimal("2500")
+    assert btc_call.kwargs["risk_percent"] == 0.5
+    assert alt_call.kwargs["symbols"] == ["XRP/USDT", "DOGE/USDT"]
+    assert alt_call.kwargs["balance"] == Decimal("2500")
+    assert alt_call.kwargs["top_k"] == 2
 
 
 # =============================================================================
@@ -1261,6 +1352,47 @@ async def test_stale_quote_gate_rejects_when_live_past_sl(
     assert details["live_price"] == "49400"
     # drift_bps = |49400 - 50000| / 50000 * 10_000 = 120
     assert details["drift_bps"] == pytest.approx(120.0)
+
+
+async def test_stale_quote_gate_uses_account_execution_policy(
+    tmp_path: Path,
+) -> None:
+    """Account execution policy can opt a paper lab out of past-SL rejection."""
+    proposal = make_proposal(
+        proposal_id="paper-lab-stale",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "paper_lab"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_past_stop_loss=True,
+        ),
+        ticker_price=Decimal("49400"),
+    )
+    sub = SubAccount(
+        id="paper_lab",
+        name="Paper Lab",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        execution_policy=ExecutionPolicy(
+            reject_if_past_stop_loss=False,
+            fill_slippage_tolerance=Decimal("1"),
+        ),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"paper_lab": mocks["trader"]},
+    )
+    mocks["proposal_engine"].strategies = {}
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    mocks["trader"].open_position.assert_awaited_once()
 
 
 async def test_stale_quote_gate_rejects_when_live_past_sl_short(

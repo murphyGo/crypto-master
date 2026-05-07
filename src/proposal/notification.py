@@ -716,6 +716,7 @@ class NotificationDispatcher:
         level: NotificationLevel | None = None,
         message: str | None = None,
         safety_score: RuntimeSafetyScore | None = None,
+        min_score: float | None = None,
     ) -> Notification | None:
         """Emit a notification for one proposal across all backends.
 
@@ -733,11 +734,12 @@ class NotificationDispatcher:
             if individual backends failed). ``None`` if the proposal
             was filtered out by ``min_score``.
         """
-        if proposal.score.composite < self.min_score:
+        threshold = self.min_score if min_score is None else min_score
+        if proposal.score.composite < threshold:
             logger.debug(
                 f"Skipping notification for {proposal.proposal_id}: "
                 f"composite={proposal.score.composite:.4f} < "
-                f"min_score={self.min_score}"
+                f"min_score={threshold}"
             )
             return None
 
@@ -780,11 +782,16 @@ class RoutedNotificationDispatcher(NotificationDispatcher):
         default_dispatcher: NotificationDispatcher,
         sub_account_routes: dict[str, str],
         route_dispatchers: dict[str, NotificationDispatcher],
+        sub_account_min_scores: dict[str, float] | None = None,
     ) -> None:
         super().__init__(notifiers=[], min_score=default_dispatcher.min_score)
         self.default_dispatcher = default_dispatcher
         self.sub_account_routes = dict(sub_account_routes)
         self.route_dispatchers = dict(route_dispatchers)
+        self.sub_account_min_scores = dict(sub_account_min_scores or {})
+        # Preserve the historical inspection surface used by tests and
+        # diagnostics; dispatch still delegates through ``default_dispatcher``.
+        self._notifiers = list(default_dispatcher._notifiers)
 
     async def notify_proposal(
         self,
@@ -792,22 +799,27 @@ class RoutedNotificationDispatcher(NotificationDispatcher):
         level: NotificationLevel | None = None,
         message: str | None = None,
         safety_score: RuntimeSafetyScore | None = None,
+        min_score: float | None = None,
     ) -> Notification | None:
         """Dispatch using a sub-account route when one is configured."""
         route = self.sub_account_routes.get(proposal.sub_account_id)
         dispatcher = self.route_dispatchers.get(route) if route is not None else None
+        score_override = self.sub_account_min_scores.get(proposal.sub_account_id)
+        effective_min_score = score_override if min_score is None else min_score
         if dispatcher is None:
             return await self.default_dispatcher.notify_proposal(
                 proposal,
                 level=level,
                 message=message,
                 safety_score=safety_score,
+                min_score=effective_min_score,
             )
         return await dispatcher.notify_proposal(
             proposal,
             level=level,
             message=message,
             safety_score=safety_score,
+            min_score=effective_min_score,
         )
 
 

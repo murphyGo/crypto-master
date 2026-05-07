@@ -22,7 +22,14 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.config import Settings
-from src.trading.sub_account import RiskOverrides, SubAccount
+from src.trading.sub_account import (
+    CapitalPolicy,
+    NotificationPolicy,
+    RiskOverrides,
+    RiskPolicy,
+    StrategyPolicy,
+    SubAccount,
+)
 
 _TEMPLATE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -88,10 +95,21 @@ class ExperimentTemplate(BaseModel):
             name=name or self.name,
             mode=self.mode,
             exchange_ref=self.exchange_ref,
-            initial_balance={self.quote_currency: self.starting_balance},
-            strategy_filter=self.strategy_filter,
-            risk_overrides=self.risk_overrides,
-            notification_route=self.notification_route,
+            capital_policy=CapitalPolicy(
+                initial_balance={self.quote_currency: self.starting_balance},
+                quote_currency=self.quote_currency,
+                sizing_balance=self.starting_balance,
+            ),
+            strategy_policy=StrategyPolicy(strategy_filter=self.strategy_filter),
+            risk_policy=RiskPolicy(
+                risk_percent=self.risk_overrides.risk_percent,
+                max_open_positions_total=(self.risk_overrides.max_open_positions_total),
+                max_open_positions_per_symbol=(
+                    self.risk_overrides.max_open_positions_per_symbol
+                ),
+                leverage_cap=self.risk_overrides.leverage_cap,
+            ),
+            notification_policy=NotificationPolicy(route=self.notification_route),
             enabled=self.enabled,
         )
 

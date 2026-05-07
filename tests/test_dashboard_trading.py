@@ -15,8 +15,10 @@ from src.dashboard.pages.trading import (
     build_open_positions_dataframe,
     build_summary_metrics,
     build_trade_history_dataframe,
+    discover_configured_sub_account_ids,
     discover_sub_account_ids,
     latest_snapshot_current_prices,
+    merge_sub_account_ids,
 )
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
@@ -344,6 +346,42 @@ def test_discover_sub_account_ids_default_first(tmp_path: Path) -> None:
         "btc_only",
         "experimental",
     ]
+
+
+def test_discover_configured_sub_account_ids_reads_enabled_mode(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    config_path.write_text(
+        """
+sub_accounts:
+  - id: default
+    mode: paper
+    enabled: false
+  - id: rsi_4h
+    mode: paper
+    enabled: true
+  - id: live_only
+    mode: live
+    enabled: true
+  - id: ma_crossover
+    mode: paper
+""",
+        encoding="utf-8",
+    )
+
+    assert discover_configured_sub_account_ids(config_path, "paper") == [
+        "rsi_4h",
+        "ma_crossover",
+    ]
+    assert discover_configured_sub_account_ids(config_path, "live") == ["live_only"]
+
+
+def test_merge_sub_account_ids_prefers_config_order_then_persisted() -> None:
+    assert merge_sub_account_ids(
+        ["rsi_4h", "ma_crossover"],
+        ["default", "rsi_4h", "vcp_breakout"],
+    ) == ["rsi_4h", "ma_crossover", "default", "vcp_breakout"]
 
 
 # =============================================================================

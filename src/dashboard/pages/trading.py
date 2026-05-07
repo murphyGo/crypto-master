@@ -30,6 +30,7 @@ from typing import Literal, TypedDict
 
 import pandas as pd
 import streamlit as st
+import yaml
 
 from src.config import get_settings
 from src.logger import get_logger
@@ -259,6 +260,56 @@ def discover_sub_account_ids(data_dir: Path, mode: DashboardMode) -> list[str]:
     return [DEFAULT_SUB_ACCOUNT_ID, *ordered]
 
 
+def discover_configured_sub_account_ids(
+    config_path: Path,
+    mode: DashboardMode,
+) -> list[str]:
+    """Discover enabled sub-account ids from ``config/sub_accounts.yaml``."""
+    if not config_path.exists():
+        return []
+    try:
+        parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        logger.warning("Failed to read configured sub-account ids", exc_info=True)
+        return []
+    if not isinstance(parsed, dict):
+        return []
+    raw_accounts = parsed.get("sub_accounts")
+    if not isinstance(raw_accounts, list):
+        return []
+
+    ids: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_accounts:
+        if not isinstance(raw, dict):
+            continue
+        if raw.get("enabled", True) is False:
+            continue
+        if raw.get("mode") != mode:
+            continue
+        raw_id = raw.get("id")
+        if not isinstance(raw_id, str) or raw_id in seen:
+            continue
+        seen.add(raw_id)
+        ids.append(raw_id)
+    return ids
+
+
+def merge_sub_account_ids(
+    configured_ids: list[str],
+    persisted_ids: list[str],
+) -> list[str]:
+    """Merge configured and persisted sub-account ids with stable ordering."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for sub_account_id in [*configured_ids, *persisted_ids]:
+        if sub_account_id in seen:
+            continue
+        seen.add(sub_account_id)
+        ordered.append(sub_account_id)
+    return ordered
+
+
 def build_summary_metrics(
     trades: list[TradeHistory],
     snapshots: list[AssetSnapshot],
@@ -407,7 +458,16 @@ def render(
         format_func=lambda v: v.capitalize(),
     )
 
-    ids = sub_account_ids or discover_sub_account_ids(get_settings().data_dir, mode)
+    settings = get_settings()
+    if sub_account_ids is not None:
+        ids = sub_account_ids
+    elif trade_tracker is not None or portfolio_tracker is not None:
+        ids = [DEFAULT_SUB_ACCOUNT_ID]
+    else:
+        ids = merge_sub_account_ids(
+            discover_configured_sub_account_ids(Path("config/sub_accounts.yaml"), mode),
+            discover_sub_account_ids(settings.data_dir, mode),
+        )
     if not ids:
         ids = [DEFAULT_SUB_ACCOUNT_ID]
     options = [AGGREGATE_SUB_ACCOUNT, *ids] if len(ids) > 1 else ids
@@ -558,7 +618,9 @@ __all__ = [
     "build_open_positions_dataframe",
     "build_summary_metrics",
     "build_trade_history_dataframe",
+    "discover_configured_sub_account_ids",
     "discover_sub_account_ids",
     "latest_snapshot_current_prices",
+    "merge_sub_account_ids",
     "render",
 ]

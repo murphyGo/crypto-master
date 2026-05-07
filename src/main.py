@@ -350,16 +350,26 @@ def build_engine(
         for route, webhook_url in settings.notification_slack_webhook_urls.items()
     }
     sub_account_routes = {
-        sub.id: sub.notification_route
+        sub.id: sub.effective_notification_route()
         for sub in registry.list_active()
-        if sub.notification_route is not None
+        if sub.effective_notification_route() is not None
+    }
+    sub_account_min_scores = {
+        sub.id: min_score
+        for sub in registry.list_active()
+        for min_score in (
+            sub.notification_policy.min_score,
+            sub.proposal_policy.notify_min_score,
+        )
+        if min_score is not None
     }
     notifier: NotificationDispatcher
-    if sub_account_routes and route_dispatchers:
+    if (sub_account_routes and route_dispatchers) or sub_account_min_scores:
         notifier = RoutedNotificationDispatcher(
             default_dispatcher=default_dispatcher,
             sub_account_routes=sub_account_routes,
             route_dispatchers=route_dispatchers,
+            sub_account_min_scores=sub_account_min_scores,
         )
         logger.info("Per-sub-account notification routing enabled.")
     else:

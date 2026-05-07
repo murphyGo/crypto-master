@@ -421,6 +421,23 @@ async def test_routed_dispatcher_falls_back_without_route_match() -> None:
     assert experimental.received == []
 
 
+async def test_routed_dispatcher_uses_sub_account_min_score_override() -> None:
+    default = RecordingNotifier()
+    dispatcher = RoutedNotificationDispatcher(
+        default_dispatcher=NotificationDispatcher(notifiers=[default], min_score=2.0),
+        sub_account_routes={},
+        route_dispatchers={},
+        sub_account_min_scores={"paper_lab": 0.0},
+    )
+
+    notification = await dispatcher.notify_proposal(
+        make_proposal(sub_account_id="paper_lab", composite=0.1)
+    )
+
+    assert notification is not None
+    assert default.received == [notification]
+
+
 # =============================================================================
 # End-to-end: dispatcher → file backend
 # =============================================================================

@@ -13,7 +13,15 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from src.trading.sub_account import RiskOverrides, SubAccount
+from src.trading.sub_account import (
+    CapitalPolicy,
+    ExecutionPolicy,
+    ProposalPolicy,
+    RiskOverrides,
+    RiskPolicy,
+    StrategyPolicy,
+    SubAccount,
+)
 
 
 def test_id_regex_accepts_valid_filesystem_safe_keys() -> None:
@@ -128,6 +136,7 @@ def test_risk_overrides_defaults_and_validation() -> None:
     assert ro.max_open_positions_total is None
     assert ro.max_open_positions_per_symbol is None
     assert ro.leverage_cap is None
+    assert ro.auto_approve_threshold is None
 
     # Bounds enforcement.
     with pytest.raises(ValidationError):
@@ -139,3 +148,57 @@ def test_risk_overrides_defaults_and_validation() -> None:
     ro2 = RiskOverrides(risk_percent=Decimal("1.5"))
     with pytest.raises(ValidationError):
         ro2.risk_percent = Decimal("2.0")  # type: ignore[misc]
+
+
+def test_policy_models_validate_and_are_frozen() -> None:
+    capital = CapitalPolicy(
+        initial_balance={"USDT": Decimal("10000")},
+        sizing_balance=Decimal("7500"),
+    )
+    strategy = StrategyPolicy(strategy_filter=["rsi_4h"], symbols=["BTC/USDT"])
+    proposal = ProposalPolicy(auto_approve_threshold=0.0, notify_min_score=0.0)
+    risk = RiskPolicy(risk_percent=Decimal("0.5"), leverage_cap=2)
+    execution = ExecutionPolicy(
+        reject_if_past_stop_loss=False,
+        reject_if_stale_quote=False,
+        fill_slippage_tolerance=Decimal("1"),
+    )
+
+    assert capital.initial_balance == {"USDT": Decimal("10000")}
+    assert strategy.strategy_filter == ["rsi_4h"]
+    assert proposal.auto_approve_threshold == 0.0
+    assert risk.leverage_cap == 2
+    assert execution.reject_if_stale_quote is False
+    with pytest.raises(ValidationError):
+        strategy.strategy_filter = ["other"]  # type: ignore[misc]
+    with pytest.raises(ValidationError):
+        CapitalPolicy(initial_balance={"usdt": Decimal("10000")})
+    with pytest.raises(ValidationError):
+        StrategyPolicy(strategy_filter=[])
+
+
+def test_sub_account_effective_policy_prefers_new_policy_blocks() -> None:
+    sub = SubAccount(
+        id="rsi_4h",
+        name="RSI 4h",
+        mode="paper",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_filter=["legacy"],
+        risk_overrides=RiskOverrides(
+            risk_percent=Decimal("1"),
+            auto_approve_threshold=2.0,
+        ),
+        capital_policy=CapitalPolicy(
+            initial_balance={"USDT": Decimal("5000")},
+            sizing_balance=Decimal("2500"),
+        ),
+        strategy_policy=StrategyPolicy(strategy_filter=["rsi_4h"]),
+        proposal_policy=ProposalPolicy(auto_approve_threshold=0.0),
+        risk_policy=RiskPolicy(risk_percent=Decimal("0.25")),
+    )
+
+    assert sub.effective_initial_balance() == {"USDT": Decimal("5000")}
+    assert sub.effective_sizing_balance(Decimal("10000")) == Decimal("2500")
+    assert sub.effective_strategy_filter() == ["rsi_4h"]
+    assert sub.effective_risk_percent() == Decimal("0.25")
+    assert sub.effective_auto_approve_threshold() == 0.0

@@ -107,14 +107,14 @@ class BacktestHarness:
         symbol: str,
         timeframe: str,
     ) -> BacktestResult:
-        balance = sub.initial_balance.get("USDT", Decimal("10000"))
+        balance = sub.effective_initial_balance().get("USDT", Decimal("10000"))
         defaults = BacktestConfig()
         risk_percent = (
-            float(sub.risk_overrides.risk_percent)
-            if sub.risk_overrides.risk_percent is not None
+            float(sub.effective_risk_percent())
+            if sub.effective_risk_percent() is not None
             else defaults.risk_percent
         )
-        leverage = sub.risk_overrides.leverage_cap or defaults.leverage
+        leverage = sub.effective_leverage_cap() or defaults.leverage
         backtester = Backtester(
             BacktestConfig(
                 initial_balance=balance,
@@ -128,9 +128,10 @@ class BacktestHarness:
     def _select_strategies(
         self, sub: SubAccount, strategies: dict[str, BaseStrategy]
     ) -> list[BaseStrategy]:
-        if sub.strategy_filter is None:
+        strategy_filter = sub.effective_strategy_filter()
+        if strategy_filter is None:
             return list(strategies.values())
-        return [strategies[name] for name in sub.strategy_filter if name in strategies]
+        return [strategies[name] for name in strategy_filter if name in strategies]
 
     def _combine_results(
         self,
@@ -139,7 +140,7 @@ class BacktestHarness:
         symbol: str,
         timeframe: str,
     ) -> BacktestResult:
-        initial = sub.initial_balance.get("USDT", Decimal("10000"))
+        initial = sub.effective_initial_balance().get("USDT", Decimal("10000"))
         total_delta = sum(
             (r.final_balance - r.initial_balance for r in results),
             Decimal("0"),

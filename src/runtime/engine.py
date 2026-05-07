@@ -190,6 +190,33 @@ class EngineConfig(BaseModel):
     )
 
 
+@dataclass(frozen=True)
+class AccountRuntimePolicy:
+    """Resolved runtime policy for one sub-account.
+
+    Values come from ``EngineConfig`` defaults plus optional sub-account policy
+    overrides. Keeping this resolved shape local to the engine prevents gate
+    code from repeatedly reaching into YAML-facing model fields.
+    """
+
+    bitcoin_symbol: str
+    altcoin_symbols: list[str]
+    altcoin_top_k: int
+    sizing_balance: Decimal
+    risk_percent: Decimal | None
+    auto_approve_threshold: float
+    max_open_positions_total: int | None
+    max_open_positions_per_symbol: int
+    runtime_safety_pause_min_score: int | None
+    fill_slippage_tolerance: Decimal
+    reject_if_past_stop_loss: bool
+    reject_if_stale_quote: bool
+    max_ticker_age_seconds: float
+    correlation_gate_enabled: bool
+    correlation_max_sub_accounts_per_symbol_side: int
+    correlation_max_sub_accounts_per_strategy_symbol_side: int
+
+
 # =============================================================================
 # Cycle result (used for tests + the dashboard's per-cycle summary)
 # =============================================================================
@@ -446,23 +473,21 @@ class TradingEngine:
         """
         proposals: list[Proposal] = []
         sub_account_id = self._sub_account_id(sub_account)
+        policy = self._runtime_policy_for(sub_account)
         strategies = None
         if self.sub_account_registry is not None:
             available_strategies = list(self.proposal_engine.strategies.values())
             strategies = self.sub_account_registry.filter_strategies(
                 sub_account_id, available_strategies
             )
-        risk_percent = None
-        if (
-            sub_account is not None
-            and sub_account.risk_overrides.risk_percent is not None
-        ):
-            risk_percent = float(sub_account.risk_overrides.risk_percent)
+        risk_percent = (
+            float(policy.risk_percent) if policy.risk_percent is not None else None
+        )
 
         try:
             btc = await self.proposal_engine.propose_bitcoin(
-                symbol=self.config.bitcoin_symbol,
-                balance=self.config.balance,
+                symbol=policy.bitcoin_symbol,
+                balance=policy.sizing_balance,
                 strategies=strategies,
                 risk_percent=risk_percent,
                 sub_account_id=sub_account_id,
@@ -472,7 +497,7 @@ class TradingEngine:
                 ActivityEventType.SCAN_ERRORED,
                 f"Bitcoin scan failed: {e}",
                 details={
-                    "symbol": self.config.bitcoin_symbol,
+                    "symbol": policy.bitcoin_symbol,
                     "error": str(e),
                     "sub_account_id": sub_account_id,
                 },
@@ -486,9 +511,9 @@ class TradingEngine:
 
         try:
             altcoins = await self.proposal_engine.propose_altcoins(
-                symbols=self.config.altcoin_symbols,
-                balance=self.config.balance,
-                top_k=self.config.altcoin_top_k,
+                symbols=policy.altcoin_symbols,
+                balance=policy.sizing_balance,
+                top_k=policy.altcoin_top_k,
                 strategies=strategies,
                 risk_percent=risk_percent,
                 sub_account_id=sub_account_id,
@@ -580,6 +605,7 @@ class TradingEngine:
             pause_rejection = self._runtime_safety_pause_gate(
                 proposal,
                 record,
+                sub_account,
                 safety_score,
                 cycle_id,
                 result,
@@ -592,16 +618,38 @@ class TradingEngine:
             # at the per-symbol cap from previous cycles' open trades.
             # Block execution here and record a second rejection
             # reason on top of the existing composite-threshold one.
-            cap = self.config.max_open_positions_per_symbol
-            if (
-                sub_account is not None
-                and sub_account.risk_overrides.max_open_positions_per_symbol is not None
-            ):
-                cap = sub_account.risk_overrides.max_open_positions_per_symbol
+            policy = self._runtime_policy_for(sub_account)
+            cap = policy.max_open_positions_per_symbol
+            open_trades = trader.get_open_trades()
+            total_cap = policy.max_open_positions_total
+            if total_cap is not None and len(open_trades) >= total_cap:
+                reason = (
+                    f"total open-position cap {total_cap} reached on "
+                    f"sub-account {proposal.sub_account_id} ({len(open_trades)} open)"
+                )
+                rejected_record = record.model_copy(
+                    update={
+                        "decision": ProposalDecision.REJECTED.value,
+                        "rejection_reason": reason,
+                        "decision_at": now_utc(),
+                    }
+                )
+                self.proposal_history.save(rejected_record)
+                result.proposals_rejected += 1
+                self.activity_log.append(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Total-cap rejected {proposal.symbol} {proposal.signal}",
+                    details={
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "open_count": len(open_trades),
+                        "cap": total_cap,
+                    },
+                    cycle_id=cycle_id,
+                )
+                return
             existing = sum(
-                1
-                for trade in trader.get_open_trades()
-                if trade.symbol == proposal.symbol
+                1 for trade in open_trades if trade.symbol == proposal.symbol
             )
             if existing >= cap:
                 reason = (
@@ -716,11 +764,14 @@ class TradingEngine:
         self,
         proposal: Proposal,
         record: ProposalRecord,
+        sub_account: SubAccount | None,
         safety_score: RuntimeSafetyScore,
         cycle_id: str,
         result: CycleResult,
     ) -> ProposalRecord | None:
-        pause_min_score = self.config.runtime_safety_pause_min_score
+        pause_min_score = self._runtime_policy_for(
+            sub_account
+        ).runtime_safety_pause_min_score
         if pause_min_score is None or safety_score.score >= pause_min_score:
             return None
 
@@ -769,13 +820,19 @@ class TradingEngine:
             existing,
             candidate,
             config=CorrelationGateConfig(
-                enabled=self.config.correlation_gate_enabled,
+                enabled=self._runtime_policy_for_id(
+                    proposal.sub_account_id
+                ).correlation_gate_enabled,
                 warning_policy=CorrelationWarningPolicy(
                     max_sub_accounts_per_symbol_side=(
-                        self.config.correlation_max_sub_accounts_per_symbol_side
+                        self._runtime_policy_for_id(
+                            proposal.sub_account_id
+                        ).correlation_max_sub_accounts_per_symbol_side
                     ),
                     max_sub_accounts_per_strategy_symbol_side=(
-                        self.config.correlation_max_sub_accounts_per_strategy_symbol_side
+                        self._runtime_policy_for_id(
+                            proposal.sub_account_id
+                        ).correlation_max_sub_accounts_per_strategy_symbol_side
                     ),
                 ),
             ),
@@ -790,7 +847,9 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "warnings": warning_details,
-                "gate_enabled": self.config.correlation_gate_enabled,
+                "gate_enabled": self._runtime_policy_for_id(
+                    proposal.sub_account_id
+                ).correlation_gate_enabled,
             },
             cycle_id=cycle_id,
         )
@@ -869,6 +928,7 @@ class TradingEngine:
         incremented ``proposals_accepted`` by this point, so the cycle
         summary records both sides of the post-acceptance gate.
         """
+        policy = self._runtime_policy_for_id(proposal.sub_account_id)
         try:
             ticker = await self.exchange.get_ticker(proposal.symbol)
         except Exception as e:
@@ -887,7 +947,7 @@ class TradingEngine:
             # when there is no live data to cross-check against. Live
             # mode operators flip this on so a fill never proceeds
             # at ``proposal.entry_price`` without a fresh quote.
-            if self.config.reject_if_stale_quote:
+            if policy.reject_if_stale_quote:
                 reason = "stale_quote_no_live_data"
                 self._record_no_live_data_rejection(
                     proposal=proposal,
@@ -915,7 +975,7 @@ class TradingEngine:
             # freshness comparison rather than crash the gate.
             ticker_ts = ticker_ts.replace(tzinfo=now_utc().tzinfo)
         age_seconds = (now_utc() - ticker_ts).total_seconds()
-        if age_seconds > self.config.max_ticker_age_seconds:
+        if age_seconds > policy.max_ticker_age_seconds:
             logger.warning(
                 "stale_quote_check_failed: symbol=%s proposal_id=%s "
                 "error_type=stale_ticker error=ticker age %.2fs "
@@ -923,14 +983,14 @@ class TradingEngine:
                 proposal.symbol,
                 proposal.proposal_id,
                 age_seconds,
-                self.config.max_ticker_age_seconds,
+                policy.max_ticker_age_seconds,
             )
             # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection
             # on stale quote. Same reasoning as the exception branch
             # above — when ``reject_if_stale_quote`` is True the gate
             # blocks the fill rather than silently letting it proceed
             # against a known-stale tape.
-            if self.config.reject_if_stale_quote:
+            if policy.reject_if_stale_quote:
                 reason = "stale_quote_no_live_data"
                 self._record_no_live_data_rejection(
                     proposal=proposal,
@@ -939,7 +999,7 @@ class TradingEngine:
                     reason=reason,
                     detail=(
                         f"ticker_age_seconds={age_seconds:.2f} "
-                        f"max={self.config.max_ticker_age_seconds:.2f}"
+                        f"max={policy.max_ticker_age_seconds:.2f}"
                     ),
                 )
                 return reason
@@ -953,7 +1013,7 @@ class TradingEngine:
         # is keyed off ``proposal.signal`` (the spec) — never inferred
         # from the entry/SL ordering, which would silently flip on a
         # short with the same numeric layout.
-        if self.config.reject_if_past_stop_loss:
+        if policy.reject_if_past_stop_loss:
             past_sl = (proposal.signal == "long" and live_price <= sl) or (
                 proposal.signal == "short" and live_price >= sl
             )
@@ -971,7 +1031,7 @@ class TradingEngine:
         # Slippage gate. Symmetric absolute drift over a non-zero entry.
         if entry > 0:
             drift = abs(live_price - entry) / entry
-            if drift > self.config.fill_slippage_tolerance:
+            if drift > policy.fill_slippage_tolerance:
                 reason = "slippage_exceeds_tolerance"
                 self._record_stale_quote_rejection(
                     proposal=proposal,
@@ -1390,6 +1450,122 @@ class TradingEngine:
             return self.trader
         return self.sub_account_registry.get_trader(sub_account_id)
 
+    def _runtime_policy_for_id(self, sub_account_id: str) -> AccountRuntimePolicy:
+        if self.sub_account_registry is None:
+            return self._runtime_policy_for(None)
+        try:
+            return self._runtime_policy_for(
+                self.sub_account_registry.get(sub_account_id)
+            )
+        except Exception:
+            return self._runtime_policy_for(None)
+
+    def _runtime_policy_for(
+        self,
+        sub_account: SubAccount | None,
+    ) -> AccountRuntimePolicy:
+        strategy_policy = (
+            sub_account.strategy_policy if sub_account is not None else None
+        )
+        execution_policy = (
+            sub_account.execution_policy if sub_account is not None else None
+        )
+        return AccountRuntimePolicy(
+            bitcoin_symbol=(
+                strategy_policy.bitcoin_symbol
+                if strategy_policy is not None
+                and strategy_policy.bitcoin_symbol is not None
+                else self.config.bitcoin_symbol
+            ),
+            altcoin_symbols=(
+                list(strategy_policy.symbols)
+                if strategy_policy is not None and strategy_policy.symbols is not None
+                else list(self.config.altcoin_symbols)
+            ),
+            altcoin_top_k=(
+                strategy_policy.top_k
+                if strategy_policy is not None and strategy_policy.top_k is not None
+                else self.config.altcoin_top_k
+            ),
+            sizing_balance=(
+                sub_account.effective_sizing_balance(self.config.balance)
+                if sub_account is not None
+                else self.config.balance
+            ),
+            risk_percent=(
+                sub_account.effective_risk_percent()
+                if sub_account is not None
+                else None
+            ),
+            auto_approve_threshold=(
+                sub_account.effective_auto_approve_threshold()
+                if sub_account is not None
+                and sub_account.effective_auto_approve_threshold() is not None
+                else self.config.auto_approve_threshold
+            ),
+            max_open_positions_total=(
+                sub_account.effective_max_open_positions_total()
+                if sub_account is not None
+                else None
+            ),
+            max_open_positions_per_symbol=(
+                sub_account.effective_max_open_positions_per_symbol()
+                if sub_account is not None
+                and sub_account.effective_max_open_positions_per_symbol() is not None
+                else self.config.max_open_positions_per_symbol
+            ),
+            runtime_safety_pause_min_score=(
+                execution_policy.runtime_safety_pause_min_score
+                if execution_policy is not None
+                and execution_policy.runtime_safety_pause_min_score is not None
+                else self.config.runtime_safety_pause_min_score
+            ),
+            fill_slippage_tolerance=(
+                execution_policy.fill_slippage_tolerance
+                if execution_policy is not None
+                and execution_policy.fill_slippage_tolerance is not None
+                else self.config.fill_slippage_tolerance
+            ),
+            reject_if_past_stop_loss=(
+                execution_policy.reject_if_past_stop_loss
+                if execution_policy is not None
+                and execution_policy.reject_if_past_stop_loss is not None
+                else self.config.reject_if_past_stop_loss
+            ),
+            reject_if_stale_quote=(
+                execution_policy.reject_if_stale_quote
+                if execution_policy is not None
+                and execution_policy.reject_if_stale_quote is not None
+                else self.config.reject_if_stale_quote
+            ),
+            max_ticker_age_seconds=(
+                execution_policy.max_ticker_age_seconds
+                if execution_policy is not None
+                and execution_policy.max_ticker_age_seconds is not None
+                else self.config.max_ticker_age_seconds
+            ),
+            correlation_gate_enabled=(
+                execution_policy.correlation_gate_enabled
+                if execution_policy is not None
+                and execution_policy.correlation_gate_enabled is not None
+                else self.config.correlation_gate_enabled
+            ),
+            correlation_max_sub_accounts_per_symbol_side=(
+                execution_policy.correlation_max_sub_accounts_per_symbol_side
+                if execution_policy is not None
+                and execution_policy.correlation_max_sub_accounts_per_symbol_side
+                is not None
+                else self.config.correlation_max_sub_accounts_per_symbol_side
+            ),
+            correlation_max_sub_accounts_per_strategy_symbol_side=(
+                execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
+                if execution_policy is not None
+                and execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
+                is not None
+                else self.config.correlation_max_sub_accounts_per_strategy_symbol_side
+            ),
+        )
+
     async def _auto_decide(
         self,
         proposal: Proposal,
@@ -1401,17 +1577,9 @@ class TradingEngine:
         dashboard surfaces verbatim.
         """
         composite = proposal.score.composite
-        threshold = self.config.auto_approve_threshold
-        if self.sub_account_registry is not None:
-            try:
-                sub_account = self.sub_account_registry.get(proposal.sub_account_id)
-                override = sub_account.risk_overrides.auto_approve_threshold
-                if override is not None:
-                    threshold = override
-            except Exception:
-                # Keep the decision path robust; registry validation
-                # should already have caught unknown sub-account ids.
-                threshold = self.config.auto_approve_threshold
+        threshold = self._runtime_policy_for_id(
+            proposal.sub_account_id
+        ).auto_approve_threshold
         if composite >= threshold:
             return ProposalDecisionInput(accepted=True)
         return ProposalDecisionInput(

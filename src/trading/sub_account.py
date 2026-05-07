@@ -47,6 +47,116 @@ class SubAccountNotFoundError(SubAccountError):
     """
 
 
+class CapitalPolicy(BaseModel):
+    """Per-sub-account capital and sizing inputs."""
+
+    initial_balance: dict[str, Decimal] | None = None
+    quote_currency: str = "USDT"
+    sizing_balance: Decimal | None = Field(default=None, gt=Decimal("0"))
+
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("quote_currency")
+    @classmethod
+    def _validate_quote_currency(cls, value: str) -> str:
+        if value != value.upper():
+            raise ValueError("quote_currency must be upper-case")
+        return value
+
+    @field_validator("initial_balance")
+    @classmethod
+    def _validate_initial_balance_keys(
+        cls,
+        value: dict[str, Decimal] | None,
+    ) -> dict[str, Decimal] | None:
+        if value is None:
+            return None
+        for key in value:
+            if key != key.upper():
+                raise ValueError(
+                    f"initial_balance currency code must be upper-case; got {key!r}"
+                )
+        return value
+
+
+class StrategyPolicy(BaseModel):
+    """Per-sub-account strategy universe and scan scope."""
+
+    strategy_filter: list[str] | None = None
+    bitcoin_symbol: str | None = None
+    symbols: list[str] | None = None
+    top_k: int | None = Field(default=None, ge=1)
+
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("strategy_filter")
+    @classmethod
+    def _reject_empty_strategy_filter(
+        cls,
+        value: list[str] | None,
+    ) -> list[str] | None:
+        if value == []:
+            raise ValueError("strategy_filter must be null or contain strategy names")
+        return value
+
+    @field_validator("symbols")
+    @classmethod
+    def _reject_empty_symbols(cls, value: list[str] | None) -> list[str] | None:
+        if value == []:
+            raise ValueError("symbols must be null or contain symbols")
+        return value
+
+
+class ProposalPolicy(BaseModel):
+    """Per-sub-account proposal decision and notification scoring policy."""
+
+    auto_approve_threshold: float | None = Field(default=None, ge=0.0)
+    notify_min_score: float | None = Field(default=None, ge=0.0)
+
+    model_config = ConfigDict(frozen=True)
+
+
+class RiskPolicy(BaseModel):
+    """Per-sub-account risk knobs used by runtime and backtests."""
+
+    risk_percent: Decimal | None = None
+    max_open_positions_total: int | None = Field(default=None, ge=1)
+    max_open_positions_per_symbol: int | None = Field(default=None, ge=1)
+    leverage_cap: int | None = Field(default=None, ge=1, le=125)
+
+    model_config = ConfigDict(frozen=True)
+
+
+class ExecutionPolicy(BaseModel):
+    """Per-sub-account post-decision execution gates."""
+
+    runtime_safety_pause_min_score: int | None = Field(default=None, ge=0, le=100)
+    fill_slippage_tolerance: Decimal | None = Field(default=None, ge=0)
+    reject_if_past_stop_loss: bool | None = None
+    reject_if_stale_quote: bool | None = None
+    max_ticker_age_seconds: float | None = Field(default=None, gt=0)
+    correlation_gate_enabled: bool | None = None
+    correlation_max_sub_accounts_per_symbol_side: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    correlation_max_sub_accounts_per_strategy_symbol_side: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
+    model_config = ConfigDict(frozen=True)
+
+
+class NotificationPolicy(BaseModel):
+    """Per-sub-account notification routing overrides."""
+
+    route: str | None = None
+    min_score: float | None = Field(default=None, ge=0.0)
+
+    model_config = ConfigDict(frozen=True)
+
+
 class RiskOverrides(BaseModel):
     """Per-sub-account overrides on engine-wide risk knobs.
 
@@ -63,8 +173,9 @@ class RiskOverrides(BaseModel):
             open-position cap (Phase 12.1 cross-cycle gate).
         leverage_cap: Override on the maximum leverage allowed for
             any trade routed through this sub-account.
-        auto_approve_threshold: Override on the proposal composite
-            score threshold for this sub-account.
+        auto_approve_threshold: Legacy override on the proposal composite
+            score threshold for this sub-account. New configs should use
+            ``proposal_policy.auto_approve_threshold``.
     """
 
     risk_percent: Decimal | None = None
@@ -113,6 +224,12 @@ class SubAccount(BaseModel):
     initial_balance: dict[str, Decimal] = Field(default_factory=dict)
     strategy_filter: list[str] | None = None
     risk_overrides: RiskOverrides = Field(default_factory=RiskOverrides)
+    capital_policy: CapitalPolicy = Field(default_factory=CapitalPolicy)
+    strategy_policy: StrategyPolicy = Field(default_factory=StrategyPolicy)
+    proposal_policy: ProposalPolicy = Field(default_factory=ProposalPolicy)
+    risk_policy: RiskPolicy = Field(default_factory=RiskPolicy)
+    execution_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
+    notification_policy: NotificationPolicy = Field(default_factory=NotificationPolicy)
     notification_route: str | None = None
     enabled: bool = True
 
@@ -169,9 +286,69 @@ class SubAccount(BaseModel):
             )
         return self
 
+    def effective_initial_balance(self) -> dict[str, Decimal]:
+        """Return the active initial-balance mapping for this account."""
+        return self.capital_policy.initial_balance or self.initial_balance
+
+    def effective_quote_currency(self) -> str:
+        """Return the account quote currency."""
+        return self.capital_policy.quote_currency
+
+    def effective_sizing_balance(self, fallback: Decimal) -> Decimal:
+        """Return proposal sizing balance for this account."""
+        return self.capital_policy.sizing_balance or fallback
+
+    def effective_strategy_filter(self) -> list[str] | None:
+        """Return the active strategy whitelist for this account."""
+        if self.strategy_policy.strategy_filter is not None:
+            return self.strategy_policy.strategy_filter
+        return self.strategy_filter
+
+    def effective_risk_percent(self) -> Decimal | None:
+        """Return account-specific risk percent, if configured."""
+        if self.risk_policy.risk_percent is not None:
+            return self.risk_policy.risk_percent
+        return self.risk_overrides.risk_percent
+
+    def effective_leverage_cap(self) -> int | None:
+        """Return account-specific leverage cap, if configured."""
+        if self.risk_policy.leverage_cap is not None:
+            return self.risk_policy.leverage_cap
+        return self.risk_overrides.leverage_cap
+
+    def effective_max_open_positions_total(self) -> int | None:
+        """Return account-specific total open-position cap, if configured."""
+        if self.risk_policy.max_open_positions_total is not None:
+            return self.risk_policy.max_open_positions_total
+        return self.risk_overrides.max_open_positions_total
+
+    def effective_max_open_positions_per_symbol(self) -> int | None:
+        """Return account-specific per-symbol open-position cap, if configured."""
+        if self.risk_policy.max_open_positions_per_symbol is not None:
+            return self.risk_policy.max_open_positions_per_symbol
+        return self.risk_overrides.max_open_positions_per_symbol
+
+    def effective_auto_approve_threshold(self) -> float | None:
+        """Return account-specific proposal decision threshold, if configured."""
+        if self.proposal_policy.auto_approve_threshold is not None:
+            return self.proposal_policy.auto_approve_threshold
+        return self.risk_overrides.auto_approve_threshold
+
+    def effective_notification_route(self) -> str | None:
+        """Return account-specific notification route, if configured."""
+        if self.notification_policy.route is not None:
+            return self.notification_policy.route
+        return self.notification_route
+
 
 __all__ = [
+    "CapitalPolicy",
+    "ExecutionPolicy",
+    "NotificationPolicy",
+    "ProposalPolicy",
     "RiskOverrides",
+    "RiskPolicy",
+    "StrategyPolicy",
     "SubAccount",
     "SubAccountError",
     "SubAccountNotFoundError",

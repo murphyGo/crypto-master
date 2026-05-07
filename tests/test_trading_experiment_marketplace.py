@@ -41,10 +41,13 @@ def test_experiment_template_materialises_sub_account() -> None:
     assert sub_account.name == "BTC Swing Lab"
     assert sub_account.mode == "paper"
     assert sub_account.exchange_ref == "default"
-    assert sub_account.initial_balance == {"USDT": Decimal("5000")}
-    assert sub_account.strategy_filter == ["chasulang_ict_smc", "rsi_4h"]
-    assert sub_account.risk_overrides.max_open_positions_total == 1
-    assert sub_account.notification_route == "lab"
+    assert sub_account.effective_initial_balance() == {"USDT": Decimal("5000")}
+    assert sub_account.effective_strategy_filter() == [
+        "chasulang_ict_smc",
+        "rsi_4h",
+    ]
+    assert sub_account.effective_max_open_positions_total() == 1
+    assert sub_account.effective_notification_route() == "lab"
 
 
 def test_experiment_template_can_override_instance_identity() -> None:
@@ -110,10 +113,11 @@ def test_experiment_template_renders_sub_account_fragment() -> None:
     fragment = template.to_sub_account_fragment()
 
     assert fragment["id"] == "btc_swing_lab"
-    assert fragment["initial_balance"] == {"USDT": "5000"}
-    assert fragment["strategy_filter"] == ["rsi_4h"]
-    assert fragment["risk_overrides"]["max_open_positions_total"] == 1
-    assert fragment["notification_route"] == "lab"
+    assert fragment["capital_policy"]["initial_balance"] == {"USDT": "5000"}
+    assert fragment["capital_policy"]["sizing_balance"] == "5000"
+    assert fragment["strategy_policy"]["strategy_filter"] == ["rsi_4h"]
+    assert fragment["risk_policy"]["max_open_positions_total"] == 1
+    assert fragment["notification_policy"]["route"] == "lab"
 
 
 def test_render_sub_account_yaml_fragment_round_trips_through_registry(
@@ -138,8 +142,10 @@ def test_render_sub_account_yaml_fragment_round_trips_through_registry(
     )
 
     assert list(parsed) == ["sub_accounts"]
-    assert registry.get("btc_swing_lab").initial_balance == {"USDT": Decimal("5000")}
-    assert registry.get("btc_swing_lab").strategy_filter == ["rsi_4h"]
+    assert registry.get("btc_swing_lab").effective_initial_balance() == {
+        "USDT": Decimal("5000")
+    }
+    assert registry.get("btc_swing_lab").effective_strategy_filter() == ["rsi_4h"]
 
 
 def test_validate_experiment_template_accepts_configured_route() -> None:

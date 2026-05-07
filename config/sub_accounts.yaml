@@ -1,0 +1,137 @@
+# Runtime paper-lab sub-accounts.
+#
+# Each enabled account below isolates one strategy into its own paper balance,
+# proposal policy, execution policy, and notification threshold so the dashboard
+# can compare strategy outcomes side by side.
+
+sub_accounts:
+  - id: default
+    name: Default Paper Account
+    mode: paper
+    exchange_ref: default
+    enabled: false
+    capital_policy:
+      initial_balance: {USDT: 10000}
+      sizing_balance: 10000
+    strategy_policy:
+      strategy_filter: null
+
+  - id: bollinger_band_reversion
+    name: Bollinger Band Reversion Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [bollinger_band_reversion]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: ma_crossover
+    name: MA Crossover Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [ma_crossover]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: momentum_pinball_orb
+    name: Momentum Pinball ORB Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [momentum_pinball_orb]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: raschke_holy_grail
+    name: Raschke Holy Grail Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [raschke_holy_grail]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: rsi_universal
+    name: RSI Universal Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [rsi_universal]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: rsi_15m
+    name: RSI 15m Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [rsi_15m]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: rsi_4h
+    name: RSI 4h Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [rsi_4h]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: session_vwap_pullback
+    name: Session VWAP Pullback Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [session_vwap_pullback]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: turtle_soup_reclaim
+    name: Turtle Soup Reclaim Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [turtle_soup_reclaim]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: vcp_breakout
+    name: VCP Breakout Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [vcp_breakout]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: vwap_mean_reversion
+    name: VWAP Mean Reversion Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [vwap_mean_reversion]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}
+
+  - id: weinstein_stage2_filter
+    name: Weinstein Stage 2 Filter Lab
+    mode: paper
+    exchange_ref: default
+    enabled: true
+    capital_policy: {initial_balance: {USDT: 10000}, sizing_balance: 10000}
+    strategy_policy: {strategy_filter: [weinstein_stage2_filter]}
+    proposal_policy: {auto_approve_threshold: 0.0, notify_min_score: 0.0}
+    execution_policy: {reject_if_past_stop_loss: false, reject_if_stale_quote: false, fill_slippage_tolerance: 1.0}

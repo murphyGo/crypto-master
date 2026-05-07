@@ -18,26 +18,45 @@ sub_accounts:
     name: BTC Swing Paper
     mode: paper
     exchange_ref: default
-    initial_balance:
-      USDT: 5000
-    strategy_filter:
-      - chasulang_ict_smc
-      - rsi_4h
-    risk_overrides: {}
+    capital_policy:
+      initial_balance:
+        USDT: 5000
+      sizing_balance: 5000
+    strategy_policy:
+      strategy_filter:
+        - chasulang_ict_smc
+        - rsi_4h
+      symbols:
+        - BTC/USDT
+        - ETH/USDT
+      top_k: 2
+    proposal_policy:
+      auto_approve_threshold: 1.0
+      notify_min_score: 1.0
+    risk_policy: {}
+    execution_policy: {}
     enabled: true
 
   - id: experimental
     name: Experimental Paper
     mode: paper
     exchange_ref: default
-    initial_balance:
-      USDT: 2500
-    strategy_filter: null
+    capital_policy:
+      initial_balance:
+        USDT: 2500
+      sizing_balance: 2500
+    strategy_policy:
+      strategy_filter: null
     # Optional. Route this sub-account's push notifications to the
     # matching key in NOTIFICATION_SLACK_WEBHOOK_URLS instead of the
     # global SLACK_WEBHOOK_URL.
-    notification_route: experimental
-    risk_overrides:
+    notification_policy:
+      route: experimental
+      min_score: 0.0
+    risk_policy:
       risk_percent: 0.5
       max_open_positions_total: 1
+    execution_policy:
+      reject_if_past_stop_loss: false
+      reject_if_stale_quote: false
     enabled: true

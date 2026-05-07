@@ -212,7 +212,7 @@ class SubAccountRegistry:
             return self._trader
         if sub.mode == "paper":
             return PaperTrader(
-                initial_balance=sub.initial_balance,
+                initial_balance=sub.effective_initial_balance(),
                 data_dir=self.settings.data_dir / "trades",
                 sub_account_id=sub.id,
             )
@@ -351,9 +351,10 @@ class SubAccountRegistry:
             SubAccountNotFoundError: If the id is not registered.
         """
         sub = self.get(id)
-        if sub.strategy_filter is None:
+        strategy_filter = sub.effective_strategy_filter()
+        if strategy_filter is None:
             return available
-        whitelist = set(sub.strategy_filter)
+        whitelist = set(strategy_filter)
         return [s for s in available if s.info.name in whitelist]
 
 

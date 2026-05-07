@@ -41,6 +41,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # .dockerignore so the build context stays small.
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY config/ ./config/
 COPY strategies/ ./strategies/
 COPY trading_profiles/ ./trading_profiles/
 COPY docs/research/strategies/ ./docs/research/strategies/
