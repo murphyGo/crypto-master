@@ -404,13 +404,16 @@ def test_build_incident_rows_extracts_operator_fields() -> None:
     assert row.sub_account_id == "default"
     assert row.symbol == "BTC/USDT"
     assert row.next_step == "Review Trading exposure"
+    assert row.target_page == "trading"
+    assert row.query_params["sub_account"] == "default"
+    assert row.query_params["symbol"] == "BTC/USDT"
 
 
 def test_build_incident_dataframe_empty_has_operator_columns() -> None:
     df = build_incident_dataframe([])
 
     assert df.empty
-    assert "Next Step" in df.columns
+    assert "Target Page" in df.columns
 
 
 def test_build_candidate_rows_sorts_recent_records_and_maps_next_steps() -> None:
@@ -433,6 +436,8 @@ def test_build_candidate_rows_sorts_recent_records_and_maps_next_steps() -> None
     assert rows[0].robustness == "FAIL"
     assert rows[0].backtest_run_id == "—"
     assert rows[0].next_step == "Open Feedback Loop approval"
+    assert rows[0].target_page == "feedback"
+    assert rows[0].query_params["candidate_id"] == "newer-candidate"
     assert rows[1].next_step == "Verify promoted strategy"
 
 
@@ -440,7 +445,7 @@ def test_build_candidate_dataframe_empty_has_operator_columns() -> None:
     df = build_candidate_dataframe([])
 
     assert df.empty
-    assert "Next Step" in df.columns
+    assert "Filter Hint" in df.columns
 
 
 def test_build_runtime_diagnostic_rows_maps_stop_conditions() -> None:
@@ -469,6 +474,7 @@ def test_build_runtime_diagnostic_rows_maps_stop_conditions() -> None:
 
     assert [row.status for row in rows] == ["stop", "stop", "watch", "stop"]
     assert rows[1].next_step == "Open Engine timeline"
+    assert rows[1].target_page == "engine"
     assert rows[3].detail == "1 stop incident(s)"
 
 
@@ -476,4 +482,11 @@ def test_build_runtime_diagnostic_dataframe_empty_has_operator_columns() -> None
     df = build_runtime_diagnostic_dataframe([])
 
     assert df.empty
-    assert list(df.columns) == ["Check", "Status", "Detail", "Next Step"]
+    assert list(df.columns) == [
+        "Check",
+        "Status",
+        "Detail",
+        "Next Step",
+        "Target Page",
+        "Filter Hint",
+    ]

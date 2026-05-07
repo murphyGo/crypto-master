@@ -355,9 +355,15 @@ def render(
     st.title("💹 Trading")
     st.caption("Active positions, recent trade history, and equity curve.")
 
+    mode_options: tuple[DashboardMode, DashboardMode] = ("paper", "live")
+    requested_mode = _query_param_first("mode")
+    mode_index = (
+        mode_options.index(requested_mode) if requested_mode in mode_options else 0
+    )
     mode: DashboardMode = st.radio(
         "Mode",
-        options=("paper", "live"),
+        options=mode_options,
+        index=mode_index,
         horizontal=True,
         format_func=lambda v: v.capitalize(),
     )
@@ -366,10 +372,14 @@ def render(
     if not ids:
         ids = [DEFAULT_SUB_ACCOUNT_ID]
     options = [AGGREGATE_SUB_ACCOUNT, *ids] if len(ids) > 1 else ids
+    requested_sub_account = _query_param_first("sub_account")
+    selected_index = (
+        options.index(requested_sub_account) if requested_sub_account in options else 0
+    )
     selected_sub_account = st.selectbox(
         "Sub-account",
         options=options,
-        index=0,
+        index=selected_index,
     )
 
     history_t = proposal_history or ProposalHistory()
@@ -436,6 +446,9 @@ def render(
     st.subheader("Active Positions")
     pos_col, rej_col = st.columns([3, 1])
     open_df = build_open_positions_dataframe(trades)
+    requested_symbol = _query_param_first("symbol")
+    if requested_symbol and "Symbol" in open_df.columns:
+        open_df = open_df[open_df["Symbol"] == requested_symbol]
     with pos_col:
         if open_df.empty:
             st.info("No open positions.")
@@ -451,6 +464,8 @@ def render(
     # ---- Recent trade history ----
     st.subheader("Recent Trade History")
     history_df = build_trade_history_dataframe(trades)
+    if requested_symbol and "Symbol" in history_df.columns:
+        history_df = history_df[history_df["Symbol"] == requested_symbol]
     if history_df.empty:
         st.info("No trade history for this mode yet.")
     else:
@@ -482,6 +497,16 @@ def render(
             else curve_df
         )
         st.line_chart(chart_data, use_container_width=True)
+
+
+def _query_param_first(name: str) -> str | None:
+    """Return the first query-param value for dashboard drill-through."""
+    raw = st.query_params.get(name)
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        return str(raw[0]) if raw else None
+    return str(raw)
 
 
 __all__ = [

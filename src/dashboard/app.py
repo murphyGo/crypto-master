@@ -16,6 +16,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -142,6 +143,9 @@ class CommandCenterIncidentRow:
     sub_account_id: str
     symbol: str
     next_step: str
+    target_page: str
+    filter_hint: str
+    query_params: Mapping[str, str]
 
 
 @dataclass(frozen=True)
@@ -157,6 +161,9 @@ class CommandCenterCandidateRow:
     sub_account_id: str
     updated_at: datetime
     next_step: str
+    target_page: str
+    filter_hint: str
+    query_params: Mapping[str, str]
 
 
 @dataclass(frozen=True)
@@ -167,6 +174,9 @@ class CommandCenterDiagnosticRow:
     status: str
     detail: str
     next_step: str
+    target_page: str
+    filter_hint: str
+    query_params: Mapping[str, str]
 
 
 def render_home() -> None:
@@ -453,6 +463,8 @@ def build_incident_rows(
 
 def _incident_row(event: ActivityEvent) -> CommandCenterIncidentRow:
     event_type = str(event.event_type)
+    target_page = _incident_target_page(event_type)
+    query_params = _incident_query_params(event, target_page)
     return CommandCenterIncidentRow(
         timestamp=ensure_utc(event.timestamp),
         severity=_incident_severity(event_type),
@@ -461,6 +473,9 @@ def _incident_row(event: ActivityEvent) -> CommandCenterIncidentRow:
         sub_account_id=str(event.details.get("sub_account_id", "—")),
         symbol=str(event.details.get("symbol", "—")),
         next_step=_incident_next_step(event_type),
+        target_page=target_page,
+        filter_hint=_incident_filter_hint(event, target_page),
+        query_params=query_params,
     )
 
 
@@ -489,6 +504,50 @@ def _incident_next_step(event_type: str) -> str:
     return mapping.get(event_type, "Open Engine timeline")
 
 
+def _incident_target_page(event_type: str) -> str:
+    mapping = {
+        ActivityEventType.LIQUIDATED.value: "trading",
+        ActivityEventType.CORRELATION_WARNING.value: "trading",
+        ActivityEventType.COLD_START_BLOCKED.value: "feedback",
+    }
+    return mapping.get(event_type, "engine")
+
+
+def _incident_query_params(
+    event: ActivityEvent,
+    target_page: str,
+) -> dict[str, str]:
+    if target_page == "engine":
+        return {"event_type": str(event.event_type)}
+    if target_page == "trading":
+        params = {"mode": str(event.details.get("mode", COMMAND_CENTER_DEFAULT_MODE))}
+        sub_account_id = event.details.get("sub_account_id")
+        symbol = event.details.get("symbol")
+        if sub_account_id:
+            params["sub_account"] = str(sub_account_id)
+        if symbol:
+            params["symbol"] = str(symbol)
+        return params
+    if target_page == "feedback":
+        return {"status": "awaiting_approval"}
+    return {}
+
+
+def _incident_filter_hint(event: ActivityEvent, target_page: str) -> str:
+    if target_page == "engine":
+        return f"event_type={event.event_type}"
+    if target_page == "trading":
+        parts = []
+        if event.details.get("sub_account_id"):
+            parts.append(f"sub_account={event.details['sub_account_id']}")
+        if event.details.get("symbol"):
+            parts.append(f"symbol={event.details['symbol']}")
+        return ", ".join(parts) if parts else "open positions"
+    if target_page == "feedback":
+        return "status=awaiting_approval"
+    return "none"
+
+
 def build_candidate_rows(
     records: list[CandidateRecord],
     *,
@@ -500,6 +559,10 @@ def build_candidate_rows(
 
 
 def _candidate_row(record: CandidateRecord) -> CommandCenterCandidateRow:
+    query_params = {
+        "candidate_id": record.candidate_id,
+        "status": str(record.status),
+    }
     return CommandCenterCandidateRow(
         candidate_id=record.candidate_id,
         technique=record.technique_name,
@@ -510,6 +573,9 @@ def _candidate_row(record: CandidateRecord) -> CommandCenterCandidateRow:
         sub_account_id=record.sub_account_id,
         updated_at=ensure_utc(record.updated_at),
         next_step=_candidate_next_step(str(record.status)),
+        target_page="feedback",
+        filter_hint=f"candidate_id={record.candidate_id[:8]}",
+        query_params=query_params,
     )
 
 
@@ -556,6 +622,9 @@ def _safety_diagnostic_row(safety: RuntimeSafetyScore) -> CommandCenterDiagnosti
         next_step=(
             "Monitor runtime safety" if status == "pass" else "Review safety factors"
         ),
+        target_page="engine",
+        filter_hint="runtime safety",
+        query_params={"section": "runtime_safety"},
     )
 
 
@@ -574,6 +643,9 @@ def _cycle_diagnostic_row(last_cycle_status: str) -> CommandCenterDiagnosticRow:
         status=status,
         detail=last_cycle_status,
         next_step=next_step,
+        target_page="engine",
+        filter_hint=f"last_cycle_status={last_cycle_status}",
+        query_params={"cycle_status": last_cycle_status},
     )
 
 
@@ -587,6 +659,9 @@ def _snapshot_diagnostic_row(snapshot_freshness: str) -> CommandCenterDiagnostic
             if snapshot_freshness == "fresh"
             else "Check snapshot recorder"
         ),
+        target_page="trading",
+        filter_hint=f"snapshot={snapshot_freshness}",
+        query_params={"mode": COMMAND_CENTER_DEFAULT_MODE},
     )
 
 
@@ -611,6 +686,9 @@ def _incident_diagnostic_row(
         status=status,
         detail=detail,
         next_step=next_step,
+        target_page="engine",
+        filter_hint="recent actionable incidents",
+        query_params={"event_type": ",".join(sorted(ACTIONABLE_EVENT_TYPES))},
     )
 
 
@@ -654,6 +732,10 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
     st.markdown("#### Runtime Diagnostics")
     diagnostic_df = build_runtime_diagnostic_dataframe(status.diagnostic_rows)
     st.dataframe(diagnostic_df, hide_index=True, use_container_width=True)
+    render_command_center_links(
+        [row for row in status.diagnostic_rows if row.status != "pass"],
+        empty_label="No diagnostic drill-through needed.",
+    )
 
     st.markdown("#### Open Exposure")
     exposure_df = build_exposure_dataframe(status.exposure_rows)
@@ -668,6 +750,7 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
         st.success("No recent actionable incidents in the last 24 hours.")
     else:
         st.dataframe(incident_df, hide_index=True, use_container_width=True)
+        render_command_center_links(status.incident_rows)
 
     st.markdown("#### Strategy Evidence")
     e1, e2, e3, e4 = st.columns(4)
@@ -680,6 +763,7 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
         st.info("No strategy candidates recorded yet.")
     else:
         st.dataframe(candidate_df, hide_index=True, use_container_width=True)
+        render_command_center_links(status.candidate_rows)
 
 
 def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFrame:
@@ -730,6 +814,8 @@ def build_incident_dataframe(rows: list[CommandCenterIncidentRow]) -> pd.DataFra
         "Symbol",
         "Message",
         "Next Step",
+        "Target Page",
+        "Filter Hint",
     ]
     if not rows:
         return pd.DataFrame(columns=columns)
@@ -743,6 +829,8 @@ def build_incident_dataframe(rows: list[CommandCenterIncidentRow]) -> pd.DataFra
                 "Symbol": row.symbol,
                 "Message": row.message,
                 "Next Step": row.next_step,
+                "Target Page": row.target_page,
+                "Filter Hint": row.filter_hint,
             }
             for row in rows
         ],
@@ -762,6 +850,8 @@ def build_candidate_dataframe(rows: list[CommandCenterCandidateRow]) -> pd.DataF
         "Sub-account",
         "Updated",
         "Next Step",
+        "Target Page",
+        "Filter Hint",
     ]
     if not rows:
         return pd.DataFrame(columns=columns)
@@ -777,6 +867,8 @@ def build_candidate_dataframe(rows: list[CommandCenterCandidateRow]) -> pd.DataF
                 "Sub-account": row.sub_account_id,
                 "Updated": row.updated_at.isoformat(timespec="seconds"),
                 "Next Step": row.next_step,
+                "Target Page": row.target_page,
+                "Filter Hint": row.filter_hint,
             }
             for row in rows
         ],
@@ -788,7 +880,7 @@ def build_runtime_diagnostic_dataframe(
     rows: list[CommandCenterDiagnosticRow],
 ) -> pd.DataFrame:
     """Build the Home runtime-diagnostics table."""
-    columns = ["Check", "Status", "Detail", "Next Step"]
+    columns = ["Check", "Status", "Detail", "Next Step", "Target Page", "Filter Hint"]
     if not rows:
         return pd.DataFrame(columns=columns)
     return pd.DataFrame(
@@ -798,11 +890,82 @@ def build_runtime_diagnostic_dataframe(
                 "Status": row.status,
                 "Detail": row.detail,
                 "Next Step": row.next_step,
+                "Target Page": row.target_page,
+                "Filter Hint": row.filter_hint,
             }
             for row in rows
         ],
         columns=columns,
     )
+
+
+def render_command_center_links(
+    rows: list[
+        CommandCenterDiagnosticRow
+        | CommandCenterIncidentRow
+        | CommandCenterCandidateRow
+    ],
+    *,
+    empty_label: str | None = None,
+) -> None:
+    """Render page-level drill-through links for command-center rows."""
+    if not rows:
+        if empty_label:
+            st.caption(empty_label)
+        return
+
+    seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
+    unique_rows = []
+    for row in rows:
+        key = (row.target_page, tuple(sorted(row.query_params.items())))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_rows.append(row)
+
+    columns = st.columns(min(len(unique_rows), 3))
+    for index, row in enumerate(unique_rows[:3]):
+        with columns[index % len(columns)]:
+            st.page_link(
+                page_for_key(row.target_page),
+                label=row.next_step,
+                help=row.filter_hint,
+                query_params=dict(row.query_params),
+                use_container_width=True,
+            )
+
+
+def page_for_key(page_key: str) -> StreamlitPage:
+    """Return a page reference usable by st.navigation and st.page_link."""
+    if page_key == "strategies":
+        return st.Page(
+            strategies_page.render,
+            title="Strategies",
+            icon="📊",
+            url_path="strategies",
+        )
+    if page_key == "trading":
+        return st.Page(
+            trading_page.render,
+            title="Trading",
+            icon="💹",
+            url_path="trading",
+        )
+    if page_key == "feedback":
+        return st.Page(
+            feedback_page.render,
+            title="Feedback Loop",
+            icon="🔁",
+            url_path="feedback",
+        )
+    if page_key == "engine":
+        return st.Page(
+            engine_page.render,
+            title="Engine",
+            icon="⚙️",
+            url_path="engine",
+        )
+    return st.Page(render_home, title="Home", icon="🏠", default=True)
 
 
 def render_sidebar() -> None:
@@ -830,30 +993,10 @@ def build_navigation() -> StreamlitPage:
         icon="🏠",
         default=True,
     )
-    strategies = st.Page(
-        strategies_page.render,
-        title="Strategies",
-        icon="📊",
-        url_path="strategies",
-    )
-    trading = st.Page(
-        trading_page.render,
-        title="Trading",
-        icon="💹",
-        url_path="trading",
-    )
-    feedback = st.Page(
-        feedback_page.render,
-        title="Feedback Loop",
-        icon="🔁",
-        url_path="feedback",
-    )
-    engine = st.Page(
-        engine_page.render,
-        title="Engine",
-        icon="⚙️",
-        url_path="engine",
-    )
+    strategies = page_for_key("strategies")
+    trading = page_for_key("trading")
+    feedback = page_for_key("feedback")
+    engine = page_for_key("engine")
     return st.navigation(
         {
             "Overview": [home],

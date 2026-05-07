@@ -294,9 +294,11 @@ def render(
     # ---- Per-candidate detail ----
     st.subheader("Candidate Detail")
     options = [r.candidate_id for r in records]
+    selected_index = _selected_candidate_index(records, options)
     selected_id = st.selectbox(
         "Candidate",
         options=options,
+        index=selected_index,
         format_func=lambda cid: (
             f"{cid[:8]}  ({_record_for(records, cid).technique_name} "
             f"v{_record_for(records, cid).technique_version})"
@@ -329,6 +331,32 @@ def _record_for(records: list[CandidateRecord], candidate_id: str) -> CandidateR
         if r.candidate_id == candidate_id:
             return r
     raise KeyError(f"Candidate {candidate_id} not in records")
+
+
+def _selected_candidate_index(
+    records: list[CandidateRecord],
+    options: list[str],
+) -> int:
+    """Pick the candidate requested by Home drill-through query params."""
+    requested_id = _query_param_first("candidate_id")
+    if requested_id in options:
+        return options.index(requested_id)
+
+    requested_status = _query_param_first("status")
+    if requested_status:
+        for index, record in enumerate(records):
+            if str(record.status) == requested_status:
+                return index
+    return 0
+
+
+def _query_param_first(name: str) -> str | None:
+    raw = st.query_params.get(name)
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        return str(raw[0]) if raw else None
+    return str(raw)
 
 
 def _render_record_detail(

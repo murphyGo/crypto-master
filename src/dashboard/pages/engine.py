@@ -505,10 +505,16 @@ def render(
     # ---- Activity timeline ----
     st.subheader("Activity Timeline")
     all_event_types = sorted({e.event_type for e in events})
+    requested_types = _query_param_values("event_type")
+    default_types = [
+        event_type for event_type in all_event_types if event_type in requested_types
+    ]
+    if not default_types:
+        default_types = all_event_types
     selected_types = st.multiselect(
         "Event types",
         options=all_event_types,
-        default=all_event_types,
+        default=default_types,
     )
     tail_events = events[-tail_limit:] if len(events) > tail_limit else events
     filtered = [e for e in tail_events if e.event_type in selected_types]
@@ -517,6 +523,18 @@ def render(
         st.info("No events match the selected filter.")
     else:
         st.dataframe(timeline_df, hide_index=True, use_container_width=True)
+
+
+def _query_param_values(name: str) -> set[str]:
+    """Return comma-aware query-param values for dashboard drill-through."""
+    raw = st.query_params.get(name)
+    if raw is None:
+        return set()
+    values = raw if isinstance(raw, list) else [raw]
+    split_values: set[str] = set()
+    for value in values:
+        split_values.update(part for part in str(value).split(",") if part)
+    return split_values
 
 
 __all__ = [
