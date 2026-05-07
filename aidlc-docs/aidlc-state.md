@@ -66,16 +66,16 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready | Track future Claude/improver loop changes in construction plans |
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready | Track future proposal/runtime cycle changes in construction plans |
 | `dashboard-operator-ui` | Complete | Brownfield-complete; construction-ready | Track future Streamlit/operator UI changes in construction plans |
-| `dashboard-operator-command-center` | Complete | First-pass Home command center shipped with safety/freshness, account context, open exposure, and strategy evidence summaries | Track future drilldowns, replay tooling, and shared page-level context in construction plans |
-| `notifications-ops` | Complete | Brownfield-complete; construction-ready | Track future notification/deployment changes in construction plans |
+| `dashboard-operator-command-center` | Complete | Home command center shipped with safety/freshness, account context, exposure detail, strategy evidence drilldown, incident actions, runtime diagnostics, and page-level drillthrough links | Track future shared state or cross-page workflow refinements in construction plans |
+| `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard for data-directory, activity-log freshness, and optional health URL checks shipped | Track future notification, deployment, credential, runtime process, or operations changes in construction plans |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |
 | `persistence-data-integrity` | Complete | Brownfield-complete; construction-ready | Track future timestamp/atomic persistence changes in construction plans |
 | `quality-governance` | Complete | Brownfield-complete; construction-ready | Track future AI-DLC hygiene, debt, and review changes in construction plans |
 | `strategy-promotion-lab` | Complete | First-pass scoring, observation persistence, dashboard recommendations, and operator action helper shipped | Track future lab workflow refinements in construction plans |
 | `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, and publish-time validation shipped | Track future marketplace dashboard/operator tooling in construction plans |
-| `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, and improvement-context summaries shipped | Track future dashboard autopsy drill-downs in construction plans |
-| `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, and notification summary hooks shipped | Track future hard pause gates and signal calibration in construction plans |
-| `proposal-replay-simulator` | Complete | Replay input model, threshold/exit comparison, operator Markdown report, and file-based CLI shipped | Track future dashboard replay tooling in construction plans |
+| `trade-quality-autopsy` | Complete | Evidence model, candle-window excursions, improvement-context summaries, and Trade Autopsy dashboard drilldown shipped | Track future candle-window enrichment for runtime dashboard autopsies in construction plans |
+| `runtime-safety-score` | Complete | Safety score contract, activity aggregation, dashboard section, notification summary hooks, and opt-in runtime hard-pause gate shipped | Track future threshold calibration and default-policy changes in construction plans |
+| `proposal-replay-simulator` | Complete | Replay input model, threshold/exit comparison, operator Markdown report, file-based CLI, and Proposal Replay dashboard page shipped | Track future in-dashboard replay input generation in construction plans |
 | `strategy-correlation-governor` | Complete | Backtest/runtime exposure inputs, duplicate-exposure warnings, and optional rejection gate shipped | Track future engine/dashboard wiring in construction plans |
 
 ## Construction Stage Policy
