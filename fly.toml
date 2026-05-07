@@ -9,6 +9,11 @@ primary_region = 'nrt'
 [build]
   dockerfile = 'Dockerfile'
 
+[env]
+  CLAUDE_CLI_MODEL = 'sonnet'
+  ENGINE_CYCLE_INTERVAL = '1800'
+  ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS = '300'
+
 [[mounts]]
   source = 'data'
   destination = '/data'

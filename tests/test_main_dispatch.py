@@ -524,6 +524,7 @@ class TestBuildEngineEnvOverride:
         monkeypatch.setenv("ENGINE_MONITOR_INTERVAL", "90")
         monkeypatch.setenv("ENGINE_BITCOIN_SYMBOL", "BTC/USD")
         monkeypatch.setenv("ENGINE_ALTCOIN_TOP_K", "5")
+        monkeypatch.setenv("ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS", "86400")
         monkeypatch.setenv("ENGINE_ACTOR", "fly-prod-1")
 
         bn = BinanceConfig(
@@ -548,6 +549,9 @@ class TestBuildEngineEnvOverride:
         assert engine.config.bitcoin_symbol == "BTC/USD"
         assert engine.config.altcoin_top_k == 5
         assert engine.config.actor == "fly-prod-1"
+        assert (
+            engine.proposal_engine.config.prompt_strategy_min_interval_seconds == 86400
+        )
 
     def test_sub_account_notification_route_builds_routed_dispatcher(
         self,

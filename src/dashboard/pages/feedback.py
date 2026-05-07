@@ -30,17 +30,14 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.config import get_settings
 from src.feedback.audit import DEFAULT_AUDIT_PATH, AuditEvent, AuditLog
 from src.feedback.loop import (
-    DEFAULT_STATE_DIR,
     CandidateRecord,
     FeedbackLoop,
     LoopStatus,
 )
-from src.feedback.promotion_lab import (
-    DEFAULT_PROMOTION_LAB_STATE_DIR,
-    PromotionObservation,
-)
+from src.feedback.promotion_lab import PromotionObservation
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.dashboard.feedback")
@@ -51,6 +48,16 @@ class CandidateDecisionAction(str, Enum):
 
     PROMOTE = "promote"
     REJECT = "reject"
+
+
+def default_candidate_state_dir() -> Path:
+    """Return the runtime feedback candidate-state directory."""
+    return get_settings().data_dir / "feedback" / "state"
+
+
+def default_promotion_state_dir() -> Path:
+    """Return the runtime promotion-lab observation directory."""
+    return get_settings().data_dir / "feedback" / "promotion_lab"
 
 
 # =============================================================================
@@ -247,9 +254,9 @@ def render(
 
     Args:
         state_dir: Override the candidate-state directory. Defaults to
-            ``data/feedback/state``.
+            ``<DATA_DIR>/feedback/state``.
         promotion_state_dir: Override the promotion observation directory.
-            Defaults to ``data/feedback/promotion_lab``.
+            Defaults to ``<DATA_DIR>/feedback/promotion_lab``.
         audit_log: Override the audit log. Defaults to
             ``AuditLog()`` reading from ``data/audit/feedback.jsonl``.
         feedback_loop: Optional operational loop. When supplied, awaiting
@@ -261,8 +268,8 @@ def render(
         "improvement → backtest → robustness gate → decision pipeline."
     )
 
-    state_dir = state_dir or DEFAULT_STATE_DIR
-    promotion_state_dir = promotion_state_dir or DEFAULT_PROMOTION_LAB_STATE_DIR
+    state_dir = state_dir or default_candidate_state_dir()
+    promotion_state_dir = promotion_state_dir or default_promotion_state_dir()
     audit = audit_log or AuditLog()
 
     records = load_candidate_records(state_dir)
@@ -438,11 +445,12 @@ def _render_operator_actions(
 __all__ = [
     "CandidateDecisionAction",
     "DEFAULT_AUDIT_PATH",
-    "DEFAULT_STATE_DIR",
     "apply_candidate_decision",
     "build_audit_timeline_dataframe",
     "build_candidates_dataframe",
     "build_summary_metrics",
+    "default_candidate_state_dir",
+    "default_promotion_state_dir",
     "load_promotion_observations",
     "load_candidate_records",
     "render",

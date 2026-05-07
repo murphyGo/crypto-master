@@ -5,8 +5,9 @@ description: Simple trend analysis using Claude to identify support/resistance
 author: system
 symbols: []  # empty = applies to any USDT pair (generic trend analysis)
 timeframes: ["4h", "1d"]
-status: experimental
-changelog: Initial version
+status: deprecated
+prompt_trigger: trend_context
+changelog: Initial version; deprecated 2026-05-07 to remove Claude CLI from the runtime scan hot path
 ---
 
 # Trend Analysis Prompt

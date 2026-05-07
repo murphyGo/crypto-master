@@ -501,6 +501,17 @@ class TestEngineSettings:
         with patch.dict(os.environ, {"ENGINE_CYCLE_INTERVAL": "120"}):
             assert Settings().engine_cycle_interval == 120
 
+    def test_engine_prompt_strategy_min_interval_loads_from_env(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS": "86400"},
+        ):
+            assert Settings().engine_prompt_strategy_min_interval_seconds == 86400
+
+    def test_engine_prompt_strategy_min_interval_must_be_non_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(engine_prompt_strategy_min_interval_seconds=-1)
+
     def test_engine_cycle_interval_minimum_enforced(self) -> None:
         """Mirrors EngineConfig's ge=10 floor."""
         with pytest.raises(ValidationError):
@@ -705,6 +716,17 @@ class TestLogRetentionSettings:
             Settings(log_retention_months=0)
         with pytest.raises(ValidationError):
             Settings(log_retention_months=-1)
+
+
+class TestClaudeCLISettings:
+    """Tests for Claude CLI operator settings."""
+
+    def test_model_default_preserves_cli_default(self) -> None:
+        assert Settings().claude_cli_model == ""
+
+    def test_model_loads_from_env(self) -> None:
+        with patch.dict(os.environ, {"CLAUDE_CLI_MODEL": "sonnet"}):
+            assert Settings().claude_cli_model == "sonnet"
 
 
 class TestSingleton:

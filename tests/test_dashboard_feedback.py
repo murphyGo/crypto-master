@@ -9,12 +9,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.config import reload_settings
 from src.dashboard.pages.feedback import (
     CandidateDecisionAction,
     apply_candidate_decision,
     build_audit_timeline_dataframe,
     build_candidates_dataframe,
     build_summary_metrics,
+    default_candidate_state_dir,
+    default_promotion_state_dir,
     load_candidate_records,
     load_promotion_observations,
 )
@@ -99,6 +102,22 @@ def write_observation(
 # =============================================================================
 # load_candidate_records
 # =============================================================================
+
+
+def test_default_feedback_dirs_follow_data_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fly and other managed runtimes mount operator state outside /app."""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "runtime-data"))
+    reload_settings()
+    try:
+        assert default_candidate_state_dir() == tmp_path / "runtime-data/feedback/state"
+        assert (
+            default_promotion_state_dir()
+            == tmp_path / "runtime-data/feedback/promotion_lab"
+        )
+    finally:
+        reload_settings()
 
 
 def test_load_candidate_records_empty_dir(tmp_path: Path) -> None:

@@ -179,6 +179,20 @@ class TechniqueInfo(BaseModel):
             "longer leash than baselines like ``rsi_4h``."
         ),
     )
+    prompt_trigger: Literal[
+        "none",
+        "ict_smc_setup",
+        "ict_smc_context",
+        "trend_context",
+    ] = Field(
+        default="none",
+        description=(
+            "Optional pre-Claude market-condition filter for prompt strategies. "
+            "'none' preserves historical behaviour. Context filters are broad "
+            "gates that only reject clearly uninteresting market states; the "
+            "prompt still makes the final long/short/neutral decision."
+        ),
+    )
 
     min_warmup_candles: int = Field(
         default=0,

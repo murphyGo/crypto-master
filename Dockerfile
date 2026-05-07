@@ -40,8 +40,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Application source. Tests, docs, .venv etc are excluded via
 # .dockerignore so the build context stays small.
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY strategies/ ./strategies/
 COPY trading_profiles/ ./trading_profiles/
+COPY docs/research/strategies/ ./docs/research/strategies/
 COPY start.sh ./
 RUN chmod +x start.sh
 

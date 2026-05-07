@@ -29,13 +29,16 @@ def make_info(
     name: str = "tech_a",
     symbols: list[str] | None = None,
     version: str = "1.0.0",
+    technique_type: str = "prompt",
+    prompt_trigger: str = "none",
 ) -> TechniqueInfo:
     return TechniqueInfo(
         name=name,
         version=version,
         description=f"{name} description",
-        technique_type="prompt",
+        technique_type=technique_type,  # type: ignore[arg-type]
         symbols=symbols if symbols is not None else ["BTC/USDT"],
+        prompt_trigger=prompt_trigger,  # type: ignore[arg-type]
     )
 
 
@@ -56,6 +59,23 @@ def make_ohlcv(n: int = 30, base_price: float = 50_000) -> list[OHLCV]:
             )
         )
     return out
+
+
+def make_flat_ohlcv(n: int = 30, price: str = "50000") -> list[OHLCV]:
+    """Build candles without sweep, OB, or FVG trigger patterns."""
+    start = datetime(2026, 1, 1)
+    base = Decimal(price)
+    return [
+        OHLCV(
+            timestamp=start + timedelta(hours=i),
+            open=base,
+            high=base + Decimal("100"),
+            low=base - Decimal("100"),
+            close=base,
+            volume=Decimal("100"),
+        )
+        for i in range(n)
+    ]
 
 
 def make_analysis(
@@ -893,3 +913,209 @@ async def test_live_mode_blocks_when_only_cold_start_techniques_present() -> Non
     # Multi-symbol scan entry point: the guard fires per-symbol.
     altcoins = await engine.propose_altcoins(symbols=["BTC/USDT"], top_k=3)
     assert altcoins == []
+
+
+async def test_prompt_strategy_cooldown_skips_repeated_symbol_runs() -> None:
+    """Prompt strategies should not spend Claude tokens every cycle when
+    a runtime cooldown is configured.
+    """
+    strategy = make_strategy(
+        info=make_info("prompt_a", symbols=["BTC/USDT"], technique_type="prompt"),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, exchange = make_engine(
+        strategies={"prompt_a": strategy},
+        config=ProposalEngineConfig(prompt_strategy_min_interval_seconds=3600),
+    )
+
+    first = await engine.propose_bitcoin()
+    second = await engine.propose_bitcoin()
+
+    assert first is not None
+    assert second is None
+    assert strategy.analyze.await_count == 1
+    assert exchange.get_ohlcv.await_count == 1
+
+
+async def test_prompt_strategy_cooldown_is_per_symbol() -> None:
+    strategy = make_strategy(
+        info=make_info("prompt_a", symbols=[], technique_type="prompt"),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"prompt_a": strategy},
+        config=ProposalEngineConfig(prompt_strategy_min_interval_seconds=3600),
+    )
+
+    proposals = await engine.propose_altcoins(
+        symbols=["ETH/USDT", "SOL/USDT"],
+        top_k=2,
+    )
+
+    assert len(proposals) == 2
+    assert strategy.analyze.await_count == 2
+
+
+async def test_prompt_strategy_cooldown_does_not_apply_to_code_strategies() -> None:
+    strategy = make_strategy(
+        info=make_info("code_a", symbols=["BTC/USDT"], technique_type="code"),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"code_a": strategy},
+        config=ProposalEngineConfig(prompt_strategy_min_interval_seconds=3600),
+    )
+
+    first = await engine.propose_bitcoin()
+    second = await engine.propose_bitcoin()
+
+    assert first is not None
+    assert second is not None
+    assert strategy.analyze.await_count == 2
+
+
+async def test_prompt_trigger_blocks_claude_when_market_condition_absent() -> None:
+    strategy = make_strategy(
+        info=make_info(
+            "chasulang_like",
+            symbols=["BTC/USDT"],
+            technique_type="prompt",
+            prompt_trigger="ict_smc_context",
+        ),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, exchange = make_engine(
+        strategies={"chasulang_like": strategy},
+        ohlcv=make_flat_ohlcv(),
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    assert exchange.get_ohlcv.await_count == 1
+    assert strategy.analyze.await_count == 0
+
+
+async def test_prompt_trigger_allows_claude_after_liquidity_sweep() -> None:
+    candles = make_flat_ohlcv()
+    prior_low = min(c.low for c in candles[:-1])
+    latest = candles[-1].model_copy(
+        update={
+            "low": prior_low - Decimal("100"),
+            "close": prior_low + Decimal("50"),
+        }
+    )
+    candles[-1] = latest
+    strategy = make_strategy(
+        info=make_info(
+            "chasulang_like",
+            symbols=["BTC/USDT"],
+            technique_type="prompt",
+            prompt_trigger="ict_smc_context",
+        ),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"chasulang_like": strategy},
+        ohlcv=candles,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert strategy.analyze.await_count == 1
+
+
+async def test_prompt_trigger_skip_does_not_start_cooldown() -> None:
+    quiet = make_flat_ohlcv()
+    sweep = make_flat_ohlcv()
+    prior_high = max(c.high for c in sweep[:-1])
+    sweep[-1] = sweep[-1].model_copy(
+        update={
+            "high": prior_high + Decimal("100"),
+            "close": prior_high - Decimal("50"),
+        }
+    )
+    strategy = make_strategy(
+        info=make_info(
+            "chasulang_like",
+            symbols=["BTC/USDT"],
+            technique_type="prompt",
+            prompt_trigger="ict_smc_context",
+        ),
+        analysis=make_analysis(
+            signal="short",
+            confidence=0.8,
+            entry="50000",
+            sl="50500",
+            tp="48500",
+        ),
+    )
+    engine, exchange = make_engine(
+        strategies={"chasulang_like": strategy},
+        config=ProposalEngineConfig(prompt_strategy_min_interval_seconds=3600),
+    )
+
+    exchange.get_ohlcv.return_value = quiet
+    first = await engine.propose_bitcoin()
+    exchange.get_ohlcv.return_value = sweep
+    second = await engine.propose_bitcoin()
+
+    assert first is None
+    assert second is not None
+    assert strategy.analyze.await_count == 1
+
+
+async def test_ict_prompt_trigger_allows_claude_near_swing_extreme() -> None:
+    candles = make_flat_ohlcv()
+    candles[-1] = candles[-1].model_copy(update={"close": Decimal("50090")})
+    strategy = make_strategy(
+        info=make_info(
+            "chasulang_like",
+            symbols=["BTC/USDT"],
+            technique_type="prompt",
+            prompt_trigger="ict_smc_context",
+        ),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"chasulang_like": strategy},
+        ohlcv=candles,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert strategy.analyze.await_count == 1
+
+
+async def test_trend_prompt_trigger_allows_claude_after_directional_move() -> None:
+    candles = make_flat_ohlcv()
+    for i, candle in enumerate(candles):
+        price = Decimal("50000") + Decimal(i * 100)
+        candles[i] = candle.model_copy(
+            update={
+                "open": price,
+                "high": price + Decimal("100"),
+                "low": price - Decimal("100"),
+                "close": price,
+            }
+        )
+    strategy = make_strategy(
+        info=make_info(
+            "simple_trend_like",
+            symbols=["BTC/USDT"],
+            technique_type="prompt",
+            prompt_trigger="trend_context",
+        ),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"simple_trend_like": strategy},
+        ohlcv=candles,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert strategy.analyze.await_count == 1

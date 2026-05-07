@@ -66,6 +66,7 @@ class ClaudeCLI:
         timeout: float | None = None,
         claude_path: str = "claude",
         max_retries: int | None = None,
+        model: str | None = None,
     ) -> None:
         """Initialize ClaudeCLI.
 
@@ -82,6 +83,10 @@ class ClaudeCLI:
                 timeout by ``TIMEOUT_BACKOFF_MULTIPLIER`` (1.5x). When
                 ``None`` (default), reads from
                 ``Settings.claude_cli_max_retries``.
+            model: Optional Claude model alias or full name to pass via
+                ``--model``. ``None`` reads
+                ``Settings.claude_cli_model``; empty string preserves
+                Claude CLI's configured default.
         """
         # Resolve defaults from Settings lazily so import-time env
         # changes are honoured. Explicit args win for tests.
@@ -93,10 +98,13 @@ class ClaudeCLI:
                 timeout = float(settings.claude_cli_timeout_seconds)
             if max_retries is None:
                 max_retries = settings.claude_cli_max_retries
+            if model is None:
+                model = settings.claude_cli_model
 
         self.timeout = timeout
         self.claude_path = claude_path
         self.max_retries = max_retries
+        self.model = (model or "").strip()
         self._logger = get_logger("crypto_master.ai.claude")
 
     def is_available(self) -> bool:
@@ -272,8 +280,12 @@ class ClaudeCLI:
             distinction). Re-raises :class:`FileNotFoundError`
             unchanged for the caller to convert.
             """
+            cmd = [self.claude_path]
+            if self.model:
+                cmd.extend(["--model", self.model])
+            cmd.extend(["-p", prompt])
             proc = subprocess.Popen(
-                [self.claude_path, "-p", prompt],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

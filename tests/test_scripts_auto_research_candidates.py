@@ -20,6 +20,7 @@ import pytest
 
 from scripts import auto_research_candidates as script
 from scripts.auto_research_candidates import Pick, PickResult, run_picks
+from src.config import reload_settings
 from src.feedback.audit import AuditLog
 from src.feedback.loop import FeedbackLoop, LoopStatus
 from tests.test_scripts_backtest_baselines import _synthetic_ohlcv
@@ -58,6 +59,12 @@ class _FakeExchange:
         self, symbol: str, timeframe: str, limit: int, since: int | None = None
     ):
         return self._by_tf[timeframe][:limit]
+
+
+class _FailingConnectExchange(_FakeExchange):
+    async def connect(self) -> None:
+        self.connected = True
+        raise RuntimeError("connect failed")
 
 
 def _make_picks() -> list[Pick]:
@@ -444,6 +451,17 @@ def test_write_run_artifacts_writes_json(tmp_path: Path) -> None:
     assert payload["results"][0]["robustness_passed"] is True
 
 
+def test_default_results_dir_follows_data_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "runtime-data"))
+    reload_settings()
+    try:
+        assert script.default_results_dir() == tmp_path / "runtime-data/research_runs"
+    finally:
+        reload_settings()
+
+
 @pytest.mark.asyncio
 async def test_run_async_uses_caller_built_loop_and_exchange(
     tmp_path: Path,
@@ -489,6 +507,45 @@ def test_main_builds_runtime_before_calling_run_async(
     assert seen["loop"] is loop
     assert seen["exchange"] is exchange
     assert seen["dry_run"] is False
+
+
+def test_build_exchange_ignores_trading_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auto-research fetches public OHLCV and must not require trade keys."""
+    monkeypatch.setenv("BINANCE_API_KEY", "invalid-live-key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "invalid-live-secret")
+    monkeypatch.setenv("BINANCE_TESTNET_API_KEY", "invalid-testnet-key")
+    monkeypatch.setenv("BINANCE_TESTNET_API_SECRET", "invalid-testnet-secret")
+
+    exchange = script.build_exchange()
+
+    assert exchange.config.api_key == ""
+    assert exchange.config.api_secret == ""
+    assert exchange.config.testnet_api_key == ""
+    assert exchange.config.testnet_api_secret == ""
+
+
+@pytest.mark.asyncio
+async def test_run_async_disconnects_when_owned_exchange_connect_fails(
+    tmp_path: Path,
+) -> None:
+    exchange = _FailingConnectExchange({"1h": _synthetic_ohlcv(10)})
+    loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
+
+    with pytest.raises(RuntimeError, match="connect failed"):
+        await script.run_async(
+            _make_picks()[:1],
+            "BTC/USDT",
+            dry_run=False,
+            results_dir=tmp_path / "results",
+            loop=loop,
+            exchange=exchange,  # type: ignore[arg-type]
+            owns_exchange=True,
+        )
+
+    assert exchange.connected is True
+    assert exchange.disconnected is True
 
 
 def test_top_picks_are_ohlcv_only() -> None:

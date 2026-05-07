@@ -274,7 +274,7 @@ def load_command_center_status(
         scoped_trades.extend((sub_account_id, trade) for trade in loaded_trades)
         snapshots.extend(portfolio_tracker.load_snapshots(mode))
     candidate_records = feedback_page.load_candidate_records(
-        feedback_page.DEFAULT_STATE_DIR
+        feedback_page.default_candidate_state_dir()
     )
     candidate_metrics = feedback_page.build_summary_metrics(candidate_records)
 

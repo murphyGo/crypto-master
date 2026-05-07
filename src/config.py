@@ -215,6 +215,10 @@ class Settings(BaseSettings):
     # engine ranks by composite score, then truncates). Minimum 1.
     # Default 3.
     engine_altcoin_top_k: int = Field(default=3, ge=1)
+    # Minimum seconds between Claude-backed prompt strategy executions
+    # per (strategy, symbol). Default 0 preserves historical behaviour;
+    # Fly can raise this to keep prompt strategies out of the hot path.
+    engine_prompt_strategy_min_interval_seconds: int = Field(default=0, ge=0)
     # Actor name stamped onto auto-decided proposals + activity log
     # events. Default "auto-engine".
     engine_actor: str = Field(default="auto-engine")
@@ -358,6 +362,9 @@ class Settings(BaseSettings):
     # retry) matches the most common operational case where Claude
     # Code occasionally hits a slow path on first call.
     claude_cli_max_retries: int = Field(default=1, ge=0)
+    # Optional model alias/full name passed to ``claude --model``.
+    # Empty string preserves Claude CLI's configured default.
+    claude_cli_model: str = ""
 
     # Exchange Configurations (nested)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)

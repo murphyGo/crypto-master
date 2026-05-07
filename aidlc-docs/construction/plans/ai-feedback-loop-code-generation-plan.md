@@ -29,6 +29,16 @@ of unfinished historical tasks.
 - [x] Thread auto-research parameter sensitivity grids into feedback-loop gating.
 - [x] Guard improvement generations from dropping existing runtime Output Contracts.
 - [x] Pin code-type auto-research fixtures through a trade-producing backtest path.
+- [x] Package the auto-research operator script and strategy catalog into the
+      Fly image so runtime candidate generation can run against `/data`.
+- [x] Keep the auto-research public-data exchange credential-free so invalid
+      trading keys do not block OHLCV candidate generation.
+- [x] Keep code-type auto-research prompts bounded by omitting the full
+      priority-matrix catalog once a pick has already been selected.
+- [x] Persist auto-research run artifacts under `Settings.data_dir` so Fly
+      writes them to `/data/research_runs`.
+- [x] Add a Claude CLI model setting and run Fly feedback generation on Sonnet
+      to reduce code-generation latency and cost.
 
 ## Evidence
 

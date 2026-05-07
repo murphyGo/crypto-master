@@ -47,6 +47,7 @@ from src.models import OHLCV, AnalysisResult
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
+from src.strategy.prompt_filters import should_run_prompt_strategy
 from src.trading.strategy import TradingStrategy, TradingValidationError
 from src.utils.time import ensure_utc, now_utc
 
@@ -196,6 +197,11 @@ class ProposalEngineConfig(BaseModel):
     # history.
     mode: Literal["paper", "live"] = "paper"
     min_closed_trades_for_live_promotion: int = Field(default=5, ge=0)
+    prompt_strategy_min_interval_seconds: int = Field(default=0, ge=0)
+    """Minimum seconds between prompt-based strategy executions per
+    ``(strategy, symbol)``. ``0`` preserves the historical behaviour.
+    Operators can raise this in long-running runtimes so Claude-backed
+    prompt strategies do not consume tokens on every engine cycle."""
 
 
 # =============================================================================
@@ -274,6 +280,7 @@ class ProposalEngine:
         self.trading_strategy = trading_strategy or TradingStrategy()
         self.config = config or ProposalEngineConfig()
         self.activity_log = activity_log
+        self._prompt_strategy_last_run_at: dict[tuple[str, str], datetime] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -542,6 +549,9 @@ class ProposalEngine:
         Exchange errors propagate so the multi-symbol scanner can
         skip the symbol uniformly.
         """
+        if self._should_skip_prompt_strategy(strategy, symbol):
+            return None
+
         # Exchange calls propagate — let propose_altcoins decide how to
         # handle per-symbol failures (the existing per-symbol skip in
         # ``propose_altcoins`` covers both single-TF and multi-TF fetch
@@ -589,6 +599,15 @@ class ProposalEngine:
                 return None
             current_price = primary_ohlcv[-1].close
             primary_timeframe = primary_tf
+            if not self._prompt_trigger_allows(
+                strategy,
+                symbol,
+                primary_ohlcv,
+                ohlcv_by_timeframe=ohlcv_by_tf,
+                current_price=current_price,
+            ):
+                return None
+            self._mark_prompt_strategy_run(strategy, symbol)
             try:
                 analysis = await strategy.analyze(
                     primary_ohlcv,
@@ -618,6 +637,16 @@ class ProposalEngine:
                 )
                 ohlcv_cache[key] = ohlcv
             primary_timeframe = timeframe
+            current_price = ohlcv[-1].close if ohlcv else None
+            if not self._prompt_trigger_allows(
+                strategy,
+                symbol,
+                ohlcv,
+                ohlcv_by_timeframe=None,
+                current_price=current_price,
+            ):
+                return None
+            self._mark_prompt_strategy_run(strategy, symbol)
             try:
                 analysis = await strategy.analyze(ohlcv, symbol, timeframe)
             except StrategyError as e:
@@ -663,6 +692,64 @@ class ProposalEngine:
             score=score,
             reasoning=analysis.reasoning,
         )
+
+    def _prompt_trigger_allows(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        primary_ohlcv: list[OHLCV],
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None,
+        current_price: Decimal | None,
+    ) -> bool:
+        decision = should_run_prompt_strategy(
+            strategy,
+            primary_ohlcv,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+            current_price=current_price,
+        )
+        if decision.allowed:
+            return True
+
+        logger.info(
+            "Skipping prompt strategy %s on %s: trigger filter blocked (%s)",
+            strategy.name,
+            symbol,
+            decision.reason,
+        )
+        return False
+
+    def _should_skip_prompt_strategy(self, strategy: BaseStrategy, symbol: str) -> bool:
+        """Return True when a prompt strategy is still inside cooldown."""
+        min_interval = self.config.prompt_strategy_min_interval_seconds
+        if min_interval <= 0 or strategy.info.technique_type != "prompt":
+            return False
+
+        key = (strategy.name, symbol)
+        last_run_at = self._prompt_strategy_last_run_at.get(key)
+        if last_run_at is None:
+            return False
+
+        elapsed = (now_utc() - ensure_utc(last_run_at)).total_seconds()
+        if elapsed >= min_interval:
+            return False
+
+        logger.info(
+            "Skipping prompt strategy %s on %s: cooldown %.0fs remaining",
+            strategy.name,
+            symbol,
+            min_interval - elapsed,
+        )
+        return True
+
+    def _mark_prompt_strategy_run(self, strategy: BaseStrategy, symbol: str) -> None:
+        """Record prompt strategy execution time before token-spending work."""
+        if (
+            self.config.prompt_strategy_min_interval_seconds <= 0
+            or strategy.info.technique_type != "prompt"
+        ):
+            return
+        self._prompt_strategy_last_run_at[(strategy.name, symbol)] = now_utc()
 
     def _handle_strategy_error(
         self,

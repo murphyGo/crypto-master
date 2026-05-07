@@ -154,6 +154,7 @@ class TestLoadRealStrategies:
 
         assert strategy.name == "simple_trend_analysis"
         assert strategy.version == "1.0.0"
+        assert strategy.info.status == "deprecated"
         assert strategy.info.technique_type == "prompt"
         assert isinstance(strategy, PromptStrategy)
 
@@ -163,7 +164,7 @@ class TestLoadRealStrategies:
         available = get_available_strategies()
 
         assert "ma_crossover" in available
-        assert "simple_trend_analysis" in available
+        assert "simple_trend_analysis" not in available
 
     def test_get_strategy_by_name(self, strategies_dir: Path) -> None:
         """Test getting a strategy by name."""

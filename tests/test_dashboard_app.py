@@ -28,6 +28,7 @@ from src.dashboard.app import (
     latest_snapshot_equity,
     snapshot_freshness,
 )
+from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.theme import (
     APP_ICON,
     APP_TAGLINE,
@@ -216,6 +217,31 @@ def test_app_home_no_pending_phase_labels() -> None:
     combined = info_text + " " + success_text
     for phase_label in ("Phase 7.2", "Phase 7.3", "Phase 7.4"):
         assert phase_label not in combined, combined
+
+
+def test_load_command_center_status_reads_feedback_from_runtime_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Home command center must share the Feedback page's runtime state path."""
+    from src.dashboard import app as dashboard_app
+
+    seen_paths: list[Path] = []
+
+    def _load_candidate_records(path: Path) -> list[CandidateRecord]:
+        seen_paths.append(path)
+        return []
+
+    monkeypatch.setattr(feedback_page, "default_candidate_state_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        feedback_page,
+        "load_candidate_records",
+        _load_candidate_records,
+    )
+    monkeypatch.setattr(dashboard_app.ActivityLog, "read_all", lambda self: [])
+
+    dashboard_app.load_command_center_status(sub_account_ids=[])
+
+    assert seen_paths == [tmp_path]
 
 
 def test_app_navigation_includes_all_pages() -> None:

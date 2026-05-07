@@ -34,9 +34,13 @@ coverage.xml
 data/
 
 # Documentation, tests, and developer tooling are not needed in the
-# production image. Strategy `.md` files DO ship (they live under
-# strategies/, not docs/).
-docs/
+# production image. Keep only the auto-research strategy catalog: the
+# deployed operator script reads it when generating candidates.
+docs/*
+!docs/research/
+docs/research/*
+!docs/research/strategies/
+!docs/research/strategies/**
 tests/
 plans/
 .claude/

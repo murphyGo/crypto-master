@@ -29,6 +29,10 @@ of unfinished historical tasks.
 - [x] Add Telegram, email, and SMTP_SSL notification support.
 - [x] Improve diagnostic clarity, observability, and logger test friendliness.
 - [x] Add optional per-sub-account Slack notification routing overrides.
+- [x] Include runtime operator scripts and the auto-research catalog in the Fly
+      image without shipping runtime state or unrelated documentation.
+- [x] Set Fly's Claude CLI model override to Sonnet for operator feedback
+      generation while keeping the default configurable.
 
 ## Evidence
 

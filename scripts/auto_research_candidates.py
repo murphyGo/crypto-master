@@ -56,6 +56,7 @@ import asyncio
 import importlib
 import json
 import logging
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -65,7 +66,7 @@ from src.ai.improver import StrategyImprover
 from src.backtest.analyzer import PerformanceAnalyzer
 from src.backtest.engine import BacktestConfig, Backtester
 from src.backtest.validator import RobustnessGate
-from src.config import BinanceConfig
+from src.config import BinanceConfig, get_settings
 from src.exchange.binance import BinanceExchange
 from src.feedback.audit import AuditLog
 from src.feedback.loop import CandidateRecord, FeedbackLoop, LoopStatus
@@ -75,7 +76,12 @@ from src.models import OHLCV
 logger = get_logger("crypto_master.scripts.auto_research")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_RESULTS_DIR = PROJECT_ROOT / "data" / "research_runs"
+DEFAULT_RESULTS_DIR = Path("data/research_runs")
+
+
+def default_results_dir() -> Path:
+    """Return the runtime auto-research run-artifact directory."""
+    return get_settings().data_dir / "research_runs"
 
 
 def _default_candles_for(timeframe: Literal["15m", "1h", "4h"]) -> int:
@@ -406,7 +412,14 @@ def build_loop() -> FeedbackLoop:
 
 def build_exchange() -> BinanceExchange:
     """Build the public-data exchange used by the operator script."""
-    return BinanceExchange(BinanceConfig())
+    return BinanceExchange(
+        BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="",
+            testnet_api_secret="",
+        )
+    )
 
 
 async def fetch_ohlcv_window(**kwargs: Any) -> list[OHLCV]:
@@ -467,9 +480,14 @@ async def run_picks(
     """
     loop = loop or build_loop()
     owns_exchange = exchange is None
-    exchange = exchange or BinanceExchange(BinanceConfig())
+    exchange = exchange or build_exchange()
     if owns_exchange:
-        await exchange.connect()
+        try:
+            await exchange.connect()
+        except Exception:
+            with suppress(Exception):
+                await exchange.disconnect()
+            raise
 
     if dry_run:
         # Route dry-run output to a subdir so an operator running
@@ -585,7 +603,7 @@ def write_run_artifacts(
     results: list[PickResult], results_dir: Path | None = None
 ) -> Path:
     """Persist a JSON snapshot of this run for post-hoc review."""
-    target_dir = results_dir or DEFAULT_RESULTS_DIR
+    target_dir = results_dir or default_results_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = target_dir / f"run_{ts}.json"
@@ -609,7 +627,12 @@ async def run_async(
     sub_account_id: str = "default",
 ) -> int:
     if owns_exchange:
-        await exchange.connect()
+        try:
+            await exchange.connect()
+        except Exception:
+            with suppress(Exception):
+                await exchange.disconnect()
+            raise
     try:
         results = await run_picks(
             picks,

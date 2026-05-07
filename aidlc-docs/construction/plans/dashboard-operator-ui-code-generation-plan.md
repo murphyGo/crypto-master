@@ -20,6 +20,8 @@ of unfinished historical tasks.
 - [x] Add engine status dashboard behavior.
 - [x] Add trade-quality diagnostic visibility.
 - [x] Add multi-paper-account and sub-account dashboard support.
+- [x] Route Feedback Loop dashboard and Home command-center candidate reads
+      through `Settings.data_dir` so Fly runtime state under `/data` is visible.
 
 ## Evidence
 
@@ -27,6 +29,8 @@ of unfinished historical tasks.
 - Primary paths: `src/dashboard/`, `tests/test_dashboard_*`.
 - Cross-checks: phase 7, phase 8, phase 18, and phase 19 reports.
 - Session logs: related Phase 7, 8, 18, and 19 entries under `docs/sessions/`.
+  Runtime data-dir follow-up:
+  `docs/sessions/2026-05-07-dashboard-feedback-runtime-data-dir.md`.
 
 ## Future Work
 

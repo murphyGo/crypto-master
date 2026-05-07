@@ -78,6 +78,11 @@ class TestClaudeCLIInit:
         client = ClaudeCLI(claude_path="/usr/local/bin/claude")
         assert client.claude_path == "/usr/local/bin/claude"
 
+    def test_custom_model(self) -> None:
+        """Test custom model is applied."""
+        client = ClaudeCLI(model="sonnet")
+        assert client.model == "sonnet"
+
 
 class TestClaudeCLIIsAvailable:
     """Tests for is_available method."""
@@ -117,6 +122,21 @@ class TestClaudeCLIAnalyze:
                 result = await client.analyze("test prompt")
 
         assert result == response
+
+    @pytest.mark.asyncio
+    async def test_model_flag_passed_to_subprocess(self) -> None:
+        """Configured model should be sent to Claude CLI."""
+        response = {"signal": "neutral", "confidence": 0.5}
+        proc = _make_popen_success(json.dumps(response))
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen", return_value=proc) as popen:
+                client = ClaudeCLI(model="sonnet")
+                await client.analyze("test prompt")
+
+        cmd = popen.call_args.args[0]
+        assert cmd[:3] == ["claude", "--model", "sonnet"]
+        assert cmd[3:] == ["-p", "test prompt"]
 
     @pytest.mark.asyncio
     async def test_json_in_markdown_code_block(self) -> None:

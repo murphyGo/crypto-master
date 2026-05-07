@@ -690,6 +690,26 @@ class TestCatalogInjection:
         assert "Reference Catalog" not in prompt
 
     @pytest.mark.asyncio
+    async def test_catalog_not_in_code_type_prompt(self, tmp_path: Path) -> None:
+        """Code-type picks already carry selected catalog context.
+
+        Injecting the full priority matrix makes the Fly operator prompt
+        large enough to timeout before candidate generation starts.
+        """
+        catalog = _write_catalog(tmp_path)
+        improver, claude = make_improver(
+            tmp_path,
+            GOOD_CODE_RESPONSE,
+            catalog_path=catalog,
+        )
+        await improver.generate_idea(context="Donchian System 2", code_type=True)
+
+        prompt = claude.complete.await_args.args[0]
+        assert "Donchian System 2" in prompt
+        assert CATALOG_MARKER not in prompt
+        assert "Reference Catalog" not in prompt
+
+    @pytest.mark.asyncio
     async def test_catalog_cached_on_repeated_calls(self, tmp_path: Path) -> None:
         """The catalog file is read at most once per improver instance."""
         catalog = _write_catalog(tmp_path)

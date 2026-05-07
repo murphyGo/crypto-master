@@ -93,6 +93,36 @@ class TestTechniqueInfo:
         # to ``None`` so existing strategies continue to inherit
         # ``Settings.claude_cli_timeout_seconds`` unchanged.
         assert info.claude_timeout_seconds is None
+        assert info.prompt_trigger == "none"
+
+    def test_prompt_trigger_accepts_context_filters(self) -> None:
+        info = TechniqueInfo(
+            name="chasulang_like",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+            prompt_trigger="ict_smc_context",
+        )
+        assert info.prompt_trigger == "ict_smc_context"
+
+        trend = TechniqueInfo(
+            name="trend_like",
+            version="1.0.0",
+            description="Test",
+            technique_type="prompt",
+            prompt_trigger="trend_context",
+        )
+        assert trend.prompt_trigger == "trend_context"
+
+    def test_prompt_trigger_rejects_unknown_value(self) -> None:
+        with pytest.raises(ValidationError):
+            TechniqueInfo(
+                name="bad",
+                version="1.0.0",
+                description="Test",
+                technique_type="prompt",
+                prompt_trigger="always",  # type: ignore[arg-type]
+            )
 
     def test_claude_timeout_seconds_accepts_positive_int(self) -> None:
         """Phase 14.1: per-strategy override accepts a positive integer.

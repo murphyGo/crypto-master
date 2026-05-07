@@ -256,7 +256,12 @@ def build_engine(
     # Phase 24.1 / DEBT-034: forward the trading mode so the proposal
     # engine can apply the live cold-start guard (no real money to a
     # technique with zero closed trades).
-    proposal_config = ProposalEngineConfig(mode=settings.trading_mode)
+    proposal_config = ProposalEngineConfig(
+        mode=settings.trading_mode,
+        prompt_strategy_min_interval_seconds=(
+            settings.engine_prompt_strategy_min_interval_seconds
+        ),
+    )
     proposal_engine = ProposalEngine(
         exchange=exchange,
         strategies=strategies,
