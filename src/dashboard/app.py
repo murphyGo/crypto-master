@@ -50,6 +50,7 @@ import src.trading.portfolio  # noqa: F401
 from src.config import get_settings
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
+from src.dashboard.pages import replay as replay_page
 from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.pages import trading as trading_page
 from src.dashboard.theme import (
@@ -958,6 +959,13 @@ def page_for_key(page_key: str) -> StreamlitPage:
             icon="🔁",
             url_path="feedback",
         )
+    if page_key == "replay":
+        return st.Page(
+            replay_page.render,
+            title="Proposal Replay",
+            icon="🧪",
+            url_path="replay",
+        )
     if page_key == "engine":
         return st.Page(
             engine_page.render,
@@ -996,11 +1004,12 @@ def build_navigation() -> StreamlitPage:
     strategies = page_for_key("strategies")
     trading = page_for_key("trading")
     feedback = page_for_key("feedback")
+    replay = page_for_key("replay")
     engine = page_for_key("engine")
     return st.navigation(
         {
             "Overview": [home],
-            "Sections": [strategies, trading, feedback, engine],
+            "Sections": [strategies, trading, feedback, replay, engine],
         }
     )
 
