@@ -21,6 +21,8 @@ from src.dashboard.app import (
     build_exposure_rows,
     build_incident_dataframe,
     build_incident_rows,
+    build_runtime_diagnostic_dataframe,
+    build_runtime_diagnostic_rows,
     count_actionable_events,
     estimate_open_notional,
     latest_snapshot_equity,
@@ -35,6 +37,11 @@ from src.dashboard.theme import (
 )
 from src.feedback.loop import CandidateRecord, LoopStatus
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.runtime.safety_score import (
+    RuntimeSafetyBand,
+    RuntimeSafetyInputs,
+    RuntimeSafetyScore,
+)
 from src.strategy.performance import TradeHistory
 from src.trading.portfolio import AssetSnapshot
 
@@ -320,6 +327,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.candidates_errored == 1
     assert len(status.incident_rows) == 1
     assert len(status.candidate_rows) == 1
+    assert len(status.diagnostic_rows) == 4
 
 
 def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
@@ -433,3 +441,39 @@ def test_build_candidate_dataframe_empty_has_operator_columns() -> None:
 
     assert df.empty
     assert "Next Step" in df.columns
+
+
+def test_build_runtime_diagnostic_rows_maps_stop_conditions() -> None:
+    safety = RuntimeSafetyScore(
+        score=35,
+        band=RuntimeSafetyBand.PAUSE_RECOMMENDED,
+        inputs=RuntimeSafetyInputs(),
+        factors=["cycle errors=3"],
+    )
+    incident = build_incident_rows(
+        [
+            make_event(
+                ActivityEventType.LIQUIDATED,
+                datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+        ],
+        now=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    rows = build_runtime_diagnostic_rows(
+        safety=safety,
+        last_cycle_status="errored",
+        snapshot_freshness="stale",
+        incident_rows=incident,
+    )
+
+    assert [row.status for row in rows] == ["stop", "stop", "watch", "stop"]
+    assert rows[1].next_step == "Open Engine timeline"
+    assert rows[3].detail == "1 stop incident(s)"
+
+
+def test_build_runtime_diagnostic_dataframe_empty_has_operator_columns() -> None:
+    df = build_runtime_diagnostic_dataframe([])
+
+    assert df.empty
+    assert list(df.columns) == ["Check", "Status", "Detail", "Next Step"]

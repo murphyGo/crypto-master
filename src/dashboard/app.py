@@ -109,6 +109,7 @@ class CommandCenterStatus:
     candidates_errored: int
     incident_rows: list[CommandCenterIncidentRow]
     candidate_rows: list[CommandCenterCandidateRow]
+    diagnostic_rows: list[CommandCenterDiagnosticRow]
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,16 @@ class CommandCenterCandidateRow:
     backtest_run_id: str
     sub_account_id: str
     updated_at: datetime
+    next_step: str
+
+
+@dataclass(frozen=True)
+class CommandCenterDiagnosticRow:
+    """Runtime diagnostic row for the Home command center."""
+
+    check: str
+    status: str
+    detail: str
     next_step: str
 
 
@@ -294,6 +305,7 @@ def build_command_center_status(
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
     candidate_metrics = candidate_metrics or {}
+    incident_rows = build_incident_rows(events, now=now)
 
     return CommandCenterStatus(
         safety=safety,
@@ -313,8 +325,14 @@ def build_command_center_status(
         candidates_awaiting_approval=candidate_metrics.get("awaiting_approval", 0),
         candidates_promoted=candidate_metrics.get("promoted", 0),
         candidates_errored=candidate_metrics.get("errored", 0),
-        incident_rows=build_incident_rows(events, now=now),
+        incident_rows=incident_rows,
         candidate_rows=build_candidate_rows(candidate_records or []),
+        diagnostic_rows=build_runtime_diagnostic_rows(
+            safety=safety,
+            last_cycle_status=cycle_metrics["last_cycle_status"] or "missing",
+            snapshot_freshness=snapshot_freshness(latest_snapshot_at, now=now),
+            incident_rows=incident_rows,
+        ),
     )
 
 
@@ -511,6 +529,91 @@ def _candidate_next_step(status: str) -> str:
     return mapping.get(status, "Monitor feedback loop")
 
 
+def build_runtime_diagnostic_rows(
+    *,
+    safety: RuntimeSafetyScore,
+    last_cycle_status: str,
+    snapshot_freshness: str,
+    incident_rows: list[CommandCenterIncidentRow],
+) -> list[CommandCenterDiagnosticRow]:
+    """Build operator-facing runtime diagnostics for Home."""
+    return [
+        _safety_diagnostic_row(safety),
+        _cycle_diagnostic_row(last_cycle_status),
+        _snapshot_diagnostic_row(snapshot_freshness),
+        _incident_diagnostic_row(incident_rows),
+    ]
+
+
+def _safety_diagnostic_row(safety: RuntimeSafetyScore) -> CommandCenterDiagnosticRow:
+    status = "pass" if safety.band.value == "safe" else "watch"
+    if safety.band.value in {"risky", "pause_recommended"}:
+        status = "stop"
+    return CommandCenterDiagnosticRow(
+        check="Runtime safety",
+        status=status,
+        detail=f"{safety.score}/100 {safety.band.value}",
+        next_step=(
+            "Monitor runtime safety" if status == "pass" else "Review safety factors"
+        ),
+    )
+
+
+def _cycle_diagnostic_row(last_cycle_status: str) -> CommandCenterDiagnosticRow:
+    if last_cycle_status == "ok":
+        status = "pass"
+        next_step = "Monitor next cycle"
+    elif last_cycle_status == "errored":
+        status = "stop"
+        next_step = "Open Engine timeline"
+    else:
+        status = "watch"
+        next_step = "Check Engine activity"
+    return CommandCenterDiagnosticRow(
+        check="Last cycle",
+        status=status,
+        detail=last_cycle_status,
+        next_step=next_step,
+    )
+
+
+def _snapshot_diagnostic_row(snapshot_freshness: str) -> CommandCenterDiagnosticRow:
+    return CommandCenterDiagnosticRow(
+        check="Portfolio snapshot",
+        status="pass" if snapshot_freshness == "fresh" else "watch",
+        detail=snapshot_freshness,
+        next_step=(
+            "Monitor portfolio snapshots"
+            if snapshot_freshness == "fresh"
+            else "Check snapshot recorder"
+        ),
+    )
+
+
+def _incident_diagnostic_row(
+    incident_rows: list[CommandCenterIncidentRow],
+) -> CommandCenterDiagnosticRow:
+    stop_count = sum(1 for row in incident_rows if row.severity == "stop")
+    if stop_count:
+        status = "stop"
+        detail = f"{stop_count} stop incident(s)"
+        next_step = "Review Recent Incidents"
+    elif incident_rows:
+        status = "watch"
+        detail = f"{len(incident_rows)} actionable incident(s)"
+        next_step = "Review Recent Incidents"
+    else:
+        status = "pass"
+        detail = "none in last 24h"
+        next_step = "Monitor runtime events"
+    return CommandCenterDiagnosticRow(
+        check="Incidents",
+        status=status,
+        detail=detail,
+        next_step=next_step,
+    )
+
+
 def render_command_center_status(status: CommandCenterStatus) -> None:
     """Render the Home command-center summary."""
     st.markdown("### Command Center")
@@ -547,6 +650,10 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
         )
     )
     st.caption("Safety factors: " + "; ".join(status.safety.factors))
+
+    st.markdown("#### Runtime Diagnostics")
+    diagnostic_df = build_runtime_diagnostic_dataframe(status.diagnostic_rows)
+    st.dataframe(diagnostic_df, hide_index=True, use_container_width=True)
 
     st.markdown("#### Open Exposure")
     exposure_df = build_exposure_dataframe(status.exposure_rows)
@@ -669,6 +776,27 @@ def build_candidate_dataframe(rows: list[CommandCenterCandidateRow]) -> pd.DataF
                 "Backtest Run": row.backtest_run_id,
                 "Sub-account": row.sub_account_id,
                 "Updated": row.updated_at.isoformat(timespec="seconds"),
+                "Next Step": row.next_step,
+            }
+            for row in rows
+        ],
+        columns=columns,
+    )
+
+
+def build_runtime_diagnostic_dataframe(
+    rows: list[CommandCenterDiagnosticRow],
+) -> pd.DataFrame:
+    """Build the Home runtime-diagnostics table."""
+    columns = ["Check", "Status", "Detail", "Next Step"]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "Check": row.check,
+                "Status": row.status,
+                "Detail": row.detail,
                 "Next Step": row.next_step,
             }
             for row in rows
