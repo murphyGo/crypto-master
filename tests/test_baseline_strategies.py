@@ -43,6 +43,9 @@ def _make_ohlcv(
     *,
     start: datetime | None = None,
     delta: timedelta = timedelta(hours=1),
+    volumes: list[float] | None = None,
+    highs: list[float] | None = None,
+    lows: list[float] | None = None,
 ) -> list[OHLCV]:
     """Build a minimal OHLCV series from a close-price list.
 
@@ -50,16 +53,22 @@ def _make_ohlcv(
     strategies only look at the close column. Volume is constant.
     """
     start = start or datetime(2026, 1, 1)
+    volumes = volumes or [1000.0] * len(closes)
+    highs = highs or [close * 1.001 for close in closes]
+    lows = lows or [close * 0.999 for close in closes]
+    assert len(volumes) == len(closes)
+    assert len(highs) == len(closes)
+    assert len(lows) == len(closes)
     out: list[OHLCV] = []
     for i, close in enumerate(closes):
         out.append(
             OHLCV(
                 timestamp=start + i * delta,
                 open=Decimal(str(close)),
-                high=Decimal(str(close * 1.001)),
-                low=Decimal(str(close * 0.999)),
+                high=Decimal(str(highs[i])),
+                low=Decimal(str(lows[i])),
                 close=Decimal(str(close)),
-                volume=Decimal("1000"),
+                volume=Decimal(str(volumes[i])),
             )
         )
     return out
@@ -257,6 +266,112 @@ async def test_ma_long_on_bullish_cross(ma_module) -> None:
     result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
 
     assert result.signal == "long"
+
+
+# =============================================================================
+# Market strategy expansion candidates
+# =============================================================================
+
+
+@pytest.fixture
+def vcp_module():
+    return _load_strategy_module("vcp_breakout.py")
+
+
+async def test_vcp_breakout_long_on_contracted_volume_pivot(vcp_module) -> None:
+    strategy = _build(vcp_module)
+    closes = [70.0 + i * 0.335 for i in range(180)]
+    closes += [130.0 + i * 0.04 for i in range(39)]
+    closes += [133.5]
+    highs = [close + 0.4 for close in closes]
+    lows = [close - 0.4 for close in closes]
+    for i in range(len(closes) - 40, len(closes) - 10):
+        highs[i] = closes[i] + 2.0
+        lows[i] = closes[i] - 2.0
+    for i in range(len(closes) - 10, len(closes)):
+        highs[i] = closes[i] + 0.15
+        lows[i] = closes[i] - 0.15
+    volumes = [1000.0] * (len(closes) - 1) + [1800.0]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows, volumes=volumes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "4h")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
+@pytest.fixture
+def session_vwap_module():
+    return _load_strategy_module("session_vwap_pullback.py")
+
+
+async def test_session_vwap_pullback_long_on_reclaim(session_vwap_module) -> None:
+    strategy = _build(session_vwap_module)
+    previous = [100.0 + i * 0.2 for i in range(34)]
+    session = [108.0, 108.4, 108.7, 109.0, 108.9, 109.6]
+    closes = previous + session
+    highs = [close + 0.15 for close in closes]
+    lows = [close - 0.15 for close in closes]
+    # Previous candle touches the session VWAP area, latest candle
+    # reclaims its high in an already rising EMA regime.
+    lows[-2] = 108.55
+    highs[-2] = 109.15
+    highs[-1] = 109.8
+    ohlcv = _make_ohlcv(
+        closes,
+        start=datetime(2026, 1, 1, 15, 30),
+        delta=timedelta(minutes=15),
+        highs=highs,
+        lows=lows,
+    )
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
+@pytest.fixture
+def vwap_reversion_module():
+    return _load_strategy_module("vwap_mean_reversion.py")
+
+
+async def test_vwap_mean_reversion_long_below_lower_band(vwap_reversion_module) -> None:
+    strategy = _build(vwap_reversion_module)
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [92.0]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+
+
+@pytest.fixture
+def weinstein_module():
+    return _load_strategy_module("weinstein_stage2_filter.py")
+
+
+async def test_weinstein_stage2_long_on_rising_ma_breakout(weinstein_module) -> None:
+    strategy = _build(weinstein_module)
+    closes = [80.0 + i * 0.12 for i in range(171)]
+    closes += [100.0] * 29
+    closes += [103.5]
+    highs = [close + 0.25 for close in closes]
+    lows = [close - 0.25 for close in closes]
+    volumes = [1000.0] * 200 + [1500.0]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows, volumes=volumes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1d")
+
+    assert result.signal == "long"
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
 
 
 async def test_ma_short_on_bearish_cross(ma_module) -> None:
