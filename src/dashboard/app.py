@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Literal
 
 import streamlit as st
 from streamlit.navigation.page import StreamlitPage
@@ -67,7 +68,9 @@ from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
 
 SNAPSHOT_STALE_AFTER_HOURS = 6
-COMMAND_CENTER_MODE = "paper"
+COMMAND_CENTER_DEFAULT_MODE = "paper"
+COMMAND_CENTER_AGGREGATE_SCOPE = "Aggregate"
+DashboardMode = Literal["paper", "live"]
 ACTIONABLE_EVENT_TYPES = {
     ActivityEventType.CYCLE_ERRORED.value,
     ActivityEventType.NOTIFICATION_FAILED.value,
@@ -91,6 +94,7 @@ class CommandCenterStatus:
     actionable_events: int
     sub_account_count: int
     mode: str
+    scope: str
 
 
 def render_home() -> None:
@@ -104,7 +108,24 @@ def render_home() -> None:
     st.title(f"{APP_ICON} {APP_TITLE}")
     st.caption(APP_TAGLINE)
 
-    status = load_command_center_status()
+    mode: DashboardMode = st.radio(
+        "Command center mode",
+        options=("paper", "live"),
+        horizontal=True,
+        format_func=lambda value: value.capitalize(),
+    )
+    sub_account_ids = discover_command_center_sub_accounts(mode)
+    scope_options = (
+        [COMMAND_CENTER_AGGREGATE_SCOPE, *sub_account_ids]
+        if len(sub_account_ids) > 1
+        else sub_account_ids
+    )
+    scope = st.selectbox("Command center scope", options=scope_options, index=0)
+    status = load_command_center_status(
+        mode=mode,
+        scope=str(scope),
+        sub_account_ids=sub_account_ids,
+    )
     render_command_center_status(status)
 
     st.markdown("### Sections")
@@ -136,33 +157,41 @@ def render_home() -> None:
     )
 
 
-def load_command_center_status() -> CommandCenterStatus:
+def discover_command_center_sub_accounts(mode: DashboardMode) -> list[str]:
+    """Discover sub-account ids for the command-center controls."""
+    ids = trading_page.discover_sub_account_ids(get_settings().data_dir, mode)
+    return ids or [DEFAULT_SUB_ACCOUNT_ID]
+
+
+def load_command_center_status(
+    *,
+    mode: DashboardMode = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
+    sub_account_ids: list[str] | None = None,
+) -> CommandCenterStatus:
     """Load persisted state for the Home command-center read model."""
     events = ActivityLog().read_all()
-    ids = trading_page.discover_sub_account_ids(
-        get_settings().data_dir,
-        COMMAND_CENTER_MODE,
-    )
-    if not ids:
-        ids = [DEFAULT_SUB_ACCOUNT_ID]
+    ids = sub_account_ids or discover_command_center_sub_accounts(mode)
+    load_ids = ids if scope == COMMAND_CENTER_AGGREGATE_SCOPE else [scope]
 
     trades: list[TradeHistory] = []
     snapshots: list[AssetSnapshot] = []
-    for sub_account_id in ids:
+    for sub_account_id in load_ids:
         trade_tracker = TradeHistoryTracker(sub_account_id=sub_account_id)
         portfolio_tracker = PortfolioTracker(
             trade_tracker=trade_tracker,
             sub_account_id=sub_account_id,
         )
-        trades.extend(trade_tracker.load_trades(mode=COMMAND_CENTER_MODE))
-        snapshots.extend(portfolio_tracker.load_snapshots(COMMAND_CENTER_MODE))
+        trades.extend(trade_tracker.load_trades(mode=mode))
+        snapshots.extend(portfolio_tracker.load_snapshots(mode))
 
     return build_command_center_status(
         events=events,
         trades=trades,
         snapshots=snapshots,
         sub_account_count=len(ids),
-        mode=COMMAND_CENTER_MODE,
+        mode=mode,
+        scope=scope,
     )
 
 
@@ -173,6 +202,7 @@ def build_command_center_status(
     snapshots: list[AssetSnapshot],
     sub_account_count: int,
     mode: str,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
     now: datetime | None = None,
 ) -> CommandCenterStatus:
     """Build a compact operator-first status from persisted dashboard inputs."""
@@ -193,6 +223,7 @@ def build_command_center_status(
         actionable_events=count_actionable_events(events),
         sub_account_count=sub_account_count,
         mode=mode,
+        scope=scope,
     )
 
 
@@ -243,10 +274,11 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
     c3.metric("Open positions", status.open_positions)
     c4.metric("Snapshot", status.snapshot_freshness)
 
-    c5, c6, c7 = st.columns(3)
+    c5, c6, c7, c8 = st.columns(4)
     c5.metric("Mode", status.mode)
-    c6.metric("Sub-accounts", status.sub_account_count)
-    c7.metric("Actionable events", status.actionable_events)
+    c6.metric("Scope", status.scope)
+    c7.metric("Sub-accounts", status.sub_account_count)
+    c8.metric("Actionable events", status.actionable_events)
 
     notional = f"{float(status.estimated_open_notional):,.2f} USDT"
     started = (

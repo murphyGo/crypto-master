@@ -148,7 +148,17 @@ def test_app_home_renders_command_center() -> None:
     assert "Runtime safety" in metric_labels
     assert "Last cycle" in metric_labels
     assert "Open positions" in metric_labels
+    assert "Scope" in metric_labels
     assert "Actionable events" in metric_labels
+
+
+def test_app_home_renders_command_center_controls() -> None:
+    at = AppTest.from_file(APP_PATH).run(timeout=10)
+
+    radio_labels = [r.label for r in at.radio]
+    selectbox_labels = [s.label for s in at.selectbox]
+    assert "Command center mode" in radio_labels
+    assert "Command center scope" in selectbox_labels
 
 
 def test_app_home_no_pending_phase_labels() -> None:
@@ -226,6 +236,7 @@ def test_build_command_center_status_summarizes_inputs() -> None:
         snapshots=snapshots,
         sub_account_count=2,
         mode="paper",
+        scope="Aggregate",
         now=now,
     )
 
@@ -236,3 +247,4 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.snapshot_freshness == "fresh"
     assert status.actionable_events == 1
     assert status.sub_account_count == 2
+    assert status.scope == "Aggregate"
