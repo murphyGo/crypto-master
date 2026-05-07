@@ -15,6 +15,8 @@ from streamlit.testing.v1 import AppTest
 
 from src.dashboard.app import (
     build_command_center_status,
+    build_exposure_dataframe,
+    build_exposure_rows,
     count_actionable_events,
     estimate_open_notional,
     snapshot_freshness,
@@ -248,3 +250,45 @@ def test_build_command_center_status_summarizes_inputs() -> None:
     assert status.actionable_events == 1
     assert status.sub_account_count == 2
     assert status.scope == "Aggregate"
+    assert len(status.exposure_rows) == 1
+
+
+def test_build_exposure_rows_groups_duplicate_sub_account_exposure() -> None:
+    default_trade = make_trade(
+        trade_id="default-btc",
+        symbol="BTC/USDT",
+        entry_price="50000",
+        entry_quantity="0.1",
+        leverage=2,
+    )
+    experimental_trade = make_trade(
+        trade_id="experimental-btc",
+        symbol="BTC/USDT",
+        entry_price="51000",
+        entry_quantity="0.2",
+        leverage=5,
+    )
+
+    rows = build_exposure_rows(
+        [
+            ("default", default_trade),
+            ("experimental", experimental_trade),
+        ]
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.symbol == "BTC/USDT"
+    assert row.side == "long"
+    assert row.sub_accounts == ("default", "experimental")
+    assert row.open_count == 2
+    assert row.estimated_notional == Decimal("15200.0")
+    assert row.max_leverage == 5
+    assert row.duplicate_across_accounts is True
+
+
+def test_build_exposure_dataframe_empty_has_operator_columns() -> None:
+    df = build_exposure_dataframe([])
+
+    assert df.empty
+    assert "Duplicate Accounts" in df.columns

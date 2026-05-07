@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
+import pandas as pd
 import streamlit as st
 from streamlit.navigation.page import StreamlitPage
 
@@ -95,6 +96,24 @@ class CommandCenterStatus:
     sub_account_count: int
     mode: str
     scope: str
+    exposure_rows: list[CommandCenterExposureRow]
+
+
+@dataclass(frozen=True)
+class CommandCenterExposureRow:
+    """Grouped open exposure row for the Home command center."""
+
+    symbol: str
+    side: str
+    sub_accounts: tuple[str, ...]
+    open_count: int
+    estimated_notional: Decimal
+    max_leverage: int
+
+    @property
+    def duplicate_across_accounts(self) -> bool:
+        """Whether this exposure spans more than one sub-account."""
+        return len(self.sub_accounts) > 1
 
 
 def render_home() -> None:
@@ -175,6 +194,7 @@ def load_command_center_status(
     load_ids = ids if scope == COMMAND_CENTER_AGGREGATE_SCOPE else [scope]
 
     trades: list[TradeHistory] = []
+    scoped_trades: list[tuple[str, TradeHistory]] = []
     snapshots: list[AssetSnapshot] = []
     for sub_account_id in load_ids:
         trade_tracker = TradeHistoryTracker(sub_account_id=sub_account_id)
@@ -182,12 +202,15 @@ def load_command_center_status(
             trade_tracker=trade_tracker,
             sub_account_id=sub_account_id,
         )
-        trades.extend(trade_tracker.load_trades(mode=mode))
+        loaded_trades = trade_tracker.load_trades(mode=mode)
+        trades.extend(loaded_trades)
+        scoped_trades.extend((sub_account_id, trade) for trade in loaded_trades)
         snapshots.extend(portfolio_tracker.load_snapshots(mode))
 
     return build_command_center_status(
         events=events,
         trades=trades,
+        scoped_trades=scoped_trades,
         snapshots=snapshots,
         sub_account_count=len(ids),
         mode=mode,
@@ -202,6 +225,7 @@ def build_command_center_status(
     snapshots: list[AssetSnapshot],
     sub_account_count: int,
     mode: str,
+    scoped_trades: list[tuple[str, TradeHistory]] | None = None,
     scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
     now: datetime | None = None,
 ) -> CommandCenterStatus:
@@ -211,6 +235,7 @@ def build_command_center_status(
     safety = compute_runtime_safety_score(inputs_from_recent_activity_events(events))
     latest_snapshot_at = latest_snapshot_timestamp(snapshots)
     open_trades = [trade for trade in trades if trade.status == "open"]
+    scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
 
     return CommandCenterStatus(
         safety=safety,
@@ -224,6 +249,7 @@ def build_command_center_status(
         sub_account_count=sub_account_count,
         mode=mode,
         scope=scope,
+        exposure_rows=build_exposure_rows(scoped),
     )
 
 
@@ -258,6 +284,36 @@ def estimate_open_notional(trades: list[TradeHistory]) -> Decimal:
             continue
         total += trade.entry_price * trade.entry_quantity
     return total
+
+
+def build_exposure_rows(
+    scoped_trades: list[tuple[str, TradeHistory]],
+) -> list[CommandCenterExposureRow]:
+    """Group open trades by symbol/side while preserving sub-account source."""
+    grouped: dict[tuple[str, str], list[tuple[str, TradeHistory]]] = {}
+    for sub_account_id, trade in scoped_trades:
+        if trade.status != "open":
+            continue
+        key = (trade.symbol, trade.side)
+        grouped.setdefault(key, []).append((sub_account_id, trade))
+
+    rows: list[CommandCenterExposureRow] = []
+    for (symbol, side), entries in sorted(grouped.items()):
+        sub_accounts = tuple(sorted({sub_account_id for sub_account_id, _ in entries}))
+        rows.append(
+            CommandCenterExposureRow(
+                symbol=symbol,
+                side=side,
+                sub_accounts=sub_accounts,
+                open_count=len(entries),
+                estimated_notional=sum(
+                    (trade.entry_price * trade.entry_quantity for _, trade in entries),
+                    Decimal("0"),
+                ),
+                max_leverage=max(trade.leverage for _, trade in entries),
+            )
+        )
+    return rows
 
 
 def count_actionable_events(events: list[ActivityEvent]) -> int:
@@ -301,6 +357,43 @@ def render_command_center_status(status: CommandCenterStatus) -> None:
         )
     )
     st.caption("Safety factors: " + "; ".join(status.safety.factors))
+
+    st.markdown("#### Open Exposure")
+    exposure_df = build_exposure_dataframe(status.exposure_rows)
+    if exposure_df.empty:
+        st.info("No open exposure in the selected command-center scope.")
+    else:
+        st.dataframe(exposure_df, hide_index=True, use_container_width=True)
+
+
+def build_exposure_dataframe(rows: list[CommandCenterExposureRow]) -> pd.DataFrame:
+    """Build the Home open-exposure table."""
+    columns = [
+        "Symbol",
+        "Side",
+        "Sub-accounts",
+        "Open Count",
+        "Estimated Notional",
+        "Max Leverage",
+        "Duplicate Accounts",
+    ]
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "Symbol": row.symbol,
+                "Side": row.side.upper(),
+                "Sub-accounts": ", ".join(row.sub_accounts),
+                "Open Count": row.open_count,
+                "Estimated Notional": float(row.estimated_notional),
+                "Max Leverage": f"{row.max_leverage}x",
+                "Duplicate Accounts": row.duplicate_across_accounts,
+            }
+            for row in rows
+        ],
+        columns=columns,
+    )
 
 
 def render_sidebar() -> None:
