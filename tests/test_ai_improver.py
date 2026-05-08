@@ -529,6 +529,25 @@ class TestPersistence:
         assert "rsi_divergence_v2" in content
 
     @pytest.mark.asyncio
+    async def test_save_uses_atomic_write(self, tmp_path: Path) -> None:
+        """`_save` must route through ``atomic_write_text`` (CH-02).
+
+        A torn write would otherwise leave a half-formed candidate that
+        the loader could either reject as invalid or silently parse as a
+        partial strategy on the next pass.
+        """
+        from unittest.mock import patch
+
+        improver, _ = make_improver(tmp_path, GOOD_RESPONSE)
+        with patch("src.ai.improver.atomic_write_text") as mock_atomic:
+            await improver.generate_idea()
+            assert mock_atomic.called
+            call_args = mock_atomic.call_args
+            assert isinstance(call_args[0][0], Path)
+            assert call_args[0][0].suffix == ".md"
+            assert "name:" in call_args[0][1] or "rsi_divergence_v2" in call_args[0][1]
+
+    @pytest.mark.asyncio
     async def test_filename_slug_strips_unsafe_chars(self, tmp_path: Path) -> None:
         """Names with spaces / slashes become safe filename stems."""
         response = (

@@ -730,6 +730,107 @@ def test_rewrite_frontmatter_status_preserves_other_fields(tmp_path: Path) -> No
     assert "Body here." in rewritten
 
 
+def test_rewrite_py_status_to_active_keeps_file_parsable() -> None:
+    """`.py` promotion must not inject markdown frontmatter (CH-02).
+
+    Before consistency-hardening CH-02, ``_promote_file`` ran every file
+    through ``_rewrite_frontmatter_status``. For a ``.py`` candidate the
+    helper prepended a YAML ``---\\n status: active\\n---`` block, which
+    made the file non-parseable Python and broke the loader.
+    """
+    import ast
+
+    original = textwrap.dedent('''\
+        """Code strategy fixture."""
+
+        TECHNIQUE_INFO = {
+            "name": "cand_code",
+            "version": "0.1.0",
+            "status": "experimental",
+        }
+        ''')
+
+    rewritten = FeedbackLoop._rewrite_py_status_to_active(original)
+
+    # Still valid Python.
+    tree = ast.parse(rewritten)
+    # status flipped.
+    assigns = [n for n in tree.body if isinstance(n, ast.Assign)]
+    info_dict = next(
+        n.value
+        for n in assigns
+        if any(isinstance(t, ast.Name) and t.id == "TECHNIQUE_INFO" for t in n.targets)
+    )
+    assert isinstance(info_dict, ast.Dict)
+    by_key = {
+        k.value: v.value
+        for k, v in zip(info_dict.keys, info_dict.values, strict=True)
+        if isinstance(k, ast.Constant) and isinstance(v, ast.Constant)
+    }
+    assert by_key["status"] == "active"
+    # Other fields untouched.
+    assert by_key["name"] == "cand_code"
+    assert by_key["version"] == "0.1.0"
+    # Module docstring preserved.
+    assert '"""Code strategy fixture."""' in rewritten
+
+
+def test_rewrite_py_status_idempotent_when_already_active() -> None:
+    """Re-promoting an already-active .py is a no-op."""
+    original = textwrap.dedent("""\
+        TECHNIQUE_INFO = {
+            "name": "cand_code",
+            "status": "active",
+        }
+        """)
+    assert FeedbackLoop._rewrite_py_status_to_active(original) == original
+
+
+def test_rewrite_py_status_raises_on_invalid_python() -> None:
+    """Surface syntax problems at promotion time, not at next runtime load."""
+    with pytest.raises(FeedbackLoopError, match="invalid Python syntax"):
+        FeedbackLoop._rewrite_py_status_to_active("def broken(:\n")
+
+
+@pytest.mark.asyncio
+async def test_approve_promotes_py_candidate_without_frontmatter_injection(
+    tmp_path: Path,
+) -> None:
+    """End-to-end: approving a .py candidate yields a loadable .py file (CH-02)."""
+    import ast
+
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+    py_path = write_experimental_py(loop.experimental_dir, name="cand_code_promo")
+
+    # Re-point the improver to return the .py candidate instead of the .md one.
+    loop.improver.suggest_improvement.return_value = make_generated(py_path)
+    loop.improver.generate_idea.return_value = make_generated(py_path)
+    loop.improver.generate_from_user_idea.return_value = make_generated(py_path)
+
+    record = await loop.improve_existing(
+        technique=sample_technique_info(),
+        original_source="original",
+        performance=sample_performance(),
+        records=[],
+        ohlcv=[],
+        symbol="BTC/USDT",
+    )
+    assert record.status == LoopStatus.AWAITING_APPROVAL.value
+
+    promoted = loop.approve(record.candidate_id, approver="alice")
+    assert promoted.status == LoopStatus.PROMOTED.value
+
+    target = loop.active_dir / py_path.name
+    assert target.exists()
+    body = target.read_text(encoding="utf-8")
+    # No YAML frontmatter prepended.
+    assert not body.lstrip().startswith("---")
+    # File is still valid Python.
+    ast.parse(body)
+    # Status flipped to active.
+    assert '"status": "active"' in body
+
+
 @pytest.mark.asyncio
 async def test_approve_refuses_to_overwrite_existing_active(
     tmp_path: Path,

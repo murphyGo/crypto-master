@@ -691,9 +691,14 @@ class FeedbackLoop:
     def _promote_file(self, source_path: Path) -> Path:
         """Move an experimental file to ``active_dir`` with status flipped.
 
-        Re-reads the file, rewrites the frontmatter so ``status`` is
-        ``active`` and ``updated_at`` reflects the promotion time, then
-        writes to ``active_dir / filename`` and unlinks the source.
+        Re-reads the file, rewrites it so ``status`` becomes ``active``
+        — frontmatter for ``.md`` techniques, in-source ``TECHNIQUE_INFO``
+        literal for ``.py`` techniques — then writes to
+        ``active_dir / filename`` atomically and unlinks the source. The
+        ``.py`` path used to call the markdown rewriter and prepend a
+        YAML frontmatter block, which made the file unparsable as Python
+        and broke load-time strategy registration (consistency-hardening
+        CH-02).
 
         Returns:
             The new path under ``active_dir``.
@@ -704,7 +709,11 @@ class FeedbackLoop:
             )
 
         original = source_path.read_text(encoding="utf-8")
-        rewritten = self._rewrite_frontmatter_status(original)
+        suffix = source_path.suffix.lower()
+        if suffix == ".py":
+            rewritten = self._rewrite_py_status_to_active(original)
+        else:
+            rewritten = self._rewrite_frontmatter_status(original)
 
         self.active_dir.mkdir(parents=True, exist_ok=True)
         target = self.active_dir / source_path.name
@@ -714,9 +723,94 @@ class FeedbackLoop:
                 f"{target}; rename and retry."
             )
 
-        target.write_text(rewritten, encoding="utf-8")
+        # Atomic write protects against half-written promotions on crash —
+        # otherwise a torn `.py` file would either fail `ast.parse` or, worse,
+        # parse as a half-strategy at the next loader pass (CH-02).
+        atomic_write_text(target, rewritten)
         source_path.unlink()
         return target
+
+    @staticmethod
+    def _rewrite_py_status_to_active(content: str) -> str:
+        """Flip ``TECHNIQUE_INFO["status"]`` to ``"active"`` in a .py file.
+
+        Walks the AST to locate the ``TECHNIQUE_INFO = {...}`` assignment
+        and replaces only the ``status`` value's source span. Preserves
+        original formatting and comments outside that span. Raises
+        :class:`FeedbackLoopError` if the file cannot be parsed or does
+        not declare ``TECHNIQUE_INFO`` as a top-level dict literal — the
+        loader rejects those files anyway, so failing here makes the
+        problem visible at promotion time instead of at the next runtime
+        load.
+        """
+        import ast
+
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as e:
+            raise FeedbackLoopError(
+                f"Cannot promote .py technique: invalid Python syntax: {e}"
+            ) from e
+
+        status_node: ast.Constant | None = None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            if not any(t.id == "TECHNIQUE_INFO" for t in targets):
+                continue
+            if not isinstance(node.value, ast.Dict):
+                raise FeedbackLoopError(
+                    "Cannot promote .py technique: TECHNIQUE_INFO must be a "
+                    "dict literal"
+                )
+            for key_node, value_node in zip(
+                node.value.keys, node.value.values, strict=True
+            ):
+                if (
+                    isinstance(key_node, ast.Constant)
+                    and key_node.value == "status"
+                    and isinstance(value_node, ast.Constant)
+                    and isinstance(value_node.value, str)
+                ):
+                    status_node = value_node
+                    break
+            break
+
+        if status_node is None:
+            # No status key (or already non-string) — leave the file as-is and
+            # let the loader's TechniqueInfo validator surface the issue. The
+            # source/target rename is the load-bearing part of promotion.
+            return content
+
+        current_value = status_node.value
+        assert isinstance(current_value, str)
+        if current_value == "active":
+            return content
+
+        new_source = ast.get_source_segment(content, status_node)
+        if new_source is None:
+            raise FeedbackLoopError(
+                "Cannot promote .py technique: unable to locate the "
+                "TECHNIQUE_INFO['status'] source span"
+            )
+
+        # ``ast.get_source_segment`` returns the literal incl. quotes, e.g.
+        # ``"experimental"``; preserve the original quote style by replacing
+        # only the inside.
+        replacement = new_source.replace(current_value, "active", 1)
+        lines = content.splitlines(keepends=True)
+        # ``lineno``/``col_offset`` are 1-/0-indexed respectively.
+        line_idx = status_node.lineno - 1
+        line = lines[line_idx]
+        col = status_node.col_offset
+        end_col = (
+            status_node.end_col_offset
+            if status_node.end_col_offset is not None
+            else col + len(new_source)
+        )
+        lines[line_idx] = line[:col] + replacement + line[end_col:]
+        return "".join(lines)
 
     @staticmethod
     def _rewrite_frontmatter_status(content: str) -> str:

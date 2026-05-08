@@ -30,6 +30,7 @@ from src.strategy.base import StrategyValidationError, TechniqueInfo
 from src.strategy.loader import validate_python_strategy_source
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.strategy.trade_autopsy import TradeAutopsy
+from src.utils.io import atomic_write_text
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.ai.improver")
@@ -527,10 +528,16 @@ class StrategyImprover:
             )
 
     def _save(self, generated: GeneratedTechnique) -> Path:
-        """Write a generated technique to disk."""
+        """Write a generated technique to disk atomically.
+
+        Routed through :func:`src.utils.io.atomic_write_text` so a crash
+        mid-write cannot leave a torn ``.py``/``.md`` candidate that the
+        loader would later either reject as invalid or — worse — parse
+        as a half-strategy (consistency-hardening CH-02).
+        """
         self.experimental_dir.mkdir(parents=True, exist_ok=True)
         path = self.experimental_dir / generated.suggested_filename
-        path.write_text(generated.content, encoding="utf-8")
+        atomic_write_text(path, generated.content)
         return path
 
     # ------------------------------------------------------------------
