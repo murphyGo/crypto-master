@@ -34,6 +34,9 @@ def _make_order(
     side: Literal["buy", "sell"] = "buy",
     filled_qty: Decimal = Decimal("0.1"),
     order_id: str = "live-order-1",
+    average_price: Decimal | None = None,
+    fee: Decimal | None = None,
+    fee_currency: str | None = None,
 ) -> Order:
     """Build an Order stub with sensible defaults."""
     return Order(
@@ -43,6 +46,9 @@ def _make_order(
         type="market",
         quantity=Decimal("0.1"),
         filled_quantity=filled_qty,
+        average_price=average_price,
+        fee=fee,
+        fee_currency=fee_currency,
         status=status,
         created_at=datetime.now(),
     )
@@ -480,6 +486,85 @@ class TestLiveClosePosition:
 
         assert trader.get_tracked_position(trade.id) is not None
         assert trader.get_trade(trade.id).status == "open"
+
+    @pytest.mark.asyncio
+    async def test_close_records_actual_fill_price_and_fees(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """LiveTrader records the exchange's reported fill price and fees (CH-06).
+
+        Before consistency-hardening CH-06, ``_execute_close`` used the
+        caller-passed ``exit_price`` as the recorded close price and
+        never threaded ``order.fee`` to the tracker, so realised P&L on
+        disk diverged from what actually executed and live vs. paper
+        P&L could not be compared.
+        """
+        # Open with an entry-side fill that reports its own average and fee.
+        mock_exchange.create_order.return_value = _make_order(
+            side="buy",
+            average_price=Decimal("50050"),
+            fee=Decimal("2.5"),
+            fee_currency="USDT",
+            order_id="open-attr",
+        )
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+        # Entry price recorded from the exchange average, not
+        # ``long_position.entry_price``.
+        assert trader.get_trade(trade.id).entry_price == Decimal("50050")
+
+        # Close fills above the operator's expected exit price; the
+        # exchange's average wins and entry+exit fees aggregate.
+        mock_exchange.create_order.return_value = _make_order(
+            side="sell",
+            average_price=Decimal("51075"),
+            fee=Decimal("2.55"),
+            fee_currency="USDT",
+            order_id="close-attr",
+        )
+        closed = await trader.close_position(
+            trade.id,
+            exit_price=Decimal("51000"),  # operator-expected; exchange wins
+            reason="manual",
+        )
+
+        assert closed is not None
+        assert closed.exit_price == Decimal("51075")
+        # entry_fee 2.5 + exit_fee 2.55 == 5.05
+        assert closed.fees == Decimal("5.05")
+
+    @pytest.mark.asyncio
+    async def test_close_falls_back_to_caller_price_when_exchange_omits_average(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """When the adapter doesn't surface ``average_price``, fall back gracefully."""
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+
+        # Adapter that never surfaces average / fee (legacy behaviour).
+        mock_exchange.create_order.return_value = _make_order(
+            side="sell", order_id="close-legacy"
+        )
+        closed = await trader.close_position(
+            trade.id, exit_price=Decimal("51000"), reason="manual"
+        )
+        assert closed is not None
+        assert closed.exit_price == Decimal("51000")
+        assert closed.fees == Decimal("0")
 
 
 # =============================================================================

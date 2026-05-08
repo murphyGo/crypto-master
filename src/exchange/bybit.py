@@ -28,6 +28,8 @@ from src.exchange.base import (
     ExchangeAPIError,
     ExchangeConnectionError,
     ExchangeError,
+    _decimal_or_none,
+    _extract_ccxt_fee,
 )
 from src.exchange.factory import register_exchange
 from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
@@ -424,16 +426,19 @@ class BybitExchange(BaseExchange):
         Returns:
             Order model instance
         """
+        average_price = _decimal_or_none(raw_order.get("average"))
+        fee_amount, fee_currency = _extract_ccxt_fee(raw_order)
         return Order(
             id=str(raw_order["id"]),
             symbol=raw_order["symbol"],
             side=raw_order["side"],
             type=raw_order["type"],
-            price=(
-                Decimal(str(raw_order["price"])) if raw_order.get("price") else None
-            ),
+            price=_decimal_or_none(raw_order.get("price")),
             quantity=Decimal(str(raw_order["amount"])),
             filled_quantity=Decimal(str(raw_order.get("filled", 0) or 0)),
+            average_price=average_price,
+            fee=fee_amount,
+            fee_currency=fee_currency,
             status=self._map_order_status(raw_order["status"]),
             created_at=from_unix_ms(raw_order["timestamp"]),
             updated_at=(

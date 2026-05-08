@@ -188,6 +188,14 @@ class LiveTrader:
         )
         # trade_id -> Position (so monitor_positions can check SL/TP)
         self._open_positions: dict[str, Position] = {}
+        # trade_id -> entry-side fee actually paid on the open fill.
+        # The trade record's ``fees`` field is set in one shot at close
+        # time (``TradeHistoryTracker.close_trade`` accumulates), so we
+        # park the entry fee here until then. Without this map the open
+        # fee was previously dropped and live trade ``fees`` always read
+        # zero, which silently overstated realised P&L on disk
+        # (consistency-hardening CH-06).
+        self._entry_fees: dict[str, Decimal] = {}
 
         logger.info(f"LiveTrader initialized on exchange {exchange.name} (mainnet)")
 
@@ -235,11 +243,17 @@ class LiveTrader:
 
         order = await self._submit_order(order_request, action="open")
         filled_qty = order.filled_quantity
+        # Prefer the exchange's reported fill economics over the
+        # caller-side ``position.entry_price`` so realised P&L matches
+        # what actually executed (CH-06). Falls back to the request
+        # price for adapters that don't yet surface ``average_price``.
+        entry_fill_price = order.average_price or position.entry_price
+        entry_fee = order.fee or Decimal("0")
 
         trade = self._trade_tracker.open_trade(
             symbol=position.symbol,
             side=position.side,
-            entry_price=position.entry_price,
+            entry_price=entry_fill_price,
             entry_quantity=filled_qty,
             mode="live",
             leverage=position.leverage,
@@ -248,12 +262,15 @@ class LiveTrader:
         )
 
         self._open_positions[trade.id] = position.model_copy(
-            update={"quantity": filled_qty}
+            update={"quantity": filled_qty, "entry_price": entry_fill_price}
         )
+        self._entry_fees[trade.id] = entry_fee
 
         logger.info(
             f"Opened live position: {position.side} {position.symbol} "
-            f"@ {position.entry_price}, qty={filled_qty}, order_id={order.id}"
+            f"@ {entry_fill_price}, qty={filled_qty}, "
+            f"entry_fee={entry_fee} {order.fee_currency or ''}, "
+            f"order_id={order.id}"
         )
         return trade
 
@@ -426,20 +443,31 @@ class LiveTrader:
 
         order = await self._submit_order(order_request, action="close")
 
-        actual_exit_price = exit_price or position.entry_price
+        # Prefer the exchange's reported fill price over the caller's
+        # expected ``exit_price`` so realised P&L matches what actually
+        # executed (CH-06). The caller-side price is still used as a
+        # last-resort fallback for adapters that haven't been updated
+        # to surface ``average_price`` yet.
+        actual_exit_price = order.average_price or exit_price or position.entry_price
+
+        entry_fee = self._entry_fees.pop(trade_id, Decimal("0"))
+        exit_fee = order.fee or Decimal("0")
+        total_fees = entry_fee + exit_fee
 
         closed_trade = self._trade_tracker.close_trade(
             trade_id=trade_id,
             exit_price=actual_exit_price,
             close_reason=reason,
             exit_order_id=order.id,
+            fees=total_fees,
         )
 
         self._open_positions.pop(trade_id, None)
 
         logger.info(
             f"Closed live position {trade_id}: {reason}, "
-            f"exit_price={actual_exit_price}, order_id={order.id}"
+            f"exit_price={actual_exit_price}, order_id={order.id}, "
+            f"fees=entry({entry_fee})+exit({exit_fee})={total_fees}"
         )
         return closed_trade
 

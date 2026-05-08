@@ -835,6 +835,65 @@ class TestBinanceExchangeOrderStatusMapping:
         assert exchange._map_order_status("unknown") == OrderStatus.PENDING
 
 
+class TestBinanceMapOrderFillAttribution:
+    """ccxt fill economics flow into the Order model (CH-06)."""
+
+    def _raw(self, **overrides: object) -> dict[str, object]:
+        base = {
+            "id": "abc",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "type": "market",
+            "price": None,
+            "amount": "0.1",
+            "filled": "0.1",
+            "status": "closed",
+            "timestamp": 1_700_000_000_000,
+            "lastTradeTimestamp": 1_700_000_000_000,
+        }
+        base.update(overrides)
+        return base
+
+    def test_map_order_extracts_average_and_fee(
+        self, binance_config: BinanceConfig
+    ) -> None:
+        exchange = BinanceExchange(config=binance_config, testnet=True)
+        raw = self._raw(
+            average="50050.5",
+            fee={"cost": "2.5", "currency": "USDT"},
+        )
+        order = exchange._map_order(raw)
+        assert order.average_price == Decimal("50050.5")
+        assert order.fee == Decimal("2.5")
+        assert order.fee_currency == "USDT"
+
+    def test_map_order_sums_per_fill_fees_list(
+        self, binance_config: BinanceConfig
+    ) -> None:
+        exchange = BinanceExchange(config=binance_config, testnet=True)
+        raw = self._raw(
+            average="50050.5",
+            fees=[
+                {"cost": "1.0", "currency": "USDT"},
+                {"cost": "1.5", "currency": "USDT"},
+            ],
+        )
+        order = exchange._map_order(raw)
+        assert order.fee == Decimal("2.5")
+        assert order.fee_currency == "USDT"
+
+    def test_map_order_returns_none_when_average_and_fee_missing(
+        self, binance_config: BinanceConfig
+    ) -> None:
+        """Adapters that don't surface fills downgrade gracefully."""
+        exchange = BinanceExchange(config=binance_config, testnet=True)
+        raw = self._raw()
+        order = exchange._map_order(raw)
+        assert order.average_price is None
+        assert order.fee is None
+        assert order.fee_currency is None
+
+
 class TestBinanceExchangeContextManager:
     """Tests for async context manager."""
 

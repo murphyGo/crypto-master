@@ -108,6 +108,12 @@ class Order(BaseModel):
     """An order that has been submitted to an exchange.
 
     Tracks the full lifecycle of an order from creation to completion.
+
+    ``average_price`` and ``fee`` carry the actual fill economics from
+    the exchange so :class:`~src.trading.live.LiveTrader` can attribute
+    realised P&L to what really happened — the request-side ``price``
+    is None for market orders and ``filled_quantity`` alone cannot tell
+    a caller what they paid (consistency-hardening CH-06).
     """
 
     id: str
@@ -117,6 +123,9 @@ class Order(BaseModel):
     price: Decimal | None = None
     quantity: Decimal = Field(gt=0)
     filled_quantity: Decimal = Field(default=Decimal("0"), ge=0)
+    average_price: Decimal | None = Field(default=None, gt=0)
+    fee: Decimal | None = Field(default=None, ge=0)
+    fee_currency: str | None = None
     status: OrderStatus
     created_at: datetime
     updated_at: datetime | None = None
