@@ -196,6 +196,7 @@ class LiveTrader:
         # zero, which silently overstated realised P&L on disk
         # (consistency-hardening CH-06).
         self._entry_fees: dict[str, Decimal] = {}
+        self._rehydrate_open_positions()
 
         logger.info(f"LiveTrader initialized on exchange {exchange.name} (mainnet)")
 
@@ -259,6 +260,9 @@ class LiveTrader:
             leverage=position.leverage,
             entry_order_id=order.id,
             performance_record_id=performance_record_id,
+            fees=entry_fee,
+            stop_loss=position.stop_loss,
+            take_profit=position.take_profit,
         )
 
         self._open_positions[trade.id] = position.model_copy(
@@ -450,16 +454,18 @@ class LiveTrader:
         # to surface ``average_price`` yet.
         actual_exit_price = order.average_price or exit_price or position.entry_price
 
-        entry_fee = self._entry_fees.pop(trade_id, Decimal("0"))
         exit_fee = order.fee or Decimal("0")
-        total_fees = entry_fee + exit_fee
+        persisted_trade = self._trade_tracker.get_trade(trade_id)
+        persisted_fees = persisted_trade.fees if persisted_trade is not None else None
+        entry_fee = self._entry_fees.pop(trade_id, Decimal("0"))
+        fees_to_add = exit_fee if persisted_fees else entry_fee + exit_fee
 
         closed_trade = self._trade_tracker.close_trade(
             trade_id=trade_id,
             exit_price=actual_exit_price,
             close_reason=reason,
             exit_order_id=order.id,
-            fees=total_fees,
+            fees=fees_to_add,
         )
 
         self._open_positions.pop(trade_id, None)
@@ -467,9 +473,36 @@ class LiveTrader:
         logger.info(
             f"Closed live position {trade_id}: {reason}, "
             f"exit_price={actual_exit_price}, order_id={order.id}, "
-            f"fees=entry({entry_fee})+exit({exit_fee})={total_fees}"
+            f"fees=entry({persisted_fees if persisted_fees else entry_fee})+"
+            f"exit({exit_fee})"
         )
         return closed_trade
+
+    def _rehydrate_open_positions(self) -> None:
+        """Rebuild monitorable live positions from persisted open trades.
+
+        Legacy open trades may not carry SL/TP bounds. Those remain visible
+        through ``get_open_trades`` but are intentionally left out of
+        ``_open_positions`` so the runtime orphan guard can require operator
+        reconciliation instead of pretending they are safe to monitor.
+        """
+        for trade in self._trade_tracker.get_open_trades(mode="live"):
+            if trade.stop_loss is None and trade.take_profit is None:
+                logger.warning(
+                    "Open live trade %s has no persisted SL/TP bounds; "
+                    "operator reconciliation required before monitoring",
+                    trade.id,
+                )
+                continue
+            self._open_positions[trade.id] = Position(
+                symbol=trade.symbol,
+                side=trade.side,
+                entry_price=trade.entry_price,
+                quantity=trade.entry_quantity,
+                leverage=trade.leverage,
+                stop_loss=trade.stop_loss,
+                take_profit=trade.take_profit,
+            )
 
     async def _submit_order(
         self,
@@ -566,3 +599,7 @@ class LiveTrader:
             or None if the trade is not currently tracked.
         """
         return self._open_positions.get(trade_id)
+
+    def get_open_position(self, trade_id: str) -> Position | None:
+        """Return the monitorable in-memory position for a live trade."""
+        return self.get_tracked_position(trade_id)

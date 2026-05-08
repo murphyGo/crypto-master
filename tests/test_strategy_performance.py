@@ -1487,6 +1487,9 @@ class TestTradeHistoryTracker:
             entry_price=Decimal("3000"),
             entry_quantity=Decimal("1.0"),
             mode="paper",
+            fees=Decimal("0.3"),
+            stop_loss=Decimal("3100"),
+            take_profit=Decimal("2800"),
         )
 
         # Close one trade
@@ -1496,6 +1499,9 @@ class TestTradeHistoryTracker:
 
         assert len(open_trades) == 1
         assert open_trades[0].id == trade2.id
+        assert open_trades[0].fees == Decimal("0.3")
+        assert open_trades[0].stop_loss == Decimal("3100")
+        assert open_trades[0].take_profit == Decimal("2800")
 
     def test_get_trade_by_id(self, trade_tracker: TradeHistoryTracker) -> None:
         """Test getting trade by ID."""

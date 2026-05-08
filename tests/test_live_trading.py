@@ -185,6 +185,8 @@ class TestLiveOpenPosition:
         assert trade.side == "long"
         assert trade.status == "open"
         assert trade.entry_order_id == "live-order-1"
+        assert trade.stop_loss == Decimal("49000")
+        assert trade.take_profit == Decimal("52000")
 
         callback.assert_awaited_once_with(long_position, "open")
 
@@ -518,7 +520,9 @@ class TestLiveClosePosition:
         trade = await trader.open_position(long_position)
         # Entry price recorded from the exchange average, not
         # ``long_position.entry_price``.
-        assert trader.get_trade(trade.id).entry_price == Decimal("50050")
+        persisted_open = trader.get_trade(trade.id)
+        assert persisted_open.entry_price == Decimal("50050")
+        assert persisted_open.fees == Decimal("2.5")
 
         # Close fills above the operator's expected exit price; the
         # exchange's average wins and entry+exit fees aggregate.
@@ -539,6 +543,82 @@ class TestLiveClosePosition:
         assert closed.exit_price == Decimal("51075")
         # entry_fee 2.5 + exit_fee 2.55 == 5.05
         assert closed.fees == Decimal("5.05")
+
+    @pytest.mark.asyncio
+    async def test_restart_rehydrates_open_live_position_for_monitoring(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """Persisted SL/TP lets a restarted LiveTrader keep monitoring (CH-07)."""
+        first = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await first.open_position(long_position)
+
+        restarted = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        rehydrated = restarted.get_open_position(trade.id)
+        assert rehydrated is not None
+        assert rehydrated.symbol == long_position.symbol
+        assert rehydrated.side == long_position.side
+        assert rehydrated.entry_price == long_position.entry_price
+        assert rehydrated.quantity == long_position.quantity
+        assert rehydrated.stop_loss == long_position.stop_loss
+        assert rehydrated.take_profit == long_position.take_profit
+
+        mock_exchange.get_ticker.return_value = Ticker(
+            symbol="BTC/USDT",
+            price=Decimal("48500"),
+            timestamp=datetime.now(),
+        )
+        mock_exchange.create_order.return_value = _make_order(
+            side="sell", order_id="restart-sl"
+        )
+
+        closed = await restarted.monitor_positions()
+        assert len(closed) == 1
+        assert closed[0].id == trade.id
+        assert closed[0].close_reason == "stop_loss"
+
+    @pytest.mark.asyncio
+    async def test_restart_keeps_legacy_open_trade_orphaned_without_bounds(
+        self,
+        mock_exchange: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Legacy open live trades without SL/TP are visible but not monitorable."""
+        from src.strategy.performance import TradeHistoryTracker
+
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        trade = tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="live",
+            leverage=10,
+        )
+
+        restarted = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        assert restarted.get_open_trades()[0].id == trade.id
+        assert restarted.get_open_position(trade.id) is None
+        assert restarted.check_exit_conditions(trade.id, Decimal("48000")) == (
+            False,
+            None,
+        )
 
     @pytest.mark.asyncio
     async def test_close_falls_back_to_caller_price_when_exchange_omits_average(

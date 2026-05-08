@@ -811,6 +811,10 @@ class TradeHistory(BaseModel):
     pnl: Decimal | None = None
     pnl_percent: float | None = None
 
+    # Risk bounds captured when a runtime-managed position is opened.
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+
     # Status
     status: Literal["open", "closed", "cancelled"] = "open"
     close_reason: str | None = None  # "take_profit", "stop_loss", "manual"
@@ -825,7 +829,14 @@ class TradeHistory(BaseModel):
             return v
         return Decimal(str(v))
 
-    @field_validator("exit_price", "exit_quantity", "pnl", mode="before")
+    @field_validator(
+        "exit_price",
+        "exit_quantity",
+        "pnl",
+        "stop_loss",
+        "take_profit",
+        mode="before",
+    )
     @classmethod
     def convert_exit_fields_to_decimal(
         cls, v: str | int | float | Decimal | None
@@ -960,6 +971,9 @@ class TradeHistoryTracker:
         entry_order_id: str | None = None,
         performance_record_id: str | None = None,
         sub_account_id: str | None = None,
+        fees: Decimal = Decimal("0"),
+        stop_loss: Decimal | None = None,
+        take_profit: Decimal | None = None,
     ) -> TradeHistory:
         """Open a new trade.
 
@@ -983,9 +997,12 @@ class TradeHistoryTracker:
             entry_price=entry_price,
             entry_quantity=entry_quantity,
             leverage=leverage,
+            fees=fees,
             entry_order_id=entry_order_id,
             performance_record_id=performance_record_id,
             sub_account_id=sub_account_id or self.sub_account_id,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
             status="open",
         )
 
@@ -1131,6 +1148,8 @@ class TradeHistoryTracker:
             "exit_quantity",
             "fees",
             "pnl",
+            "stop_loss",
+            "take_profit",
         ]
         for key in decimal_fields:
             if data[key] is not None:

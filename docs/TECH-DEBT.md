@@ -41,36 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-053: Persisted open-position hydration after runtime restart
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-05-08 |
-| **Phase** | Review follow-up |
-| **Component** | trading-core / sub-account-capital-segmentation |
-
-**Description:**
-PaperTrader and LiveTrader keep SL/TP position state in memory while trade
-history persists open trades. The runtime now surfaces orphaned persisted open
-trades as monitor errors instead of silently skipping them, but it does not yet
-hydrate full position state after restart.
-
-**Impact:**
-After a process restart, persisted open trades require operator reconciliation
-before SL/TP monitoring can close them safely.
-
-**Suggested Resolution:**
-Persist or reconstruct `OpenPosition` / live `Position` state at startup,
-including stop loss, take profit, margin, quote currency, and fee context. In
-live mode, reconcile persisted trades against exchange-side open position/order
-state before enabling monitoring.
-
-**Related:**
-- `src/runtime/engine.py`
-- `src/trading/paper.py`
-- `src/trading/live.py`
-
 ### DEBT-054: Account-scoped exchange router for sub-account runtime
 
 | Field | Value |
@@ -115,6 +85,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-053: Persisted open-position hydration after runtime restart ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-08 |
+| **Resolved** | 2026-05-09 |
+| **Resolution** | CH-07 extended `TradeHistory` with optional `stop_loss` / `take_profit`, persisted live entry fees and risk bounds at open time, and added `LiveTrader` startup rehydration for persisted open live trades that include those bounds. `LiveTrader.get_open_position()` now exposes monitorable in-memory state to the runtime orphan guard. Historical open live trades without persisted SL/TP remain visible but intentionally non-monitorable, requiring operator reconciliation instead of unsafe inferred bounds. |
 
 ### DEBT-014: `loop.propose_new` called without `param_grid` — sensitivity gate SKIPPED ✅
 
