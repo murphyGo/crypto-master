@@ -32,7 +32,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from email.message import EmailMessage
 from enum import Enum
@@ -698,6 +698,9 @@ class NotificationDispatcher:
         self,
         notifiers: Sequence[Notifier],
         min_score: float = 0.0,
+        on_notifier_failure: (
+            Callable[[str, Notification, BaseException], None] | None
+        ) = None,
     ) -> None:
         """Initialize the dispatcher.
 
@@ -706,9 +709,18 @@ class NotificationDispatcher:
             min_score: Minimum ``proposal.score.composite`` required to
                 send. Proposals below this score are ignored and
                 ``notify_proposal`` returns ``None``.
+            on_notifier_failure: Optional callback invoked once per
+                per-notifier failure with
+                ``(notifier_class_name, notification, exception)``.
+                Wired up by the engine to emit
+                ``NOTIFICATION_FAILED`` activity events tagged with the
+                backend name (consistency-hardening CH-03), so per-backend
+                outages feed the runtime safety score instead of being
+                buried in warnings.
         """
         self._notifiers = list(notifiers)
         self.min_score = min_score
+        self._on_notifier_failure = on_notifier_failure
 
     async def notify_proposal(
         self,
@@ -756,11 +768,22 @@ class NotificationDispatcher:
                 await notifier.send(notification)
             except Exception as e:
                 # Failure isolation: one bad backend must not silence
-                # the others. Log, continue.
+                # the others. Log, hand off to the engine via the
+                # callback (so it can emit a NOTIFICATION_FAILED activity
+                # event tagged with the backend name and feed the runtime
+                # safety score), continue.
+                notifier_name = type(notifier).__name__
                 logger.warning(
-                    f"Notifier {type(notifier).__name__} failed for "
+                    f"Notifier {notifier_name} failed for "
                     f"proposal {proposal.proposal_id}: {e}"
                 )
+                if self._on_notifier_failure is not None:
+                    try:
+                        self._on_notifier_failure(notifier_name, notification, e)
+                    except Exception as cb_exc:  # pragma: no cover - defensive
+                        # The failure surface itself failing must not
+                        # mask the original notifier failure.
+                        logger.error(f"on_notifier_failure callback raised: {cb_exc}")
 
         return notification
 

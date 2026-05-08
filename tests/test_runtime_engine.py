@@ -19,7 +19,11 @@ from src.proposal.interaction import (
     ProposalInteraction,
     ProposalRecord,
 )
-from src.proposal.notification import NotificationDispatcher
+from src.proposal.notification import (
+    Notification,
+    NotificationDispatcher,
+    NotificationLevel,
+)
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.runtime.engine import (
     EngineConfig,
@@ -2224,3 +2228,153 @@ async def test_notifier_failure_emits_notification_failed_event(
     assert event.details["dispatcher_name"] == "MagicMock"
     assert event.details["error_type"] == "RuntimeError"
     assert event.details["error_message"] == "dispatcher exploded"
+
+
+# =============================================================================
+# CH-03: per-sub-account cycle isolation + per-notifier failure visibility
+# =============================================================================
+
+
+async def test_cycle_continues_after_one_sub_account_raises(
+    tmp_path: Path,
+) -> None:
+    """One sub-account exception must not skip scan/monitor for later accounts (CH-03).
+
+    Before this slice, ``run_cycle`` had no per-account guard; an
+    exception inside any sub-account block (registry mismatch, trader
+    bug, snapshot crash) propagated up and skipped scan, monitor, and
+    snapshot for every later sub-account. The outer guard at
+    ``_run_one_cycle_with_guard`` only catches at cycle granularity.
+    """
+    exchange = AsyncMock(spec=BaseExchange)
+    exchange.get_ticker.return_value = Ticker(
+        symbol="BTC/USDT", price=Decimal("50000"), timestamp=now_utc()
+    )
+    proposal_engine = MagicMock(spec=ProposalEngine)
+    proposal_engine.strategies = {}
+    proposal_engine.propose_altcoins = AsyncMock(return_value=[])
+
+    boom = RuntimeError("alpha trader exploded")
+    call_log: list[str] = []
+
+    async def propose_bitcoin(**kwargs: object) -> Proposal:
+        sub_id = str(kwargs.get("sub_account_id"))
+        call_log.append(sub_id)
+        if sub_id == "alpha":
+            raise boom
+        return make_proposal(proposal_id=f"btc-iso-{sub_id}", composite=2.0).model_copy(
+            update={"sub_account_id": sub_id}
+        )
+
+    proposal_engine.propose_bitcoin = AsyncMock(side_effect=propose_bitcoin)
+
+    history = ProposalHistory(data_dir=tmp_path / "proposals")
+    interaction = ProposalInteraction(history=history)
+    trader_alpha = make_mock_trader()
+    trader_beta = make_mock_trader()
+    registry = FakeSubAccountRegistry(
+        [
+            SubAccount(
+                id="alpha",
+                name="Alpha",
+                mode="paper",
+                exchange_ref="default",
+                initial_balance={"USDT": Decimal("10000")},
+            ),
+            SubAccount(
+                id="beta",
+                name="Beta",
+                mode="paper",
+                exchange_ref="default",
+                initial_balance={"USDT": Decimal("10000")},
+            ),
+        ],
+        {"alpha": trader_alpha, "beta": trader_beta},
+    )
+    notification_dispatcher = MagicMock(spec=NotificationDispatcher)
+    notification_dispatcher.notify_proposal = AsyncMock(return_value=None)
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    engine = TradingEngine(
+        exchange=exchange,
+        proposal_engine=proposal_engine,
+        proposal_interaction=interaction,
+        proposal_history=history,
+        trader=trader_alpha,
+        registry=registry,  # type: ignore[arg-type]
+        notification_dispatcher=notification_dispatcher,
+        activity_log=activity_log,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+
+    result = await engine.run_cycle()
+
+    # Both accounts attempted scan.
+    assert "alpha" in call_log and "beta" in call_log
+    # Beta still proposed + opened despite alpha raising.
+    assert trader_beta.open_position.await_count == 1
+    assert trader_alpha.open_position.await_count == 0
+    # Errors recorded against the cycle result.
+    assert any("sub_account[alpha]" in err for err in result.errors)
+    # Activity event emitted with the failing sub-account tagged.
+    cycle_errored = activity_log.filter(event_type=ActivityEventType.CYCLE_ERRORED)
+    assert any(
+        event.details.get("sub_account_id") == "alpha"
+        and event.details.get("error_type") == "RuntimeError"
+        for event in cycle_errored
+    )
+
+
+async def test_engine_wires_per_notifier_failure_callback(tmp_path: Path) -> None:
+    """Engine attaches its callback to the dispatcher (CH-03).
+
+    The dispatcher already has per-backend failure isolation, but
+    without a callback those failures are only ``logger.warning``-d.
+    The engine wires a callback at construction time so per-backend
+    failures emit NOTIFICATION_FAILED activity events tagged with
+    the notifier class name and feed ``recent_notification_failures``
+    in the runtime safety score.
+    """
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+    real_dispatcher = NotificationDispatcher(notifiers=[])
+    assert real_dispatcher._on_notifier_failure is None
+
+    history = ProposalHistory(data_dir=tmp_path / "proposals")
+    interaction = ProposalInteraction(history=history)
+    trader = make_mock_trader()
+
+    engine = TradingEngine(
+        exchange=AsyncMock(spec=BaseExchange),
+        proposal_engine=MagicMock(spec=ProposalEngine),
+        proposal_interaction=interaction,
+        proposal_history=history,
+        trader=trader,
+        notification_dispatcher=real_dispatcher,
+        activity_log=activity_log,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    del engine  # construction is what wires the callback
+
+    assert real_dispatcher._on_notifier_failure is not None
+
+    # Invoke the callback as the dispatcher would on a per-notifier
+    # failure and assert the activity event lands with the structured
+    # payload that consumers (safety score, dashboard) expect.
+    proposal = make_proposal(proposal_id="btc-notif", composite=2.0)
+    notification = Notification(
+        level=NotificationLevel.GOOD_OPPORTUNITY,
+        proposal=proposal,
+        message="boom",
+        safety_score=None,
+    )
+    real_dispatcher._on_notifier_failure(
+        "SlackNotifier", notification, RuntimeError("slack 503")
+    )
+    failed = activity_log.filter(event_type=ActivityEventType.NOTIFICATION_FAILED)
+    assert len(failed) == 1
+    event = failed[0]
+    assert event.details["notifier_name"] == "SlackNotifier"
+    assert event.details["proposal_id"] == "btc-notif"
+    assert event.details["symbol"] == "BTC/USDT"
+    assert event.details["error_type"] == "RuntimeError"
+    assert event.details["error_message"] == "slack 503"

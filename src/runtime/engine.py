@@ -38,7 +38,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
@@ -338,8 +338,86 @@ class TradingEngine:
         self.proposal_interaction = proposal_interaction
         self.proposal_interaction.set_decision_callback(self._auto_decide)
 
+        # Wire per-notifier failure visibility (consistency-hardening
+        # CH-03). The dispatcher's per-backend ``try/except`` previously
+        # only logged a warning, so a Slack 5xx or Telegram 401 never
+        # reached the activity log and never bumped the runtime safety
+        # score. Setting the callback here surfaces every backend
+        # failure as a NOTIFICATION_FAILED event tagged with the
+        # backend class name. The dispatcher may be a fan-out wrapper
+        # (e.g. ``RoutedNotificationDispatcher``) that delegates to
+        # other dispatcher instances; set the callback on every
+        # dispatcher we can reach so route-level failures surface too.
+        for dispatcher in self._dispatchers_for_callback_wiring():
+            dispatcher._on_notifier_failure = self._on_notifier_failure
+
         self._stop_event = asyncio.Event()
         self._cycle_index = 0
+
+    def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
+        """Return every dispatcher that should surface per-notifier failures.
+
+        ``RoutedNotificationDispatcher`` exposes the inner
+        ``default_dispatcher`` and ``route_dispatchers``; both layers
+        keep their own ``_notifiers`` and run their own ``try/except``
+        per-backend, so the engine wires the failure callback onto each
+        of them.
+        """
+        seen: set[int] = set()
+        result: list[NotificationDispatcher] = []
+
+        def visit(dispatcher: NotificationDispatcher) -> None:
+            if id(dispatcher) in seen:
+                return
+            seen.add(id(dispatcher))
+            result.append(dispatcher)
+            inner = getattr(dispatcher, "default_dispatcher", None)
+            if isinstance(inner, NotificationDispatcher):
+                visit(inner)
+            routes = getattr(dispatcher, "route_dispatchers", None)
+            if isinstance(routes, dict):
+                for route_dispatcher in routes.values():
+                    if isinstance(route_dispatcher, NotificationDispatcher):
+                        visit(route_dispatcher)
+
+        visit(self.notification_dispatcher)
+        return result
+
+    def _on_notifier_failure(
+        self,
+        notifier_name: str,
+        notification: Any,
+        exc: BaseException,
+    ) -> None:
+        """Append a NOTIFICATION_FAILED activity event for a backend failure.
+
+        Hooked into ``NotificationDispatcher`` constructors so per-backend
+        failures (Slack 5xx, Telegram 401, SMTP timeout, …) feed the
+        runtime safety score via ``recent_notification_failures``
+        instead of being lost in the dispatcher's per-notifier
+        ``logger.warning`` (consistency-hardening CH-03).
+        """
+        try:
+            proposal = notification.proposal
+            details = {
+                "proposal_id": getattr(proposal, "proposal_id", None),
+                "symbol": getattr(proposal, "symbol", None),
+                "notifier_name": notifier_name,
+                "dispatcher_name": type(self.notification_dispatcher).__name__,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        except Exception:  # pragma: no cover - defensive
+            details = {
+                "notifier_name": notifier_name,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            }
+        self.activity_log.append(
+            ActivityEventType.NOTIFICATION_FAILED,
+            f"Notifier {notifier_name} failed: {exc}",
+            details=details,
+        )
 
     def _validate_exchange_refs_supported(self) -> None:
         if self.sub_account_registry is None:
@@ -416,17 +494,39 @@ class TradingEngine:
 
         for sub_account in self._active_sub_accounts():
             sub_account_id = self._sub_account_id(sub_account)
-            trader = self._trader_for_sub_account(sub_account_id)
+            try:
+                trader = self._trader_for_sub_account(sub_account_id)
 
-            proposals = await self._scan(cycle_id, result, sub_account)
-            for proposal in proposals:
-                await self._handle_proposal(
-                    proposal, cycle_id, result, sub_account, trader
+                proposals = await self._scan(cycle_id, result, sub_account)
+                for proposal in proposals:
+                    await self._handle_proposal(
+                        proposal, cycle_id, result, sub_account, trader
+                    )
+
+                await self._monitor(cycle_id, result, sub_account, trader)
+
+                await self._record_portfolio_snapshot(cycle_id, sub_account, trader)
+            except Exception as e:
+                # Per-sub-account failure isolation (consistency-hardening
+                # CH-03). Without this guard a single account's exception
+                # — registry mismatch, trader bug, snapshot crash — would
+                # propagate up out of ``run_cycle`` and skip scan, monitor,
+                # and snapshot for every later account this cycle. The
+                # outer ``_run_one_cycle_with_guard`` only catches at
+                # cycle granularity, which is too coarse once multiple
+                # sub-accounts share a runtime.
+                logger.exception(f"Sub-account cycle failed for {sub_account_id}")
+                self.activity_log.append(
+                    ActivityEventType.CYCLE_ERRORED,
+                    f"Sub-account {sub_account_id} cycle failed: {e}",
+                    details={
+                        "sub_account_id": sub_account_id,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                    cycle_id=cycle_id,
                 )
-
-            await self._monitor(cycle_id, result, sub_account, trader)
-
-            await self._record_portfolio_snapshot(cycle_id, sub_account, trader)
+                result.errors.append(f"sub_account[{sub_account_id}]:{e}")
 
         self.activity_log.append(
             ActivityEventType.CYCLE_COMPLETED,

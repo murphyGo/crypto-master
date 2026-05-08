@@ -338,6 +338,59 @@ async def test_dispatcher_isolates_notifier_failures() -> None:
     assert good.received == [notification]
 
 
+async def test_dispatcher_invokes_notifier_failure_callback() -> None:
+    """Per-notifier failures invoke ``on_notifier_failure`` (CH-03).
+
+    Before this slice, a Slack 5xx, Telegram 401, or SMTP timeout was
+    only ``logger.warning``'d — it never reached the activity log and so
+    never bumped ``recent_notification_failures`` in the runtime safety
+    score. The engine wires this callback at construction time to emit
+    NOTIFICATION_FAILED activity events tagged with the backend name.
+    """
+    captured: list[tuple[str, Notification, BaseException]] = []
+
+    def on_failure(name: str, notification: Notification, exc: BaseException) -> None:
+        captured.append((name, notification, exc))
+
+    bad = FailingNotifier(RuntimeError("slack 503"))
+    good = RecordingNotifier()
+    dispatcher = NotificationDispatcher(
+        notifiers=[bad, good],
+        on_notifier_failure=on_failure,
+    )
+
+    notification = await dispatcher.notify_proposal(make_proposal())
+
+    assert notification is not None
+    assert len(captured) == 1
+    name, captured_notification, exc = captured[0]
+    assert name == "FailingNotifier"
+    assert captured_notification is notification
+    assert isinstance(exc, RuntimeError)
+    assert "slack 503" in str(exc)
+    # Good still received the notification.
+    assert good.received == [notification]
+
+
+async def test_dispatcher_callback_failure_does_not_mask_other_notifiers() -> None:
+    """A buggy callback must not break the dispatch fan-out."""
+
+    def on_failure(*_args: object) -> None:
+        raise ValueError("callback explodes")
+
+    bad = FailingNotifier(RuntimeError("slack 503"))
+    good = RecordingNotifier()
+    dispatcher = NotificationDispatcher(
+        notifiers=[bad, good],
+        on_notifier_failure=on_failure,
+    )
+
+    notification = await dispatcher.notify_proposal(make_proposal())
+
+    assert notification is not None
+    assert good.received == [notification]
+
+
 async def test_dispatcher_uses_default_good_opportunity_level() -> None:
     notifier = RecordingNotifier()
     dispatcher = NotificationDispatcher(notifiers=[notifier])
