@@ -14,7 +14,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
 from src.backtest.engine import BacktestResult
@@ -22,6 +22,7 @@ from src.backtest.validator import GateStatus, RobustnessReport
 from src.config import get_settings
 from src.feedback.loop import CandidateRecord, LoopStatus
 from src.utils.io import atomic_write_text
+from src.utils.pydantic_mixins import UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 
 DEFAULT_PROMOTION_LAB_STATE_DIR = Path("data/feedback/promotion_lab")
@@ -57,7 +58,7 @@ class PromotionEvaluation(BaseModel):
     blocking_reasons: list[str] = Field(default_factory=list)
 
 
-class PromotionObservation(BaseModel):
+class PromotionObservation(UtcTimestampMixin, BaseModel):
     """Persisted observation-period state for one candidate."""
 
     candidate_id: str
@@ -69,11 +70,6 @@ class PromotionObservation(BaseModel):
     last_evaluated_at: datetime = Field(default_factory=now_utc)
     factors: list[str] = Field(default_factory=list)
     blocking_reasons: list[str] = Field(default_factory=list)
-
-    @field_validator("first_seen_at", "last_evaluated_at", mode="after")
-    @classmethod
-    def _coerce_timestamps_to_utc(cls, value: datetime) -> datetime:
-        return ensure_utc(value)
 
 
 class PromotionObservationStore:

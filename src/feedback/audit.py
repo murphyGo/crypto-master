@@ -33,12 +33,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.logger import get_logger
 from src.runtime.jsonl_rotator import JsonlRotator
-from src.utils.time import ensure_utc, now_utc
+from src.utils.pydantic_mixins import UtcTimestampMixin
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.feedback.audit")
 
@@ -63,7 +64,7 @@ class AuditEventType(str, Enum):
     ERRORED = "errored"
 
 
-class AuditEvent(BaseModel):
+class AuditEvent(UtcTimestampMixin, BaseModel):
     """A single audit log entry.
 
     Attributes:
@@ -91,19 +92,6 @@ class AuditEvent(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"use_enum_values": True}
-
-    @field_validator("timestamp", mode="after")
-    @classmethod
-    def _coerce_timestamp_to_utc(cls, value: datetime) -> datetime:
-        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
-
-        Audit events written before the 21.2 sweep persist naive
-        timestamps; mixing them with new aware timestamps in
-        dashboard sorts raises ``TypeError``. ``ensure_utc`` makes
-        every loaded ``AuditEvent`` UTC-aware regardless of the
-        on-disk shape.
-        """
-        return ensure_utc(value)
 
 
 class AuditLog:

@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.ai.improver import GeneratedTechnique, StrategyImprover
 from src.backtest.analyzer import PerformanceAnalyzer
@@ -56,7 +56,8 @@ from src.strategy.loader import load_strategy, load_technique_info_from_py
 from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.trading.profiles import TradingProfile
 from src.utils.io import atomic_write_text
-from src.utils.time import ensure_utc, now_utc
+from src.utils.pydantic_mixins import UtcTimestampMixin
+from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.feedback.loop")
 
@@ -107,7 +108,7 @@ class LoopStatus(str, Enum):
     ERRORED = "errored"
 
 
-class CandidateRecord(BaseModel):
+class CandidateRecord(UtcTimestampMixin, BaseModel):
     """Snapshot of one candidate's progress through the loop.
 
     Persisted as JSON under ``state_dir/<candidate_id>.json`` after
@@ -132,18 +133,6 @@ class CandidateRecord(BaseModel):
     updated_at: datetime = Field(default_factory=now_utc)
 
     model_config = ConfigDict(use_enum_values=True)
-
-    @field_validator("created_at", "updated_at", mode="after")
-    @classmethod
-    def _coerce_timestamps_to_utc(cls, value: datetime) -> datetime:
-        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2).
-
-        Candidate state files written before the 21.2 sweep persist
-        naive timestamps; the dashboard sorts pending candidates by
-        ``updated_at``, which mixes naive and aware after a partial
-        rollout. ``ensure_utc`` makes the loaded record uniform.
-        """
-        return ensure_utc(value)
 
 
 # =============================================================================
