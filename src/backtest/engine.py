@@ -471,25 +471,12 @@ class Backtester:
         # Walk candle-by-candle; the strategy only sees up to index i.
         for i, current_candle in enumerate(ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
-            if open_trade is not None:
-                exit_hit = self._check_intra_candle_exit(open_trade, current_candle)
-                if exit_hit is not None:
-                    target_exit_price, reason = exit_hit
-                    trade, pnl_delta = self._close_trade(
-                        open_trade=open_trade,
-                        exit_time=current_candle.timestamp,
-                        target_exit_price=target_exit_price,
-                        reason=reason,
-                    )
-                    balance += pnl_delta
-                    # Phase 26.4 / DEBT-047: liquidation parity with
-                    # ``PaperTrader``. Structural marker only — PnL
-                    # math is unchanged; the backtester keeps
-                    # simulating so existing analysis tools still see
-                    # the full trade list.
-                    trade = self._mark_if_liquidated(trade, balance)
-                    trades.append(trade)
-                    open_trade = None
+            open_trade, balance = self._close_open_trade_if_exit_hit(
+                open_trade=open_trade,
+                current_candle=current_candle,
+                balance=balance,
+                trades=trades,
+            )
 
             # 2. Not enough history yet? skip analysis.
             if i + 1 < warmup_candles:
@@ -717,22 +704,12 @@ class Backtester:
 
         for i, current_candle in enumerate(primary_ohlcv):
             # 1. Apply intra-candle SL/TP checks to any open trade.
-            if open_trade is not None:
-                exit_hit = self._check_intra_candle_exit(open_trade, current_candle)
-                if exit_hit is not None:
-                    target_exit_price, reason = exit_hit
-                    trade, pnl_delta = self._close_trade(
-                        open_trade=open_trade,
-                        exit_time=current_candle.timestamp,
-                        target_exit_price=target_exit_price,
-                        reason=reason,
-                    )
-                    balance += pnl_delta
-                    # Phase 26.4 / DEBT-047: liquidation parity (multi-TF
-                    # mirror of the single-TF path).
-                    trade = self._mark_if_liquidated(trade, balance)
-                    trades.append(trade)
-                    open_trade = None
+            open_trade, balance = self._close_open_trade_if_exit_hit(
+                open_trade=open_trade,
+                current_candle=current_candle,
+                balance=balance,
+                trades=trades,
+            )
 
             # 2. Build the multi-TF slice through the current bar.
             primary_slice = primary_ohlcv[: i + 1]
@@ -1127,6 +1104,33 @@ class Backtester:
         # Balance delta: caller already subtracted entry_fee at open.
         balance_delta = raw_pnl - exit_fee
         return trade, balance_delta
+
+    def _close_open_trade_if_exit_hit(
+        self,
+        *,
+        open_trade: _OpenTrade | None,
+        current_candle: OHLCV,
+        balance: Decimal,
+        trades: list[BacktestTrade],
+    ) -> tuple[_OpenTrade | None, Decimal]:
+        """Close an open trade if the current candle hits SL/TP."""
+        if open_trade is None:
+            return None, balance
+        exit_hit = self._check_intra_candle_exit(open_trade, current_candle)
+        if exit_hit is None:
+            return open_trade, balance
+
+        target_exit_price, reason = exit_hit
+        trade, pnl_delta = self._close_trade(
+            open_trade=open_trade,
+            exit_time=current_candle.timestamp,
+            target_exit_price=target_exit_price,
+            reason=reason,
+        )
+        updated_balance = balance + pnl_delta
+        trade = self._mark_if_liquidated(trade, updated_balance)
+        trades.append(trade)
+        return None, updated_balance
 
     def _mark_if_liquidated(
         self, trade: BacktestTrade, balance_after_close: Decimal
