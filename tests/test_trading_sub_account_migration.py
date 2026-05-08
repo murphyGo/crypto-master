@@ -10,8 +10,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.trading.sub_account_migration import (
     MARKER_FILENAME,
+    PERFORMANCE_MARKER_FILENAME,
     migrate_legacy_paths,
 )
 
@@ -110,6 +113,36 @@ def test_no_source_files_writes_marker_and_returns_zero(tmp_path: Path) -> None:
     # Marker IS written even on the no-source path so subsequent
     # boots don't keep re-scanning empty directories.
     assert (tmp_path / MARKER_FILENAME).is_file()
+
+
+def test_marker_writes_use_atomic_helper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Completion markers route through the shared atomic write helper."""
+    calls: list[Path] = []
+
+    def fake_atomic_write(path: Path, text: str) -> None:
+        calls.append(path)
+        path.write_text(text, encoding="utf-8")
+
+    monkeypatch.setattr(
+        "src.trading.sub_account_migration.atomic_write_text",
+        fake_atomic_write,
+    )
+
+    counts = migrate_legacy_paths(tmp_path)
+
+    assert counts == {
+        "trades": 0,
+        "portfolio": 0,
+        "proposals": 0,
+        "performance": 0,
+    }
+    assert calls == [
+        tmp_path / MARKER_FILENAME,
+        tmp_path / PERFORMANCE_MARKER_FILENAME,
+    ]
 
 
 def test_partial_pre_existing_finishes_the_rest(tmp_path: Path) -> None:

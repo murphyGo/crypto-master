@@ -39,6 +39,7 @@ from pathlib import Path
 
 from src.logger import get_logger
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
+from src.utils.io import atomic_write_text
 
 logger = get_logger("crypto_master.trading.sub_account_migration")
 
@@ -92,13 +93,13 @@ def migrate_legacy_paths(data_dir: Path) -> dict[str, int]:
         )
         counts["proposals"] = _migrate_proposals(data_dir / "proposals")
         if not _has_v19_1_conflicts(data_dir):
-            marker.write_text("")
+            atomic_write_text(marker, "")
 
     performance_marker = data_dir / PERFORMANCE_MARKER_FILENAME
     if not performance_marker.exists():
         counts["performance"] = _migrate_performance(data_dir / "performance")
         if not _has_performance_conflicts(data_dir / "performance"):
-            performance_marker.write_text("")
+            atomic_write_text(performance_marker, "")
     return counts
 
 
