@@ -5,10 +5,12 @@ Tests the PaperBalance, PaperTrader, and related classes.
 
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.models import Position
+from src.exchange.base import BaseExchange
+from src.models import Order, OrderStatus, Position
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.trading.paper import (
     DEFAULT_FEE_CONFIGS,
@@ -20,6 +22,35 @@ from src.trading.paper import (
     PaperTrader,
     PaperTradingError,
 )
+from src.utils.time import now_utc
+
+
+def _make_order(
+    *,
+    order_id: str = "order-1",
+    symbol: str = "BTC/USDT",
+    side: str = "buy",
+    quantity: Decimal = Decimal("0.1"),
+    filled_quantity: Decimal = Decimal("0.1"),
+    average_price: Decimal | None = Decimal("50010"),
+    fee: Decimal | None = None,
+    fee_currency: str | None = "USDT",
+) -> Order:
+    """Build an exchange order for paper-testnet contract tests."""
+    return Order(
+        id=order_id,
+        symbol=symbol,
+        side=side,  # type: ignore[arg-type]
+        type="market",
+        quantity=quantity,
+        filled_quantity=filled_quantity,
+        average_price=average_price,
+        fee=fee,
+        fee_currency=fee_currency,
+        status=OrderStatus.FILLED,
+        created_at=now_utc(),
+    )
+
 
 # =============================================================================
 # PaperBalance Tests
@@ -1259,6 +1290,95 @@ class TestQuoteCurrencyExtraction:
         """Test extracting currency with slash separator."""
         trader = PaperTrader(data_dir=tmp_path)
         assert trader._get_quote_currency("ETH/BTC") == "BTC"
+
+
+class TestPaperTraderTestnetFillAccounting:
+    """CH-28: testnet paper trades should record exchange fill economics."""
+
+    @pytest.fixture
+    def exchange(self) -> MagicMock:
+        exchange = MagicMock(spec=BaseExchange)
+        exchange.testnet = True
+        exchange.name = "Binance"
+        exchange.create_order = AsyncMock()
+        return exchange
+
+    @pytest.fixture
+    def position(self) -> Position:
+        return Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+        )
+
+    async def test_open_position_on_testnet_records_actual_fill_and_fee(
+        self,
+        tmp_path: Path,
+        exchange: MagicMock,
+        position: Position,
+    ) -> None:
+        exchange.create_order.return_value = _make_order(
+            order_id="entry-1",
+            average_price=Decimal("50012.5"),
+            filled_quantity=Decimal("0.08"),
+            fee=Decimal("1.25"),
+        )
+        trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
+
+        trade = await trader.open_position_on_testnet(position)
+
+        assert trade.entry_price == Decimal("50012.5")
+        assert trade.entry_quantity == Decimal("0.08")
+        assert trade.fees == Decimal("1.25")
+        assert trade.entry_order_id == "entry-1"
+        assert trade.stop_loss == Decimal("49000")
+        assert trade.take_profit == Decimal("52000")
+
+        open_pos = trader._open_positions[trade.id]
+        assert open_pos.position.entry_price == Decimal("50012.5")
+        assert open_pos.position.quantity == Decimal("0.08")
+        assert open_pos.entry_fee == Decimal("1.25")
+
+    async def test_close_position_on_testnet_records_actual_exit_and_fee(
+        self,
+        tmp_path: Path,
+        exchange: MagicMock,
+        position: Position,
+    ) -> None:
+        exchange.create_order.side_effect = [
+            _make_order(
+                order_id="entry-1",
+                average_price=Decimal("50012.5"),
+                filled_quantity=Decimal("0.08"),
+                fee=Decimal("1.25"),
+            ),
+            _make_order(
+                order_id="exit-1",
+                side="sell",
+                average_price=Decimal("51015.5"),
+                filled_quantity=Decimal("0.08"),
+                fee=Decimal("1.30"),
+            ),
+        ]
+        trader = PaperTrader(exchange=exchange, data_dir=tmp_path)
+        trade = await trader.open_position_on_testnet(position)
+
+        closed = await trader.close_position_on_testnet(
+            trade.id,
+            exit_price=Decimal("51000"),
+            reason="take_profit",
+        )
+
+        assert closed is not None
+        assert closed.exit_price == Decimal("51015.5")
+        assert closed.exit_quantity == Decimal("0.08")
+        assert closed.exit_order_id == "exit-1"
+        assert closed.close_reason == "take_profit"
+        assert closed.fees == Decimal("2.55")
 
 
 # =============================================================================

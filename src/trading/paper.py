@@ -955,29 +955,48 @@ class PaperTrader:
             # Calculate margin for tracking
             margin = self._calculate_required_margin(position)
 
+            entry_fill_price = order.average_price or position.entry_price
+            filled_quantity = (
+                order.filled_quantity
+                if order.filled_quantity > 0
+                else position.quantity
+            )
+            entry_fee = order.fee or Decimal("0")
+
             # Record trade via TradeHistoryTracker
             trade = self._trade_tracker.open_trade(
                 symbol=position.symbol,
                 side=position.side,
-                entry_price=position.entry_price,
-                entry_quantity=position.quantity,
+                entry_price=entry_fill_price,
+                entry_quantity=filled_quantity,
                 mode="paper",
                 leverage=position.leverage,
                 entry_order_id=order.id,  # Real order ID from exchange
                 performance_record_id=performance_record_id,
+                fees=entry_fee,
+                stop_loss=position.stop_loss,
+                take_profit=position.take_profit,
             )
 
             # Track open position
             self._open_positions[trade.id] = OpenPosition(
                 trade_id=trade.id,
-                position=position,
+                position=position.model_copy(
+                    update={
+                        "entry_price": entry_fill_price,
+                        "quantity": filled_quantity,
+                    }
+                ),
                 margin=margin,
                 quote_currency=quote_currency,
+                entry_fee=entry_fee,
             )
 
             logger.info(
                 f"Opened testnet position: {position.side} {position.symbol} "
-                f"@ {position.entry_price}, order_id={order.id}"
+                f"@ {entry_fill_price}, qty={filled_quantity}, "
+                f"entry_fee={entry_fee} {order.fee_currency or ''}, "
+                f"order_id={order.id}"
             )
 
             return trade
@@ -1050,9 +1069,13 @@ class PaperTrader:
                 f"{order.symbol} qty={order.filled_quantity}"
             )
 
-            # Use provided exit_price or fallback to position entry price
-            # (market orders may not have a price in the response)
-            actual_exit_price = exit_price or position.entry_price
+            # Prefer exchange fill economics when available. The
+            # caller-provided exit_price is the expected trigger price,
+            # while average_price is what the testnet order actually filled at.
+            actual_exit_price = (
+                order.average_price or exit_price or position.entry_price
+            )
+            exit_fee = order.fee or Decimal("0")
 
             # Calculate P&L
             pnl = position.calculate_pnl(actual_exit_price)
@@ -1061,7 +1084,10 @@ class PaperTrader:
             closed_trade = self._trade_tracker.close_trade(
                 trade_id=trade_id,
                 exit_price=actual_exit_price,
+                exit_quantity=order.filled_quantity or position.quantity,
                 close_reason=reason,
+                exit_order_id=order.id,
+                fees=exit_fee,
             )
 
             # Remove from open positions
@@ -1069,7 +1095,8 @@ class PaperTrader:
 
             logger.info(
                 f"Closed testnet position {trade_id}: {reason}, "
-                f"exit_price={actual_exit_price}, P&L={pnl}, order_id={order.id}"
+                f"exit_price={actual_exit_price}, P&L={pnl}, order_id={order.id}, "
+                f"exit_fee={exit_fee} {order.fee_currency or ''}"
             )
 
             return closed_trade
