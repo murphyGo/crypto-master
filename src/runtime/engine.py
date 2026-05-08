@@ -940,6 +940,7 @@ class TradingEngine:
     ) -> str | None:
         """Emit advisory correlation warnings or reject when opt-in gate is enabled."""
         del trader  # Existing exposure is collected engine-wide when possible.
+        policy = self._runtime_policy_for_id(proposal.sub_account_id)
         existing = CorrelationInputSet.from_trade_history(
             self._open_trades_for_correlation(),
             strategy_lookup=self._strategy_lookup_for_open_trades(),
@@ -949,19 +950,13 @@ class TradingEngine:
             existing,
             candidate,
             config=CorrelationGateConfig(
-                enabled=self._runtime_policy_for_id(
-                    proposal.sub_account_id
-                ).correlation_gate_enabled,
+                enabled=policy.correlation_gate_enabled,
                 warning_policy=CorrelationWarningPolicy(
                     max_sub_accounts_per_symbol_side=(
-                        self._runtime_policy_for_id(
-                            proposal.sub_account_id
-                        ).correlation_max_sub_accounts_per_symbol_side
+                        policy.correlation_max_sub_accounts_per_symbol_side
                     ),
                     max_sub_accounts_per_strategy_symbol_side=(
-                        self._runtime_policy_for_id(
-                            proposal.sub_account_id
-                        ).correlation_max_sub_accounts_per_strategy_symbol_side
+                        policy.correlation_max_sub_accounts_per_strategy_symbol_side
                     ),
                 ),
             ),
@@ -976,9 +971,7 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "warnings": warning_details,
-                "gate_enabled": self._runtime_policy_for_id(
-                    proposal.sub_account_id
-                ).correlation_gate_enabled,
+                "gate_enabled": policy.correlation_gate_enabled,
             },
             cycle_id=cycle_id,
         )
