@@ -578,45 +578,23 @@ class Backtester:
                 continue
 
             # 7. Simulate fill at current candle close with slippage.
-            actual_entry = self._apply_slippage(
-                base_price=current_candle.close,
-                side=position.side,
-                is_entry=True,
-            )
-            entry_fee = actual_entry * position.quantity * self.config.fee_rate
-            if entry_fee > balance:
-                logger.debug(f"Insufficient balance for entry fee on candle {i}")
-                continue
-
-            balance -= entry_fee
-            open_trade = _OpenTrade(
+            filled = self._open_trade_from_position(
                 position=position,
-                entry_time=current_candle.timestamp,
-                actual_entry_price=actual_entry,
-                entry_fee=entry_fee,
+                current_candle=current_candle,
+                balance=balance,
+                candle_index=i,
             )
+            if filled is None:
+                continue
+            open_trade, balance = filled
 
         # End of data: force-close any lingering position at the last close.
-        if open_trade is not None:
-            last_candle = ohlcv[-1]
-            final_exit = self._apply_slippage(
-                base_price=last_candle.close,
-                side=open_trade.position.side,
-                is_entry=False,
-            )
-            trade, pnl_delta = self._close_trade(
-                open_trade=open_trade,
-                exit_time=last_candle.timestamp,
-                target_exit_price=final_exit,
-                reason="end_of_data",
-                skip_slippage=True,  # already applied above
-            )
-            balance += pnl_delta
-            # Phase 26.4 / DEBT-047: also mark end-of-data closes that
-            # land below the liquidation threshold.
-            trade = self._mark_if_liquidated(trade, balance)
-            trades.append(trade)
-            open_trade = None
+        open_trade, balance = self._close_open_trade_at_end_of_data(
+            open_trade=open_trade,
+            last_candle=ohlcv[-1],
+            balance=balance,
+            trades=trades,
+        )
 
         return self._build_result(
             strategy=strategy,
@@ -818,45 +796,23 @@ class Backtester:
                 continue
 
             # 8. Simulate fill at current candle close with slippage.
-            actual_entry = self._apply_slippage(
-                base_price=current_candle.close,
-                side=position.side,
-                is_entry=True,
-            )
-            entry_fee = actual_entry * position.quantity * self.config.fee_rate
-            if entry_fee > balance:
-                logger.debug(f"Insufficient balance for entry fee on candle {i}")
-                continue
-
-            balance -= entry_fee
-            open_trade = _OpenTrade(
+            filled = self._open_trade_from_position(
                 position=position,
-                entry_time=current_candle.timestamp,
-                actual_entry_price=actual_entry,
-                entry_fee=entry_fee,
+                current_candle=current_candle,
+                balance=balance,
+                candle_index=i,
             )
+            if filled is None:
+                continue
+            open_trade, balance = filled
 
         # End of data: force-close any lingering position.
-        if open_trade is not None:
-            last_candle = primary_ohlcv[-1]
-            final_exit = self._apply_slippage(
-                base_price=last_candle.close,
-                side=open_trade.position.side,
-                is_entry=False,
-            )
-            trade, pnl_delta = self._close_trade(
-                open_trade=open_trade,
-                exit_time=last_candle.timestamp,
-                target_exit_price=final_exit,
-                reason="end_of_data",
-                skip_slippage=True,
-            )
-            balance += pnl_delta
-            # Phase 26.4 / DEBT-047: liquidation parity for end-of-data
-            # close in the multi-TF path.
-            trade = self._mark_if_liquidated(trade, balance)
-            trades.append(trade)
-            open_trade = None
+        open_trade, balance = self._close_open_trade_at_end_of_data(
+            open_trade=open_trade,
+            last_candle=primary_ohlcv[-1],
+            balance=balance,
+            trades=trades,
+        )
 
         return self._build_result(
             strategy=strategy,
@@ -1126,6 +1082,62 @@ class Backtester:
             exit_time=current_candle.timestamp,
             target_exit_price=target_exit_price,
             reason=reason,
+        )
+        updated_balance = balance + pnl_delta
+        trade = self._mark_if_liquidated(trade, updated_balance)
+        trades.append(trade)
+        return None, updated_balance
+
+    def _open_trade_from_position(
+        self,
+        *,
+        position: Position,
+        current_candle: OHLCV,
+        balance: Decimal,
+        candle_index: int,
+    ) -> tuple[_OpenTrade, Decimal] | None:
+        """Apply entry slippage/fee and create an open trade if affordable."""
+        actual_entry = self._apply_slippage(
+            base_price=current_candle.close,
+            side=position.side,
+            is_entry=True,
+        )
+        entry_fee = actual_entry * position.quantity * self.config.fee_rate
+        if entry_fee > balance:
+            logger.debug(f"Insufficient balance for entry fee on candle {candle_index}")
+            return None
+        return (
+            _OpenTrade(
+                position=position,
+                entry_time=current_candle.timestamp,
+                actual_entry_price=actual_entry,
+                entry_fee=entry_fee,
+            ),
+            balance - entry_fee,
+        )
+
+    def _close_open_trade_at_end_of_data(
+        self,
+        *,
+        open_trade: _OpenTrade | None,
+        last_candle: OHLCV,
+        balance: Decimal,
+        trades: list[BacktestTrade],
+    ) -> tuple[_OpenTrade | None, Decimal]:
+        """Force-close any lingering open trade at the final candle close."""
+        if open_trade is None:
+            return None, balance
+        final_exit = self._apply_slippage(
+            base_price=last_candle.close,
+            side=open_trade.position.side,
+            is_entry=False,
+        )
+        trade, pnl_delta = self._close_trade(
+            open_trade=open_trade,
+            exit_time=last_candle.timestamp,
+            target_exit_price=final_exit,
+            reason="end_of_data",
+            skip_slippage=True,
         )
         updated_balance = balance + pnl_delta
         trade = self._mark_if_liquidated(trade, updated_balance)
