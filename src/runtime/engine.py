@@ -418,6 +418,11 @@ class TradingEngine:
             details=details,
         )
 
+    def _current_runtime_safety_score(self) -> RuntimeSafetyScore:
+        return compute_runtime_safety_score(
+            inputs_from_recent_activity_events(self.activity_log.read_all())
+        )
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -669,9 +674,7 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
 
-        safety_score = compute_runtime_safety_score(
-            inputs_from_recent_activity_events(self.activity_log.read_all())
-        )
+        safety_score = self._current_runtime_safety_score()
         try:
             await self.notification_dispatcher.notify_proposal(
                 proposal,
@@ -722,11 +725,12 @@ class TradingEngine:
             if correlation_rejection is not None:
                 return
 
+            post_incident_safety_score = self._current_runtime_safety_score()
             pause_rejection = self._runtime_safety_pause_gate(
                 proposal,
                 record,
                 sub_account,
-                safety_score,
+                post_incident_safety_score,
                 cycle_id,
                 result,
             )

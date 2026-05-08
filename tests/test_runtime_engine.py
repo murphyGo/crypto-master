@@ -1109,6 +1109,43 @@ async def test_notification_receives_runtime_safety_score(tmp_path: Path) -> Non
     assert kwargs["safety_score"].score <= 100
 
 
+async def test_notification_failure_updates_safety_pause_before_fill(
+    tmp_path: Path,
+) -> None:
+    proposal = make_proposal(proposal_id="notify-pause", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_safety_pause_min_score=95,
+        ),
+    )
+    mocks["notification_dispatcher"].notify_proposal.side_effect = RuntimeError(
+        "slack down"
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("notify-pause")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert "runtime safety score" in (record.rejection_reason or "")
+    rejected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    safety_rejections = [
+        event
+        for event in rejected
+        if event.details.get("runtime_safety_pause_min_score") == 95
+    ]
+    assert safety_rejections
+    assert safety_rejections[-1].details["runtime_safety_score"] == 90
+
+
 async def test_correlation_warning_is_advisory_by_default(tmp_path: Path) -> None:
     existing_trade = make_trade(
         trade_id="t-btc-existing",
