@@ -38,7 +38,9 @@ from src.trading.base import Trader
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
+    CapitalPolicy,
     RiskOverrides,
+    StrategyPolicy,
     SubAccount,
     SubAccountError,
     SubAccountNotFoundError,
@@ -291,10 +293,12 @@ class SubAccountRegistry:
             # ``"default"`` is also the conventional exchange_ref for
             # the single-credential single-trader configuration.
             exchange_ref="default",
-            initial_balance={
-                "USDT": Decimal(str(self.settings.paper_initial_balance)),
-            },
-            strategy_filter=None,
+            capital_policy=CapitalPolicy(
+                initial_balance={
+                    "USDT": Decimal(str(self.settings.paper_initial_balance)),
+                },
+            ),
+            strategy_policy=StrategyPolicy(strategy_filter=None),
             risk_overrides=RiskOverrides(),
             enabled=True,
         )

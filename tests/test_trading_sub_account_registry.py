@@ -22,7 +22,9 @@ from src.strategy.loader import load_all_strategies
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
+    CapitalPolicy,
     RiskOverrides,
+    StrategyPolicy,
     SubAccount,
     SubAccountNotFoundError,
 )
@@ -106,8 +108,14 @@ def test_default_materialisation_reads_settings(tmp_path: Path) -> None:
     assert sub.name == "Default Account"
     assert sub.mode == "paper"
     assert sub.exchange_ref == "default"
-    assert sub.initial_balance == {"USDT": Decimal("12345.0")}
+    assert sub.initial_balance == {}
+    assert sub.capital_policy == CapitalPolicy(
+        initial_balance={"USDT": Decimal("12345.0")}
+    )
     assert sub.strategy_filter is None
+    assert sub.strategy_policy == StrategyPolicy(strategy_filter=None)
+    assert sub.effective_initial_balance() == {"USDT": Decimal("12345.0")}
+    assert sub.effective_strategy_filter() is None
     assert sub.risk_overrides == RiskOverrides()
     assert sub.enabled is True
 
