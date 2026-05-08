@@ -718,6 +718,7 @@ class TradingEngine:
 
             correlation_rejection = self._correlation_gate(
                 proposal,
+                record,
                 trader,
                 cycle_id,
                 result,
@@ -932,6 +933,7 @@ class TradingEngine:
     def _correlation_gate(
         self,
         proposal: Proposal,
+        record: ProposalRecord,
         trader: Trader,
         cycle_id: str,
         result: CycleResult,
@@ -984,7 +986,7 @@ class TradingEngine:
             return None
 
         reason = decision.reason
-        rejected_record = self.proposal_history.load(proposal.proposal_id).model_copy(
+        rejected_record = record.model_copy(
             update={
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
