@@ -14,6 +14,13 @@ from decimal import Decimal
 import pytest
 
 from src.utils.trading_math import pnl_for_trade
+from src.utils.trading_types import PositionSide, TradeSide
+
+
+def test_shared_side_aliases_are_importable() -> None:
+    long_side: TradeSide = "long"
+    short_side: PositionSide = "short"
+    assert (long_side, short_side) == ("long", "short")
 
 
 class TestPnlForTradeLong:

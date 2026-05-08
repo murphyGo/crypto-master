@@ -1,0 +1,10 @@
+"""Shared trading vocabulary types."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+TradeSide = Literal["long", "short"]
+PositionSide = TradeSide
+
+__all__ = ["PositionSide", "TradeSide"]

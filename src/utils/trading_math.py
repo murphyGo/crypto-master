@@ -40,12 +40,8 @@ Related Requirements:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
 
-# Sides are spelled ``"long"`` / ``"short"`` throughout the codebase
-# (see ``src.models.Position.side``); we re-use that string-literal
-# alphabet here rather than introduce a parallel ``TradeSide`` enum.
-TradeSide = Literal["long", "short"]
+from src.utils.trading_types import TradeSide
 
 
 def pnl_for_trade(
