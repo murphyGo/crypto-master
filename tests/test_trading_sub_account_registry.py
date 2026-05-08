@@ -396,6 +396,45 @@ sub_accounts:
     assert trader.exchange.config.api_key == "alt-key"
 
 
+def test_yaml_config_paper_sub_account_uses_named_exchange_for_market_data(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: paper_alt
+    name: Paper Alt
+    mode: paper
+    exchange_ref: binance_alt
+    initial_balance: {USDT: 10000}
+""",
+    )
+
+    registry = SubAccountRegistry(
+        settings=_make_settings(
+            exchange_credentials={
+                "binance_alt": ExchangeCredential(
+                    ref="binance_alt",
+                    exchange="binance",
+                    api_key="alt-key",
+                    api_secret="alt-secret",
+                    testnet=True,
+                )
+            },
+        ),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+
+    trader = registry.get_trader("paper_alt")
+    assert isinstance(trader, PaperTrader)
+    assert trader.exchange is not None
+    assert trader.exchange.config.api_key == "alt-key"
+    assert trader.exchange.testnet is True
+
+
 def test_yaml_config_rejects_live_missing_credentials(tmp_path: Path) -> None:
     config_path = tmp_path / "sub_accounts.yaml"
     _write_sub_accounts_config(

@@ -524,10 +524,18 @@ async def test_run_cycle_fans_out_per_active_sub_account(tmp_path: Path) -> None
     assert {r.sub_account_id for r in history.list_all()} == {"alpha", "beta"}
 
 
-def test_engine_rejects_non_default_exchange_ref_until_router_exists(
+async def test_engine_routes_non_default_exchange_ref_to_account_exchange(
     tmp_path: Path,
 ) -> None:
     engine, mocks = build_engine(tmp_path=tmp_path)
+    account_exchange = AsyncMock(spec=BaseExchange)
+    account_exchange.get_ticker.return_value = Ticker(
+        symbol="BTC/USDT",
+        price=Decimal("50000"),
+        timestamp=now_utc(),
+    )
+    account_trader = make_mock_trader()
+    account_trader.exchange = account_exchange
     sub = SubAccount(
         id="alt",
         name="Alt",
@@ -535,20 +543,26 @@ def test_engine_rejects_non_default_exchange_ref_until_router_exists(
         exchange_ref="bybit_alt",
         initial_balance={"USDT": Decimal("10000")},
     )
-    registry = FakeSubAccountRegistry([sub], {"alt": mocks["trader"]})
+    registry = FakeSubAccountRegistry([sub], {"alt": account_trader})
+    engine.sub_account_registry = registry  # type: ignore[assignment]
+    mocks["proposal_engine"].strategies = {}
+    mocks["proposal_engine"].exchange = mocks["exchange"]
 
-    with pytest.raises(RuntimeError, match="exchange refs"):
-        TradingEngine(
-            exchange=mocks["exchange"],
-            proposal_engine=mocks["proposal_engine"],
-            proposal_interaction=mocks["interaction"],
-            proposal_history=mocks["history"],
-            trader=mocks["trader"],
-            registry=registry,  # type: ignore[arg-type]
-            notification_dispatcher=mocks["notification_dispatcher"],
-            activity_log=mocks["activity_log"],
-            config=EngineConfig(auto_approve_threshold=1.0),
+    async def propose_bitcoin(**kwargs: object) -> Proposal:
+        assert mocks["proposal_engine"].exchange is account_exchange
+        return make_proposal(proposal_id="alt-proposal").model_copy(
+            update={"sub_account_id": kwargs["sub_account_id"]}
         )
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_generated == 1
+    assert account_trader.open_position.await_count == 1
+    account_exchange.get_ticker.assert_awaited()
+    mocks["exchange"].get_ticker.assert_not_awaited()
+    assert mocks["proposal_engine"].exchange is mocks["exchange"]
 
 
 async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> None:

@@ -41,36 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-054: Account-scoped exchange router for sub-account runtime
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-05-08 |
-| **Phase** | Review follow-up |
-| **Component** | exchange-integration / sub-account-capital-segmentation |
-
-**Description:**
-Sub-account config can reference named exchange credentials, but the runtime
-proposal engine, stale quote gate, monitor ticker fetch, and portfolio snapshot
-still share one market-data exchange. The engine now rejects active non-default
-`exchange_ref` values at startup so proposals are not validated on one exchange
-and executed on another.
-
-**Impact:**
-Multi-exchange sub-account deployments are intentionally blocked until runtime
-market-data and execution routing are account-scoped.
-
-**Suggested Resolution:**
-Introduce an account runtime context that owns both the execution trader and the
-market-data exchange for proposal generation, stale quote checks, monitoring,
-and portfolio snapshots.
-
-**Related:**
-- `src/runtime/engine.py`
-- `src/trading/sub_account_registry.py`
-- `src/main.py`
-
 ## Resolved Debt Items
 
 <!--
@@ -94,6 +64,15 @@ Move resolved items here with resolution date and notes.
 | **Created** | 2026-05-08 |
 | **Resolved** | 2026-05-09 |
 | **Resolution** | CH-07 extended `TradeHistory` with optional `stop_loss` / `take_profit`, persisted live entry fees and risk bounds at open time, and added `LiveTrader` startup rehydration for persisted open live trades that include those bounds. `LiveTrader.get_open_position()` now exposes monitorable in-memory state to the runtime orphan guard. Historical open live trades without persisted SL/TP remain visible but intentionally non-monitorable, requiring operator reconciliation instead of unsafe inferred bounds. |
+
+### DEBT-054: Account-scoped exchange router for sub-account runtime ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-08 |
+| **Resolved** | 2026-05-09 |
+| **Resolution** | CH-08 removed the runtime startup block for active non-default `exchange_ref` values and routes proposal scan, stale-quote checks, monitor ticker fetches, and portfolio mark prices through the exchange exposed by each active sub-account trader. `SubAccountRegistry` now binds paper sub-accounts to named-credential exchanges when configured, and the proposal engine's default exchange is restored after each account-scoped scan. |
 
 ### DEBT-014: `loop.propose_new` called without `param_grid` — sensitivity gate SKIPPED ✅
 

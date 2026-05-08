@@ -38,7 +38,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -328,7 +328,6 @@ class TradingEngine:
         self.portfolio_tracker = portfolio_tracker
         self.mode = mode
         self.quote_currency = quote_currency
-        self._validate_exchange_refs_supported()
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
@@ -419,21 +418,6 @@ class TradingEngine:
             details=details,
         )
 
-    def _validate_exchange_refs_supported(self) -> None:
-        if self.sub_account_registry is None:
-            return
-        unsupported = [
-            sub
-            for sub in self.sub_account_registry.list_active()
-            if sub.exchange_ref not in (None, "default")
-        ]
-        if unsupported:
-            ids = ", ".join(f"{sub.id}:{sub.exchange_ref}" for sub in unsupported)
-            raise RuntimeError(
-                "Account-scoped exchange refs are not supported by the runtime "
-                f"market-data router yet: {ids}"
-            )
-
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -496,16 +480,19 @@ class TradingEngine:
             sub_account_id = self._sub_account_id(sub_account)
             try:
                 trader = self._trader_for_sub_account(sub_account_id)
+                exchange = self._exchange_for_trader(trader)
 
-                proposals = await self._scan(cycle_id, result, sub_account)
+                proposals = await self._scan(cycle_id, result, sub_account, exchange)
                 for proposal in proposals:
                     await self._handle_proposal(
-                        proposal, cycle_id, result, sub_account, trader
+                        proposal, cycle_id, result, sub_account, trader, exchange
                     )
 
-                await self._monitor(cycle_id, result, sub_account, trader)
+                await self._monitor(cycle_id, result, sub_account, trader, exchange)
 
-                await self._record_portfolio_snapshot(cycle_id, sub_account, trader)
+                await self._record_portfolio_snapshot(
+                    cycle_id, sub_account, trader, exchange
+                )
             except Exception as e:
                 # Per-sub-account failure isolation (consistency-hardening
                 # CH-03). Without this guard a single account's exception
@@ -581,6 +568,7 @@ class TradingEngine:
         cycle_id: str,
         result: CycleResult,
         sub_account: SubAccount | None = None,
+        exchange: BaseExchange | None = None,
     ) -> list[Proposal]:
         """Run the BTC + altcoin scans, returning all proposals collected.
 
@@ -601,52 +589,63 @@ class TradingEngine:
         risk_percent = (
             float(policy.risk_percent) if policy.risk_percent is not None else None
         )
+        account_exchange = exchange or self.exchange
+        previous_proposal_exchange = getattr(self.proposal_engine, "exchange", None)
+        proposal_exchange_swapped = previous_proposal_exchange is not None
+        if proposal_exchange_swapped:
+            self.proposal_engine.exchange = account_exchange
 
         try:
-            btc = await self.proposal_engine.propose_bitcoin(
-                symbol=policy.bitcoin_symbol,
-                balance=policy.sizing_balance,
-                strategies=strategies,
-                risk_percent=risk_percent,
-                leverage=policy.leverage,
-                sub_account_id=sub_account_id,
-            )
-        except ExchangeError as e:
-            self.activity_log.append(
-                ActivityEventType.SCAN_ERRORED,
-                f"Bitcoin scan failed: {e}",
-                details={
-                    "symbol": policy.bitcoin_symbol,
-                    "error": str(e),
-                    "sub_account_id": sub_account_id,
-                },
-                cycle_id=cycle_id,
-            )
-            result.errors.append(f"btc:{e}")
-            btc = None
+            try:
+                btc = await self.proposal_engine.propose_bitcoin(
+                    symbol=policy.bitcoin_symbol,
+                    balance=policy.sizing_balance,
+                    strategies=strategies,
+                    risk_percent=risk_percent,
+                    leverage=policy.leverage,
+                    sub_account_id=sub_account_id,
+                )
+            except ExchangeError as e:
+                self.activity_log.append(
+                    ActivityEventType.SCAN_ERRORED,
+                    f"Bitcoin scan failed: {e}",
+                    details={
+                        "symbol": policy.bitcoin_symbol,
+                        "error": str(e),
+                        "sub_account_id": sub_account_id,
+                    },
+                    cycle_id=cycle_id,
+                )
+                result.errors.append(f"btc:{e}")
+                btc = None
 
-        if btc is not None:
-            proposals.append(btc)
+            if btc is not None:
+                proposals.append(btc)
 
-        try:
-            altcoins = await self.proposal_engine.propose_altcoins(
-                symbols=policy.altcoin_symbols,
-                balance=policy.sizing_balance,
-                top_k=policy.altcoin_top_k,
-                strategies=strategies,
-                risk_percent=risk_percent,
-                leverage=policy.leverage,
-                sub_account_id=sub_account_id,
-            )
-        except ExchangeError as e:
-            self.activity_log.append(
-                ActivityEventType.SCAN_ERRORED,
-                f"Altcoin scan failed: {e}",
-                details={"error": str(e), "sub_account_id": sub_account_id},
-                cycle_id=cycle_id,
-            )
-            result.errors.append(f"alt:{e}")
-            altcoins = []
+            try:
+                altcoins = await self.proposal_engine.propose_altcoins(
+                    symbols=policy.altcoin_symbols,
+                    balance=policy.sizing_balance,
+                    top_k=policy.altcoin_top_k,
+                    strategies=strategies,
+                    risk_percent=risk_percent,
+                    leverage=policy.leverage,
+                    sub_account_id=sub_account_id,
+                )
+            except ExchangeError as e:
+                self.activity_log.append(
+                    ActivityEventType.SCAN_ERRORED,
+                    f"Altcoin scan failed: {e}",
+                    details={"error": str(e), "sub_account_id": sub_account_id},
+                    cycle_id=cycle_id,
+                )
+                result.errors.append(f"alt:{e}")
+                altcoins = []
+        finally:
+            if proposal_exchange_swapped:
+                self.proposal_engine.exchange = cast(
+                    "BaseExchange", previous_proposal_exchange
+                )
 
         proposals.extend(altcoins)
         result.proposals_generated += len(proposals)
@@ -659,6 +658,7 @@ class TradingEngine:
         result: CycleResult,
         sub_account: SubAccount | None,
         trader: Trader,
+        exchange: BaseExchange | None = None,
     ) -> None:
         """Persist + decide + (maybe) execute one proposal."""
         self.activity_log.append(
@@ -798,7 +798,7 @@ class TradingEngine:
                 )
                 return
 
-            await self._execute(proposal, cycle_id, result, trader)
+            await self._execute(proposal, cycle_id, result, trader, exchange)
         else:
             result.proposals_rejected += 1
             self.activity_log.append(
@@ -817,6 +817,7 @@ class TradingEngine:
         cycle_id: str,
         result: CycleResult,
         trader: Trader,
+        exchange: BaseExchange | None = None,
     ) -> None:
         """Open a paper position for an accepted proposal.
 
@@ -839,7 +840,9 @@ class TradingEngine:
         behaviour; transient exchange errors must not silently disable
         trading).
         """
-        rejection = await self._stale_quote_gate(proposal, cycle_id, result)
+        rejection = await self._stale_quote_gate(
+            proposal, cycle_id, result, exchange or self.exchange
+        )
         if rejection is not None:
             return
 
@@ -1032,6 +1035,7 @@ class TradingEngine:
         proposal: Proposal,
         cycle_id: str,
         result: CycleResult,
+        exchange: BaseExchange | None = None,
     ) -> str | None:
         """Reject the fill if the live ticker has gone stale on the proposal.
 
@@ -1049,8 +1053,9 @@ class TradingEngine:
         summary records both sides of the post-acceptance gate.
         """
         policy = self._runtime_policy_for_id(proposal.sub_account_id)
+        account_exchange = exchange or self.exchange
         try:
-            ticker = await self.exchange.get_ticker(proposal.symbol)
+            ticker = await account_exchange.get_ticker(proposal.symbol)
         except Exception as e:
             # Transient exchange errors fall through to fill so a brief
             # outage does not silently disable trading. The WARN is the
@@ -1326,6 +1331,7 @@ class TradingEngine:
         result: CycleResult,
         sub_account: SubAccount | None,
         trader: Trader,
+        exchange: BaseExchange | None = None,
     ) -> None:
         """Check SL/TP for every open paper position; close on hit.
 
@@ -1334,6 +1340,7 @@ class TradingEngine:
         """
         open_trades = trader.get_open_trades()
         closed_count = 0
+        account_exchange = exchange or self.exchange
 
         for trade in open_trades:
             if self._missing_position_state(trader, trade.id):
@@ -1353,7 +1360,7 @@ class TradingEngine:
                 result.errors.append(f"orphan_open_trade:{trade.id}")
                 continue
             try:
-                ticker = await self.exchange.get_ticker(trade.symbol)
+                ticker = await account_exchange.get_ticker(trade.symbol)
             except Exception as e:
                 self.activity_log.append(
                     ActivityEventType.MONITOR_ERRORED,
@@ -1404,6 +1411,7 @@ class TradingEngine:
         cycle_id: str,
         sub_account: SubAccount | None,
         trader: Trader,
+        exchange: BaseExchange | None = None,
     ) -> None:
         """Capture balances + open-position marks into ``AssetSnapshot``.
 
@@ -1428,9 +1436,10 @@ class TradingEngine:
             return
 
         current_prices: dict[str, Decimal] = {}
+        account_exchange = exchange or self.exchange
         for trade in trader.get_open_trades():
             try:
-                ticker = await self.exchange.get_ticker(trade.symbol)
+                ticker = await account_exchange.get_ticker(trade.symbol)
             except Exception:
                 continue
             current_prices[trade.symbol] = ticker.price
@@ -1601,6 +1610,15 @@ class TradingEngine:
         if self.sub_account_registry is None:
             return self.trader
         return self.sub_account_registry.get_trader(sub_account_id)
+
+    def _exchange_for_trader(self, trader: Trader) -> BaseExchange:
+        trader_vars = vars(trader)
+        if "_exchange" not in trader_vars and "exchange" not in trader_vars:
+            return self.exchange
+        exchange = getattr(trader, "exchange", None)
+        if exchange is None:
+            return self.exchange
+        return cast("BaseExchange", exchange)
 
     def _runtime_policy_for_id(self, sub_account_id: str) -> AccountRuntimePolicy:
         if self.sub_account_registry is None:

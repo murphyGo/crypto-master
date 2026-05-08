@@ -219,10 +219,21 @@ class SubAccountRegistry:
         if sub.id == DEFAULT_SUB_ACCOUNT_ID and sub.exchange_ref in (None, "default"):
             return self._trader
         if sub.mode == "paper":
+            exchange = self.exchange
+            if sub.exchange_ref not in (None, "default"):
+                exchange_ref = sub.exchange_ref
+                if exchange_ref is None:
+                    raise SubAccountConfigError(
+                        f"paper sub-account {sub.id!r} has no exchange_ref"
+                    )
+                credential = self.settings.exchange_credentials.get(exchange_ref)
+                if credential is not None:
+                    exchange = self._exchange_from_credential(credential)
+                    self._owned_live_exchanges.append(exchange)
             return PaperTrader(
                 initial_balance=sub.effective_initial_balance(),
                 data_dir=self.settings.data_dir / "trades",
-                exchange=self.exchange,
+                exchange=exchange,
                 activity_log=self.activity_log,
                 auto_deposit_on_liquidation=self.paper_auto_deposit_on_liquidation,
                 sub_account_id=sub.id,
