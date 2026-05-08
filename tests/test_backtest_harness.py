@@ -66,9 +66,52 @@ class LongEveryBarStrategy(BaseStrategy):
         )
 
 
+class RecordingMultiTimeframeStrategy(LongEveryBarStrategy):
+    def __init__(self, name: str) -> None:
+        BaseStrategy.__init__(
+            self,
+            TechniqueInfo(
+                name=name,
+                version="1.0.0",
+                description=f"{name} multi-timeframe test strategy",
+                technique_type="code",
+                requires_multi_timeframe=True,
+                timeframes=["1h", "4h"],
+            ),
+        )
+        self.calls: list[dict[str, object]] = []
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
+    ) -> AnalysisResult:
+        self.calls.append(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "keys": sorted((ohlcv_by_timeframe or {}).keys()),
+                "primary_len": len(ohlcv),
+                "current_price": current_price,
+            }
+        )
+        return await super().analyze(
+            ohlcv,
+            symbol,
+            timeframe,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+            current_price=current_price,
+        )
+
+
 class RecordingGate:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, str]] = []
+        self.multi_tf_keys: list[list[str]] = []
 
     async def evaluate(
         self,
@@ -78,8 +121,9 @@ class RecordingGate:
         timeframe: str,
         **kwargs: Any,
     ) -> RobustnessReport:
-        del ohlcv, kwargs
+        del ohlcv
         self.calls.append((strategy.name, symbol, timeframe))
+        self.multi_tf_keys.append(sorted(kwargs["ohlcv_by_timeframe"].keys()))
         return RobustnessReport(overall_passed=True, gates=[], summary="passed")
 
 
@@ -140,3 +184,31 @@ async def test_robustness_gate_runs_per_sub_account(tmp_path: Path) -> None:
 
     assert gate.calls == [("alpha", "ETH/USDT", "4h"), ("beta", "ETH/USDT", "4h")]
     assert report.robustness_passed == {"suba": True, "subb": True}
+    assert report.robustness_by_strategy == {
+        "suba": {"alpha": True},
+        "subb": {"beta": True},
+    }
+
+
+@pytest.mark.asyncio
+async def test_multi_timeframe_strategy_receives_timeframe_context(
+    tmp_path: Path,
+) -> None:
+    gate = RecordingGate()
+    harness = BacktestHarness(data_dir=tmp_path, gate=gate)  # type: ignore[arg-type]
+    strategy = RecordingMultiTimeframeStrategy("mtf")
+
+    report = await harness.run_sub_accounts(
+        [_sub_account("suba", "mtf")],
+        {
+            ("BTC/USDT", "1h"): _candles(32),
+            ("BTC/USDT", "4h"): _candles(32),
+        },
+        {"mtf": strategy},
+    )
+
+    assert strategy.calls
+    assert all(call["keys"] == ["1h", "4h"] for call in strategy.calls)
+    assert gate.calls == [("mtf", "BTC/USDT", "1h")]
+    assert gate.multi_tf_keys == [["1h", "4h"]]
+    assert report.robustness_by_strategy == {"suba": {"mtf": True}}

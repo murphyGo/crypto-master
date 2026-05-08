@@ -24,6 +24,9 @@ class MultiAccountReport(BaseModel):
     pairwise_correlation: dict[str, float] = Field(default_factory=dict)
     merged_trade_ledger: list[BacktestTrade] = Field(default_factory=list)
     robustness_passed: dict[str, bool | None] = Field(default_factory=dict)
+    robustness_by_strategy: dict[str, dict[str, bool | None]] = Field(
+        default_factory=dict
+    )
 
 
 __all__ = ["MultiAccountReport"]

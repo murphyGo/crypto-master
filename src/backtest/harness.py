@@ -52,12 +52,18 @@ class BacktestHarness:
         (symbol, timeframe), ohlcv = next(iter(ohlcv_by_symbol_tf.items()))
         if not ohlcv:
             raise ValueError("OHLCV window must not be empty")
+        ohlcv_by_timeframe = {
+            tf: candles
+            for (candidate_symbol, tf), candles in ohlcv_by_symbol_tf.items()
+            if candidate_symbol == symbol
+        }
 
         run_id = f"combo-{uuid.uuid4().hex[:12]}"
         per_sub_account = {}
         equity_curves: dict[str, list[EquityTuple]] = {}
         merged: list[BacktestTrade] = []
         robustness: dict[str, bool | None] = {}
+        robustness_by_strategy: dict[str, dict[str, bool | None]] = {}
 
         for sub in sub_accounts:
             if not sub.enabled:
@@ -67,7 +73,9 @@ class BacktestHarness:
                 raise ValueError(f"sub-account {sub.id!r} has no matching strategies")
 
             results = [
-                await self._run_one(sub, strategy, ohlcv, symbol, timeframe)
+                await self._run_one(
+                    sub, strategy, ohlcv, symbol, timeframe, ohlcv_by_timeframe
+                )
                 for strategy in selected
             ]
             combined = self._combine_results(sub, results, symbol, timeframe)
@@ -76,8 +84,15 @@ class BacktestHarness:
                 (point.timestamp, point.equity) for point in combined.equity_curve
             ]
             merged.extend(combined.trades)
-            robustness[sub.id] = await self._evaluate_robustness(
-                selected[0], ohlcv, symbol, timeframe
+            strategy_robustness = {
+                strategy.name: await self._evaluate_robustness(
+                    strategy, ohlcv, symbol, timeframe, ohlcv_by_timeframe
+                )
+                for strategy in selected
+            }
+            robustness_by_strategy[sub.id] = strategy_robustness
+            robustness[sub.id] = _aggregate_robustness(
+                list(strategy_robustness.values())
             )
 
         return MultiAccountReport(
@@ -89,6 +104,7 @@ class BacktestHarness:
             pairwise_correlation=_pairwise_correlations(equity_curves),
             merged_trade_ledger=sorted(merged, key=lambda t: t.entry_time),
             robustness_passed=robustness,
+            robustness_by_strategy=robustness_by_strategy,
         )
 
     def save_report(self, report: MultiAccountReport) -> Path:
@@ -106,12 +122,14 @@ class BacktestHarness:
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]],
     ) -> BacktestResult:
         balance = sub.effective_initial_balance().get("USDT", Decimal("10000"))
         defaults = BacktestConfig()
+        effective_risk_percent = sub.effective_risk_percent()
         risk_percent = (
-            float(sub.effective_risk_percent())
-            if sub.effective_risk_percent() is not None
+            float(effective_risk_percent)
+            if effective_risk_percent is not None
             else defaults.risk_percent
         )
         leverage = sub.effective_leverage_cap() or defaults.leverage
@@ -123,7 +141,13 @@ class BacktestHarness:
             ),
             data_dir=self.data_dir,
         )
-        return await backtester.run(strategy, ohlcv, symbol, timeframe)
+        return await backtester.run_for_strategy(
+            strategy,
+            ohlcv,
+            symbol,
+            timeframe,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
 
     def _select_strategies(
         self, sub: SubAccount, strategies: dict[str, BaseStrategy]
@@ -192,10 +216,17 @@ class BacktestHarness:
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]],
     ) -> bool | None:
         if self.gate is None:
             return None
-        report = await self.gate.evaluate(strategy, ohlcv, symbol, timeframe)
+        report = await self.gate.evaluate(
+            strategy,
+            ohlcv,
+            symbol,
+            timeframe,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
         return report.overall_passed
 
 
@@ -227,6 +258,13 @@ def _pairwise_correlations(
                 _returns(equity_curves[right]),
             )
     return out
+
+
+def _aggregate_robustness(results: list[bool | None]) -> bool | None:
+    evaluated = [result for result in results if result is not None]
+    if not evaluated:
+        return None
+    return all(evaluated)
 
 
 def _returns(curve: list[EquityTuple]) -> list[float]:
