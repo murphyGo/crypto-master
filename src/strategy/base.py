@@ -39,7 +39,13 @@ class StrategyError(Exception):
 class StrategyValidationError(StrategyError):
     """Strategy validation failed.
 
-    Raised when strategy input data or configuration is invalid.
+    Raised when strategy input data or configuration is invalid. Two
+    sub-meanings collide on this class historically — warmup / "not
+    enough data yet" and structural strategy contract failures (bad
+    placeholder, banned imports, malformed metadata). The backtest
+    engine wants to skip the former and breaker-count the latter, so
+    new code should raise :class:`StrategyDataInsufficient` for the
+    warmup case and reserve this base class for structural failures.
 
     Attributes:
         field: The field that failed validation, if applicable.
@@ -54,6 +60,21 @@ class StrategyValidationError(StrategyError):
         """
         super().__init__(message)
         self.field = field
+
+
+class StrategyDataInsufficient(StrategyValidationError):
+    """Strategy received OHLCV that is too short for warmup.
+
+    Distinct subclass so the backtest engine can skip the bar without
+    counting it toward the per-strategy parse-failure breaker
+    (consistency-hardening CH-04). Other ``StrategyValidationError``
+    subclasses — bad prompt placeholders, banned imports, malformed
+    metadata — are structural contract failures and must reach the
+    breaker so a broken candidate cannot quietly trade for thousands
+    of bars and emerge with a "0-trade pass" verdict.
+    """
+
+    pass
 
 
 class StrategyExecutionError(StrategyError):
@@ -338,10 +359,10 @@ class BaseStrategy(ABC):
             StrategyValidationError: If validation fails.
         """
         if not ohlcv:
-            raise StrategyValidationError("OHLCV data is empty", field="ohlcv")
+            raise StrategyDataInsufficient("OHLCV data is empty", field="ohlcv")
 
         if len(ohlcv) < min_candles:
-            raise StrategyValidationError(
+            raise StrategyDataInsufficient(
                 f"Insufficient data: {len(ohlcv)} candles, need at least {min_candles}",
                 field="ohlcv",
             )

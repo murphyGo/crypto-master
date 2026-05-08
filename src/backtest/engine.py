@@ -32,7 +32,11 @@ from src.ai.exceptions import ClaudeParseError
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import OHLCV, Position
-from src.strategy.base import BaseStrategy, StrategyError, StrategyValidationError
+from src.strategy.base import (
+    BaseStrategy,
+    StrategyDataInsufficient,
+    StrategyError,
+)
 from src.trading.profiles import TradingProfile, create_strategy_from_profile
 from src.trading.strategy import (
     TradingStrategy,
@@ -515,16 +519,20 @@ class Backtester:
                 raise BacktestAbortedError(
                     reason="per_bar_timeout", candle_index=i
                 ) from e
-            except StrategyValidationError as e:
-                # "Not enough data yet" — semantically a warmup gate,
-                # not a contract failure. Skip the bar without
-                # incrementing the breaker counter (otherwise a
+            except StrategyDataInsufficient as e:
+                # Warmup gate — "not enough data yet". Skip the bar
+                # without incrementing the breaker counter (otherwise a
                 # strategy whose internal warmup exceeds
                 # ``BacktestConfig.warmup_candles`` would trip the
                 # breaker immediately, which is a footgun, not a
-                # circuit breaker).
+                # circuit breaker). Only the dedicated subclass skips —
+                # other ``StrategyValidationError`` paths (bad prompt
+                # placeholder, banned imports, malformed metadata) fall
+                # through to the breaker so a structurally broken
+                # strategy cannot quietly trade for thousands of bars
+                # and emerge with a 0-trade pass (CH-04).
                 logger.debug(
-                    f"Strategy validation error on candle {i}: {e}; "
+                    f"Strategy warmup short on candle {i}: {e}; "
                     "skipping (does not count toward breaker)"
                 )
                 continue
@@ -769,11 +777,12 @@ class Backtester:
                 raise BacktestAbortedError(
                     reason="per_bar_timeout", candle_index=i
                 ) from e
-            except StrategyValidationError as e:
-                # See single-TF path: warmup-style "data not ready"
-                # is a skip, not a breaker failure.
+            except StrategyDataInsufficient as e:
+                # See single-TF path (CH-04): warmup-only is a skip.
+                # Structural ``StrategyValidationError`` falls through
+                # to the breaker.
                 logger.debug(
-                    f"Strategy validation error on candle {i}: {e}; "
+                    f"Strategy warmup short on candle {i}: {e}; "
                     "skipping (does not count toward breaker)"
                 )
                 continue

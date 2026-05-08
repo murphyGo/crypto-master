@@ -740,6 +740,122 @@ class TestPerBarCircuitBreaker:
         assert strategy.calls == 3
 
     @pytest.mark.asyncio
+    async def test_structural_validation_error_counts_toward_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        """A non-warmup ``StrategyValidationError`` must trip the breaker (CH-04).
+
+        Before consistency-hardening CH-04, the engine treated *every*
+        ``StrategyValidationError`` as a benign warmup skip. A strategy
+        whose ``analyze`` raised a structural validation error (bad
+        prompt placeholder, banned import, malformed metadata) would
+        skip every bar silently and emerge with a clean 0-trade
+        ``BacktestResult`` — visually indistinguishable from a healthy
+        run that simply produced no signals. The fix: only the
+        dedicated ``StrategyDataInsufficient`` subclass skips; other
+        ``StrategyValidationError`` paths fall through to the breaker.
+        """
+        from src.backtest.engine import BacktestAbortedError
+        from src.strategy.base import StrategyValidationError
+
+        class StructurallyBroken(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="structurally_broken",
+                        version="1.0.0",
+                        description="raises a structural validation error",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                raise StrategyValidationError(
+                    "prompt template missing required placeholder",
+                    field="template",
+                )
+
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                max_parse_failures=3,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = StructurallyBroken()
+        candles = make_flat_candles(20)
+
+        with pytest.raises(BacktestAbortedError) as excinfo:
+            await bt.run(strategy, candles, "BTC/USDT")
+        assert excinfo.value.reason == "consecutive_parse_failures"
+        assert strategy.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_warmup_data_insufficient_does_not_trip_breaker(
+        self, tmp_path: Path
+    ) -> None:
+        """``StrategyDataInsufficient`` keeps its skip semantics (CH-04).
+
+        Pin the warmup branch alongside the structural-failure branch
+        so future refactors don't accidentally collapse the two cases
+        again.
+        """
+        from src.strategy.base import StrategyDataInsufficient
+
+        class TooShort(BaseStrategy):
+            def __init__(self) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="too_short",
+                        version="1.0.0",
+                        description="raises StrategyDataInsufficient every bar",
+                        technique_type="prompt",
+                    )
+                )
+                self.calls = 0
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+            ) -> AnalysisResult:
+                self.calls += 1
+                raise StrategyDataInsufficient(
+                    "ohlcv too short for warmup",
+                    field="ohlcv",
+                )
+
+        bt = Backtester(
+            config=BacktestConfig(
+                warmup_candles=2,
+                fee_rate=Decimal("0"),
+                slippage_bps=0,
+                max_parse_failures=3,
+                per_bar_timeout=60.0,
+            ),
+            data_dir=tmp_path / "backtest",
+        )
+        strategy = TooShort()
+        candles = make_flat_candles(20)
+
+        # No abort — every bar skips silently.
+        result = await bt.run(strategy, candles, "BTC/USDT")
+        assert result.total_trades == 0
+        # Strategy was invoked on every post-warmup bar.
+        assert strategy.calls > 3
+
+    @pytest.mark.asyncio
     async def test_per_bar_timeout_trips_breaker(self, tmp_path: Path) -> None:
         """A strategy that blocks past ``per_bar_timeout`` aborts with
         ``BacktestAbortedError(reason="per_bar_timeout")`` on the
