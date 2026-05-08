@@ -32,7 +32,7 @@ from src.ai.exceptions import ClaudeParseError
 from src.backtest.metrics import count_trade_outcomes, return_percent
 from src.config import get_settings
 from src.logger import get_logger
-from src.models import OHLCV, Position
+from src.models import OHLCV, AnalysisResult, Position
 from src.strategy.base import (
     BaseStrategy,
     StrategyDataInsufficient,
@@ -557,31 +557,15 @@ class Backtester:
                 analyzed_bars += 1
                 consecutive_failures = 0
 
-            if analysis.signal == "neutral":
-                continue
-
-            # 5. Profile filter (confidence, neutral rejection).
-            if profile is not None and not profile.accepts_signal(analysis):
-                continue
-
-            # 6. Build the position; skip on any validation failure.
-            try:
-                position = trading_strategy.create_position(
-                    analysis=analysis,
-                    symbol=symbol,
-                    balance=balance,
-                    leverage=leverage,
-                    risk_percent=risk_percent,
-                )
-            except TradingValidationError as e:
-                logger.debug(f"Position rejected on candle {i}: {e}; skipping")
-                continue
-
-            # 7. Simulate fill at current candle close with slippage.
-            filled = self._open_trade_from_position(
-                position=position,
+            filled = self._open_trade_from_analysis(
+                analysis=analysis,
+                symbol=symbol,
                 current_candle=current_candle,
+                trading_strategy=trading_strategy,
+                profile=profile,
                 balance=balance,
+                leverage=leverage,
+                risk_percent=risk_percent,
                 candle_index=i,
             )
             if filled is None:
@@ -775,31 +759,15 @@ class Backtester:
                 analyzed_bars += 1
                 consecutive_failures = 0
 
-            if analysis.signal == "neutral":
-                continue
-
-            # 6. Profile filter (confidence, neutral rejection).
-            if profile is not None and not profile.accepts_signal(analysis):
-                continue
-
-            # 7. Build the position; skip on any validation failure.
-            try:
-                position = trading_strategy.create_position(
-                    analysis=analysis,
-                    symbol=symbol,
-                    balance=balance,
-                    leverage=leverage,
-                    risk_percent=risk_percent,
-                )
-            except TradingValidationError as e:
-                logger.debug(f"Position rejected on candle {i}: {e}; skipping")
-                continue
-
-            # 8. Simulate fill at current candle close with slippage.
-            filled = self._open_trade_from_position(
-                position=position,
+            filled = self._open_trade_from_analysis(
+                analysis=analysis,
+                symbol=symbol,
                 current_candle=current_candle,
+                trading_strategy=trading_strategy,
+                profile=profile,
                 balance=balance,
+                leverage=leverage,
+                risk_percent=risk_percent,
                 candle_index=i,
             )
             if filled is None:
@@ -1114,6 +1082,44 @@ class Backtester:
                 entry_fee=entry_fee,
             ),
             balance - entry_fee,
+        )
+
+    def _open_trade_from_analysis(
+        self,
+        *,
+        analysis: AnalysisResult,
+        symbol: str,
+        current_candle: OHLCV,
+        trading_strategy: TradingStrategy,
+        profile: TradingProfile | None,
+        balance: Decimal,
+        leverage: int,
+        risk_percent: float,
+        candle_index: int,
+    ) -> tuple[_OpenTrade, Decimal] | None:
+        """Convert a non-neutral accepted analysis into a simulated open trade."""
+        if analysis.signal == "neutral":
+            return None
+        if profile is not None and not profile.accepts_signal(analysis):
+            return None
+
+        try:
+            position = trading_strategy.create_position(
+                analysis=analysis,
+                symbol=symbol,
+                balance=balance,
+                leverage=leverage,
+                risk_percent=risk_percent,
+            )
+        except TradingValidationError as e:
+            logger.debug(f"Position rejected on candle {candle_index}: {e}; skipping")
+            return None
+
+        return self._open_trade_from_position(
+            position=position,
+            current_candle=current_candle,
+            balance=balance,
+            candle_index=candle_index,
         )
 
     def _close_open_trade_at_end_of_data(
