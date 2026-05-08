@@ -29,6 +29,7 @@ For active technical debt grouped by these units, see
 | `sub-account-capital-segmentation` | Independent capital pools, credential bindings, A/B harness | `src/trading/sub_account*.py`, `config/sub_accounts.yaml.example`, `src/backtest/harness.py`, `tests/test_trading_sub_account*` |
 | `persistence-data-integrity` | Atomic writes, JSON/JSONL rotation, UTC timestamp contracts | `src/utils/io.py`, `src/utils/time.py`, `src/runtime/jsonl_rotator.py`, `tests/test_utils_*`, `tests/test_jsonl_rotator.py` |
 | `quality-governance` | Session logs, cross-checks, technical debt, generated skills, AI-DLC overlay | `docs/`, `.agents/`, `.claude/`, `aidlc-docs/`, `aidlc-workflows/` |
+| `consistency-hardening` | Cross-cutting refactor and code-consistency hardening from structured reviews | `src/`, `tests/`, `docs/TECH-DEBT.md`, `docs/sessions/`, `docs/cross-checks/`, `aidlc-docs/construction/consistency-hardening/` |
 | `strategy-promotion-lab` | Candidate strategy scoring, observation stages, and promotion recommendations | `src/feedback/`, `src/backtest/`, `src/dashboard/pages/feedback.py`, `tests/test_feedback_*`, `tests/test_backtest_*` |
 | `sub-account-experiment-marketplace` | Reusable experiment templates for sub-account strategy labs | `config/sub_accounts.yaml.example`, `src/trading/sub_account*.py`, `src/backtest/harness.py`, `tests/test_trading_sub_account*` |
 | `trade-quality-autopsy` | Closed-trade quality diagnostics and thesis failure analysis | `src/strategy/performance.py`, `src/trading/`, `src/backtest/`, `tests/test_strategy_performance.py`, `tests/test_trading_*` |
@@ -211,6 +212,28 @@ For active technical debt grouped by these units, see
   documentation structure migration, agent/team update.
 - **Suggested Tests**: Documentation validation, targeted skill dry-run,
   `uv run pytest` for code-affecting changes.
+
+### `consistency-hardening`
+
+- **Responsibilities**: Convert structured refactor/code-consistency reviews
+  into bounded hardening slices across live execution, generated strategy
+  artifacts, runtime isolation, notification visibility, dashboard account
+  scope, backtest validity, and persistence contracts.
+- **Related Requirements**: Cross-cutting FR-009, FR-010, FR-015, FR-026,
+  FR-028, FR-036, FR-037, FR-038, FR-044, NFR-003, NFR-007, NFR-008,
+  NFR-011, NFR-012.
+- **Existing Status**: New construction unit created from the 2026-05-08
+  five-subagent refactor/code-consistency review.
+- **Future Change Triggers**: Structured review findings that span multiple
+  functional units, operational correctness gaps, schema/contract drift,
+  cross-page dashboard inconsistencies, or hardening work that needs explicit
+  triage before implementation.
+- **Suggested Tests**: Each slice should run the owning unit's targeted tests;
+  common suites include `tests/test_main_dispatch.py`,
+  `tests/test_live_trading.py`, `tests/test_runtime_engine.py`,
+  `tests/test_proposal_notification.py`, `tests/test_feedback_loop.py`,
+  `tests/test_backtest_harness.py`, `tests/test_dashboard_app.py`, and
+  `tests/test_dashboard_trading.py`.
 
 ### `strategy-promotion-lab`
 

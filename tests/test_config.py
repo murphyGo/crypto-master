@@ -116,6 +116,42 @@ class TestBinanceConfig:
         assert key == "live_key"
         assert secret == "live_secret"
 
+    def test_get_credentials_explicit_testnet_overrides_config(self) -> None:
+        """Explicit testnet override wins over self.testnet (consistency-hardening).
+
+        Exchange instances may be constructed with a runtime testnet flag
+        that differs from the legacy ``BINANCE_TESTNET`` env field; the
+        runtime mode must drive credential selection so the ccxt sandbox
+        URL and keys stay aligned.
+        """
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+        key, secret = config.get_credentials(testnet=True)
+        assert key == "testnet_key"
+        assert secret == "testnet_secret"
+
+        key, secret = config.get_credentials(testnet=False)
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_get_credentials_explicit_testnet_falls_back_when_keys_missing(
+        self,
+    ) -> None:
+        """Explicit override still falls back to the configured key set."""
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet=False,
+        )
+        key, secret = config.get_credentials(testnet=True)
+        assert key == "live_key"
+        assert secret == "live_secret"
+
     def test_is_configured_true_with_testnet_keys(self) -> None:
         """Test is_configured returns True when only testnet credentials are set."""
         config = BinanceConfig(
@@ -211,6 +247,23 @@ class TestBybitConfig:
             testnet=True,
         )
         key, secret = config.get_credentials()
+        assert key == "live_key"
+        assert secret == "live_secret"
+
+    def test_get_credentials_explicit_testnet_overrides_config(self) -> None:
+        """Explicit testnet override wins over self.testnet (consistency-hardening)."""
+        config = BybitConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+        key, secret = config.get_credentials(testnet=True)
+        assert key == "testnet_key"
+        assert secret == "testnet_secret"
+
+        key, secret = config.get_credentials(testnet=False)
         assert key == "live_key"
         assert secret == "live_secret"
 

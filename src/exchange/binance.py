@@ -155,8 +155,13 @@ class BinanceExchange(BaseExchange):
             else:
                 exchange_class = ccxt.binance
 
-            # Get appropriate credentials (testnet or live)
-            api_key, api_secret = self.config.get_credentials()
+            # Align credential selection with the runtime sandbox flag the
+            # exchange was constructed with. The factory may force a mode
+            # (paper => testnet=True, live => testnet=False) that differs
+            # from the legacy ``BINANCE_TESTNET`` env default; selecting
+            # creds off ``self.testnet`` keeps the ccxt URL and the keys
+            # consistent.
+            api_key, api_secret = self.config.get_credentials(testnet=self.testnet)
 
             # Initialize ccxt client
             self._client = exchange_class(

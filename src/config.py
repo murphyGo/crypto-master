@@ -49,16 +49,29 @@ class BinanceConfig(BaseSettings):
         has_testnet = bool(self.testnet_api_key and self.testnet_api_secret)
         return has_live or has_testnet
 
-    def get_credentials(self) -> tuple[str, str]:
-        """Get appropriate API credentials based on testnet setting.
+    def get_credentials(self, testnet: bool | None = None) -> tuple[str, str]:
+        """Get appropriate API credentials for the runtime mode.
 
-        Returns testnet credentials if testnet=True and testnet keys are set,
-        otherwise returns live credentials.
+        ``testnet`` (when provided) overrides ``self.testnet`` so callers
+        such as :class:`src.exchange.binance.BinanceExchange` can align
+        credential selection with the runtime sandbox flag they were
+        constructed with — the legacy ``BINANCE_TESTNET`` env field is
+        only the default, the exchange instance's mode is the source of
+        truth.
+
+        Returns testnet credentials when the resolved mode is testnet and
+        testnet keys are set; otherwise returns live credentials. The
+        fallback path preserves prior behaviour when only one credential
+        set is configured.
+
+        Args:
+            testnet: Optional override for the runtime testnet mode.
 
         Returns:
             Tuple of (api_key, api_secret).
         """
-        if self.testnet and self.testnet_api_key:
+        resolved_testnet = self.testnet if testnet is None else testnet
+        if resolved_testnet and self.testnet_api_key:
             return self.testnet_api_key, self.testnet_api_secret
         return self.api_key, self.api_secret
 
@@ -91,16 +104,28 @@ class BybitConfig(BaseSettings):
         has_testnet = bool(self.testnet_api_key and self.testnet_api_secret)
         return has_live or has_testnet
 
-    def get_credentials(self) -> tuple[str, str]:
-        """Get appropriate API credentials based on testnet setting.
+    def get_credentials(self, testnet: bool | None = None) -> tuple[str, str]:
+        """Get appropriate API credentials for the runtime mode.
 
-        Returns testnet credentials if testnet=True and testnet keys are set,
-        otherwise returns live credentials.
+        ``testnet`` (when provided) overrides ``self.testnet`` so callers
+        such as :class:`src.exchange.bybit.BybitExchange` can align
+        credential selection with the runtime sandbox flag they were
+        constructed with — the legacy ``BYBIT_TESTNET`` env field is only
+        the default, the exchange instance's mode is the source of truth.
+
+        Returns testnet credentials when the resolved mode is testnet and
+        testnet keys are set; otherwise returns live credentials. The
+        fallback path preserves prior behaviour when only one credential
+        set is configured.
+
+        Args:
+            testnet: Optional override for the runtime testnet mode.
 
         Returns:
             Tuple of (api_key, api_secret).
         """
-        if self.testnet and self.testnet_api_key:
+        resolved_testnet = self.testnet if testnet is None else testnet
+        if resolved_testnet and self.testnet_api_key:
             return self.testnet_api_key, self.testnet_api_secret
         return self.api_key, self.api_secret
 

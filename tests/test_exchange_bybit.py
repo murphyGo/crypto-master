@@ -157,6 +157,35 @@ class TestBybitExchangeConnect:
             assert call_args["sandbox"] is False
 
     @pytest.mark.asyncio
+    async def test_connect_aligns_credentials_with_runtime_testnet(self) -> None:
+        """Runtime testnet flag drives credential selection (consistency-hardening).
+
+        ``BybitConfig.testnet`` reflects the legacy ``BYBIT_TESTNET`` env
+        default. ``BybitExchange(..., testnet=...)`` may override that —
+        the runtime flag must drive credential selection so the ccxt
+        sandbox URL and the keys stay consistent.
+        """
+        config = BybitConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+
+        with patch("src.exchange.bybit.ccxt.bybit") as mock_class:
+            mock_client = AsyncMock()
+            mock_class.return_value = mock_client
+
+            exchange = BybitExchange(config=config, testnet=True)
+            await exchange.connect()
+
+            call_args = mock_class.call_args[0][0]
+            assert call_args["apiKey"] == "testnet_key"
+            assert call_args["secret"] == "testnet_secret"
+            assert call_args["sandbox"] is True
+
+    @pytest.mark.asyncio
     async def test_connect_authentication_error(
         self, bybit_config: BybitConfig
     ) -> None:

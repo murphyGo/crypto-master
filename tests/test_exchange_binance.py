@@ -190,6 +190,36 @@ class TestBinanceExchangeConnect:
             assert call_args["sandbox"] is False
 
     @pytest.mark.asyncio
+    async def test_connect_aligns_credentials_with_runtime_testnet(self) -> None:
+        """Runtime testnet flag drives credential selection (consistency-hardening).
+
+        ``BinanceConfig.testnet`` reflects the legacy ``BINANCE_TESTNET`` env
+        default. ``BinanceExchange(..., testnet=...)`` may override that —
+        for example paper-mode dispatch forces ``testnet=True`` even when
+        env says live. The runtime flag must drive credential selection so
+        the ccxt sandbox URL and the keys stay consistent.
+        """
+        config = BinanceConfig(
+            api_key="live_key",
+            api_secret="live_secret",
+            testnet_api_key="testnet_key",
+            testnet_api_secret="testnet_secret",
+            testnet=False,
+        )
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_client = AsyncMock()
+            mock_class.return_value = mock_client
+
+            exchange = BinanceExchange(config=config, testnet=True)
+            await exchange.connect()
+
+            call_args = mock_class.call_args[0][0]
+            assert call_args["apiKey"] == "testnet_key"
+            assert call_args["secret"] == "testnet_secret"
+            assert call_args["sandbox"] is True
+
+    @pytest.mark.asyncio
     async def test_connect_authentication_error(
         self, binance_config: BinanceConfig
     ) -> None:
