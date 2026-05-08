@@ -18,6 +18,8 @@ engine, analyzer, validator, and harness without changing existing behavior.
 - `Backtester._build_result()` and `BacktestHarness._combine_results()` use
   shared outcome counts and return percentage.
 - `PerformanceAnalyzer` and `RobustnessGate` use shared Sharpe helpers.
+- `PerformanceAnalyzer` uses shared max-drawdown helper for both closed-trade
+  fallback and equity-curve paths.
 - Direct helper tests cover empty outcomes, rates, return percentage, and Sharpe
   normalization.
 
@@ -34,5 +36,5 @@ engine, analyzer, validator, and harness without changing existing behavior.
 
 ## Result
 
-PASS. CH-26 foundation is behavior-preserving and ready for the next MDD
-consolidation slice.
+PASS. CH-26 is behavior-preserving and complete for shared outcome, return,
+Sharpe, and MDD helper consolidation.

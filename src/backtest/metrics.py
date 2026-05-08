@@ -49,6 +49,26 @@ def return_percent(initial: Decimal, final: Decimal) -> float:
     return float((final - initial) / initial * 100)
 
 
+def max_drawdown_from_equity_values(
+    values: Iterable[Decimal],
+    initial: Decimal,
+) -> tuple[Decimal, float]:
+    """Largest peak-to-trough drawdown from an equity value sequence."""
+    peak = initial
+    max_dd_abs = Decimal("0")
+    max_dd_peak = initial
+    for equity in values:
+        if equity > peak:
+            peak = equity
+        drawdown = peak - equity
+        if drawdown > max_dd_abs:
+            max_dd_abs = drawdown
+            max_dd_peak = peak
+    if max_dd_peak <= 0:
+        return max_dd_abs, 0.0
+    return max_dd_abs, float(max_dd_abs / max_dd_peak * 100)
+
+
 def sharpe_from_returns(
     returns: Sequence[float],
     annualization_factor: int | None = None,

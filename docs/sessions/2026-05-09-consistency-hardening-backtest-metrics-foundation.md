@@ -17,6 +17,8 @@
 - Added `src/backtest/metrics.py`.
 - Moved shared trade outcome counts, return percentage, and Sharpe tail
   calculations into the metrics module.
+- Moved analyzer max-drawdown peak-to-trough calculation into the metrics
+  module.
 - Routed `Backtester`, `PerformanceAnalyzer`, `RobustnessGate`, and
   `BacktestHarness` through the shared helpers.
 - Added direct tests for shared metric helpers.
@@ -31,11 +33,15 @@
   - passed.
 - `uv run mypy src/backtest/metrics.py src/backtest/analyzer.py src/backtest/validator.py src/backtest/engine.py src/backtest/harness.py`
   - passed.
+- `uv run pytest tests/test_backtest_metrics.py tests/test_backtest_analyzer.py tests/test_backtest_engine.py -q`
+  - 78 passed after the MDD completion slice.
+- `uv run mypy src/backtest/metrics.py src/backtest/analyzer.py`
+  - passed after the MDD completion slice.
 
 ## Decisions
 
-- Keep this as a foundation slice and leave MDD consolidation for the next CH-26
-  continuation because liquidation-truncated equity semantics are more sensitive.
+- Keep liquidation truncation in `Backtester._build_result()` and consolidate
+  the pure peak-to-trough calculation in `src/backtest/metrics.py`.
 
 ## Risks
 

@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from src.backtest.engine import BacktestResult, BacktestTrade, EquityPoint
 from src.backtest.metrics import (
     count_trade_outcomes,
+    max_drawdown_from_equity_values,
     return_percent,
     sharpe_from_returns,
 )
@@ -268,45 +269,26 @@ class PerformanceAnalyzer:
             )
 
         equity = initial
-        peak = initial
-        max_dd_abs = Decimal("0")
-        max_dd_peak = initial
+        values: list[Decimal] = []
 
         # Trades are appended in exit-order by the engine; sort just in
         # case callers pass a reordered list.
         ordered = sorted(trades, key=lambda t: t.exit_time)
         for trade in ordered:
             equity = equity + trade.pnl
-            if equity > peak:
-                peak = equity
-            drawdown = peak - equity
-            if drawdown > max_dd_abs:
-                max_dd_abs = drawdown
-                max_dd_peak = peak
+            values.append(equity)
 
-        if max_dd_peak <= 0:
-            return max_dd_abs, 0.0
-        return max_dd_abs, float(max_dd_abs / max_dd_peak * 100)
+        return max_drawdown_from_equity_values(values, initial)
 
     @staticmethod
     def _max_drawdown_from_equity_curve(
         curve: list[EquityPoint], initial: Decimal
     ) -> tuple[Decimal, float]:
         """Phase 24.1 / DEBT-030: peak-to-trough drop over per-bar equity."""
-        peak = initial
-        max_dd_abs = Decimal("0")
-        max_dd_peak = initial
-        for point in curve:
-            equity = point.equity
-            if equity > peak:
-                peak = equity
-            drawdown = peak - equity
-            if drawdown > max_dd_abs:
-                max_dd_abs = drawdown
-                max_dd_peak = peak
-        if max_dd_peak <= 0:
-            return max_dd_abs, 0.0
-        return max_dd_abs, float(max_dd_abs / max_dd_peak * 100)
+        return max_drawdown_from_equity_values(
+            (point.equity for point in curve),
+            initial,
+        )
 
     @staticmethod
     def _sharpe(

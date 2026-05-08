@@ -8,11 +8,12 @@ Added `src/backtest/metrics.py` as the shared home for low-risk metric helpers:
 - `return_percent`
 - `sharpe_from_returns`
 - `sharpe_from_trade_pnls`
+- `max_drawdown_from_equity_values`
 
 `Backtester`, `PerformanceAnalyzer`, `RobustnessGate`, and `BacktestHarness`
-now share these helpers for outcome counts, return percentage, and Sharpe
-calculation. This keeps behavior unchanged while reducing duplicate formulas
-before moving the larger max-drawdown surfaces.
+now share these helpers for outcome counts, return percentage, Sharpe
+calculation, and analyzer max drawdown calculation. This keeps behavior
+unchanged while reducing duplicate formulas.
 
 ## Verification
 
@@ -27,5 +28,5 @@ before moving the larger max-drawdown surfaces.
 
 ## Remaining CH-26 Scope
 
-Max drawdown consolidation remains open so liquidation-truncated equity-curve
-semantics can be moved without changing reported values.
+CH-26 is complete. Liquidation-truncated equity-curve semantics remain owned by
+`Backtester._build_result()` and are covered by existing engine/analyzer tests.

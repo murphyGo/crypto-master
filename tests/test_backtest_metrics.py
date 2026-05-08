@@ -6,6 +6,7 @@ import pytest
 
 from src.backtest.metrics import (
     count_trade_outcomes,
+    max_drawdown_from_equity_values,
     return_percent,
     sharpe_from_returns,
     sharpe_from_trade_pnls,
@@ -36,6 +37,16 @@ def test_count_trade_outcomes_empty_rates_are_zero() -> None:
 def test_return_percent_handles_non_positive_initial() -> None:
     assert return_percent(Decimal("100"), Decimal("125")) == 25.0
     assert return_percent(Decimal("0"), Decimal("125")) == 0.0
+
+
+def test_max_drawdown_from_equity_values_tracks_peak_to_trough() -> None:
+    max_dd, max_dd_pct = max_drawdown_from_equity_values(
+        [Decimal("110"), Decimal("105"), Decimal("120"), Decimal("90")],
+        Decimal("100"),
+    )
+
+    assert max_dd == Decimal("30")
+    assert max_dd_pct == 25.0
 
 
 def test_sharpe_from_returns_matches_trade_pnl_normalization() -> None:
