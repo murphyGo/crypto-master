@@ -242,6 +242,96 @@ def _engine_config_from_settings(settings: Settings) -> EngineConfig:
     )
 
 
+def build_notification_dispatcher(
+    settings: Settings,
+    config: EngineConfig,
+    registry: SubAccountRegistry,
+) -> NotificationDispatcher:
+    """Build the default or routed proposal notification dispatcher."""
+    base_notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
+    push_notifiers: list[Notifier] = []
+    if settings.slack_webhook_url:
+        push_notifiers.append(SlackNotifier(settings.slack_webhook_url))
+        # Deliberately log presence only — never the URL itself.
+        logger.info("Slack push notifier enabled.")
+    if settings.telegram_bot_token and settings.telegram_chat_id:
+        push_notifiers.append(
+            TelegramNotifier(
+                bot_token=settings.telegram_bot_token,
+                chat_id=settings.telegram_chat_id,
+            )
+        )
+        # Deliberately log presence only — never the token or chat id.
+        logger.info("Telegram push notifier enabled.")
+    if all(
+        [
+            settings.email_smtp_host,
+            settings.email_smtp_user,
+            settings.email_smtp_password,
+            settings.email_from,
+            settings.email_to,
+        ]
+    ):
+        # All five string fields are present — the type checker can't
+        # see that ``all([...])`` narrows them, so assert non-None for
+        # mypy. ``email_smtp_port`` has a non-optional default (587).
+        assert settings.email_smtp_host is not None
+        assert settings.email_smtp_user is not None
+        assert settings.email_smtp_password is not None
+        assert settings.email_from is not None
+        assert settings.email_to is not None
+        push_notifiers.append(
+            EmailNotifier(
+                host=settings.email_smtp_host,
+                port=settings.email_smtp_port,
+                user=settings.email_smtp_user,
+                password=settings.email_smtp_password,
+                from_addr=settings.email_from,
+                to_addr=settings.email_to,
+                # Phase 14.2 (DEBT-012): SMTP_SSL alternative for
+                # providers without STARTTLS (Yahoo / AT&T / ProtonMail).
+                # Default False keeps the STARTTLS path unchanged.
+                use_ssl=settings.email_use_ssl,
+            )
+        )
+        # Deliberately log presence only — never the password.
+        logger.info("Email push notifier enabled.")
+    default_dispatcher = NotificationDispatcher(
+        notifiers=[*base_notifiers, *push_notifiers],
+        min_score=config.auto_approve_threshold,
+    )
+    route_dispatchers = {
+        route: NotificationDispatcher(
+            notifiers=[*base_notifiers, SlackNotifier(webhook_url)],
+            min_score=config.auto_approve_threshold,
+        )
+        for route, webhook_url in settings.notification_slack_webhook_urls.items()
+    }
+    sub_account_routes: dict[str, str] = {}
+    for sub in registry.list_active():
+        route = sub.effective_notification_route()
+        if route is not None:
+            sub_account_routes[sub.id] = route
+    sub_account_min_scores = {
+        sub.id: min_score
+        for sub in registry.list_active()
+        for min_score in (
+            sub.notification_policy.min_score,
+            sub.proposal_policy.notify_min_score,
+        )
+        if min_score is not None
+    }
+    if (sub_account_routes and route_dispatchers) or sub_account_min_scores:
+        logger.info("Per-sub-account notification routing enabled.")
+        return RoutedNotificationDispatcher(
+            default_dispatcher=default_dispatcher,
+            sub_account_routes=sub_account_routes,
+            route_dispatchers=route_dispatchers,
+            sub_account_min_scores=sub_account_min_scores,
+        )
+    return default_dispatcher
+
+
 def build_engine(
     settings: Settings,
     exchange: BaseExchange,
@@ -316,98 +406,7 @@ def build_engine(
             ),
         )
 
-    # Notifier list grows with optional push backends (Phase 11.3,
-    # 12.4, 13.4). Console + File are always-on. Slack is opt-in via
-    # ``SLACK_WEBHOOK_URL``; Telegram is opt-in via the pair
-    # ``TELEGRAM_BOT_TOKEN`` + ``TELEGRAM_CHAT_ID`` (both required —
-    # the notifier is not constructed unless both are set, so a
-    # half-configured deploy does not fail at runtime); Email is
-    # opt-in via the SMTP quintet (host/user/password/from/to — port
-    # has a default of 587 for STARTTLS).
-    base_notifiers: list[Notifier] = [ConsoleNotifier(), FileNotifier()]
-    push_notifiers: list[Notifier] = []
-    if settings.slack_webhook_url:
-        push_notifiers.append(SlackNotifier(settings.slack_webhook_url))
-        # Deliberately log presence only — never the URL itself.
-        logger.info("Slack push notifier enabled.")
-    if settings.telegram_bot_token and settings.telegram_chat_id:
-        push_notifiers.append(
-            TelegramNotifier(
-                bot_token=settings.telegram_bot_token,
-                chat_id=settings.telegram_chat_id,
-            )
-        )
-        # Deliberately log presence only — never the token or chat id.
-        logger.info("Telegram push notifier enabled.")
-    if all(
-        [
-            settings.email_smtp_host,
-            settings.email_smtp_user,
-            settings.email_smtp_password,
-            settings.email_from,
-            settings.email_to,
-        ]
-    ):
-        # All five string fields are present — the type checker can't
-        # see that ``all([...])`` narrows them, so assert non-None for
-        # mypy. ``email_smtp_port`` has a non-optional default (587).
-        assert settings.email_smtp_host is not None
-        assert settings.email_smtp_user is not None
-        assert settings.email_smtp_password is not None
-        assert settings.email_from is not None
-        assert settings.email_to is not None
-        push_notifiers.append(
-            EmailNotifier(
-                host=settings.email_smtp_host,
-                port=settings.email_smtp_port,
-                user=settings.email_smtp_user,
-                password=settings.email_smtp_password,
-                from_addr=settings.email_from,
-                to_addr=settings.email_to,
-                # Phase 14.2 (DEBT-012): SMTP_SSL alternative for
-                # providers without STARTTLS (Yahoo / AT&T / ProtonMail).
-                # Default False keeps the STARTTLS path unchanged.
-                use_ssl=settings.email_use_ssl,
-            )
-        )
-        # Deliberately log presence only — never the password.
-        logger.info("Email push notifier enabled.")
-    default_dispatcher = NotificationDispatcher(
-        notifiers=[*base_notifiers, *push_notifiers],
-        min_score=config.auto_approve_threshold,
-    )
-    route_dispatchers = {
-        route: NotificationDispatcher(
-            notifiers=[*base_notifiers, SlackNotifier(webhook_url)],
-            min_score=config.auto_approve_threshold,
-        )
-        for route, webhook_url in settings.notification_slack_webhook_urls.items()
-    }
-    sub_account_routes = {
-        sub.id: sub.effective_notification_route()
-        for sub in registry.list_active()
-        if sub.effective_notification_route() is not None
-    }
-    sub_account_min_scores = {
-        sub.id: min_score
-        for sub in registry.list_active()
-        for min_score in (
-            sub.notification_policy.min_score,
-            sub.proposal_policy.notify_min_score,
-        )
-        if min_score is not None
-    }
-    notifier: NotificationDispatcher
-    if (sub_account_routes and route_dispatchers) or sub_account_min_scores:
-        notifier = RoutedNotificationDispatcher(
-            default_dispatcher=default_dispatcher,
-            sub_account_routes=sub_account_routes,
-            route_dispatchers=route_dispatchers,
-            sub_account_min_scores=sub_account_min_scores,
-        )
-        logger.info("Per-sub-account notification routing enabled.")
-    else:
-        notifier = default_dispatcher
+    notifier = build_notification_dispatcher(settings, config, registry)
 
     logger.info(
         f"Trading mode: {settings.trading_mode} "
