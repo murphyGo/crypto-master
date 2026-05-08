@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -239,13 +240,26 @@ def render_home() -> None:
     st.markdown(
         "- Use the sidebar to switch sections.\n"
         "- Configure exchanges and trading mode via the project's `.env` file.\n"
-        "- See `docs/development-plan.md` for the dashboard roadmap."
+        "- See `aidlc-docs/inception/units/unit-of-work.md` for unit ownership "
+        "and the active construction backlog."
     )
 
 
 def discover_command_center_sub_accounts(mode: DashboardMode) -> list[str]:
-    """Discover sub-account ids for the command-center controls."""
-    ids = trading_page.discover_sub_account_ids(get_settings().data_dir, mode)
+    """Discover sub-account ids for the command-center controls.
+
+    Merges configured sub-accounts (from ``config/sub_accounts.yaml``)
+    with sub-accounts that have any persisted state. Without the
+    configured side, a freshly-configured account with no trades or
+    snapshots was invisible to the Home page even though Trading
+    already merged the two sources (consistency-hardening CH-05).
+    """
+    ids = trading_page.merge_sub_account_ids(
+        trading_page.discover_configured_sub_account_ids(
+            Path("config/sub_accounts.yaml"), mode
+        ),
+        trading_page.discover_sub_account_ids(get_settings().data_dir, mode),
+    )
     return ids or [DEFAULT_SUB_ACCOUNT_ID]
 
 
@@ -276,6 +290,12 @@ def load_command_center_status(
     candidate_records = feedback_page.load_candidate_records(
         feedback_page.default_candidate_state_dir()
     )
+    if scope != COMMAND_CENTER_AGGREGATE_SCOPE:
+        # Scope candidate evidence to the selected sub-account so the
+        # Home page metrics match the panel filter (CH-05).
+        candidate_records = [
+            record for record in candidate_records if record.sub_account_id == scope
+        ]
     candidate_metrics = feedback_page.build_summary_metrics(candidate_records)
 
     return build_command_center_status(
@@ -305,21 +325,40 @@ def build_command_center_status(
     now: datetime | None = None,
 ) -> CommandCenterStatus:
     """Build a compact operator-first status from persisted dashboard inputs."""
-    cycles = engine_page.aggregate_cycles(events)
-    cycle_metrics = engine_page.build_summary_metrics(events, cycles)
+    # Filter every per-sub-account read model by the active scope so
+    # the four panels (incidents, safety factors, candidate evidence,
+    # exposure) all reflect the same operator selection. Before this
+    # slice (CH-05), three of the four panels ignored ``scope`` and
+    # silently aggregated across every sub-account whenever the
+    # operator picked a single account.
+    is_aggregate = scope == COMMAND_CENTER_AGGREGATE_SCOPE
+    scoped_events = (
+        events
+        if is_aggregate
+        else [
+            event
+            for event in events
+            if str(event.details.get("sub_account_id", "")) in {scope, ""}
+        ]
+    )
+    cycles = engine_page.aggregate_cycles(scoped_events)
+    cycle_metrics = engine_page.build_summary_metrics(scoped_events, cycles)
     safety = compute_runtime_safety_score(
         inputs_from_recent_activity_events(
-            events,
+            scoped_events,
             now=now,
             lookback_hours=ACTIONABLE_LOOKBACK_HOURS,
         )
     )
     latest_snapshot_at = latest_snapshot_timestamp(snapshots)
-    latest_equity = latest_snapshot_equity(snapshots)
+    latest_equity = latest_snapshot_equity(
+        snapshots,
+        aggregate_per_sub_account=is_aggregate,
+    )
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
     candidate_metrics = candidate_metrics or {}
-    incident_rows = build_incident_rows(events, now=now)
+    incident_rows = build_incident_rows(scoped_events, now=now)
 
     return CommandCenterStatus(
         safety=safety,
@@ -357,12 +396,39 @@ def latest_snapshot_timestamp(snapshots: list[AssetSnapshot]) -> datetime | None
     return max(ensure_utc(snapshot.timestamp) for snapshot in snapshots)
 
 
-def latest_snapshot_equity(snapshots: list[AssetSnapshot]) -> Decimal | None:
-    """Return total equity from the newest persisted portfolio snapshot."""
+def latest_snapshot_equity(
+    snapshots: list[AssetSnapshot],
+    *,
+    aggregate_per_sub_account: bool = False,
+) -> Decimal | None:
+    """Return persisted-snapshot equity for the operator dashboard.
+
+    When ``aggregate_per_sub_account`` is True, group by ``sub_account_id``
+    and sum the latest snapshot's ``total_equity`` per group. Without
+    that, the historical implementation returned the equity of the
+    single newest snapshot across all sub-accounts — which understates
+    aggregate equity by ``N - 1`` sub-accounts and proportionally
+    inflates ``notional_pct_of_equity`` (consistency-hardening CH-05).
+    """
     if not snapshots:
         return None
-    latest = max(snapshots, key=lambda snapshot: ensure_utc(snapshot.timestamp))
-    return latest.total_equity
+    if not aggregate_per_sub_account:
+        latest = max(snapshots, key=lambda snapshot: ensure_utc(snapshot.timestamp))
+        return latest.total_equity
+
+    by_account: dict[str, AssetSnapshot] = {}
+    for snapshot in snapshots:
+        existing = by_account.get(snapshot.sub_account_id)
+        if existing is None or ensure_utc(snapshot.timestamp) > ensure_utc(
+            existing.timestamp
+        ):
+            by_account[snapshot.sub_account_id] = snapshot
+    if not by_account:
+        return None
+    return sum(
+        (snapshot.total_equity for snapshot in by_account.values()),
+        Decimal("0"),
+    )
 
 
 def snapshot_freshness(

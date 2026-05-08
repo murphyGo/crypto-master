@@ -409,6 +409,84 @@ def test_latest_snapshot_equity_uses_newest_snapshot() -> None:
     assert latest_snapshot_equity([older, newer]) == Decimal("11750")
 
 
+def test_latest_snapshot_equity_aggregates_per_sub_account() -> None:
+    """Aggregate scope sums latest-per-sub-account, not the global newest (CH-05).
+
+    Before consistency-hardening CH-05, the dashboard returned the
+    equity of the single newest snapshot across every sub-account, so
+    aggregate equity understated by ``N - 1`` accounts and
+    proportionally inflated ``notional_pct_of_equity``.
+    """
+    alpha_old = make_snapshot(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    alpha_old.sub_account_id = "alpha"
+    alpha_old.balances["USDT"] = Decimal("8000")
+    alpha_new = make_snapshot(datetime(2026, 1, 2, tzinfo=timezone.utc))
+    alpha_new.sub_account_id = "alpha"
+    alpha_new.balances["USDT"] = Decimal("9000")
+    beta = make_snapshot(datetime(2026, 1, 1, 12, tzinfo=timezone.utc))
+    beta.sub_account_id = "beta"
+    beta.balances["USDT"] = Decimal("4000")
+
+    snapshots = [alpha_old, alpha_new, beta]
+
+    # Without aggregation: returns the single newest (alpha @ 9000).
+    assert latest_snapshot_equity(snapshots) == Decimal("9000")
+    # With aggregation: sums latest-per-sub-account (alpha 9000 + beta 4000).
+    assert latest_snapshot_equity(snapshots, aggregate_per_sub_account=True) == Decimal(
+        "13000"
+    )
+
+
+def test_build_command_center_status_filters_by_scope() -> None:
+    """Single-account scope filters incidents/safety/equity (CH-05)."""
+    now = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    alpha_event = make_event(
+        ActivityEventType.NOTIFICATION_FAILED,
+        now,
+        details={"sub_account_id": "alpha", "symbol": "BTC/USDT"},
+    )
+    beta_event = make_event(
+        ActivityEventType.NOTIFICATION_FAILED,
+        now,
+        details={"sub_account_id": "beta", "symbol": "ETH/USDT"},
+    )
+    alpha_snap = make_snapshot(now)
+    alpha_snap.sub_account_id = "alpha"
+    alpha_snap.balances["USDT"] = Decimal("9000")
+    beta_snap = make_snapshot(now)
+    beta_snap.sub_account_id = "beta"
+    beta_snap.balances["USDT"] = Decimal("4000")
+
+    aggregate = build_command_center_status(
+        events=[alpha_event, beta_event],
+        trades=[],
+        snapshots=[alpha_snap, beta_snap],
+        sub_account_count=2,
+        mode="paper",
+        now=now,
+    )
+    assert aggregate.scope == "Aggregate"
+    assert aggregate.latest_equity == Decimal("13000")
+    assert len(aggregate.incident_rows) == 2
+
+    scoped = build_command_center_status(
+        events=[alpha_event, beta_event],
+        trades=[],
+        snapshots=[alpha_snap, beta_snap],
+        sub_account_count=2,
+        mode="paper",
+        scope="alpha",
+        now=now,
+    )
+    assert scoped.scope == "alpha"
+    # Single-account scope keeps the single snapshot's equity (no
+    # aggregate sum across accounts).
+    assert scoped.latest_equity == Decimal("9000")
+    # Only alpha's incident remains.
+    assert len(scoped.incident_rows) == 1
+    assert scoped.incident_rows[0].sub_account_id == "alpha"
+
+
 def test_build_incident_rows_extracts_operator_fields() -> None:
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     rows = build_incident_rows(
