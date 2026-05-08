@@ -279,19 +279,7 @@ def _build_slack_payload(notification: Notification) -> dict[str, Any]:
     )
     if safety_summary is not None:
         summary = f"{summary} {safety_summary}"
-    detail = (
-        "```\n"
-        f"proposal_id: {proposal.proposal_id}\n"
-        f"sub_account_id: {proposal.sub_account_id}\n"
-        f"technique: {proposal.technique_name}\n"
-        f"SL: {proposal.stop_loss}\n"
-        f"TP: {proposal.take_profit}\n"
-        f"qty: {proposal.quantity}\n"
-        f"leverage: {proposal.leverage}x\n"
-        f"rr: {proposal.risk_reward_ratio:.2f}\n"
-        f"{_format_optional_safety_detail(notification)}"
-        "```"
-    )
+    detail = _build_notification_code_block(notification)
     return {
         "text": summary,
         "blocks": [
@@ -401,8 +389,17 @@ def _build_telegram_text(notification: Notification) -> str:
         f"entry={proposal.entry_price}"
         f"{safety_summary}"
     )
-    detail = (
-        "```\n"
+    detail = _build_notification_code_block(notification)
+    return f"{headline}\n{detail}"
+
+
+def _build_notification_code_block(notification: Notification) -> str:
+    return f"```\n{_build_notification_detail(notification)}```"
+
+
+def _build_notification_detail(notification: Notification) -> str:
+    proposal = notification.proposal
+    return (
         f"proposal_id: {proposal.proposal_id}\n"
         f"sub_account_id: {proposal.sub_account_id}\n"
         f"technique: {proposal.technique_name}\n"
@@ -412,9 +409,7 @@ def _build_telegram_text(notification: Notification) -> str:
         f"leverage: {proposal.leverage}x\n"
         f"rr: {proposal.risk_reward_ratio:.2f}\n"
         f"{_format_optional_safety_detail(notification)}"
-        "```"
     )
-    return f"{headline}\n{detail}"
 
 
 def _format_optional_safety_summary(notification: Notification) -> str | None:
