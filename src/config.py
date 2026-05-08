@@ -247,6 +247,7 @@ class Settings(BaseSettings):
     # cross-check is unacceptable. See
     # ``EngineConfig.reject_if_stale_quote`` for the runtime semantics.
     engine_reject_if_stale_quote: bool = Field(default=False)
+    engine_max_ticker_age_seconds: float = Field(default=10.0, gt=0)
     engine_correlation_gate_enabled: bool = Field(default=False)
     engine_correlation_max_sub_accounts_per_symbol_side: int = Field(default=1, ge=1)
     engine_correlation_max_sub_accounts_per_strategy_symbol_side: int = Field(
@@ -478,14 +479,19 @@ class Settings(BaseSettings):
         if self.trading_mode != "live":
             return
 
+        has_live_named_credential = any(
+            not credential.testnet for credential in self.exchange_credentials.values()
+        )
         if (
-            not self.binance.is_configured()
-            and not self.bybit.is_configured()
-            and not self.exchange_credentials
+            not (self.binance.api_key and self.binance.api_secret)
+            and not (self.bybit.api_key and self.bybit.api_secret)
+            and not has_live_named_credential
         ):
             raise ValueError(
-                "Live trading requires at least one exchange to be configured. "
-                "Please set API keys for Binance or Bybit in your .env file."
+                "Live trading requires at least one live exchange credential. "
+                "Set BINANCE_API_KEY/BINANCE_API_SECRET, "
+                "BYBIT_API_KEY/BYBIT_API_SECRET, or an EXCHANGE_<REF> "
+                "credential with TESTNET=false."
             )
 
     def get_configured_exchanges(self) -> list[str]:

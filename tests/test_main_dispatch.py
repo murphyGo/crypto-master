@@ -119,6 +119,50 @@ class TestBuildExchange:
         assert isinstance(ex, BinanceExchange)
         assert ex.testnet is False
 
+    def test_live_ignores_named_testnet_credential_when_live_ref_exists(self) -> None:
+        ex = build_exchange(
+            _settings(
+                mode="live",
+                exchange_credentials={
+                    "aaa_testnet": ExchangeCredential(
+                        ref="aaa_testnet",
+                        exchange="binance",
+                        api_key="testnet-key",
+                        api_secret="testnet-secret",
+                        testnet=True,
+                    ),
+                    "bybit_live": ExchangeCredential(
+                        ref="bybit_live",
+                        exchange="bybit",
+                        api_key="live-key",
+                        api_secret="live-secret",
+                        testnet=False,
+                    ),
+                },
+            )
+        )
+
+        assert isinstance(ex, BybitExchange)
+        assert ex.testnet is False
+
+    def test_live_with_only_named_testnet_credential_raises(self) -> None:
+        with patch.dict("os.environ", {}, clear=True):
+            with pytest.raises(ValueError, match="live exchange credential"):
+                build_exchange(
+                    _settings(
+                        mode="live",
+                        exchange_credentials={
+                            "binance_testnet": ExchangeCredential(
+                                ref="binance_testnet",
+                                exchange="binance",
+                                api_key="testnet-key",
+                                api_secret="testnet-secret",
+                                testnet=True,
+                            )
+                        },
+                    )
+                )
+
     def test_live_with_only_testnet_keys_raises(self) -> None:
         """Live mode demands live credentials specifically — testnet
         keys are not enough."""
@@ -252,6 +296,7 @@ class TestBuildEngineEnvOverride:
         monkeypatch.setenv("ENGINE_CYCLE_INTERVAL", "120")
         monkeypatch.setenv("ENGINE_SYMBOLS", "BTC/USDT,ETH/USDT")
         monkeypatch.setenv("ENGINE_BALANCE", "7500")
+        monkeypatch.setenv("ENGINE_MAX_TICKER_AGE_SECONDS", "45.5")
 
         # Build Settings from env (no .env file shenanigans here — the
         # test process inherits env we just set via monkeypatch).
@@ -277,6 +322,7 @@ class TestBuildEngineEnvOverride:
         assert engine.config.cycle_interval_seconds == 120
         assert engine.config.altcoin_symbols == ["BTC/USDT", "ETH/USDT"]
         assert engine.config.balance == Decimal("7500")
+        assert engine.config.max_ticker_age_seconds == 45.5
 
     def test_slack_notifier_created_when_env_set(
         self, monkeypatch: pytest.MonkeyPatch

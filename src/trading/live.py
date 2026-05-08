@@ -234,8 +234,7 @@ class LiveTrader:
         )
 
         order = await self._submit_order(order_request, action="open")
-
-        filled_qty = order.filled_quantity or position.quantity
+        filled_qty = order.filled_quantity
 
         trade = self._trade_tracker.open_trade(
             symbol=position.symbol,
@@ -248,7 +247,9 @@ class LiveTrader:
             performance_record_id=performance_record_id,
         )
 
-        self._open_positions[trade.id] = position
+        self._open_positions[trade.id] = position.model_copy(
+            update={"quantity": filled_qty}
+        )
 
         logger.info(
             f"Opened live position: {position.side} {position.symbol} "
@@ -467,12 +468,29 @@ class LiveTrader:
                 f"Exchange rejected {action} order: {e}"
             ) from e
 
-        # Treat rejected/cancelled statuses as failures. Anything else
-        # (filled, partially_filled, open for passive orders) is passed
-        # through for the caller to record.
         if order.status in (OrderStatus.REJECTED, OrderStatus.CANCELLED):
             raise LiveOrderRejectedError(
                 f"Exchange reported {order.status.value} for {action} order",
+                order_id=order.id,
+                status=order.status,
+            )
+        if order.status != OrderStatus.FILLED:
+            raise LiveOrderRejectedError(
+                f"Exchange reported non-filled status {order.status.value} "
+                f"for {action} market order",
+                order_id=order.id,
+                status=order.status,
+            )
+        if order.filled_quantity <= 0:
+            raise LiveOrderRejectedError(
+                f"Exchange reported zero fill for {action} market order",
+                order_id=order.id,
+                status=order.status,
+            )
+        if order.filled_quantity != order_request.quantity:
+            raise LiveOrderRejectedError(
+                f"Exchange reported partial fill for {action} market order: "
+                f"filled={order.filled_quantity} requested={order_request.quantity}",
                 order_id=order.id,
                 status=order.status,
             )

@@ -87,9 +87,14 @@ def build_exchange(settings: Settings) -> BaseExchange:
             return BinanceExchange(settings.binance, testnet=False)
         if settings.bybit.api_key and settings.bybit.api_secret:
             return BybitExchange(settings.bybit, testnet=False)
-        if settings.exchange_credentials:
-            ref = sorted(settings.exchange_credentials)[0]
-            credential = settings.exchange_credentials[ref]
+        live_credentials = {
+            ref: credential
+            for ref, credential in settings.exchange_credentials.items()
+            if not credential.testnet
+        }
+        if live_credentials:
+            ref = sorted(live_credentials)[0]
+            credential = live_credentials[ref]
             if credential.exchange == "binance":
                 return BinanceExchange(credential.to_binance_config(), testnet=False)
             return BybitExchange(credential.to_bybit_config(), testnet=False)
@@ -224,6 +229,7 @@ def _engine_config_from_settings(settings: Settings) -> EngineConfig:
         # Phase 24.2 / DEBT-033 follow-up: opt-in hard rejection when
         # the stale-quote gate has no live data to cross-check against.
         reject_if_stale_quote=settings.engine_reject_if_stale_quote,
+        max_ticker_age_seconds=settings.engine_max_ticker_age_seconds,
         correlation_gate_enabled=settings.engine_correlation_gate_enabled,
         correlation_max_sub_accounts_per_symbol_side=(
             settings.engine_correlation_max_sub_accounts_per_symbol_side

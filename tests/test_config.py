@@ -421,6 +421,26 @@ class TestSettings:
 
         settings.validate_for_live_trading()
 
+    def test_validate_for_live_trading_rejects_named_testnet_only(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings(
+                trading_mode="live",
+                binance=BinanceConfig(api_key="", api_secret=""),
+                bybit=BybitConfig(api_key="", api_secret=""),
+                exchange_credentials={
+                    "binance_testnet": ExchangeCredential(
+                        ref="binance_testnet",
+                        exchange="binance",
+                        api_key="key",
+                        api_secret="secret",
+                        testnet=True,
+                    )
+                },
+            )
+
+            with pytest.raises(ValueError, match="live exchange credential"):
+                settings.validate_for_live_trading()
+
     def test_validate_for_live_trading_no_exchange_raises(self) -> None:
         """Test validation fails for live trading without any exchange."""
         settings = Settings(trading_mode="live")

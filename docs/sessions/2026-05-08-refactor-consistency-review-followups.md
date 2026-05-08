@@ -29,8 +29,21 @@ persistence, and replay units.
 - Kept migration markers unwritten when legacy/new-layout conflicts remain.
 - Ignored proposal-candle high/low extremes in proposal replay exits.
 - Added regression coverage for strategy filters and committed paper-lab config.
+- Tightened live mode credential validation so named testnet credentials cannot
+  satisfy `TRADING_MODE=live` or be selected for mainnet exchange construction.
+- Required live market orders to return fully filled quantities before open or
+  close trade history is mutated.
+- Wired `ENGINE_MAX_TICKER_AGE_SECONDS` through `Settings` into
+  `EngineConfig`.
+- Treated `symbols: []` as the universal strategy metadata contract in factory
+  symbol filtering.
 
 ## Follow-up Debt
 
 - `DEBT-053`: Persisted open-position hydration after runtime restart.
 - `DEBT-054`: Account-scoped exchange router for sub-account runtime.
+
+## 2026-05-08 Verification Addendum
+
+- `uv run pytest tests/test_live_trading.py tests/test_main_dispatch.py tests/test_config.py tests/test_strategy_factory.py -q`
+- `uv run black src/config.py src/main.py src/trading/live.py src/strategy/factory.py tests/test_config.py tests/test_main_dispatch.py tests/test_live_trading.py tests/test_strategy_factory.py --check`

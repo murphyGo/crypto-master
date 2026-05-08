@@ -145,7 +145,7 @@ def get_strategies_by_symbol(symbol: str) -> list[BaseStrategy]:
     return [
         s
         for s in _loaded_strategies.values()
-        if symbol in s.info.symbols or "*" in s.info.symbols
+        if not s.info.symbols or symbol in s.info.symbols or "*" in s.info.symbols
     ]
 
 

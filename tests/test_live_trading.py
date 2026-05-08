@@ -271,13 +271,13 @@ class TestLiveOpenPosition:
         assert trader.get_open_trades() == []
 
     @pytest.mark.asyncio
-    async def test_open_uses_filled_quantity(
+    async def test_open_rejects_partial_fill(
         self,
         mock_exchange: MagicMock,
         long_position: Position,
         tmp_path: Path,
     ) -> None:
-        """Entry quantity on the trade record uses the exchange fill."""
+        """Live market opens must not persist partial fills."""
         mock_exchange.create_order.return_value = _make_order(
             filled_qty=Decimal("0.05")
         )
@@ -286,8 +286,57 @@ class TestLiveOpenPosition:
             data_dir=tmp_path,
             confirmation_callback=make_approve(),
         )
-        trade = await trader.open_position(long_position)
-        assert trade.entry_quantity == Decimal("0.05")
+
+        with pytest.raises(LiveOrderRejectedError, match="partial fill"):
+            await trader.open_position(long_position)
+
+        assert trader.get_open_trades() == []
+
+    @pytest.mark.asyncio
+    async def test_open_rejects_zero_fill(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """A filled status with zero filled quantity is not a live position."""
+        mock_exchange.create_order.return_value = _make_order(filled_qty=Decimal("0"))
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        with pytest.raises(LiveOrderRejectedError, match="zero fill"):
+            await trader.open_position(long_position)
+
+        assert trader.get_open_trades() == []
+
+    @pytest.mark.asyncio
+    async def test_open_rejects_non_filled_status(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """Open or partially-filled exchange statuses are not persisted."""
+        mock_exchange.create_order.return_value = _make_order(
+            status=OrderStatus.OPEN,
+            filled_qty=Decimal("0"),
+            order_id="open-1",
+        )
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        with pytest.raises(LiveOrderRejectedError) as exc_info:
+            await trader.open_position(long_position)
+
+        assert exc_info.value.order_id == "open-1"
+        assert exc_info.value.status == OrderStatus.OPEN
+        assert trader.get_open_trades() == []
 
 
 # =============================================================================
@@ -400,6 +449,37 @@ class TestLiveClosePosition:
         )
         result = await trader.close_position("unknown-id", exit_price=Decimal("50000"))
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_close_rejects_partial_fill_and_keeps_position_open(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """A partial close fill must not mark the live trade closed."""
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+
+        mock_exchange.create_order.return_value = _make_order(
+            side="sell",
+            filled_qty=Decimal("0.05"),
+            order_id="partial-close",
+        )
+
+        with pytest.raises(LiveOrderRejectedError, match="partial fill"):
+            await trader.close_position(
+                trade.id,
+                exit_price=Decimal("51000"),
+                reason="manual",
+            )
+
+        assert trader.get_tracked_position(trade.id) is not None
+        assert trader.get_trade(trade.id).status == "open"
 
 
 # =============================================================================

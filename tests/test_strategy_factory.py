@@ -294,6 +294,28 @@ class TestGetStrategiesBySymbol:
         assert len(result) == 1
         assert result[0].name == "all_symbols"
 
+    def test_empty_symbols_list_is_universal(self, tmp_path: Path) -> None:
+        """An empty symbols list is the strategy metadata universal contract."""
+        md_content = dedent("""
+            ---
+            name: empty_symbols_universal
+            version: 1.0.0
+            description: Empty symbols list applies to every symbol
+            symbols: []
+            ---
+
+            Prompt
+        """).strip()
+
+        (tmp_path / "universal.md").write_text(md_content)
+
+        load_strategies_from_directory(tmp_path, force_reload=True)
+
+        result = get_strategies_by_symbol("ANY/SYMBOL")
+
+        assert len(result) == 1
+        assert result[0].name == "empty_symbols_universal"
+
 
 class TestGetStrategiesByStatus:
     """Tests for get_strategies_by_status function."""
