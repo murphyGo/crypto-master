@@ -12,13 +12,17 @@ Related Requirements:
 
 from __future__ import annotations
 
-import math
 from decimal import Decimal
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from src.backtest.engine import BacktestResult, BacktestTrade, EquityPoint
+from src.backtest.metrics import (
+    count_trade_outcomes,
+    return_percent,
+    sharpe_from_returns,
+)
 from src.logger import get_logger
 
 logger = get_logger("crypto_master.backtest.analyzer")
@@ -140,9 +144,9 @@ class PerformanceAnalyzer:
                 total_fees=result.total_fees,
             )
 
+        outcomes = count_trade_outcomes(t.pnl for t in trades)
         winners = [t for t in trades if t.pnl > 0]
         losers = [t for t in trades if t.pnl < 0]
-        breakevens = [t for t in trades if t.pnl == 0]
 
         gross_profit = sum((t.pnl for t in winners), Decimal("0"))
         gross_loss = sum((t.pnl for t in losers), Decimal("0"))
@@ -152,10 +156,9 @@ class PerformanceAnalyzer:
         largest_win = max((t.pnl for t in winners), default=Decimal("0"))
         largest_loss = min((t.pnl for t in losers), default=Decimal("0"))
 
-        win_rate = len(winners) / len(trades)
-        loss_rate = len(losers) / len(trades)
         expectancy = (
-            Decimal(str(win_rate)) * avg_win + Decimal(str(loss_rate)) * avg_loss
+            Decimal(str(outcomes.win_rate)) * avg_win
+            + Decimal(str(outcomes.loss_rate)) * avg_loss
         )
 
         profit_factor = self._profit_factor(gross_profit, gross_loss)
@@ -175,10 +178,10 @@ class PerformanceAnalyzer:
 
         return PerformanceMetrics(
             total_trades=len(trades),
-            wins=len(winners),
-            losses=len(losers),
-            breakevens=len(breakevens),
-            win_rate=win_rate,
+            wins=outcomes.wins,
+            losses=outcomes.losses,
+            breakevens=outcomes.breakevens,
+            win_rate=outcomes.win_rate,
             initial_balance=result.initial_balance,
             final_balance=result.final_balance,
             total_return=result.final_balance - result.initial_balance,
@@ -209,9 +212,7 @@ class PerformanceAnalyzer:
     @staticmethod
     def _safe_return_percent(initial: Decimal, final: Decimal) -> float:
         """Compute return % guarding against zero initial balance."""
-        if initial <= 0:
-            return 0.0
-        return float((final - initial) / initial * 100)
+        return return_percent(initial, final)
 
     @staticmethod
     def _annualize(
@@ -357,7 +358,7 @@ class PerformanceAnalyzer:
             returns.append(float(trade.pnl / equity))
             equity = equity + trade.pnl
 
-        return PerformanceAnalyzer._sharpe_from_returns(returns, trades_per_year)
+        return sharpe_from_returns(returns, trades_per_year)
 
     @staticmethod
     def _sharpe_from_equity_curve(
@@ -388,7 +389,7 @@ class PerformanceAnalyzer:
             prev = point.equity
 
         bars_per_year = PerformanceAnalyzer._bars_per_year(curve)
-        return PerformanceAnalyzer._sharpe_from_returns(returns, bars_per_year)
+        return sharpe_from_returns(returns, bars_per_year)
 
     @staticmethod
     def _bars_per_year(curve: list[EquityPoint]) -> int | None:
@@ -426,17 +427,7 @@ class PerformanceAnalyzer:
         returns: list[float], trades_per_year: int | None
     ) -> float | None:
         """Common tail: mean / std with optional sqrt(N) annualization."""
-        if len(returns) < 2:
-            return None
-        mean_r = sum(returns) / len(returns)
-        variance = sum((r - mean_r) ** 2 for r in returns) / (len(returns) - 1)
-        std_r = math.sqrt(variance)
-        if std_r == 0:
-            return None
-        sharpe = mean_r / std_r
-        if trades_per_year is not None and trades_per_year > 0:
-            sharpe *= math.sqrt(trades_per_year)
-        return sharpe
+        return sharpe_from_returns(returns, trades_per_year)
 
     # ------------------------------------------------------------------
     # Reporting

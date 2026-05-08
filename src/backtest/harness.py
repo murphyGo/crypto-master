@@ -16,6 +16,7 @@ from src.backtest.engine import (
     BacktestTrade,
     EquityPoint,
 )
+from src.backtest.metrics import count_trade_outcomes, return_percent
 from src.backtest.multi_account_report import MultiAccountReport
 from src.backtest.validator import RobustnessGate
 from src.models import OHLCV
@@ -181,10 +182,7 @@ class BacktestHarness:
         ]
         curve = _combine_equity_curves(initial, [r.equity_curve for r in results])
         final = initial + total_delta
-        wins = sum(1 for t in trades if t.pnl > 0)
-        losses = sum(1 for t in trades if t.pnl < 0)
-        breakevens = sum(1 for t in trades if t.pnl == 0)
-        total = len(trades)
+        outcomes = count_trade_outcomes(t.pnl for t in trades)
         return BacktestResult(
             run_id=f"bt-{uuid.uuid4().hex[:12]}",
             technique_name="+".join(r.technique_name for r in results),
@@ -195,16 +193,14 @@ class BacktestHarness:
             end_time=results[0].end_time,
             initial_balance=initial,
             final_balance=final,
-            total_trades=total,
-            wins=wins,
-            losses=losses,
-            breakevens=breakevens,
+            total_trades=outcomes.total,
+            wins=outcomes.wins,
+            losses=outcomes.losses,
+            breakevens=outcomes.breakevens,
             total_pnl=sum((t.pnl for t in trades), Decimal("0")),
             total_fees=sum((t.entry_fee + t.exit_fee for t in trades), Decimal("0")),
-            win_rate=(wins / total if total else 0.0),
-            return_percent=(
-                float((final - initial) / initial) * 100 if initial else 0.0
-            ),
+            win_rate=outcomes.win_rate,
+            return_percent=return_percent(initial, final),
             trades=trades,
             equity_curve=curve,
             liquidated=any(r.liquidated for r in results),

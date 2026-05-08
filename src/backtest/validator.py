@@ -40,7 +40,6 @@ Related Requirements:
 from __future__ import annotations
 
 import itertools
-import math
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from decimal import Decimal
@@ -56,6 +55,7 @@ from src.backtest.engine import (
     BacktestTrade,
     slice_multi_tf_by_index,
 )
+from src.backtest.metrics import sharpe_from_trade_pnls
 from src.logger import get_logger
 from src.models import OHLCV
 from src.strategy.base import BaseStrategy
@@ -909,15 +909,7 @@ def _sharpe_from_trades(
     (pnl / initial_balance). Returns None if there are fewer than two
     trades or zero variance — both states make Sharpe meaningless.
     """
-    if len(trades) < 2 or initial_balance <= 0:
-        return None
-    returns = [float(t.pnl / initial_balance) for t in trades]
-    mean = sum(returns) / len(returns)
-    variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
-    std = math.sqrt(variance)
-    if std == 0:
-        return None
-    return mean / std
+    return sharpe_from_trade_pnls([t.pnl for t in trades], initial_balance)
 
 
 def _classify_regimes(

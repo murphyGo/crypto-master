@@ -29,6 +29,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.ai.exceptions import ClaudeParseError
+from src.backtest.metrics import count_trade_outcomes, return_percent
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import OHLCV, Position
@@ -1227,17 +1228,11 @@ class Backtester:
     ) -> BacktestResult:
         """Build the final BacktestResult summary."""
         info = strategy.info
-        wins = sum(1 for t in trades if t.pnl > 0)
-        losses = sum(1 for t in trades if t.pnl < 0)
-        breakevens = sum(1 for t in trades if t.pnl == 0)
+        outcomes = count_trade_outcomes(t.pnl for t in trades)
         total_pnl = sum((t.pnl for t in trades), Decimal("0"))
         total_fees = sum((t.entry_fee + t.exit_fee for t in trades), Decimal("0"))
-        total = len(trades)
-        win_rate = (wins / total) if total else 0.0
         initial = self.config.initial_balance
-        return_pct = (
-            float((final_balance - initial) / initial * 100) if initial > 0 else 0.0
-        )
+        return_pct = return_percent(initial, final_balance)
 
         # Phase 24.1 / DEBT-030: per-bar mark-to-market equity curve so
         # the analyzer can compute intra-trade-aware MDD / Sharpe.
@@ -1265,13 +1260,13 @@ class Backtester:
             end_time=ohlcv[-1].timestamp,
             initial_balance=initial,
             final_balance=final_balance,
-            total_trades=total,
-            wins=wins,
-            losses=losses,
-            breakevens=breakevens,
+            total_trades=outcomes.total,
+            wins=outcomes.wins,
+            losses=outcomes.losses,
+            breakevens=outcomes.breakevens,
             total_pnl=total_pnl,
             total_fees=total_fees,
-            win_rate=win_rate,
+            win_rate=outcomes.win_rate,
             return_percent=return_pct,
             trades=trades,
             equity_curve=equity_curve,
