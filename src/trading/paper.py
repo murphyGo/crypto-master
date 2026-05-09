@@ -339,6 +339,13 @@ class PaperTrader:
                     free=amount,
                 )
 
+        # DEBT-053: rebuild monitorable in-memory positions from the
+        # persisted ledger so a process restart doesn't leave open
+        # paper trades orphaned. Must run after ``_open_positions`` /
+        # ``_balances`` / ``_trade_tracker`` are wired but before any
+        # consumer of this instance can call ``check_exit_conditions``.
+        self._rehydrate_open_positions()
+
         mode_str = "testnet" if self._use_testnet else "local simulation"
         logger.info(
             f"PaperTrader initialized in {mode_str} mode with balances: "
@@ -346,6 +353,76 @@ class PaperTrader:
             f"fees: maker={self._fee_config.maker_fee_rate}, "
             f"taker={self._fee_config.taker_fee_rate}"
         )
+
+    def _rehydrate_open_positions(self) -> None:
+        """Rebuild monitorable paper positions from persisted open trades.
+
+        DEBT-053: mirrors ``LiveTrader._rehydrate_open_positions`` so a
+        Fly machine restart (or any other in-process restart) doesn't
+        leave open paper trades stranded with no in-memory tracking.
+        Without this, ``check_exit_conditions`` returns ``(False, None)``
+        for every restored trade and the runtime engine's orphan guard
+        fires ``MONITOR_ERRORED:orphan_open_trade`` forever.
+
+        Legacy open trades that were persisted before SL/TP was wired
+        through ``open_position`` will lack both bounds. Those are
+        intentionally skipped (with a warning) so the orphan guard can
+        still surface them for operator reconciliation — silently
+        rehydrating a position with no exit bounds would mean the
+        runtime can never auto-close it. Per-strategy backfill from the
+        ``PerformanceRecord`` is intentionally out of scope for this
+        commit (TECH-DEBT follow-up in the engine layer).
+
+        Crucially, rehydrated positions do **not** re-lock balance or
+        re-deduct entry fees — those side effects already fired on the
+        original ``open_position`` call. This method only restores the
+        in-memory ``OpenPosition`` stash; ``PaperBalance`` is left as
+        whatever the caller seeded it with.
+        """
+        for trade in self._trade_tracker.get_open_trades(mode="paper"):
+            if trade.stop_loss is None and trade.take_profit is None:
+                logger.warning(
+                    "Open paper trade %s has no persisted SL/TP bounds; "
+                    "operator reconciliation required before monitoring",
+                    trade.id,
+                )
+                continue
+
+            position = Position(
+                symbol=trade.symbol,
+                side=trade.side,
+                entry_price=trade.entry_price,
+                quantity=trade.entry_quantity,
+                leverage=trade.leverage,
+                stop_loss=trade.stop_loss,
+                take_profit=trade.take_profit,
+            )
+            margin = self._calculate_required_margin(position)
+            quote_currency = self._get_quote_currency(trade.symbol)
+            # ``trade.fees`` on an open trade only accumulates the
+            # entry-side fee (``close_trade`` adds the exit fee at
+            # close time). For trades opened on a build that didn't
+            # record entry fees this is simply ``Decimal("0")``,
+            # which is the safe default — we'd rather under-count
+            # the paid entry fee than double-deduct it on close.
+            entry_fee = trade.fees if trade.exit_price is None else Decimal("0")
+
+            self._open_positions[trade.id] = OpenPosition(
+                trade_id=trade.id,
+                position=position,
+                margin=margin,
+                quote_currency=quote_currency,
+                entry_fee=entry_fee,
+            )
+
+            logger.info(
+                "Rehydrated open paper position %s: %s %s @ %s qty=%s",
+                trade.id,
+                trade.side,
+                trade.symbol,
+                trade.entry_price,
+                trade.entry_quantity,
+            )
 
     @staticmethod
     def _resolve_fee_config(
@@ -575,7 +652,12 @@ class PaperTrader:
         # Generate order ID for simulation
         order_id = self._generate_order_id()
 
-        # Record trade via TradeHistoryTracker
+        # Record trade via TradeHistoryTracker.
+        # DEBT-053: persist SL/TP so ``_rehydrate_open_positions`` can
+        # restore monitorable state across process restarts. The
+        # testnet path below already passed these; the local-sim path
+        # used to drop them, leaving rehydrated trades unmonitorable
+        # and orphaned forever (see Fly paper run 2026-04-28~05-09).
         trade = self._trade_tracker.open_trade(
             symbol=position.symbol,
             side=position.side,
@@ -585,6 +667,8 @@ class PaperTrader:
             leverage=position.leverage,
             entry_order_id=order_id,
             performance_record_id=performance_record_id,
+            stop_loss=position.stop_loss,
+            take_profit=position.take_profit,
         )
 
         # Track open position
