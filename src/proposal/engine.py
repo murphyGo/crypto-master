@@ -573,6 +573,8 @@ class ProposalEngine:
         # share at most M fetches per symbol, and so all techniques in
         # the same call see the same candle T (no temporal drift if a
         # candle rolls mid-cycle).
+        primary_timeframe: str
+        current_price: Decimal | None
         if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
             tfs = strategy.info.timeframes
             ohlcv_by_tf: dict[str, list[OHLCV]] = {}

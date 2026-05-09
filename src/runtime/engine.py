@@ -38,6 +38,7 @@ import asyncio
 import uuid
 from dataclasses import dataclass, field
 from decimal import Decimal
+from enum import Enum
 from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
@@ -54,7 +55,7 @@ from src.proposal.interaction import (
     ProposalRecord,
 )
 from src.proposal.notification import NotificationDispatcher
-from src.runtime.activity_log import ActivityEventType, ActivityLog
+from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
 from src.runtime.correlation_governor import (
     CorrelationExposure,
     CorrelationExposureSource,
@@ -251,6 +252,41 @@ class CycleResult:
     errors: list[str] = field(default_factory=list)
 
 
+class GateDecision(str, Enum):
+    """Final persistence decision after proposal gates finish."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+@dataclass(frozen=True)
+class GateActivityEvent:
+    """Activity event staged until the proposal gate envelope is persisted."""
+
+    event_type: ActivityEventType
+    message: str
+    details: dict[str, Any]
+    cycle_id: str
+
+    def to_activity_event(self) -> ActivityEvent:
+        return ActivityEvent(
+            event_type=self.event_type,
+            message=self.message,
+            details=self.details,
+            cycle_id=self.cycle_id,
+        )
+
+
+@dataclass(frozen=True)
+class GateOutcome:
+    """Final proposal gate outcome plus the ordered activity batch."""
+
+    decision: GateDecision
+    reason: str | None
+    events: list[GateActivityEvent]
+    final_record: ProposalRecord
+
+
 # =============================================================================
 # Errors
 # =============================================================================
@@ -419,10 +455,14 @@ class TradingEngine:
             details=details,
         )
 
-    def _current_runtime_safety_score(self) -> RuntimeSafetyScore:
-        return compute_runtime_safety_score(
-            inputs_from_recent_activity_events(self.activity_log.read_all())
-        )
+    def _current_runtime_safety_score(
+        self,
+        extra_events: list[ActivityEvent] | None = None,
+    ) -> RuntimeSafetyScore:
+        events = self.activity_log.read_all()
+        if extra_events:
+            events.extend(extra_events)
+        return compute_runtime_safety_score(inputs_from_recent_activity_events(events))
 
     # ------------------------------------------------------------------
     # Public API
@@ -668,15 +708,20 @@ class TradingEngine:
         exchange: BaseExchange | None = None,
     ) -> None:
         """Persist + decide + (maybe) execute one proposal."""
-        self.activity_log.append(
-            ActivityEventType.PROPOSAL_GENERATED,
-            f"Proposal {proposal.symbol} {proposal.signal} "
-            f"score={proposal.score.composite:.4f}",
-            details=_proposal_summary(proposal),
-            cycle_id=cycle_id,
+        events = [
+            GateActivityEvent(
+                ActivityEventType.PROPOSAL_GENERATED,
+                f"Proposal {proposal.symbol} {proposal.signal} "
+                f"score={proposal.score.composite:.4f}",
+                _proposal_summary(proposal),
+                cycle_id,
+            )
+        ]
+
+        safety_score = self._current_runtime_safety_score(
+            [event.to_activity_event() for event in events]
         )
 
-        safety_score = self._current_runtime_safety_score()
         try:
             await self.notification_dispatcher.notify_proposal(
                 proposal,
@@ -692,52 +737,81 @@ class TradingEngine:
             # in the dashboard, but continue the cycle — one broken
             # notification path must not silence the trading loop.
             logger.warning(f"Notification dispatch failed: {e}")
-            self.activity_log.append(
-                ActivityEventType.NOTIFICATION_FAILED,
-                f"Notification dispatch failed for {proposal.symbol}: {e}",
-                details={
-                    "proposal_id": proposal.proposal_id,
-                    "symbol": proposal.symbol,
-                    "dispatcher_name": type(self.notification_dispatcher).__name__,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-                cycle_id=cycle_id,
+            events.append(
+                GateActivityEvent(
+                    ActivityEventType.NOTIFICATION_FAILED,
+                    f"Notification dispatch failed for {proposal.symbol}: {e}",
+                    {
+                        "proposal_id": proposal.proposal_id,
+                        "symbol": proposal.symbol,
+                        "dispatcher_name": type(self.notification_dispatcher).__name__,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                    cycle_id,
+                )
             )
 
-        record = await self.proposal_interaction.present(
+        record = await self.proposal_interaction.decide(
             proposal, actor=self.config.actor
         )
 
         if record.decision == ProposalDecision.ACCEPTED.value:
             result.proposals_accepted += 1
-            self.activity_log.append(
-                ActivityEventType.PROPOSAL_ACCEPTED,
-                f"Auto-accepted {proposal.symbol} {proposal.signal}",
-                details=_proposal_summary(proposal),
-                cycle_id=cycle_id,
+            events.append(
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_ACCEPTED,
+                    f"Auto-accepted {proposal.symbol} {proposal.signal}",
+                    _proposal_summary(proposal),
+                    cycle_id,
+                )
             )
 
-            correlation_rejection = self._correlation_gate(
+            correlation_outcome = self._correlation_gate(
                 proposal,
                 record,
                 trader,
                 cycle_id,
-                result,
             )
-            if correlation_rejection is not None:
+            events.extend(correlation_outcome.events)
+            if correlation_outcome.decision == GateDecision.REJECTED:
+                result.proposals_rejected += 1
+                outcome = GateOutcome(
+                    GateDecision.REJECTED,
+                    correlation_outcome.reason,
+                    events,
+                    correlation_outcome.final_record,
+                )
+                self.proposal_history.save(outcome.final_record)
+                for event in outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
                 return
 
-            post_incident_safety_score = self._current_runtime_safety_score()
+            post_incident_safety_score = self._current_runtime_safety_score(
+                [event.to_activity_event() for event in events]
+            )
             pause_rejection = self._runtime_safety_pause_gate(
                 proposal,
                 record,
                 sub_account,
                 post_incident_safety_score,
                 cycle_id,
-                result,
             )
             if pause_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(pause_rejection.final_record)
+                for event in events + pause_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
                 return
 
             # Phase 12.1: cross-cycle position cap. The composite
@@ -761,19 +835,34 @@ class TradingEngine:
                         "decision_at": now_utc(),
                     }
                 )
-                self.proposal_history.save(rejected_record)
                 result.proposals_rejected += 1
-                self.activity_log.append(
-                    ActivityEventType.PROPOSAL_REJECTED,
-                    f"Total-cap rejected {proposal.symbol} {proposal.signal}",
-                    details={
-                        **_proposal_summary(proposal),
-                        "reason": reason,
-                        "open_count": len(open_trades),
-                        "cap": total_cap,
-                    },
-                    cycle_id=cycle_id,
+                outcome = GateOutcome(
+                    GateDecision.REJECTED,
+                    reason,
+                    events
+                    + [
+                        GateActivityEvent(
+                            ActivityEventType.PROPOSAL_REJECTED,
+                            f"Total-cap rejected {proposal.symbol} {proposal.signal}",
+                            {
+                                **_proposal_summary(proposal),
+                                "reason": reason,
+                                "open_count": len(open_trades),
+                                "cap": total_cap,
+                            },
+                            cycle_id,
+                        )
+                    ],
+                    rejected_record,
                 )
+                self.proposal_history.save(outcome.final_record)
+                for event in outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
                 return
             existing = sum(
                 1 for trade in open_trades if trade.symbol == proposal.symbol
@@ -790,33 +879,73 @@ class TradingEngine:
                         "decision_at": now_utc(),
                     }
                 )
-                self.proposal_history.save(rejected_record)
                 result.proposals_rejected += 1
-                self.activity_log.append(
-                    ActivityEventType.PROPOSAL_REJECTED,
-                    f"Cap-rejected {proposal.symbol} {proposal.signal}",
-                    details={
-                        **_proposal_summary(proposal),
-                        "reason": reason,
-                        "open_count": existing,
-                        "cap": cap,
-                    },
-                    cycle_id=cycle_id,
+                outcome = GateOutcome(
+                    GateDecision.REJECTED,
+                    reason,
+                    events
+                    + [
+                        GateActivityEvent(
+                            ActivityEventType.PROPOSAL_REJECTED,
+                            f"Cap-rejected {proposal.symbol} {proposal.signal}",
+                            {
+                                **_proposal_summary(proposal),
+                                "reason": reason,
+                                "open_count": existing,
+                                "cap": cap,
+                            },
+                            cycle_id,
+                        )
+                    ],
+                    rejected_record,
                 )
+                self.proposal_history.save(outcome.final_record)
+                for event in outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
                 return
 
+            outcome = GateOutcome(GateDecision.ACCEPTED, None, events, record)
+            self.proposal_history.save(outcome.final_record)
+            for event in outcome.events:
+                self.activity_log.append(
+                    event.event_type,
+                    event.message,
+                    details=event.details,
+                    cycle_id=event.cycle_id,
+                )
             await self._execute(proposal, cycle_id, result, trader, exchange)
         else:
             result.proposals_rejected += 1
-            self.activity_log.append(
-                ActivityEventType.PROPOSAL_REJECTED,
-                f"Auto-rejected {proposal.symbol} {proposal.signal}",
-                details={
-                    **_proposal_summary(proposal),
-                    "reason": record.rejection_reason,
-                },
-                cycle_id=cycle_id,
+            outcome = GateOutcome(
+                GateDecision.REJECTED,
+                record.rejection_reason,
+                events
+                + [
+                    GateActivityEvent(
+                        ActivityEventType.PROPOSAL_REJECTED,
+                        f"Auto-rejected {proposal.symbol} {proposal.signal}",
+                        {
+                            **_proposal_summary(proposal),
+                            "reason": record.rejection_reason,
+                        },
+                        cycle_id,
+                    )
+                ],
+                record,
             )
+            self.proposal_history.save(outcome.final_record)
+            for event in outcome.events:
+                self.activity_log.append(
+                    event.event_type,
+                    event.message,
+                    details=event.details,
+                    cycle_id=event.cycle_id,
+                )
 
     async def _execute(
         self,
@@ -898,8 +1027,7 @@ class TradingEngine:
         sub_account: SubAccount | None,
         safety_score: RuntimeSafetyScore,
         cycle_id: str,
-        result: CycleResult,
-    ) -> ProposalRecord | None:
+    ) -> GateOutcome | None:
         pause_min_score = self._runtime_policy_for(
             sub_account
         ).runtime_safety_pause_min_score
@@ -917,21 +1045,25 @@ class TradingEngine:
                 "decision_at": now_utc(),
             }
         )
-        self.proposal_history.save(rejected_record)
-        result.proposals_rejected += 1
-        self.activity_log.append(
-            ActivityEventType.PROPOSAL_REJECTED,
-            f"Runtime-safety rejected {proposal.symbol} {proposal.signal}",
-            details={
-                **_proposal_summary(proposal),
-                "reason": reason,
-                "runtime_safety_score": safety_score.score,
-                "runtime_safety_band": safety_score.band.value,
-                "runtime_safety_pause_min_score": pause_min_score,
-            },
-            cycle_id=cycle_id,
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Runtime-safety rejected {proposal.symbol} {proposal.signal}",
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "runtime_safety_score": safety_score.score,
+                        "runtime_safety_band": safety_score.band.value,
+                        "runtime_safety_pause_min_score": pause_min_score,
+                    },
+                    cycle_id,
+                )
+            ],
+            rejected_record,
         )
-        return rejected_record
 
     def _correlation_gate(
         self,
@@ -939,8 +1071,7 @@ class TradingEngine:
         record: ProposalRecord,
         trader: Trader,
         cycle_id: str,
-        result: CycleResult,
-    ) -> str | None:
+    ) -> GateOutcome:
         """Emit advisory correlation warnings or reject when opt-in gate is enabled."""
         del trader  # Existing exposure is collected engine-wide when possible.
         policy = self._runtime_policy_for_id(proposal.sub_account_id)
@@ -965,21 +1096,23 @@ class TradingEngine:
             ),
         )
         if not decision.warnings:
-            return None
+            return GateOutcome(GateDecision.ACCEPTED, None, [], record)
 
         warning_details = _correlation_warning_details(decision.warnings)
-        self.activity_log.append(
-            ActivityEventType.CORRELATION_WARNING,
-            f"Correlation warning for {proposal.symbol} {proposal.signal}",
-            details={
-                **_proposal_summary(proposal),
-                "warnings": warning_details,
-                "gate_enabled": policy.correlation_gate_enabled,
-            },
-            cycle_id=cycle_id,
-        )
+        events = [
+            GateActivityEvent(
+                ActivityEventType.CORRELATION_WARNING,
+                f"Correlation warning for {proposal.symbol} {proposal.signal}",
+                {
+                    **_proposal_summary(proposal),
+                    "warnings": warning_details,
+                    "gate_enabled": policy.correlation_gate_enabled,
+                },
+                cycle_id,
+            )
+        ]
         if decision.allowed:
-            return None
+            return GateOutcome(GateDecision.ACCEPTED, None, events, record)
 
         reason = decision.reason
         rejected_record = record.model_copy(
@@ -989,19 +1122,24 @@ class TradingEngine:
                 "decision_at": now_utc(),
             }
         )
-        self.proposal_history.save(rejected_record)
-        result.proposals_rejected += 1
-        self.activity_log.append(
-            ActivityEventType.PROPOSAL_REJECTED,
-            f"Correlation-rejected {proposal.symbol} {proposal.signal}",
-            details={
-                **_proposal_summary(proposal),
-                "reason": reason,
-                "warnings": warning_details,
-            },
-            cycle_id=cycle_id,
+        events.append(
+            GateActivityEvent(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Correlation-rejected {proposal.symbol} {proposal.signal}",
+                {
+                    **_proposal_summary(proposal),
+                    "reason": reason,
+                    "warnings": warning_details,
+                },
+                cycle_id,
+            )
         )
-        return reason
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            events,
+            rejected_record,
+        )
 
     def _open_trades_for_correlation(self) -> list[TradeHistory]:
         """Collect open trades across active sub-account traders."""
@@ -1645,6 +1783,17 @@ class TradingEngine:
         execution_policy = (
             sub_account.execution_policy if sub_account is not None else None
         )
+        auto_approve_threshold = (
+            sub_account.effective_auto_approve_threshold()
+            if sub_account is not None
+            else None
+        )
+        max_open_positions_per_symbol = (
+            sub_account.effective_max_open_positions_per_symbol()
+            if sub_account is not None
+            else None
+        )
+
         return AccountRuntimePolicy(
             bitcoin_symbol=(
                 strategy_policy.bitcoin_symbol
@@ -1674,9 +1823,8 @@ class TradingEngine:
             ),
             leverage=self._runtime_leverage_for(sub_account),
             auto_approve_threshold=(
-                sub_account.effective_auto_approve_threshold()
-                if sub_account is not None
-                and sub_account.effective_auto_approve_threshold() is not None
+                auto_approve_threshold
+                if auto_approve_threshold is not None
                 else self.config.auto_approve_threshold
             ),
             max_open_positions_total=(
@@ -1685,9 +1833,8 @@ class TradingEngine:
                 else None
             ),
             max_open_positions_per_symbol=(
-                sub_account.effective_max_open_positions_per_symbol()
-                if sub_account is not None
-                and sub_account.effective_max_open_positions_per_symbol() is not None
+                max_open_positions_per_symbol
+                if max_open_positions_per_symbol is not None
                 else self.config.max_open_positions_per_symbol
             ),
             runtime_safety_pause_min_score=(

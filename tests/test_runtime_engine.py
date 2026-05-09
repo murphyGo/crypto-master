@@ -1020,6 +1020,105 @@ async def test_proposal_rejected_when_symbol_cap_reached(tmp_path: Path) -> None
     assert rejection.details["cap"] == 1
 
 
+async def test_gate_envelope_saves_final_cap_rejection_once(
+    tmp_path: Path,
+) -> None:
+    """Post-decision gates persist only the final record, not torn ACCEPTED state."""
+    existing_trade = make_trade(
+        trade_id="t-bnb-existing",
+        symbol="BNB/USDT",
+        side="short",
+    )
+    proposal = make_proposal(
+        proposal_id="bnb-envelope",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[existing_trade],
+    )
+    saved_decisions: list[str] = []
+    original_save = mocks["history"].save
+
+    def counted_save(record: ProposalRecord) -> None:
+        saved_decisions.append(str(record.decision))
+        original_save(record)
+
+    mocks["history"].save = counted_save
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert saved_decisions == [ProposalDecision.REJECTED.value]
+    record = mocks["history"].load("bnb-envelope")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason is not None
+    assert "cap 1 reached" in record.rejection_reason
+
+
+async def test_gate_activity_crash_leaves_final_record_not_torn(
+    tmp_path: Path,
+) -> None:
+    """If the ordered activity batch fails, disk already has the final verdict."""
+    existing_trade = make_trade(
+        trade_id="t-bnb-existing",
+        symbol="BNB/USDT",
+        side="short",
+    )
+    proposal = make_proposal(
+        proposal_id="bnb-envelope-crash",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[existing_trade],
+    )
+    original_append = mocks["activity_log"].append
+
+    def crash_on_accepted_event(
+        event_type: ActivityEventType,
+        message: str = "",
+        *,
+        details: dict[str, object] | None = None,
+        cycle_id: str | None = None,
+    ) -> object:
+        if event_type == ActivityEventType.PROPOSAL_ACCEPTED:
+            raise RuntimeError("crash between gate batch events")
+        return original_append(
+            event_type,
+            message,
+            details=details,
+            cycle_id=cycle_id,
+        )
+
+    mocks["activity_log"].append = crash_on_accepted_event
+
+    result = await engine.run_cycle()
+
+    assert result.errors
+    record = mocks["history"].load("bnb-envelope-crash")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason is not None
+    assert "cap 1 reached" in record.rejection_reason
+
+
 async def test_proposal_executes_when_cap_not_reached(tmp_path: Path) -> None:
     """No existing open trade on the symbol: proposal executes normally."""
     # SL above entry for a coherent short proposal (the Phase 18.1

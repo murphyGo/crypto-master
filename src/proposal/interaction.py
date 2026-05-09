@@ -596,6 +596,17 @@ class ProposalInteraction:
         Returns:
             The persisted :class:`ProposalRecord`.
         """
+        record = await self.decide(proposal, actor=actor)
+        self.history.save(record)
+        logger.info(f"Proposal {proposal.proposal_id} {record.decision} by {actor}")
+        return record
+
+    async def decide(
+        self,
+        proposal: Proposal,
+        actor: str = "user",
+    ) -> ProposalRecord:
+        """Return a decision record without persisting it."""
         decision_input = await self._decision_callback(proposal)
 
         if decision_input.accepted:
@@ -605,7 +616,7 @@ class ProposalInteraction:
             decision = ProposalDecision.REJECTED
             rejection_reason = decision_input.reason
 
-        record = ProposalRecord(
+        return ProposalRecord(
             proposal=proposal,
             sub_account_id=proposal.sub_account_id,
             decision=decision,
@@ -613,9 +624,6 @@ class ProposalInteraction:
             actor=actor,
             rejection_reason=rejection_reason,
         )
-        self.history.save(record)
-        logger.info(f"Proposal {proposal.proposal_id} {decision.value} by {actor}")
-        return record
 
     async def present_batch(
         self,
