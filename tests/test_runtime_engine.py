@@ -1565,6 +1565,44 @@ def test_strategy_lookup_for_open_trades_is_cached_per_cycle(tmp_path: Path) -> 
     assert calls == 1
 
 
+def test_runtime_policy_for_id_is_cached_per_cycle(tmp_path: Path) -> None:
+    engine, _ = build_engine(tmp_path=tmp_path)
+    calls = 0
+    original = engine._runtime_policy_for
+
+    def counted_policy(sub_account: SubAccount | None) -> object:
+        nonlocal calls
+        calls += 1
+        return original(sub_account)
+
+    engine._runtime_policy_for = counted_policy  # type: ignore[method-assign]
+
+    first = engine._runtime_policy_for_id("default")
+    second = engine._runtime_policy_for_id("default")
+
+    assert first is second
+    assert calls == 1
+
+
+def test_runtime_safety_score_is_cached_per_cycle(tmp_path: Path) -> None:
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    calls = 0
+    original = mocks["activity_log"].read_all
+
+    def counted_read_all() -> list[object]:
+        nonlocal calls
+        calls += 1
+        return original()
+
+    mocks["activity_log"].read_all = counted_read_all
+
+    first = engine._current_runtime_safety_score()
+    second = engine._current_runtime_safety_score()
+
+    assert first is second
+    assert calls == 1
+
+
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
     """Cap counts trades regardless of side: long blocks a same-symbol short.
 

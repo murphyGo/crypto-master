@@ -566,6 +566,8 @@ class TradingEngine:
         self._stop_event = asyncio.Event()
         self._cycle_index = 0
         self._strategy_lookup_cache: dict[str, str] | None = None
+        self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
+        self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -636,10 +638,15 @@ class TradingEngine:
         self,
         extra_events: list[ActivityEvent] | None = None,
     ) -> RuntimeSafetyScore:
+        if extra_events is None and self._runtime_safety_score_cache is not None:
+            return self._runtime_safety_score_cache
         events = self.activity_log.read_all()
         if extra_events:
             events.extend(extra_events)
-        return compute_runtime_safety_score(inputs_from_recent_activity_events(events))
+        score = compute_runtime_safety_score(inputs_from_recent_activity_events(events))
+        if extra_events is None:
+            self._runtime_safety_score_cache = score
+        return score
 
     # ------------------------------------------------------------------
     # Public API
@@ -691,6 +698,8 @@ class TradingEngine:
         cycle_id = str(uuid.uuid4())
         self._cycle_index += 1
         self._strategy_lookup_cache = None
+        self._runtime_policy_cache = {}
+        self._runtime_safety_score_cache = None
         self.activity_log.append(
             ActivityEventType.CYCLE_STARTED,
             f"Cycle {self._cycle_index} begin",
@@ -803,7 +812,7 @@ class TradingEngine:
         """
         proposals: list[Proposal] = []
         sub_account_id = self._sub_account_id(sub_account)
-        policy = self._runtime_policy_for(sub_account)
+        policy = self._runtime_policy_for_id(sub_account_id)
         strategies = None
         if self.sub_account_registry is not None:
             available_strategies = list(self.proposal_engine.strategies.values())
@@ -1941,14 +1950,21 @@ class TradingEngine:
         return cast("BaseExchange", exchange)
 
     def _runtime_policy_for_id(self, sub_account_id: str) -> AccountRuntimePolicy:
+        cached = self._runtime_policy_cache.get(sub_account_id)
+        if cached is not None:
+            return cached
         if self.sub_account_registry is None:
-            return self._runtime_policy_for(None)
+            policy = self._runtime_policy_for(None)
+            self._runtime_policy_cache[sub_account_id] = policy
+            return policy
         try:
-            return self._runtime_policy_for(
+            policy = self._runtime_policy_for(
                 self.sub_account_registry.get(sub_account_id)
             )
         except Exception:
-            return self._runtime_policy_for(None)
+            policy = self._runtime_policy_for(None)
+        self._runtime_policy_cache[sub_account_id] = policy
+        return policy
 
     def _runtime_policy_for(
         self,
