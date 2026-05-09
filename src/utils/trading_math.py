@@ -41,7 +41,152 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from src.models import OHLCV
 from src.utils.trading_types import TradeSide
+
+# =============================================================================
+# Stop-loss floor enforcement (P1 items F + G)
+# =============================================================================
+#
+# Calibrated against the Fly 12-day paper run: 35 stop_loss vs 6 take_profit
+# exits across 41 closed trades, with 7/10 strategies shipping median SL
+# distance < 1× typical 1h ATR. The proposal layer now intercepts the
+# strategy-declared SL and widens it outward to whichever floor is
+# stricter (i.e. wider stop): the ATR-scaled floor or the per-timeframe
+# minimum percentage. The floor never tightens an existing stop.
+#
+# Per-timeframe minimum SL distance as a fraction of entry price.
+# Calibrated to ~1× typical realized ATR on liquid majors so a single
+# candle's noise can't take the stop out.
+TF_MIN_SL_PCT: dict[str, Decimal] = {
+    "5m": Decimal("0.003"),
+    "15m": Decimal("0.004"),
+    "30m": Decimal("0.006"),
+    "1h": Decimal("0.008"),
+    "2h": Decimal("0.012"),
+    "4h": Decimal("0.015"),
+    "8h": Decimal("0.020"),
+    "12h": Decimal("0.022"),
+    "1d": Decimal("0.025"),
+    "1w": Decimal("0.040"),
+}
+DEFAULT_TF_MIN_SL_PCT = Decimal("0.008")  # fallback for unknown TFs
+
+ATR_FLOOR_MULTIPLIER = Decimal("1.5")  # SL >= 1.5 x ATR(14)
+
+
+def compute_atr(ohlcv: list[OHLCV], period: int = 14) -> Decimal | None:
+    """Wilder's Average True Range.
+
+    Returns ``None`` when there are fewer than ``period + 1`` candles
+    (one extra is needed because the first true range references the
+    previous close). All math runs in :class:`~decimal.Decimal` to
+    match the rest of the trading-math module.
+
+    True Range per bar is::
+
+        max(high - low,
+            abs(high - prev_close),
+            abs(low - prev_close))
+
+    The first ATR is the simple mean of the first ``period`` true
+    ranges; subsequent bars apply Wilder's smoothing::
+
+        ATR_t = (ATR_{t-1} × (period - 1) + TR_t) / period
+
+    Args:
+        ohlcv: Chronologically-ordered candle series.
+        period: Lookback window. 14 is the canonical Wilder default.
+
+    Returns:
+        The Wilder-smoothed ATR at the latest bar, or ``None`` when
+        ``len(ohlcv) < period + 1``.
+    """
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
+    if len(ohlcv) < period + 1:
+        return None
+
+    true_ranges: list[Decimal] = []
+    for i in range(1, len(ohlcv)):
+        high = ohlcv[i].high
+        low = ohlcv[i].low
+        prev_close = ohlcv[i - 1].close
+        tr = max(
+            high - low,
+            abs(high - prev_close),
+            abs(low - prev_close),
+        )
+        true_ranges.append(tr)
+
+    # First ATR: simple mean of the first ``period`` TRs.
+    atr_value = sum(true_ranges[:period], Decimal("0")) / Decimal(period)
+    # Wilder smoothing for every subsequent TR.
+    period_dec = Decimal(period)
+    for tr in true_ranges[period:]:
+        atr_value = (atr_value * (period_dec - Decimal("1")) + tr) / period_dec
+    return atr_value
+
+
+def enforce_sl_floor(
+    *,
+    side: TradeSide,
+    entry_price: Decimal,
+    stop_loss: Decimal,
+    timeframe: str,
+    atr: Decimal | None,
+) -> Decimal:
+    """Widen ``stop_loss`` outward to satisfy the SL floor.
+
+    The floor is the wider of two distances:
+
+    * **ATR floor** — ``ATR_FLOOR_MULTIPLIER × atr`` (skipped when
+      ``atr is None``).
+    * **TF % floor** — ``entry_price × TF_MIN_SL_PCT[timeframe]``
+      (or :data:`DEFAULT_TF_MIN_SL_PCT` when ``timeframe`` is not a
+      known key).
+
+    The returned SL is the *wider* of the original ``stop_loss`` and
+    the floor — this function never tightens an existing stop. For
+    longs the SL sits below entry, so widening means moving the SL
+    further DOWN; for shorts it sits above entry, so widening means
+    moving it further UP.
+
+    Args:
+        side: ``"long"`` or ``"short"``.
+        entry_price: Strategy-declared entry price. Must be positive
+            in practice (callers validate via Pydantic models).
+        stop_loss: Strategy-declared stop loss.
+        timeframe: Primary timeframe key (e.g. ``"1h"``, ``"4h"``).
+            Unknown values fall back to :data:`DEFAULT_TF_MIN_SL_PCT`.
+        atr: Wilder ATR(14) on the primary timeframe, or ``None``
+            when there is insufficient data.
+
+    Returns:
+        A SL that is at least the floor distance from ``entry_price``
+        on the correct side. If the strategy already declared a wider
+        SL than both floors, ``stop_loss`` is returned unchanged.
+
+    Raises:
+        ValueError: If ``side`` is not ``"long"`` or ``"short"``.
+    """
+    if side not in ("long", "short"):
+        raise ValueError(f"Unknown trade side: {side!r}")
+
+    tf_pct = TF_MIN_SL_PCT.get(timeframe, DEFAULT_TF_MIN_SL_PCT)
+    tf_floor_distance = entry_price * tf_pct
+    atr_floor_distance = atr * ATR_FLOOR_MULTIPLIER if atr is not None else Decimal("0")
+    # Whichever floor is stricter wins (i.e. demands the wider stop).
+    floor_distance = max(tf_floor_distance, atr_floor_distance)
+
+    current_distance = abs(entry_price - stop_loss)
+    if current_distance >= floor_distance:
+        return stop_loss
+
+    # Widen outward — never tighten. Long → SL further down; short → up.
+    if side == "long":
+        return entry_price - floor_distance
+    return entry_price + floor_distance
 
 
 def pnl_for_trade(

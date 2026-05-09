@@ -1163,3 +1163,152 @@ async def test_trend_prompt_trigger_allows_claude_after_directional_move() -> No
 
     assert proposal is not None
     assert strategy.analyze.await_count == 1
+
+
+# =============================================================================
+# P1 (F)+(G): SL floor enforcement
+# =============================================================================
+
+
+def _flat_ohlcv_with_atr(
+    n: int = 30,
+    *,
+    base_price: str = "50000",
+    bar_range: str = "10",
+) -> list[OHLCV]:
+    """Build flat OHLCV where each bar has a known high-low range.
+
+    With each bar's high-low equal to ``bar_range`` and no gaps, ATR
+    converges to ``bar_range``. Useful for proposal-engine tests that
+    want to assert the floor activates predictably.
+    """
+    start = datetime(2026, 1, 1)
+    base = Decimal(base_price)
+    half = Decimal(bar_range) / Decimal("2")
+    return [
+        OHLCV(
+            timestamp=start + timedelta(hours=i),
+            open=base,
+            high=base + half,
+            low=base - half,
+            close=base,
+            volume=Decimal("100"),
+        )
+        for i in range(n)
+    ]
+
+
+async def test_proposal_engine_widens_tight_sl() -> None:
+    """Strategy returns SL inside the floor → proposal SL is widened."""
+    # OHLCV: 30 candles around 50000, each with a 10-wide range.
+    # ATR(14) on this series = 10. ATR floor = 1.5 * 10 = 15.
+    # TF (1h) floor = 50000 * 0.008 = 400 → TF floor wins.
+    # Strategy declares SL distance of just 100 (49900). Proposal must
+    # widen SL down to 50000 - 400 = 49600.
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="10")
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="49900",  # distance 100 — well below 400 TF floor
+            tp="51500",  # leave RR comfortably above the 1.5 floor post-widen
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.stop_loss == Decimal("49600")
+    assert proposal.entry_price == Decimal("50000")
+
+
+async def test_proposal_engine_preserves_wide_sl() -> None:
+    """Strategy returns SL beyond the floor → proposal SL unchanged."""
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="10")
+    # SL distance 1000 >> max(15, 400) → must pass through.
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="49000",
+            tp="52000",
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.stop_loss == Decimal("49000")
+
+
+async def test_proposal_engine_logs_floor_application() -> None:
+    """When the floor widens the SL, an info log records the rewrite."""
+    import logging
+
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="10")
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="49900",
+            tp="51500",
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    # The proposal-engine logger has propagate=False, so caplog (which
+    # listens at the root) won't see records. Attach a list-collecting
+    # handler directly to the engine logger for the duration of the
+    # call, then strip it.
+    engine_logger = logging.getLogger("crypto_master.proposal.engine")
+    records: list[logging.LogRecord] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _ListHandler(level=logging.INFO)
+    engine_logger.addHandler(handler)
+    try:
+        proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+    finally:
+        engine_logger.removeHandler(handler)
+
+    assert proposal is not None
+    floor_msgs = [
+        r.getMessage() for r in records if "SL floor applied" in r.getMessage()
+    ]
+    assert len(floor_msgs) == 1
+    msg = floor_msgs[0]
+    assert "tech_a" in msg
+    assert "BTC/USDT" in msg
+    assert "49900" in msg
+    assert "49600" in msg
+
+
+async def test_proposal_engine_widens_short_sl_upward() -> None:
+    """Short SL inside the floor → widened UP."""
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="10")
+    # Short: SL above entry. Distance 100 inside 400 TF floor.
+    # Widened SL = 50000 + 400 = 50400.
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="short",
+            entry="50000",
+            sl="50100",
+            tp="48500",
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.signal == "short"
+    assert proposal.stop_loss == Decimal("50400")

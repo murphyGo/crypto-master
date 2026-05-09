@@ -51,6 +51,7 @@ from src.strategy.prompt_filters import should_run_prompt_strategy
 from src.trading.strategy import TradingStrategy, TradingValidationError
 from src.utils.pydantic_mixins import UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
+from src.utils.trading_math import compute_atr, enforce_sl_floor
 from src.utils.trading_types import PositionSide
 
 logger = get_logger("crypto_master.proposal.engine")
@@ -610,6 +611,29 @@ class ProposalEngine:
         if analysis.signal == "neutral":
             logger.info(f"{strategy.name} returned neutral on {symbol}; " "no proposal")
             return None
+
+        # P1 (F)+(G): universal SL floor enforcement. Widen the
+        # strategy-declared SL outward to whichever is stricter — the
+        # ATR-scaled floor (1.5 × ATR(14)) or the per-timeframe minimum
+        # percentage. Never tightens an existing SL. Sized at the
+        # proposal layer (single-point intercept) so individual
+        # strategies don't need to reason about noise envelopes
+        # themselves.
+        atr = compute_atr(primary_ohlcv, period=14)
+        floored_sl = enforce_sl_floor(
+            side="long" if analysis.signal == "long" else "short",
+            entry_price=analysis.entry_price,
+            stop_loss=analysis.stop_loss,
+            timeframe=primary_timeframe,
+            atr=atr,
+        )
+        if floored_sl != analysis.stop_loss:
+            logger.info(
+                f"SL floor applied for {strategy.info.name} on {symbol}: "
+                f"{analysis.stop_loss} -> {floored_sl} "
+                f"(atr={atr}, tf={primary_timeframe})"
+            )
+            analysis = analysis.model_copy(update={"stop_loss": floored_sl})
 
         try:
             position = self.trading_strategy.create_position(
