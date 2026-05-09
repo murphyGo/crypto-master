@@ -394,12 +394,16 @@ def _build_telegram_text(notification: Notification) -> str:
 
 
 def _build_notification_code_block(notification: Notification) -> str:
-    return f"```\n{_build_notification_detail(notification)}```"
+    return _format_proposal_detail(notification, output_format="code_block")
 
 
-def _build_notification_detail(notification: Notification) -> str:
+def _format_proposal_detail(
+    notification: Notification,
+    *,
+    output_format: str = "plain",
+) -> str:
     proposal = notification.proposal
-    return (
+    detail = (
         f"proposal_id: {proposal.proposal_id}\n"
         f"sub_account_id: {proposal.sub_account_id}\n"
         f"technique: {proposal.technique_name}\n"
@@ -410,6 +414,9 @@ def _build_notification_detail(notification: Notification) -> str:
         f"rr: {proposal.risk_reward_ratio:.2f}\n"
         f"{_format_optional_safety_detail(notification)}"
     )
+    if output_format == "code_block":
+        return f"```\n{detail}```"
+    return detail
 
 
 def _format_optional_safety_summary(notification: Notification) -> str | None:

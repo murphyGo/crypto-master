@@ -705,6 +705,15 @@ class StrategyImprover:
             f"{records_block}\n\n"
             "## Trade Autopsies\n"
             f"{autopsy_block}\n\n"
+            + self._failure_analysis_section()
+            + self._hard_constraints_section()
+            + f'Use name="{suggested_name}" (or similar) and bump the '
+            "version above the original.\n\n" + self._output_format_instructions()
+        )
+
+    @staticmethod
+    def _failure_analysis_section() -> str:
+        return (
             "## Required Reasoning Process\n"
             "Before writing the revised technique, work through these "
             "steps in your reply (inside the markdown body, as a "
@@ -718,6 +727,11 @@ class StrategyImprover:
             "3. Propose ONE targeted change per failure mode. Avoid "
             "stacking many small filters (that is overfitting); prefer "
             "one principled rule per problem.\n\n"
+        )
+
+    @staticmethod
+    def _hard_constraints_section() -> str:
+        return (
             "## Hard Constraints\n"
             "- Do NOT add lookback-specific thresholds tuned to the "
             'exact trades shown (e.g. "avoid trading on Tuesdays" '
@@ -729,8 +743,6 @@ class StrategyImprover:
             'losses above."\n'
             "- The hypothesis in frontmatter must reflect what the "
             "REVISED technique exploits, not the original.\n\n"
-            f'Use name="{suggested_name}" (or similar) and bump the '
-            "version above the original.\n\n" + self._output_format_instructions()
         )
 
     def _build_new_idea_prompt(self, context: str) -> str:
@@ -815,6 +827,15 @@ class StrategyImprover:
             "LLM in the hot path: this is the only acceptable shape "
             "for catalog picks because it is deterministic, fast, and "
             "immune to JSON-contract drift.\n\n"
+            + self._code_shape_requirements()
+            + self._code_hard_constraints()
+            + f"{context_line}"
+            + self._code_output_format()
+        )
+
+    @staticmethod
+    def _code_shape_requirements() -> str:
+        return (
             "## Required file shape\n"
             "Mirror the canonical baselines under the project's "
             "``strategies/`` directory:\n"
@@ -862,6 +883,11 @@ class StrategyImprover:
             "``reasoning``. It MUST NOT import or call ``ClaudeCLI``, "
             "``subprocess``, ``requests``, or any other I/O — all "
             "decisions come from OHLCV.\n\n"
+        )
+
+    @staticmethod
+    def _code_hard_constraints() -> str:
+        return (
             "## Hard constraints\n"
             "- Stay deterministic. No randomness, no wall-clock-"
             "dependent branches, no network calls.\n"
@@ -885,7 +911,11 @@ class StrategyImprover:
             "(``open``, ``pathlib``, ``os``, ``subprocess``, "
             "``requests``, ``urllib``, sockets, or dynamic execution); "
             "the loader rejects those before execution.\n\n"
-            f"{context_line}"
+        )
+
+    @staticmethod
+    def _code_output_format() -> str:
+        return (
             "## Output format\n"
             "Respond ONLY with a single fenced code block labeled "
             "``python`` containing the full ``.py`` file body. No "

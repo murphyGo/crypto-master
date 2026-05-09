@@ -573,55 +573,27 @@ class ProposalEngine:
         # share at most M fetches per symbol, and so all techniques in
         # the same call see the same candle T (no temporal drift if a
         # candle rolls mid-cycle).
-        primary_timeframe: str
-        current_price: Decimal | None
-        if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
-            tfs = strategy.info.timeframes
-            ohlcv_by_tf: dict[str, list[OHLCV]] = {}
-            for tf in tfs:
-                key = (symbol, tf)
-                cached = ohlcv_cache.get(key)
-                if cached is None:
-                    # DEBT-040 (Phase 26.2): ``tf`` comes from
-                    # ``StrategyInfo.timeframes: list[str]`` (free-form
-                    # string per the strategy frontmatter), but
-                    # ``BaseExchange.get_ohlcv`` types ``timeframe`` as
-                    # ``Literal["1m","5m","15m","1h","4h","1d","1w"]``.
-                    # Strategy authors are trusted to declare valid
-                    # timeframes; an invalid one fails loud at the
-                    # exchange call. Tightening the upstream type is
-                    # tracked separately and out of scope for 26.2.
-                    cached = await self.exchange.get_ohlcv(
-                        symbol=symbol,
-                        timeframe=tf,  # type: ignore[arg-type]
-                        limit=self.config.ohlcv_limit,
-                    )
-                    ohlcv_cache[key] = cached
-                ohlcv_by_tf[tf] = cached
-            # Templates list TFs macro→micro (e.g. 4h, 1h, 15m, 5m), so
-            # the last entry is the highest-resolution. Use it as the
-            # primary stream for ``{ohlcv_data}`` / ``{timeframe}`` and
-            # to derive ``current_price`` from the latest close.
-            primary_tf = tfs[-1]
-            primary_ohlcv = ohlcv_by_tf[primary_tf]
-            if not primary_ohlcv:
-                logger.warning(
-                    f"Multi-TF fetch returned no candles on {symbol} for "
-                    f"{primary_tf}; skipping proposal"
-                )
-                return None
-            current_price = primary_ohlcv[-1].close
-            primary_timeframe = primary_tf
-            if not self._prompt_trigger_allows(
-                strategy,
-                symbol,
-                primary_ohlcv,
-                ohlcv_by_timeframe=ohlcv_by_tf,
-                current_price=current_price,
-            ):
-                return None
-            self._mark_prompt_strategy_run(strategy, symbol)
-            try:
+        ohlcv_context = await self._fetch_and_validate_ohlcv(
+            strategy=strategy,
+            symbol=symbol,
+            timeframe=timeframe,
+            ohlcv_cache=ohlcv_cache,
+        )
+        if ohlcv_context is None:
+            return None
+        primary_timeframe, primary_ohlcv, ohlcv_by_tf, current_price = ohlcv_context
+
+        if not self._prompt_trigger_allows(
+            strategy,
+            symbol,
+            primary_ohlcv,
+            ohlcv_by_timeframe=ohlcv_by_tf,
+            current_price=current_price,
+        ):
+            return None
+        self._mark_prompt_strategy_run(strategy, symbol)
+        try:
+            if ohlcv_by_tf is not None:
                 analysis = await strategy.analyze(
                     primary_ohlcv,
                     symbol,
@@ -629,42 +601,15 @@ class ProposalEngine:
                     ohlcv_by_timeframe=ohlcv_by_tf,
                     current_price=current_price,
                 )
-            except StrategyError as e:
-                self._handle_strategy_error(e, strategy, symbol)
-                return None
-        else:
-            key = (symbol, timeframe)
-            ohlcv = ohlcv_cache.get(key)
-            if ohlcv is None:
-                # DEBT-040 (Phase 26.2): same str-vs-Literal mismatch
-                # as the multi-TF branch above. ``timeframe`` is typed
-                # ``str`` here because callers (``propose_bitcoin`` /
-                # ``propose_altcoins``) accept the engine's
-                # ``ProposalEngineConfig.timeframe`` override as a
-                # plain string; the exchange call validates it at
-                # runtime.
-                ohlcv = await self.exchange.get_ohlcv(
-                    symbol=symbol,
-                    timeframe=timeframe,  # type: ignore[arg-type]
-                    limit=self.config.ohlcv_limit,
+            else:
+                analysis = await strategy.analyze(
+                    primary_ohlcv,
+                    symbol,
+                    primary_timeframe,
                 )
-                ohlcv_cache[key] = ohlcv
-            primary_timeframe = timeframe
-            current_price = ohlcv[-1].close if ohlcv else None
-            if not self._prompt_trigger_allows(
-                strategy,
-                symbol,
-                ohlcv,
-                ohlcv_by_timeframe=None,
-                current_price=current_price,
-            ):
-                return None
-            self._mark_prompt_strategy_run(strategy, symbol)
-            try:
-                analysis = await strategy.analyze(ohlcv, symbol, timeframe)
-            except StrategyError as e:
-                self._handle_strategy_error(e, strategy, symbol)
-                return None
+        except StrategyError as e:
+            self._handle_strategy_error(e, strategy, symbol)
+            return None
 
         if analysis.signal == "neutral":
             logger.info(f"{strategy.name} returned neutral on {symbol}; " "no proposal")
@@ -705,6 +650,61 @@ class ProposalEngine:
             score=score,
             reasoning=analysis.reasoning,
         )
+
+    async def _fetch_and_validate_ohlcv(
+        self,
+        *,
+        strategy: BaseStrategy,
+        symbol: str,
+        timeframe: str,
+        ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
+    ) -> tuple[str, list[OHLCV], dict[str, list[OHLCV]] | None, Decimal | None] | None:
+        """Fetch cached OHLCV and return the primary stream for analysis."""
+        if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
+            tfs = strategy.info.timeframes
+            ohlcv_by_tf: dict[str, list[OHLCV]] = {}
+            for tf in tfs:
+                ohlcv_by_tf[tf] = await self._fetch_ohlcv_cached(
+                    symbol=symbol,
+                    timeframe=tf,
+                    ohlcv_cache=ohlcv_cache,
+                )
+            primary_tf = tfs[-1]
+            primary_ohlcv = ohlcv_by_tf[primary_tf]
+            if not primary_ohlcv:
+                logger.warning(
+                    f"Multi-TF fetch returned no candles on {symbol} for "
+                    f"{primary_tf}; skipping proposal"
+                )
+                return None
+            return primary_tf, primary_ohlcv, ohlcv_by_tf, primary_ohlcv[-1].close
+
+        primary_ohlcv = await self._fetch_ohlcv_cached(
+            symbol=symbol,
+            timeframe=timeframe,
+            ohlcv_cache=ohlcv_cache,
+        )
+        current_price = primary_ohlcv[-1].close if primary_ohlcv else None
+        return timeframe, primary_ohlcv, None, current_price
+
+    async def _fetch_ohlcv_cached(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
+    ) -> list[OHLCV]:
+        key = (symbol, timeframe)
+        cached = ohlcv_cache.get(key)
+        if cached is not None:
+            return cached
+        fetched = await self.exchange.get_ohlcv(
+            symbol=symbol,
+            timeframe=timeframe,  # type: ignore[arg-type]
+            limit=self.config.ohlcv_limit,
+        )
+        ohlcv_cache[key] = fetched
+        return fetched
 
     def _prompt_trigger_allows(
         self,

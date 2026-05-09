@@ -28,6 +28,7 @@ from src.proposal.notification import (
     _build_email_subject,
     _build_slack_payload,
     _build_telegram_text,
+    _format_proposal_detail,
     build_default_message,
 )
 from src.runtime.safety_score import (
@@ -754,7 +755,20 @@ def test_build_telegram_text_has_summary_and_detail() -> None:
     assert f"TP: {proposal.take_profit}" in text
     assert f"qty: {proposal.quantity}" in text
     assert f"leverage: {proposal.leverage}x" in text
-    assert "rr: 3.00" in text
+
+
+def test_format_proposal_detail_supports_plain_and_code_block() -> None:
+    proposal = make_proposal(symbol="ETH/USDT", signal="long", composite=1.5)
+    notification = make_notification(proposal=proposal)
+
+    plain = _format_proposal_detail(notification)
+    fenced = _format_proposal_detail(notification, output_format="code_block")
+
+    assert plain.startswith(f"proposal_id: {proposal.proposal_id}")
+    assert "```" not in plain
+    assert fenced.startswith("```\n")
+    assert f"proposal_id: {proposal.proposal_id}" in fenced
+    assert "rr: 3.00" in plain
 
 
 def test_build_telegram_text_includes_runtime_safety_summary() -> None:

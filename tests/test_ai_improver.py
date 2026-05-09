@@ -75,6 +75,16 @@ def make_improver(
     return improver, claude
 
 
+def test_prompt_section_helpers_are_isolated() -> None:
+    assert (
+        "## Required Reasoning Process" in StrategyImprover._failure_analysis_section()
+    )
+    assert "## Hard Constraints" in StrategyImprover._hard_constraints_section()
+    assert "## Required file shape" in StrategyImprover._code_shape_requirements()
+    assert "## Hard constraints" in StrategyImprover._code_hard_constraints()
+    assert "## Output format" in StrategyImprover._code_output_format()
+
+
 def sample_technique() -> TechniqueInfo:
     return TechniqueInfo(
         name="rsi_divergence",

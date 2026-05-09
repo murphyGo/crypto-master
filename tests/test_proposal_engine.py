@@ -168,6 +168,33 @@ def make_engine(
 # =============================================================================
 
 
+async def test_fetch_and_validate_ohlcv_uses_cache_for_single_timeframe() -> None:
+    strategy = make_strategy(info=make_info("tech_a", symbols=["BTC/USDT"]))
+    engine, exchange = make_engine()
+    cache: dict[tuple[str, str], list[OHLCV]] = {}
+
+    first = await engine._fetch_and_validate_ohlcv(
+        strategy=strategy,
+        symbol="BTC/USDT",
+        timeframe="1h",
+        ohlcv_cache=cache,
+    )
+    second = await engine._fetch_and_validate_ohlcv(
+        strategy=strategy,
+        symbol="BTC/USDT",
+        timeframe="1h",
+        ohlcv_cache=cache,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first[0] == "1h"
+    assert first[1] == second[1]
+    assert first[2] is None
+    assert first[3] == first[1][-1].close
+    exchange.get_ohlcv.assert_awaited_once()
+
+
 async def test_propose_bitcoin_returns_full_proposal() -> None:
     strategy = make_strategy(
         info=make_info("tech_a", symbols=["BTC/USDT"]),
