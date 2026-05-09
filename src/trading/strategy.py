@@ -10,13 +10,14 @@ Related Requirements:
 """
 
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult, Position
+from src.utils.trading_types import SignalSide
 
 logger = get_logger("crypto_master.trading.strategy")
 
@@ -143,7 +144,7 @@ class TradingStrategy:
 
     def validate_prices(
         self,
-        signal: Literal["long", "short", "neutral"],
+        signal: SignalSide,
         entry_price: Decimal,
         stop_loss: Decimal,
         take_profit: Decimal,

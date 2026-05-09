@@ -25,6 +25,7 @@ from src.models import OHLCV
 from src.proposal.interaction import ProposalDecision, ProposalHistory, ProposalRecord
 from src.utils.time import ensure_utc
 from src.utils.trading_math import pnl_for_trade
+from src.utils.trading_types import PositionSide
 
 
 class ProposalReplayInputError(ValueError):
@@ -329,7 +330,7 @@ def _resolve_exit(
 
 def _touches_take_profit(
     candle: OHLCV,
-    side: Literal["long", "short"],
+    side: PositionSide,
     price: Decimal,
 ) -> bool:
     if side == "long":
@@ -339,7 +340,7 @@ def _touches_take_profit(
 
 def _touches_stop_loss(
     candle: OHLCV,
-    side: Literal["long", "short"],
+    side: PositionSide,
     price: Decimal,
 ) -> bool:
     if side == "long":
@@ -350,7 +351,7 @@ def _touches_stop_loss(
 def _pnl_percent(
     entry_price: Decimal,
     exit_price: Decimal,
-    side: Literal["long", "short"],
+    side: PositionSide,
 ) -> Decimal:
     if side == "long":
         return ((exit_price - entry_price) / entry_price) * Decimal("100")

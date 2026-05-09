@@ -13,7 +13,7 @@ Related Requirements:
 import uuid
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,7 @@ from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.base import exit_condition_for_position
 from src.trading.strategy import TradingError
 from src.utils.trading_math import pnl_for_trade
+from src.utils.trading_types import OrderSide
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -1035,9 +1036,7 @@ class PaperTrader:
         position = open_pos.position
 
         # Build closing order (opposite side)
-        closing_side: Literal["buy", "sell"] = (
-            "sell" if position.side == "long" else "buy"
-        )
+        closing_side: OrderSide = "sell" if position.side == "long" else "buy"
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,

@@ -18,13 +18,14 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from src.logger import get_logger
 from src.models import Order, OrderRequest, OrderStatus, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.base import exit_condition_for_position, exit_reason_for_position
 from src.trading.strategy import TradingError
+from src.utils.trading_types import OrderSide
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -421,9 +422,7 @@ class LiveTrader:
         Returns:
             Updated TradeHistory, or None if trade not found.
         """
-        closing_side: Literal["buy", "sell"] = (
-            "sell" if position.side == "long" else "buy"
-        )
+        closing_side: OrderSide = "sell" if position.side == "long" else "buy"
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,

@@ -27,6 +27,8 @@ from src.proposal.notification import (
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.runtime.engine import (
     EngineConfig,
+    EngineError,
+    ErrorCategory,
     PolicyResolver,
     TradingEngine,
 )
@@ -831,7 +833,14 @@ async def test_monitor_pass_surfaces_orphan_open_trade_state(
     result = await engine.run_cycle()
 
     assert result.positions_closed == 0
-    assert result.errors == ["orphan_open_trade:orphan"]
+    assert result.errors == [
+        EngineError(
+            category=ErrorCategory.POSITION_STATE,
+            symbol="BTC/USDT",
+            detail="orphan_open_trade:orphan",
+        )
+    ]
+    assert all(isinstance(error, EngineError) for error in result.errors)
     mocks["exchange"].get_ticker.assert_not_awaited()
     errors = mocks["activity_log"].filter(event_type=ActivityEventType.MONITOR_ERRORED)
     assert len(errors) == 1
@@ -2626,7 +2635,10 @@ async def test_cycle_continues_after_one_sub_account_raises(
     assert trader_beta.open_position.await_count == 1
     assert trader_alpha.open_position.await_count == 0
     # Errors recorded against the cycle result.
-    assert any("sub_account[alpha]" in err for err in result.errors)
+    assert any(
+        err.category == ErrorCategory.SUB_ACCOUNT and "sub_account[alpha]" in err.detail
+        for err in result.errors
+    )
     # Activity event emitted with the failing sub-account tagged.
     cycle_errored = activity_log.filter(event_type=ActivityEventType.CYCLE_ERRORED)
     assert any(

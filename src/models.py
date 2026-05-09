@@ -18,6 +18,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.utils.time import now_utc
+from src.utils.trading_types import OrderSide, PositionSide, SignalSide
 
 # DEBT-035 (Phase 26.2): the legacy ``Trade`` Pydantic model lived here
 # but was never instantiated anywhere in ``src/``. The live and paper
@@ -93,7 +94,7 @@ class OrderRequest(BaseModel):
     """
 
     symbol: str
-    side: Literal["buy", "sell"]
+    side: OrderSide
     type: Literal["market", "limit"]
     quantity: Decimal = Field(gt=0)
     price: Decimal | None = Field(default=None, gt=0)
@@ -118,7 +119,7 @@ class Order(BaseModel):
 
     id: str
     symbol: str
-    side: Literal["buy", "sell"]
+    side: OrderSide
     type: Literal["market", "limit"]
     price: Decimal | None = None
     quantity: Decimal = Field(gt=0)
@@ -152,7 +153,7 @@ class Position(BaseModel):
     """
 
     symbol: str
-    side: Literal["long", "short"]
+    side: PositionSide
     entry_price: Decimal = Field(gt=0)
     quantity: Decimal = Field(gt=0)
     leverage: int = Field(default=1, ge=1, le=125)
@@ -198,7 +199,7 @@ class AnalysisResult(BaseModel):
     from an analysis technique.
     """
 
-    signal: Literal["long", "short", "neutral"]
+    signal: SignalSide
     confidence: float = Field(ge=0.0, le=1.0)
     entry_price: Decimal = Field(gt=0)
     stop_loss: Decimal = Field(gt=0)

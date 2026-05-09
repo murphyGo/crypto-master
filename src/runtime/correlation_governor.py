@@ -16,12 +16,13 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from src.strategy.performance import TradeHistory
 from src.utils.time import ensure_utc
+from src.utils.trading_types import PositionSide
 
 if TYPE_CHECKING:
     from src.backtest.engine import BacktestResult, BacktestTrade
@@ -49,7 +50,7 @@ class CorrelationExposure(BaseModel):
     sub_account_id: str
     strategy_id: str
     symbol: str
-    side: Literal["long", "short"]
+    side: PositionSide
     opened_at: datetime
     closed_at: datetime | None = None
     entry_price: Decimal
@@ -183,7 +184,7 @@ class CorrelationWarning(BaseModel):
 
     warning_type: CorrelationWarningType
     symbol: str
-    side: Literal["long", "short"]
+    side: PositionSide
     strategy_id: str | None = None
     sub_account_ids: list[str]
     exposure_ids: list[str]
@@ -260,7 +261,7 @@ def _symbol_side_warnings(
     exposures: list[CorrelationExposure],
     policy: CorrelationWarningPolicy,
 ) -> list[CorrelationWarning]:
-    grouped: dict[tuple[str, Literal["long", "short"]], list[CorrelationExposure]] = {}
+    grouped: dict[tuple[str, PositionSide], list[CorrelationExposure]] = {}
     for exposure in exposures:
         grouped.setdefault((exposure.symbol, exposure.side), []).append(exposure)
 
@@ -291,7 +292,7 @@ def _strategy_symbol_side_warnings(
     policy: CorrelationWarningPolicy,
 ) -> list[CorrelationWarning]:
     grouped: dict[
-        tuple[str, str, Literal["long", "short"]],
+        tuple[str, str, PositionSide],
         list[CorrelationExposure],
     ] = {}
     for exposure in exposures:

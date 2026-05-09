@@ -50,6 +50,7 @@ from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.strategy.prompt_filters import should_run_prompt_strategy
 from src.trading.strategy import TradingStrategy, TradingValidationError
 from src.utils.time import ensure_utc, now_utc
+from src.utils.trading_types import PositionSide
 
 logger = get_logger("crypto_master.proposal.engine")
 
@@ -130,7 +131,7 @@ class Proposal(BaseModel):
     technique_version: str
     profile_name: str | None = None
     sub_account_id: str = "default"
-    signal: Literal["long", "short"]
+    signal: PositionSide
     entry_price: Decimal
     stop_loss: Decimal
     take_profit: Decimal

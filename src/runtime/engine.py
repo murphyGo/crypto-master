@@ -426,7 +426,7 @@ class CycleResult:
     proposals_rejected: int = 0
     positions_opened: int = 0
     positions_closed: int = 0
-    errors: list[str] = field(default_factory=list)
+    errors: list[EngineError] = field(default_factory=list)
 
 
 class GateDecision(str, Enum):
@@ -469,8 +469,25 @@ class GateOutcome:
 # =============================================================================
 
 
-class EngineError(Exception):
-    """Base exception for runtime engine errors."""
+class ErrorCategory(str, Enum):
+    """Structured runtime error categories."""
+
+    BTC_SCAN = "btc_scan"
+    ALT_SCAN = "alt_scan"
+    SUB_ACCOUNT = "sub_account"
+    POSITION_OPEN = "position_open"
+    POSITION_STATE = "position_state"
+    TICKER_MONITOR = "ticker_monitor"
+
+
+@dataclass(frozen=True)
+class EngineError:
+    """Structured runtime error envelope for cycle results."""
+
+    category: ErrorCategory
+    symbol: str | None
+    detail: str
+    exception: Exception | None = None
 
 
 # =============================================================================
@@ -746,7 +763,14 @@ class TradingEngine:
                     },
                     cycle_id=cycle_id,
                 )
-                result.errors.append(f"sub_account[{sub_account_id}]:{e}")
+                result.errors.append(
+                    EngineError(
+                        category=ErrorCategory.SUB_ACCOUNT,
+                        symbol=None,
+                        detail=f"sub_account[{sub_account_id}]:{e}",
+                        exception=e,
+                    )
+                )
 
         self.activity_log.append(
             ActivityEventType.CYCLE_COMPLETED,
@@ -849,7 +873,14 @@ class TradingEngine:
                     },
                     cycle_id=cycle_id,
                 )
-                result.errors.append(f"btc:{e}")
+                result.errors.append(
+                    EngineError(
+                        category=ErrorCategory.BTC_SCAN,
+                        symbol=policy.bitcoin_symbol,
+                        detail=str(e),
+                        exception=e,
+                    )
+                )
                 btc = None
 
             if btc is not None:
@@ -872,7 +903,14 @@ class TradingEngine:
                     details={"error": str(e), "sub_account_id": sub_account_id},
                     cycle_id=cycle_id,
                 )
-                result.errors.append(f"alt:{e}")
+                result.errors.append(
+                    EngineError(
+                        category=ErrorCategory.ALT_SCAN,
+                        symbol=None,
+                        detail=str(e),
+                        exception=e,
+                    )
+                )
                 altcoins = []
         finally:
             if proposal_exchange_swapped:
@@ -1182,7 +1220,14 @@ class TradingEngine:
                 },
                 cycle_id=cycle_id,
             )
-            result.errors.append(f"open:{e}")
+            result.errors.append(
+                EngineError(
+                    category=ErrorCategory.POSITION_OPEN,
+                    symbol=proposal.symbol,
+                    detail=str(e),
+                    exception=e,
+                )
+            )
             return
 
         # Link the trade to its proposal record now; realized P&L is
@@ -1686,7 +1731,13 @@ class TradingEngine:
                     },
                     cycle_id=cycle_id,
                 )
-                result.errors.append(f"orphan_open_trade:{trade.id}")
+                result.errors.append(
+                    EngineError(
+                        category=ErrorCategory.POSITION_STATE,
+                        symbol=trade.symbol,
+                        detail=f"orphan_open_trade:{trade.id}",
+                    )
+                )
                 continue
             try:
                 ticker = await account_exchange.get_ticker(trade.symbol)
@@ -1697,7 +1748,14 @@ class TradingEngine:
                     details={"trade_id": trade.id, "error": str(e)},
                     cycle_id=cycle_id,
                 )
-                result.errors.append(f"ticker:{trade.symbol}:{e}")
+                result.errors.append(
+                    EngineError(
+                        category=ErrorCategory.TICKER_MONITOR,
+                        symbol=trade.symbol,
+                        detail=str(e),
+                        exception=e,
+                    )
+                )
                 continue
 
             should_exit, reason = trader.check_exit_conditions(trade.id, ticker.price)
@@ -2078,5 +2136,6 @@ __all__ = [
     "CycleResult",
     "EngineConfig",
     "EngineError",
+    "ErrorCategory",
     "TradingEngine",
 ]
