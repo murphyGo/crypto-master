@@ -493,6 +493,24 @@ glob skips. Output is a single summary line in either direction
 ("Purged N proposal record(s) older than X months." or "No proposal
 records older than X months; nothing to purge.").
 
+### One-time SL/TP backfill (post-2026-05-10 deploy)
+
+Trades opened before `36eb2f3` (paper SL/TP persistence) have null
+`stop_loss` / `take_profit` columns; the new
+`PaperTrader._rehydrate_open_positions` skip-and-warns them on every
+restart. To recover them from the linked `PerformanceRecord`, SSH into
+the Fly machine after the deploy completes and run:
+
+```bash
+fly ssh console -C "python -m src.tools.backfill_paper_sl_tp --dry-run"
+# Review the dry-run summary, then:
+fly ssh console -C "python -m src.tools.backfill_paper_sl_tp"
+```
+
+Idempotent — safe to re-run. Resolves stuck trades surfaced as
+`MONITOR_ERRORED:orphan_open_trade` after restart. Pass
+`--sub-account <id>` to scope the pass to one ledger.
+
 ## Risks to keep in mind
 
 1. **`fly deploy` redeploys both processes simultaneously.** A bad
