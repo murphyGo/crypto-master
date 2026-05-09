@@ -102,6 +102,75 @@ Test count reads "1257 pass / 1 pre-existing fail" instead of clean green on eve
 - Raise site: `src/ai/improver.py:425`
 - Lint sites: `src/dashboard/pages/engine.py:25`, `tests/test_backtest_validator.py:3`
 
+### DEBT-057: paper-mode entry-fee not persisted to TradeHistory
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-10 |
+| **Phase** | Review follow-up |
+| **Component** | trading-core / paper |
+
+**Description:**
+`PaperTrader.open_position` deducts an entry fee from `PaperBalance` (paper.py around line 570) but never passes `fees=entry_fee` to `_trade_tracker.open_trade`. Result: `TradeHistory.fees` on open paper trades is always `0`, and at close the trade row only reflects `exit_fee`, understating total fees by exactly the entry fee. `LiveTrader` solved this with a `_entry_fees: dict[str, Decimal]` stash that's folded in at close (`live.py:200`). Surfaced by senior-developer during DEBT-053 paper-rehydration work — the rehydration path's `entry_fee` mapping already accommodates the fix.
+
+**Impact:**
+Paper PnL accounting is rosy by 1× entry-fee per closed trade; backtest-vs-paper drift; rehydration after restart can't reconstruct true entry fees.
+
+**Suggested Resolution:**
+Mirror live's `_entry_fees` stash pattern in `PaperTrader.open_position` and fold at close. Update `TestPaperRehydration::test_open_position_persists_sl_tp` to also assert `trade.fees == entry_fee` after `open_position`.
+
+**Related:**
+- DEBT-053
+- commit `36eb2f3`
+- `src/trading/paper.py:579`
+
+### DEBT-058: production trades.json backfill for legacy SL/TP-null rows
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-10 |
+| **Phase** | Review follow-up |
+| **Component** | trading-core / persistence-data-integrity |
+
+**Description:**
+Production Fly `data/trades/paper/*/trades.json` files written before commit `36eb2f3` lack `stop_loss` / `take_profit` columns entirely. `PaperTrader._rehydrate_open_positions` (added in `36eb2f3`) skip-and-warns these legacy rows, leaving them as orphan-monitor errors instead of recovering them. The matching `PerformanceRecord` in `data/performance/<sub_account>/<technique>/records.json` does carry SL/TP and is linked via `performance_record_id` — but PaperTrader does not currently have a perf-tracker handle, so backfill must happen at the engine layer.
+
+**Impact:**
+~44 open paper trades on Fly as of 2026-05-09 (incl. one default-sub-account BNB short open 260h) cannot be monitored or auto-closed until backfilled or operator-reconciled. Time-stop (commit `4428035`) helps prospectively but cannot reach trades hidden from `_open_positions`.
+
+**Suggested Resolution:**
+Add an engine-bootstrap migration (or one-shot `src/tools/backfill_paper_sl_tp.py` operator script) that walks each open `TradeHistory` with `performance_record_id is not None and stop_loss is None`, fetches the matching `PerformanceRecord`, and rewrites the trade row with the perf record's SL/TP via atomic write. Operator runs once after deploy; subsequent open trades persist correctly.
+
+**Related:**
+- DEBT-053
+- commit `36eb2f3`
+- `src/trading/paper.py:_rehydrate_open_positions`
+
+### DEBT-059: PaperBalance.locked not reconciled across runtime restart
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-10 |
+| **Phase** | Review follow-up |
+| **Component** | trading-core / paper / persistence-data-integrity |
+
+**Description:**
+After commit `36eb2f3` the rehydration path correctly rebuilds `PaperTrader._open_positions` but never re-locks margin on `PaperBalance`. The engine's PaperTrader bootstrap reseeds `PaperBalance.free` from `EngineConfig.paper_initial_balance` on every restart — silently re-crediting the margin that was locked by open positions before restart. Net effect: equity drifts UP by the sum of open-position margins on each restart.
+
+**Impact:**
+Paper equity reporting is overstated by Σ(open margins) per restart cycle. Position sizing on the next cycle uses the inflated free balance, opening larger positions than intended. Compounds with restart frequency (Fly auto-bounces machines).
+
+**Suggested Resolution:**
+Either (a) persist `PaperBalance` snapshot to disk and reload on init (preferred — simpler, also fixes realized-PnL drift across restarts), or (b) have rehydration call `PaperBalance.lock(margin)` per rehydrated position so locked + free = pre-restart total. Option (a) is the cleaner fix because realized PnL is also currently lost on restart.
+
+**Related:**
+- DEBT-053
+- commit `36eb2f3`
+- `src/trading/paper.py:_rehydrate_open_positions`
+
 ## Resolved Debt Items
 
 <!--
@@ -591,10 +660,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 5 |
 | Critical | 0 |
-| High | 0 |
-| Medium | 1 |
+| High | 2 |
+| Medium | 2 |
 | Low | 1 |
 | Resolved (All Time) | 50 |
 
@@ -604,6 +673,9 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-10 | Added | DEBT-057 paper-mode entry-fee not persisted to TradeHistory (Medium) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
+| 2026-05-10 | Added | DEBT-058 production trades.json backfill for legacy SL/TP-null rows (High) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
+| 2026-05-10 | Added | DEBT-059 PaperBalance.locked not reconciled across runtime restart (High) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
 | 2026-05-09 | Added | DEBT-055 CH-27 multi-TF parity test gaps (Medium) — surfaced during CH-27 close-out; quant-trader-expert flagged 4 parity variants (slippage, liquidation, short-side, non-degenerate multi-TF) not covered by the new `TestRunMultiTimeframeParity` regression pair; older `test_single_and_multi_tf_modes_share_closed_trade_ledger` superseded and queued for removal/rescope |
 | 2026-05-09 | Added | DEBT-056 Pre-existing test flake + ruff I001 import-order hits (Low) — surfaced during CH-27 close-out QA full-suite run; `tests/test_scripts_auto_research_candidates.py::test_run_picks_orchestrates_each_candidate` fails on clean tree from `src/ai/improver.py:425`; two pre-existing ruff I001 hits at `src/dashboard/pages/engine.py:25` and `tests/test_backtest_validator.py:3` |
 | 2026-05-07 | Resolved | DEBT-022 Cumulative / rate-based breaker counterpart — added single-TF and multi-TF cumulative parse-failure-rate aborts plus env-backed thresholds |
