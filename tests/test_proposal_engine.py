@@ -510,19 +510,181 @@ def test_score_no_history_uses_confidence_floor() -> None:
 
     score = engine._score(make_analysis(confidence=0.8), perf=None)
 
+    # Unified P2 formula: cold-start collapses to
+    # ``confidence × no_history_score_factor`` because ``sample_factor=0``
+    # zeroes the edge contribution. The ``edge_factor`` field still
+    # carries the centred-at-1.0 baseline (1 + 0/edge_divisor = 1.0)
+    # rather than the old ``max(0, ev) = 0`` clip — it just doesn't
+    # contribute to composite at sample=0.
     assert score.sample_size == 0
-    assert score.edge_factor == 0.0
+    assert score.sample_factor == 0.0
+    assert score.edge_factor == pytest.approx(1.0)
     assert score.composite == pytest.approx(0.4)
 
 
-def test_score_negative_ev_zero_edge() -> None:
+def test_score_negative_ev_no_longer_zeroes_composite() -> None:
+    """P2: a slightly losing strategy is penalized but not zeroed.
+
+    Old formula (``max(0, ev) × sample_factor``) produced
+    ``composite=0`` after a single losing trade — the death spiral.
+    New formula maps ``ev=-1.5%`` to ``edge=1+(-1.5/10)=0.85`` and
+    blends with the cold-start prior, yielding a non-zero composite
+    that still ranks below positive-edge peers.
+    """
     engine, _ = make_engine()
     losing = make_perf("a", total_trades=20, avg_pnl_percent=-1.5)
 
     score = engine._score(make_analysis(confidence=0.9), losing)
 
-    assert score.edge_factor == 0.0
-    assert score.composite == 0.0
+    # sample_factor saturates at 1.0 → composite = conf × edge.
+    assert score.edge_factor == pytest.approx(0.85)
+    assert score.composite == pytest.approx(0.9 * 0.85)
+    assert score.composite > 0.0  # No death spiral.
+
+
+# =============================================================================
+# P2: Composite score formula redesign — cold-start trap + edge floor
+# =============================================================================
+
+
+def test_brand_new_strategy_uses_prior() -> None:
+    """perf=None → composite = confidence × no_history_score_factor."""
+    engine, _ = make_engine(config=ProposalEngineConfig(no_history_score_factor=0.5))
+
+    score = engine._score(make_analysis(confidence=0.7), perf=None)
+
+    assert score.sample_size == 0
+    assert score.sample_factor == 0.0
+    assert score.composite == pytest.approx(0.7 * 0.5)
+
+
+def test_one_losing_trade_does_not_zero_composite() -> None:
+    """P2 cold-start trap: a single losing trade must not collapse
+    composite to zero. With conf=0.7 and the unified formula, a
+    sample=1 / avg_pnl=-2% strategy still scores above the 0.30
+    auto-approve gate.
+    """
+    engine, _ = make_engine(
+        config=ProposalEngineConfig(
+            min_trades_for_full_score=20,
+            no_history_score_factor=0.5,
+            edge_floor=0.1,
+            edge_divisor=10.0,
+        )
+    )
+    perf = make_perf("a", total_trades=1, avg_pnl_percent=-2.0)
+
+    score = engine._score(make_analysis(confidence=0.7), perf)
+
+    # sf=0.05, edge=1+(-2/10)=0.8 → composite=0.7×(0.95×0.5+0.05×0.8)
+    expected = 0.7 * (0.95 * 0.5 + 0.05 * 0.8)
+    assert score.composite == pytest.approx(expected)
+    assert score.composite > 0.30  # Above the typical auto-approve gate.
+
+
+def test_chronically_losing_strategy_floored_at_edge_floor() -> None:
+    """A deeply losing strategy is punished but not below ``edge_floor``."""
+    engine, _ = make_engine(
+        config=ProposalEngineConfig(edge_floor=0.1, edge_divisor=10.0)
+    )
+    losing = make_perf("a", total_trades=20, avg_pnl_percent=-50.0)
+
+    score = engine._score(make_analysis(confidence=0.7), losing)
+
+    # 1 + (-50)/10 = -4.0; floored at 0.1.
+    assert score.edge_factor == pytest.approx(0.1)
+    assert score.composite == pytest.approx(0.7 * 0.1)
+
+
+def test_neutral_edge_collapses_to_prior() -> None:
+    """avg_pnl=0% with full sample → edge=1.0 → composite=conf×1.0."""
+    engine, _ = make_engine(config=ProposalEngineConfig(edge_divisor=10.0))
+    flat = make_perf("a", total_trades=20, avg_pnl_percent=0.0)
+
+    score = engine._score(make_analysis(confidence=0.7), flat)
+
+    assert score.edge_factor == pytest.approx(1.0)
+    assert score.composite == pytest.approx(0.7)
+
+
+def test_winning_strategy_amplifies_composite() -> None:
+    """+5% avg_pnl with default edge_divisor=10 → edge=1.5."""
+    engine, _ = make_engine()
+    winner = make_perf("a", total_trades=20, avg_pnl_percent=5.0)
+
+    score = engine._score(make_analysis(confidence=0.7), winner)
+
+    assert score.edge_factor == pytest.approx(1.5)
+    assert score.composite == pytest.approx(0.7 * 1.5)
+
+
+def test_sample_factor_blends_prior_and_edge() -> None:
+    """At sample=10 (sf=0.5) the composite is the blend midpoint.
+
+    With prior=0.5 and edge=1.5 the blended factor is
+    ``0.5 × 0.5 + 0.5 × 1.5 = 1.0`` so composite = confidence × 1.0.
+    """
+    engine, _ = make_engine(
+        config=ProposalEngineConfig(
+            min_trades_for_full_score=20,
+            no_history_score_factor=0.5,
+            edge_divisor=10.0,
+        )
+    )
+    perf = make_perf("a", total_trades=10, avg_pnl_percent=5.0)
+
+    score = engine._score(make_analysis(confidence=0.7), perf)
+
+    assert score.sample_factor == pytest.approx(0.5)
+    assert score.edge_factor == pytest.approx(1.5)
+    assert score.composite == pytest.approx(0.7 * 1.0)
+
+
+def test_sample_factor_zero_at_no_history() -> None:
+    """perf=None → sample_factor=0 in the returned ProposalScore."""
+    engine, _ = make_engine()
+
+    score = engine._score(make_analysis(confidence=0.8), perf=None)
+
+    assert score.sample_factor == 0.0
+
+
+def test_edge_floor_config_override() -> None:
+    """Operator-tuned ``edge_floor`` is respected by ``_score``."""
+    engine, _ = make_engine(
+        config=ProposalEngineConfig(edge_floor=0.2, edge_divisor=10.0)
+    )
+    deeply_losing = make_perf("a", total_trades=20, avg_pnl_percent=-50.0)
+
+    score = engine._score(make_analysis(confidence=0.5), deeply_losing)
+
+    assert score.edge_factor == pytest.approx(0.2)
+    assert score.composite == pytest.approx(0.5 * 0.2)
+
+
+def test_edge_divisor_config_override() -> None:
+    """Lowering ``edge_divisor`` makes the formula more sensitive to edge."""
+    engine, _ = make_engine(config=ProposalEngineConfig(edge_divisor=5.0))
+    winner = make_perf("a", total_trades=20, avg_pnl_percent=5.0)
+
+    score = engine._score(make_analysis(confidence=0.5), winner)
+
+    # 1 + 5/5 = 2.0
+    assert score.edge_factor == pytest.approx(2.0)
+    assert score.composite == pytest.approx(0.5 * 2.0)
+
+
+def test_existing_no_history_score_factor_still_governs_cold_start() -> None:
+    """Backward-compat: bumping ``no_history_score_factor`` still raises
+    the cold-start composite proportionally (the unified formula
+    preserves the historical brand-new behaviour as the
+    ``sample_factor=0`` limit).
+    """
+    engine, _ = make_engine(config=ProposalEngineConfig(no_history_score_factor=0.7))
+
+    score = engine._score(make_analysis(confidence=0.6), perf=None)
+
+    assert score.composite == pytest.approx(0.6 * 0.7)
 
 
 # =============================================================================

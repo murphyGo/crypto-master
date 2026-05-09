@@ -89,9 +89,16 @@ class ProposalScore(BaseModel):
             From ``TechniquePerformance.avg_pnl_percent``; 0 if no history.
         sample_factor: ``min(1, sample_size / min_trades_for_full_score)``.
             Approaches 1 as the technique accumulates history.
-        edge_factor: ``max(0, expected_value)``. Negative-EV techniques
-            contribute zero — we never want to recommend a known loser.
-        composite: Final ranking number — higher is better.
+        edge_factor: ``max(edge_floor, 1.0 + expected_value / edge_divisor)``.
+            Centred at 1.0 for neutral edge; floored at ``edge_floor``
+            (default 0.1) so a chronically losing strategy is penalized
+            but never stuck at composite=0 forever (the death-spiral case
+            the old ``max(0, expected_value)`` formula produced).
+        composite: Final ranking number — higher is better. Computed as
+            ``confidence × ((1 - sample_factor) × prior + sample_factor
+            × edge_factor)`` so cold-start techniques fall back to the
+            ``no_history_score_factor`` prior and converge to the
+            observed edge as ``sample_factor`` saturates.
     """
 
     confidence: float
@@ -164,7 +171,20 @@ class ProposalEngineConfig(BaseModel):
         no_history_score_factor: When a technique has zero history,
             its composite is ``confidence × this``. Lets a brand-new
             system still produce proposals while making it clear they
-            are unproven.
+            are unproven. With the unified blended formula this also
+            acts as the ``prior`` end of the
+            ``(1 - sample_factor) × prior + sample_factor × edge_factor``
+            blend.
+        edge_floor: Minimum ``edge_factor`` when computing composite
+            score. Floors the death-spiral case where a strategy with
+            one losing trade would otherwise produce composite=0
+            forever. ``0.1`` means even a chronically losing strategy
+            still has a baseline chance to fire if confidence is high.
+        edge_divisor: Divisor mapping ``avg_pnl_percent`` to
+            ``edge_factor``: ``edge = max(edge_floor, 1.0 + avg_pnl /
+            edge_divisor)``. At default ``10.0``, ``+5%`` avg_pnl maps
+            to ``edge=1.5``; ``-5%`` to ``0.5``; ``-10%`` to the ``0.1``
+            floor. Lower divisor = more sensitive to edge.
     """
 
     timeframe: Timeframe = "1h"
@@ -174,6 +194,28 @@ class ProposalEngineConfig(BaseModel):
     risk_percent: float = Field(default=1.0, gt=0, le=100)
     min_trades_for_full_score: int = Field(default=20, ge=1)
     no_history_score_factor: float = Field(default=0.5, ge=0, le=1)
+    edge_floor: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Minimum edge_factor when computing composite score. Floors "
+            "the death-spiral case where a strategy with one losing trade "
+            "would otherwise produce composite=0 forever. 0.1 means even "
+            "a chronically losing strategy still has a baseline chance "
+            "to fire if confidence is high."
+        ),
+    )
+    edge_divisor: float = Field(
+        default=10.0,
+        gt=0.0,
+        description=(
+            "Divisor mapping avg_pnl_percent to edge_factor: "
+            "edge = max(edge_floor, 1.0 + avg_pnl / edge_divisor). At "
+            "default 10.0, +5% avg_pnl maps to edge=1.5; -5% to 0.5; "
+            "-10% to 0.1 floor. Lower divisor = more sensitive to edge."
+        ),
+    )
     multi_technique_per_symbol: bool = True
     """If True (default, Phase 10.6), every applicable technique is run
     per symbol and the highest-composite candidate per symbol survives
@@ -1003,39 +1045,85 @@ class ProposalEngine:
     ) -> ProposalScore:
         """Build a ``ProposalScore`` from an analysis + perf record.
 
-        Score formula::
+        Unified score formula (no separate cold-start branch)::
 
             sample_factor = min(1, sample_size / min_trades_for_full_score)
-            edge_factor   = max(0, expected_value)              # in % units
-            composite     = confidence × edge_factor × sample_factor   if perf
-                          = confidence × no_history_score_factor       if not perf
+            edge_factor   = max(edge_floor, 1.0 + expected_value / edge_divisor)
+            prior         = no_history_score_factor
+            composite     = confidence × ((1 - sample_factor) × prior
+                                          + sample_factor × edge_factor)
 
-        Confidence is clamped defensively to [0, 1] in case a
+        Properties:
+
+        * ``edge_factor`` is centred at ``1.0`` for neutral edge
+          (``expected_value == 0``) and floored at ``edge_floor``
+          (default ``0.1``) — chronically losing strategies are
+          penalized but never collapse composite to zero forever (the
+          old ``max(0, expected_value)`` death-spiral case where one
+          losing trade meant permanent rejection).
+        * ``composite`` is a **blend** of the cold-start ``prior`` and
+          the observed ``edge_factor``, weighted by ``sample_factor``.
+          At ``sample_size == 0`` the prior dominates; at
+          ``sample_size >= min_trades_for_full_score`` the observed
+          edge dominates. This removes the cold-start branch entirely
+          while keeping the historical brand-new behaviour
+          (``confidence × no_history_score_factor``) as the
+          ``sample_factor == 0`` limit.
+
+        Worked examples (defaults: ``no_history_score_factor=0.5``,
+        ``min_trades_for_full_score=20``, ``edge_floor=0.1``,
+        ``edge_divisor=10.0``)::
+
+            * Brand new strategy (sample=0), conf=0.7
+              → composite = 0.7 × 0.5 = 0.35  (passes 0.30 gate)
+            * After 1 losing trade (-2%), conf=0.7
+              → sf=0.05, edge=0.8
+              → composite = 0.7 × (0.95×0.5 + 0.05×0.8) ≈ 0.36
+                (no death spiral)
+            * After 20 losing trades (-5%), conf=0.7
+              → sf=1.0, edge=0.5
+              → composite = 0.7 × 0.5 = 0.35
+                (around threshold; gate works but not punitive)
+            * After 20 losing trades (-10%), conf=0.7
+              → sf=1.0, edge=0.1 (floor)
+              → composite = 0.7 × 0.1 = 0.07
+                (rejected — chronically losing)
+            * After 20 winning trades (+5%), conf=0.7
+              → sf=1.0, edge=1.5
+              → composite = 0.7 × 1.5 = 1.05  (strong pass)
+
+        Confidence is clamped defensively to ``[0, 1]`` in case a
         strategy returns out-of-spec.
         """
         confidence = max(0.0, min(1.0, analysis.confidence))
+        prior = self.config.no_history_score_factor
 
+        # Treat missing or zero-history records uniformly — the
+        # blended formula collapses to ``confidence × prior`` when
+        # ``sample_factor == 0`` so we no longer need a separate
+        # cold-start branch.
         if perf is None or perf.total_trades == 0:
-            return ProposalScore(
-                confidence=confidence,
-                win_rate=0.0,
-                sample_size=0,
-                expected_value=0.0,
-                sample_factor=0.0,
-                edge_factor=0.0,
-                composite=confidence * self.config.no_history_score_factor,
-            )
+            sample_size = 0
+            win_rate = 0.0
+            expected_value = 0.0
+        else:
+            sample_size = perf.total_trades
+            win_rate = perf.win_rate
+            expected_value = perf.avg_pnl_percent
 
-        sample_factor = min(
-            1.0, perf.total_trades / self.config.min_trades_for_full_score
+        sample_factor = min(1.0, sample_size / self.config.min_trades_for_full_score)
+        edge_factor = max(
+            self.config.edge_floor,
+            1.0 + expected_value / self.config.edge_divisor,
         )
-        edge_factor = max(0.0, perf.avg_pnl_percent)
-        composite = confidence * edge_factor * sample_factor
+        composite = confidence * (
+            (1.0 - sample_factor) * prior + sample_factor * edge_factor
+        )
         return ProposalScore(
             confidence=confidence,
-            win_rate=perf.win_rate,
-            sample_size=perf.total_trades,
-            expected_value=perf.avg_pnl_percent,
+            win_rate=win_rate,
+            sample_size=sample_size,
+            expected_value=expected_value,
             sample_factor=sample_factor,
             edge_factor=edge_factor,
             composite=composite,
