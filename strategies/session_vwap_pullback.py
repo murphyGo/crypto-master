@@ -1,14 +1,15 @@
 """Session VWAP pullback continuation strategy.
 
-Uses the latest UTC-date session inside the supplied OHLCV series.
-Long setups require an uptrend, a pullback into VWAP, and a fresh
-close back above the prior candle. Short setups mirror the logic.
+v1.1.0: anchor sessions at the London open (07:00 UTC) instead of UTC
+midnight, and require ``MIN_SESSION_CANDLES = 16`` (~4h on 15m) before
+firing. Long setups require an uptrend, a pullback into VWAP, and a
+fresh close back above the prior candle. Short setups mirror.
 
 Related Requirements:
 - FR-001 / FR-002 / FR-003 / FR-004 / FR-005
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from src.models import OHLCV, AnalysisResult
@@ -16,16 +17,25 @@ from src.strategy.base import BaseStrategy, StrategyExecutionError
 
 TECHNIQUE_INFO = {
     "name": "session_vwap_pullback",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
         "Session VWAP continuation: trade the trend when price pulls "
-        "back into VWAP and reclaims momentum."
+        "back into VWAP and reclaims momentum. Sessions anchored at "
+        "the London open (07:00 UTC); requires >=16 candles of "
+        "post-anchor data before firing."
     ),
     "author": "system",
     "symbols": [],
     "timeframes": ["15m", "1h"],
     "status": "experimental",
-    "changelog": "Initial deterministic VWAP pullback candidate",
+    "changelog": (
+        "1.1.0: anchor sessions at 07:00 UTC London open instead of "
+        "UTC midnight (Asia open mid-session); raise "
+        "MIN_SESSION_CANDLES 6 -> 16 so VWAP has >=4h of statistical "
+        "mass on 15m before firing. 12-day Fly paper data showed early "
+        "post-midnight signals fading low-strength sessions. "
+        "1.0.0: Initial deterministic VWAP pullback candidate."
+    ),
     "counter_trend": True,
     # Approximate "close by end of session": the strategy doesn't
     # natively know session boundaries, so 96 bars (~24h on 15m)
@@ -36,9 +46,19 @@ TECHNIQUE_INFO = {
 
 EMA_PERIOD = 20
 ATR_PERIOD = 14
-MIN_SESSION_CANDLES = 6
+# v1.1.0: 16 candles ~ 4h on 15m. Earlier sessions had <6h of mass
+# before firing, leaving VWAP statistically weak. London-open anchor
+# combined with 16-candle minimum gives the first signal at ~11:00
+# UTC each day (anchor + 4h).
+MIN_SESSION_CANDLES = 16
 VWAP_TOUCH_TOLERANCE = 0.002
 TAKE_PROFIT_R = 1.8
+
+# v1.1.0: anchor sessions at the London open. Crypto is 24/7 but
+# institutional flow and effective liquidity step-changes around
+# the London cash open; UTC midnight (Asia open mid-session) was
+# arbitrary and anchored every session in low-mass conditions.
+SESSION_ANCHOR_HOUR_UTC = 7
 
 
 class SessionVWAPPullbackStrategy(BaseStrategy):
@@ -129,8 +149,19 @@ class SessionVWAPPullbackStrategy(BaseStrategy):
 
 
 def _latest_session(ohlcv: list[OHLCV]) -> list[OHLCV]:
-    session_date = ohlcv[-1].timestamp.date()
-    return [c for c in ohlcv if c.timestamp.date() == session_date]
+    """Filter candles to the latest London-open-anchored 24h session.
+
+    The session begins at the most recent ``SESSION_ANCHOR_HOUR_UTC``
+    that is <= the latest candle's timestamp. If the anchor hour has
+    not yet occurred today, falls back to yesterday's anchor.
+    """
+    last_ts = ohlcv[-1].timestamp
+    anchor = last_ts.replace(
+        hour=SESSION_ANCHOR_HOUR_UTC, minute=0, second=0, microsecond=0
+    )
+    if anchor > last_ts:
+        anchor -= timedelta(days=1)
+    return [c for c in ohlcv if c.timestamp >= anchor]
 
 
 def _typical(candle: OHLCV) -> float:

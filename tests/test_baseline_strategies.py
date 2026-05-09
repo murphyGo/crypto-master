@@ -409,19 +409,28 @@ def session_vwap_module():
 
 async def test_session_vwap_pullback_long_on_reclaim(session_vwap_module) -> None:
     strategy = _build(session_vwap_module)
-    previous = [100.0 + i * 0.2 for i in range(34)]
-    session = [108.0, 108.4, 108.7, 109.0, 108.9, 109.6]
-    closes = previous + session
-    highs = [close + 0.15 for close in closes]
-    lows = [close - 0.15 for close in closes]
-    # Previous candle touches the session VWAP area, latest candle
-    # reclaims its high in an already rising EMA regime.
-    lows[-2] = 108.55
-    highs[-2] = 109.15
-    highs[-1] = 109.8
+    # v1.1.0: minimum_candles = EMA(20) + ATR(14) + MIN_SESSION_CANDLES(16) = 50.
+    # Build 35 pre-anchor warmup bars (rising trend so EMA20 is rising at the
+    # end) + 16 session bars (post-07:00 UTC anchor) for a flat consolidation
+    # ending with a clean VWAP pullback + reclaim. Total = 51 bars.
+    pre_anchor = [100.0 + i * 0.2 for i in range(35)]  # 100.0 -> 106.8
+    # Session (16 bars): 13 flat at 108, then 1 push, 1 pullback-to-VWAP, 1
+    # reclaim. VWAP ≈ 108 because session is dominated by 108-flat bars.
+    session_bars = [108.0] * 13 + [108.2, 108.0, 108.5]
+    closes = pre_anchor + session_bars
+    highs = [c + 0.05 for c in closes]
+    lows = [c - 0.05 for c in closes]
+    # Previous candle (index -2): touches VWAP from above, prev_high just under
+    # the upcoming reclaim.
+    lows[-2] = 107.95
+    highs[-2] = 108.05
+    # Latest candle (index -1): reclaims prev_high (108.05) on a rising bar.
+    highs[-1] = 108.6
+    # Start so that bar 35 lands at 07:00 UTC (the London anchor): the first
+    # 35 bars are pre-anchor warmup; the last 16 bars are in-session.
     ohlcv = _make_ohlcv(
         closes,
-        start=datetime(2026, 1, 1, 15, 30),
+        start=datetime(2025, 12, 31, 22, 15),
         delta=timedelta(minutes=15),
         highs=highs,
         lows=lows,
@@ -432,6 +441,51 @@ async def test_session_vwap_pullback_long_on_reclaim(session_vwap_module) -> Non
     assert result.signal == "long"
     assert result.stop_loss < result.entry_price
     assert result.take_profit > result.entry_price
+
+
+async def test_session_vwap_anchored_to_london_open(session_vwap_module) -> None:
+    """v1.1: session starts at 07:00 UTC, not UTC midnight."""
+    module = session_vwap_module
+    # Build 50 candles starting at 06:00 UTC, so candles span 06:00 -> 18:30.
+    # Anchor at 07:00 UTC means the session keeps candles >= 07:00 (49 of 50).
+    closes = [100.0 + i * 0.05 for i in range(50)]
+    highs = [c + 0.1 for c in closes]
+    lows = [c - 0.1 for c in closes]
+    ohlcv = _make_ohlcv(
+        closes,
+        start=datetime(2026, 1, 1, 6, 0),
+        delta=timedelta(minutes=15),
+        highs=highs,
+        lows=lows,
+    )
+    session = module._latest_session(ohlcv)
+    # The 06:00, 06:15, 06:30, 06:45 candles are pre-anchor (4 bars).
+    # 07:00 onward is in-session.
+    assert all(c.timestamp.hour >= 7 or c.timestamp.day > 1 for c in session)
+    assert len(session) == 46  # 50 total - 4 pre-anchor
+
+
+async def test_session_vwap_min_candles_blocks_short_session(
+    session_vwap_module,
+) -> None:
+    """v1.1: MIN_SESSION_CANDLES=16. Session with 10 post-anchor candles -> NEUTRAL."""
+    strategy = _build(session_vwap_module)
+    # 50 candles with the LAST 10 being post-anchor. Pre-anchor 40 satisfies
+    # minimum_candles but post-anchor 10 < 16 → NEUTRAL.
+    closes = [100.0 + i * 0.05 for i in range(50)]
+    highs = [c + 0.1 for c in closes]
+    lows = [c - 0.1 for c in closes]
+    # Start so the 41st candle hits 07:00 UTC. 40 candles * 15m = 10h.
+    # Start at 21:00 UTC the day before; 21:00 + 10h = 07:00 UTC next day.
+    ohlcv = _make_ohlcv(
+        closes,
+        start=datetime(2026, 1, 1, 21, 0),
+        delta=timedelta(minutes=15),
+        highs=highs,
+        lows=lows,
+    )
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+    assert result.signal == "neutral"
 
 
 @pytest.fixture
