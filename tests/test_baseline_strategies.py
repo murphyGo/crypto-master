@@ -441,7 +441,11 @@ def vwap_reversion_module():
 
 async def test_vwap_mean_reversion_long_below_lower_band(vwap_reversion_module) -> None:
     strategy = _build(vwap_reversion_module)
-    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [92.0]
+    # Oscillating series keeps sigma small (~0.25) and EMA slope muted.
+    # Final close at 99.4 dips below the lower band (~99.49) without
+    # tripping the v1.1 slope filter (0.005), and stays above the
+    # band-anchored stop (vwap - 2.8*sigma ≈ 99.29).
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [99.4]
     highs = [close + 0.2 for close in closes]
     lows = [close - 0.2 for close in closes]
     ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
@@ -451,6 +455,81 @@ async def test_vwap_mean_reversion_long_below_lower_band(vwap_reversion_module) 
     assert result.signal == "long"
     assert result.stop_loss < result.entry_price
     assert result.take_profit > result.entry_price
+
+
+async def test_vwap_mr_long_stop_anchored_to_band(vwap_reversion_module) -> None:
+    """v1.1: long SL must sit at vwap - sigma * STOP_BAND_MULTIPLIER."""
+    module = vwap_reversion_module
+    strategy = _build(module)
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [99.4]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "long"
+    vwap, sigma = module._rolling_vwap_sigma(ohlcv, module.VWAP_PERIOD)
+    expected_stop = vwap - sigma * module.STOP_BAND_MULTIPLIER
+    assert float(result.stop_loss) == pytest.approx(expected_stop, abs=0.05)
+    # Stop sits BELOW the trigger band (lower = vwap - 2*sigma).
+    lower_band = vwap - sigma * module.STD_MULTIPLIER
+    assert float(result.stop_loss) < lower_band
+
+
+async def test_vwap_mr_short_stop_anchored_to_band(vwap_reversion_module) -> None:
+    """v1.1: short SL must sit at vwap + sigma * STOP_BAND_MULTIPLIER."""
+    module = vwap_reversion_module
+    strategy = _build(module)
+    # Mirror of the long test: oscillating series, last close just above
+    # the upper band (~100.49) but below the band-anchored stop (~100.69).
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [100.6]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "short"
+    vwap, sigma = module._rolling_vwap_sigma(ohlcv, module.VWAP_PERIOD)
+    expected_stop = vwap + sigma * module.STOP_BAND_MULTIPLIER
+    assert float(result.stop_loss) == pytest.approx(expected_stop, abs=0.05)
+    upper_band = vwap + sigma * module.STD_MULTIPLIER
+    assert float(result.stop_loss) > upper_band
+
+
+async def test_vwap_mr_tighter_slope_filter_blocks_loose_trend(
+    vwap_reversion_module,
+) -> None:
+    """v1.1: a ~1% EMA20 drift over 5 bars (was OK at 0.015) is now blocked."""
+    strategy = _build(vwap_reversion_module)
+    # Steady linear uptrend: each 15m bar +0.2 from 100 -> 110.4 over 53 bars.
+    # EMA20 drift across the last 5 bars is ~1.0 / 110 ≈ 0.009 (> 0.005).
+    closes = [100.0 + i * 0.2 for i in range(52)]
+    # Final bar: dip below the lower band so the *only* gating factor is slope.
+    closes.append(closes[-1] - 4.0)
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "neutral"
+    assert "range_ok=False" in result.reasoning
+
+
+async def test_vwap_mr_calm_regime_still_fires(vwap_reversion_module) -> None:
+    """v1.1: a 0.3% EMA20 drift across 5 bars is calm enough to fire."""
+    strategy = _build(vwap_reversion_module)
+    # Oscillating-flat: very tight slope, well under 0.005.
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [99.4]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "long"
 
 
 @pytest.fixture

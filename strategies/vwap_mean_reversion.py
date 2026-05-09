@@ -4,6 +4,10 @@ Computes a rolling VWAP and volume-weighted standard deviation. In a
 non-trending local regime, price extensions beyond the outer bands are
 faded back toward VWAP.
 
+v1.1: stops are now band-anchored via STOP_BAND_MULTIPLIER (the constant
+was previously dead) and the slope filter tightened from 0.015 -> 0.005
+to require a genuinely range-bound regime.
+
 Related Requirements:
 - FR-001 / FR-002 / FR-003 / FR-004 / FR-005
 """
@@ -17,7 +21,7 @@ from src.strategy.base import BaseStrategy, StrategyExecutionError
 
 TECHNIQUE_INFO = {
     "name": "vwap_mean_reversion",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
         "VWAP band mean reversion: fade 2-sigma VWAP extensions when "
         "local trend slope is muted."
@@ -26,7 +30,11 @@ TECHNIQUE_INFO = {
     "symbols": [],
     "timeframes": ["15m", "1h"],
     "status": "experimental",
-    "changelog": "Initial deterministic VWAP mean-reversion candidate",
+    "changelog": (
+        "1.1.0: wire STOP_BAND_MULTIPLIER for band-anchored stops; "
+        "tighten MAX_TREND_SLOPE 0.015 -> 0.005 (filter requires "
+        "tighter range regime). Removes dead constant fallback."
+    ),
     "counter_trend": True,
     # 15m VWAP fade: 48 bars (~12h) covers most of a single
     # session's reversion window without straddling regime changes.
@@ -38,7 +46,7 @@ VWAP_PERIOD = 48
 STD_MULTIPLIER = 2.0
 EMA_PERIOD = 20
 SLOPE_LOOKBACK = 5
-MAX_TREND_SLOPE = 0.015
+MAX_TREND_SLOPE = 0.005
 STOP_BAND_MULTIPLIER = 2.8
 
 
@@ -75,10 +83,11 @@ class VWAPMeanReversionStrategy(BaseStrategy):
         range_ok = trend_slope <= MAX_TREND_SLOPE
 
         if current_price < lower and range_ok:
-            stop = min(
-                current_price * 0.99,
-                current_price - max(sigma * 0.8, current_price * 0.005),
-            )
+            # Band-anchored stop: 0.8 sigma below the lower trigger band.
+            # The strategy's thesis is "price overshoots, will revert to
+            # VWAP" — the stop has to live OUTSIDE the band so a further
+            # excursion (still consistent with the thesis) doesn't clip.
+            stop = vwap - sigma * STOP_BAND_MULTIPLIER
             return _directional_result(
                 signal="long",
                 current_price=current_price,
@@ -91,10 +100,8 @@ class VWAPMeanReversionStrategy(BaseStrategy):
                 ),
             )
         if current_price > upper and range_ok:
-            stop = max(
-                current_price * 1.01,
-                current_price + max(sigma * 0.8, current_price * 0.005),
-            )
+            # Symmetric band-anchored stop above the upper trigger band.
+            stop = vwap + sigma * STOP_BAND_MULTIPLIER
             return _directional_result(
                 signal="short",
                 current_price=current_price,
