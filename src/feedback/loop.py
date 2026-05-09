@@ -716,7 +716,14 @@ class FeedbackLoop:
         # otherwise a torn `.py` file would either fail `ast.parse` or, worse,
         # parse as a half-strategy at the next loader pass (CH-02).
         atomic_write_text(target, rewritten)
-        source_path.unlink()
+        try:
+            source_path.unlink()
+        except OSError as e:
+            target.unlink(missing_ok=True)
+            raise FeedbackLoopError(
+                "promotion partially failed: active target was written but "
+                f"source could not be removed at {source_path}"
+            ) from e
         return target
 
     @staticmethod
@@ -832,6 +839,16 @@ class FeedbackLoop:
         new_frontmatter_body = yaml.safe_dump(
             metadata, sort_keys=False, allow_unicode=True
         ).strip()
+        try:
+            reparsed = yaml.safe_load(new_frontmatter_body) or {}
+        except yaml.YAMLError as e:
+            raise FeedbackLoopError(
+                f"Cannot promote: rewritten YAML frontmatter is invalid: {e}"
+            ) from e
+        if not isinstance(reparsed, dict):
+            raise FeedbackLoopError(
+                "Cannot promote: rewritten frontmatter is not a YAML mapping"
+            )
         body = content[match.end() :]
         return f"---\n{new_frontmatter_body}\n---\n{body}"
 

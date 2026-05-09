@@ -516,6 +516,41 @@ async def test_approve_moves_file_and_flips_status(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_promote_file_rolls_back_target_when_unlink_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop, md_path, _ = make_loop(tmp_path, gate_passed=True)
+
+    await loop.improve_existing(
+        technique=sample_technique_info(),
+        original_source="original",
+        performance=sample_performance(),
+        records=[],
+        ohlcv=[],
+        symbol="BTC/USDT",
+    )
+    target = tmp_path / "strategies" / md_path.name
+    original_unlink = Path.unlink
+
+    def fail_source_unlink(
+        path: Path,
+        missing_ok: bool = False,
+    ) -> None:
+        if path == md_path:
+            raise OSError("simulated unlink failure")
+        original_unlink(path, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", fail_source_unlink)
+
+    with pytest.raises(FeedbackLoopError, match="promotion partially failed"):
+        loop._promote_file(md_path)
+
+    assert md_path.exists()
+    assert not target.exists()
+
+
+@pytest.mark.asyncio
 async def test_approve_rejects_non_pending_candidate(tmp_path: Path) -> None:
     loop, _, _ = make_loop(tmp_path, gate_passed=False)
     record = await loop.improve_existing(
