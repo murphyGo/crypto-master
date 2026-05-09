@@ -34,6 +34,9 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial version (baseline)",
     "counter_trend": True,
+    # 1h band reversion: 12 bars (~12h) — bands re-expand fast and a
+    # stuck trade past that window is rarely a reversion any more.
+    "max_bars_held": 12,
 }
 
 

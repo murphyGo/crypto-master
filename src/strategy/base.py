@@ -238,7 +238,69 @@ class TechniqueInfo(BaseModel):
         ),
     )
 
+    max_bars_held: int | None = Field(
+        default=None,
+        ge=1,
+        le=200,
+        description=(
+            "Optional time-stop: close the trade after this many candles "
+            "of the strategy's primary timeframe. None falls back to a "
+            "timeframe-based default (15m=48 bars=12h, 1h=48 bars=2d, "
+            "4h=42 bars=7d, 1d=30 bars=30d). Hard ceiling 200 bars."
+        ),
+    )
+
     model_config = {"frozen": True}
+
+
+# =============================================================================
+# Time-stop helpers
+# =============================================================================
+
+
+# Per-timeframe default bar counts for the time-stop fallback. Picked
+# so the wall-clock window scales with the strategy's natural cadence:
+# fast intraday strategies get a short leash (a missed thesis decays
+# in hours), slow swing strategies a longer one (multi-day theses can
+# need a week to play out). Anything not in this map falls back to
+# 48 bars — the same value 1h gets — and the absolute ceiling is 200
+# bars per the ``TechniqueInfo.max_bars_held`` schema.
+_DEFAULT_MAX_BARS_HELD: dict[str, int] = {
+    "5m": 96,
+    "15m": 48,
+    "30m": 48,
+    "1h": 48,
+    "2h": 42,
+    "4h": 42,
+    "8h": 30,
+    "12h": 30,
+    "1d": 30,
+    "1w": 12,
+}
+
+# Hard ceiling shared with the ``TechniqueInfo.max_bars_held`` ``le``
+# constraint. Even if the table or a future override yields a larger
+# value, the resolved default is clamped here so monitor never sits on
+# a position past the documented ceiling.
+_MAX_BARS_HELD_CEILING = 200
+
+
+def default_max_bars_held(timeframe: str) -> int:
+    """Default time-stop in bars for a primary timeframe.
+
+    Args:
+        timeframe: Primary timeframe label (e.g. ``"15m"``, ``"1h"``,
+            ``"4h"``, ``"1d"``).
+
+    Returns:
+        The number of bars after which the runtime should force-close
+        a trade that has neither hit its stop-loss nor its take-profit.
+        Unknown timeframes return ``48`` (matches 1h/15m default), and
+        the result is always clamped to the 200-bar ceiling that
+        :class:`TechniqueInfo` enforces on explicit overrides.
+    """
+    bars = _DEFAULT_MAX_BARS_HELD.get(timeframe, 48)
+    return min(bars, _MAX_BARS_HELD_CEILING)
 
 
 # =============================================================================

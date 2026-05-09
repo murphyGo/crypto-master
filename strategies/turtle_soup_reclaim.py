@@ -27,6 +27,9 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial deterministic Turtle Soup candidate",
     "counter_trend": True,
+    # 4h failed-breakout fade: 24 bars (~4 days) lets a reclaim play
+    # out without sitting through a follow-through trend reversal.
+    "max_bars_held": 24,
 }
 
 

@@ -33,4 +33,7 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial version (15m split from rsi_universal)",
     "counter_trend": True,
+    # 15m mean-reversion: 24 bars (~6h) is the outer envelope before
+    # an oversold/overbought reading is no longer the same trade.
+    "max_bars_held": 24,
 }

@@ -42,6 +42,9 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial version (baseline)",
     "counter_trend": True,
+    # Mean-reversion thesis decays in 1-2 bars; if RSI hasn't carried
+    # us to TP/SL within ~8 hours we have nothing left to wait on.
+    "max_bars_held": 8,
 }
 
 

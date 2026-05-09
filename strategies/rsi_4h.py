@@ -38,4 +38,8 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial version (4h split from rsi_universal)",
     "counter_trend": True,
+    # 4h mean-reversion: 6 bars (~1 day) is plenty for a single
+    # oversold/overbought reversion to play out before the thesis
+    # stales.
+    "max_bars_held": 6,
 }

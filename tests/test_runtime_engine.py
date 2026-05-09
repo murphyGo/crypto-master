@@ -912,6 +912,290 @@ async def test_monitor_pass_no_open_trades(tmp_path: Path) -> None:
 
 
 # =============================================================================
+# Time-stop gate (per-strategy ``max_bars_held``)
+# =============================================================================
+
+
+class _StubStrategy(BaseStrategy):
+    """Minimal BaseStrategy concretion for time-stop tests.
+
+    The runtime only reads ``self.info`` for the time-stop window —
+    ``analyze`` is never called from the monitor path — but
+    BaseStrategy is abstract, so we satisfy the contract with a
+    no-op coroutine.
+    """
+
+    async def analyze(  # type: ignore[override]
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
+    ) -> AnalysisResult:
+        raise AssertionError("Stub strategy must not be invoked from monitor tests")
+
+
+def _wire_time_stop_proposal(
+    history: ProposalHistory,
+    *,
+    proposal_id: str,
+    trade_id: str,
+    technique_name: str,
+) -> None:
+    """Persist a proposal record + link to a trade so the time-stop
+    helper's ``_find_proposal_record_for_trade`` returns a hit.
+    """
+    proposal = make_proposal(proposal_id=proposal_id).model_copy(
+        update={"technique_name": technique_name}
+    )
+    history.save(ProposalRecord(proposal=proposal, decision=ProposalDecision.ACCEPTED))
+    history.attach_trade(proposal_id, trade_id=trade_id)
+
+
+def _make_aged_trade(
+    *,
+    trade_id: str,
+    age_seconds: float,
+    technique_name: str = "tech_a",
+) -> TradeHistory:
+    """Build an open ``TradeHistory`` whose ``entry_time`` is offset.
+
+    ``now_utc()`` minus ``age_seconds`` keeps the trade naturally
+    "aged" against the runtime helper's ``now_utc() - trade.entry_time``
+    arithmetic without needing to monkeypatch the clock.
+    """
+    from datetime import timedelta
+
+    return TradeHistory(
+        id=trade_id,
+        symbol="BTC/USDT",
+        side="long",
+        mode="paper",
+        entry_price=Decimal("50000"),
+        entry_quantity=Decimal("0.1"),
+        entry_time=now_utc() - timedelta(seconds=age_seconds),
+        status="open",
+    )
+
+
+class TestTimeStopGate:
+    """Per-strategy time-stop fallback in ``_monitor`` (P0 trading-correctness)."""
+
+    async def test_time_stop_closes_aged_trade_with_default(
+        self, tmp_path: Path
+    ) -> None:
+        """Aged trade with no per-strategy override hits the timeframe default."""
+        from src.strategy.base import default_max_bars_held
+
+        # 1h default = 48 bars * 3600s = 172800s; nudge past it.
+        age = default_max_bars_held("1h") * 3600 + 60
+        open_trade = _make_aged_trade(trade_id="t-aged", age_seconds=age)
+        closed_trade = open_trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": Decimal("50000"),
+                "exit_quantity": Decimal("0.1"),
+                "close_reason": "time_stop",
+                "pnl_percent": 0.0,
+            }
+        )
+
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        # No proposal record + no strategy → falls back to 1h default.
+        mocks["proposal_engine"].strategies = {}
+        mocks["trader"].close_position.return_value = closed_trade
+
+        result = await engine.run_cycle()
+
+        assert result.positions_closed == 1
+        mocks["trader"].close_position.assert_awaited_once_with(
+            "t-aged", Decimal("50000"), reason="time_stop"
+        )
+
+    async def test_time_stop_uses_per_strategy_override(self, tmp_path: Path) -> None:
+        """``max_bars_held=8`` on 1h → close past 8h, keep before."""
+        info = TechniqueInfo(
+            name="rsi_universal",
+            version="1.0.0",
+            description="rsi",
+            technique_type="code",
+            timeframes=["1h"],
+            max_bars_held=8,
+        )
+        strategy = _StubStrategy(info=info)
+
+        # Past the 8h window → must close.
+        aged_trade = _make_aged_trade(
+            trade_id="t-past-8h",
+            age_seconds=8 * 3600 + 120,
+            technique_name="rsi_universal",
+        )
+        closed_trade = aged_trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": Decimal("50000"),
+                "exit_quantity": Decimal("0.1"),
+                "close_reason": "time_stop",
+                "pnl_percent": 0.0,
+            }
+        )
+
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[aged_trade])
+        mocks["proposal_engine"].strategies = {"rsi_universal": strategy}
+        _wire_time_stop_proposal(
+            mocks["history"],
+            proposal_id="p-rsi-1",
+            trade_id="t-past-8h",
+            technique_name="rsi_universal",
+        )
+        mocks["trader"].close_position.return_value = closed_trade
+
+        result = await engine.run_cycle()
+
+        assert result.positions_closed == 1
+        mocks["trader"].close_position.assert_awaited_once_with(
+            "t-past-8h", Decimal("50000"), reason="time_stop"
+        )
+
+        # Now: 7h-old trade with the same override → must NOT close.
+        young_trade = _make_aged_trade(
+            trade_id="t-young-7h",
+            age_seconds=7 * 3600,
+            technique_name="rsi_universal",
+        )
+        engine2, mocks2 = build_engine(tmp_path=tmp_path, open_trades=[young_trade])
+        mocks2["proposal_engine"].strategies = {"rsi_universal": strategy}
+        _wire_time_stop_proposal(
+            mocks2["history"],
+            proposal_id="p-rsi-2",
+            trade_id="t-young-7h",
+            technique_name="rsi_universal",
+        )
+
+        result2 = await engine2.run_cycle()
+
+        assert result2.positions_closed == 0
+        mocks2["trader"].close_position.assert_not_called()
+
+    async def test_time_stop_respects_higher_priority_sl(self, tmp_path: Path) -> None:
+        """SL fires on the same monitor pass → close reason is ``stop_loss``."""
+        # Trade is well past the time-stop window AND the SL hits.
+        aged_trade = _make_aged_trade(trade_id="t-sl", age_seconds=1_000_000)
+        sl_closed = aged_trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": Decimal("49500"),
+                "exit_quantity": Decimal("0.1"),
+                "close_reason": "stop_loss",
+                "pnl_percent": -1.0,
+            }
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[aged_trade])
+        mocks["proposal_engine"].strategies = {}
+        mocks["trader"].check_exit_conditions.return_value = (True, "stop_loss")
+        mocks["trader"].close_position.return_value = sl_closed
+
+        result = await engine.run_cycle()
+
+        assert result.positions_closed == 1
+        mocks["trader"].close_position.assert_awaited_once_with(
+            "t-sl", Decimal("50000"), reason="stop_loss"
+        )
+        # No POSITION_TIME_STOPPED event — SL won the race.
+        time_stops = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_TIME_STOPPED
+        )
+        assert time_stops == []
+
+    async def test_time_stop_emits_activity_event(self, tmp_path: Path) -> None:
+        """The time-stop close emits POSITION_TIME_STOPPED with the contract payload."""
+        info = TechniqueInfo(
+            name="tech_with_stop",
+            version="1.0.0",
+            description="x",
+            technique_type="code",
+            timeframes=["1h"],
+            max_bars_held=4,
+        )
+        strategy = _StubStrategy(info=info)
+        aged_trade = _make_aged_trade(
+            trade_id="t-event",
+            age_seconds=4 * 3600 + 60,
+            technique_name="tech_with_stop",
+        )
+        closed_trade = aged_trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": Decimal("50000"),
+                "exit_quantity": Decimal("0.1"),
+                "close_reason": "time_stop",
+                "pnl_percent": 0.0,
+            }
+        )
+
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[aged_trade])
+        mocks["proposal_engine"].strategies = {"tech_with_stop": strategy}
+        _wire_time_stop_proposal(
+            mocks["history"],
+            proposal_id="p-event",
+            trade_id="t-event",
+            technique_name="tech_with_stop",
+        )
+        mocks["trader"].close_position.return_value = closed_trade
+
+        await engine.run_cycle()
+
+        events = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_TIME_STOPPED
+        )
+        assert len(events) == 1
+        details = events[0].details
+        assert details["trade_id"] == "t-event"
+        assert details["symbol"] == "BTC/USDT"
+        assert details["max_bars"] == 4
+        assert details["timeframe"] == "1h"
+        assert details["technique_name"] == "tech_with_stop"
+        assert isinstance(details["age_hours"], float)
+        assert details["age_hours"] >= 4.0
+
+    async def test_time_stop_uses_default_when_strategy_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Trade with no proposal/strategy → defaults to the 1h fallback."""
+        from src.strategy.base import default_max_bars_held
+
+        age = default_max_bars_held("1h") * 3600 + 30
+        aged_trade = _make_aged_trade(trade_id="t-orphan", age_seconds=age)
+        closed_trade = aged_trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": Decimal("50000"),
+                "exit_quantity": Decimal("0.1"),
+                "close_reason": "time_stop",
+                "pnl_percent": 0.0,
+            }
+        )
+
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[aged_trade])
+        # No strategies registered + no proposal linkage.
+        mocks["proposal_engine"].strategies = {}
+        mocks["trader"].close_position.return_value = closed_trade
+
+        result = await engine.run_cycle()
+
+        assert result.positions_closed == 1
+        events = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_TIME_STOPPED
+        )
+        assert len(events) == 1
+        assert events[0].details["timeframe"] == "1h"
+        assert events[0].details["max_bars"] == default_max_bars_held("1h")
+        assert events[0].details["technique_name"] is None
+
+
+# =============================================================================
 # run_forever + stop
 # =============================================================================
 

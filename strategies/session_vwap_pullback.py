@@ -27,6 +27,10 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial deterministic VWAP pullback candidate",
     "counter_trend": True,
+    # Approximate "close by end of session": the strategy doesn't
+    # natively know session boundaries, so 96 bars (~24h on 15m)
+    # caps the stale-pullback case without truncating valid swings.
+    "max_bars_held": 96,
 }
 
 

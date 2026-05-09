@@ -27,6 +27,9 @@ TECHNIQUE_INFO = {
     "timeframes": ["1d"],
     "status": "experimental",
     "changelog": "Initial deterministic Weinstein stage candidate",
+    # 1d Stage-2 / Stage-4 swing: 60 bars (~2 months) is enough for
+    # a regime move to mature without holding through a full cycle.
+    "max_bars_held": 60,
 }
 
 

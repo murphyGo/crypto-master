@@ -28,6 +28,9 @@ TECHNIQUE_INFO = {
     "timeframes": ["1h", "4h"],
     "status": "experimental",
     "changelog": "Initial deterministic Holy Grail pullback candidate",
+    # 1h ADX trend pullback: 48 bars (~2d) is the ceiling for a
+    # single Holy Grail resumption — past that the trend is stale.
+    "max_bars_held": 48,
 }
 
 

@@ -78,6 +78,23 @@ class ActivityEventType(str, Enum):
     POSITION_CLOSED = "position_closed"
     MONITOR_ERRORED = "monitor_errored"
 
+    # Per-strategy time-stop. Emitted from
+    # :meth:`~src.runtime.engine.TradingEngine._monitor` when a trade
+    # has exceeded its ``TechniqueInfo.max_bars_held`` (or the
+    # timeframe-based default) without hitting SL or TP. The path
+    # closes the position at the current ticker price with
+    # ``reason="time_stop"`` and emits this event for the timeline.
+    # ``details`` payload (structured-fields contract — pinned by
+    # ``test_time_stop_emits_activity_event``):
+    #
+    #     trade_id (str)
+    #     symbol (str)
+    #     age_hours (float)        wall-clock age at close
+    #     max_bars (int)           bar limit applied
+    #     timeframe (str)          primary timeframe used for sizing
+    #     technique_name (str)     so the dashboard can group by strategy
+    POSITION_TIME_STOPPED = "position_time_stopped"
+
     # LLM reliability (Phase 12.3)
     # Emitted by :class:`~src.proposal.engine.ProposalEngine` whenever a
     # strategy raises ``ClaudeTimeoutError`` (after the wrapper has

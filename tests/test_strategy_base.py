@@ -14,6 +14,7 @@ from src.strategy.base import (
     StrategyLoadError,
     StrategyValidationError,
     TechniqueInfo,
+    default_max_bars_held,
 )
 
 
@@ -231,6 +232,83 @@ class TestTechniqueInfo:
         # Phase 21.2: TechniqueInfo.created_at is now UTC-aware.
         assert info.created_at.tzinfo is not None
         assert before <= info.created_at <= after
+
+
+class TestDefaultMaxBarsHeld:
+    """Tests for the timeframe-based time-stop default."""
+
+    def test_default_max_bars_held_known_timeframes(self) -> None:
+        """Mapping returns the documented bar counts per timeframe."""
+        assert default_max_bars_held("5m") == 96
+        assert default_max_bars_held("15m") == 48
+        assert default_max_bars_held("30m") == 48
+        assert default_max_bars_held("1h") == 48
+        assert default_max_bars_held("2h") == 42
+        assert default_max_bars_held("4h") == 42
+        assert default_max_bars_held("8h") == 30
+        assert default_max_bars_held("12h") == 30
+        assert default_max_bars_held("1d") == 30
+        assert default_max_bars_held("1w") == 12
+
+    def test_default_max_bars_held_unknown_returns_48(self) -> None:
+        """Unknown timeframes fall back to the 48-bar (1h-equivalent) default."""
+        assert default_max_bars_held("99h") == 48
+        assert default_max_bars_held("") == 48
+
+    def test_default_max_bars_held_clamped_to_ceiling(self) -> None:
+        """Result is bounded by the 200-bar ceiling shared with the schema."""
+        # Every value in the table is already <=200; this test pins
+        # the contract so a future bump can't silently exceed the
+        # TechniqueInfo ``le=200`` constraint.
+        for tf in ("5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d", "1w"):
+            assert default_max_bars_held(tf) <= 200
+
+
+class TestMaxBarsHeldField:
+    """Tests for the ``TechniqueInfo.max_bars_held`` schema constraint."""
+
+    def test_max_bars_held_defaults_to_none(self) -> None:
+        """The field is opt-in; defaults to ``None`` so the runtime falls back."""
+        info = TechniqueInfo(
+            name="test",
+            version="1.0.0",
+            description="Test",
+            technique_type="code",
+        )
+        assert info.max_bars_held is None
+
+    def test_max_bars_held_accepts_valid_value(self) -> None:
+        """Positive values within the ceiling round-trip."""
+        info = TechniqueInfo(
+            name="test",
+            version="1.0.0",
+            description="Test",
+            technique_type="code",
+            max_bars_held=24,
+        )
+        assert info.max_bars_held == 24
+
+    def test_max_bars_held_rejects_zero(self) -> None:
+        """``ge=1`` blocks the meaningless instant-stop value."""
+        with pytest.raises(ValidationError):
+            TechniqueInfo(
+                name="test",
+                version="1.0.0",
+                description="Test",
+                technique_type="code",
+                max_bars_held=0,
+            )
+
+    def test_max_bars_held_rejects_above_ceiling(self) -> None:
+        """``le=200`` blocks runaway overrides — runtime relies on the cap."""
+        with pytest.raises(ValidationError):
+            TechniqueInfo(
+                name="test",
+                version="1.0.0",
+                description="Test",
+                technique_type="code",
+                max_bars_held=201,
+            )
 
 
 class TestBaseStrategyAbstract:

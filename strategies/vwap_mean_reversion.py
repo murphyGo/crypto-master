@@ -28,6 +28,9 @@ TECHNIQUE_INFO = {
     "status": "experimental",
     "changelog": "Initial deterministic VWAP mean-reversion candidate",
     "counter_trend": True,
+    # 15m VWAP fade: 48 bars (~12h) covers most of a single
+    # session's reversion window without straddling regime changes.
+    "max_bars_held": 48,
 }
 
 

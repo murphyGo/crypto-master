@@ -29,6 +29,9 @@ TECHNIQUE_INFO = {
     "timeframes": ["4h", "1d"],
     "status": "experimental",
     "changelog": "Initial deterministic VCP candidate",
+    # 4h VCP swing: 84 bars (~2 weeks) captures the typical
+    # post-pivot move while still cutting late-stage drift.
+    "max_bars_held": 84,
 }
 
 

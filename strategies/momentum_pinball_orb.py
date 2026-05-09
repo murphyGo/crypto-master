@@ -30,6 +30,9 @@ TECHNIQUE_INFO = {
     "timeframes": ["15m", "1h"],
     "status": "experimental",
     "changelog": "Initial deterministic Momentum Pinball ORB candidate",
+    # ORB on 15m: 96 bars (~24h) is the day-trade ceiling for an
+    # opening-range thesis before the breakout reading is stale.
+    "max_bars_held": 96,
 }
 
 

@@ -70,6 +70,7 @@ from src.runtime.safety_score import (
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
 )
+from src.strategy.base import default_max_bars_held
 from src.strategy.performance import (
     PerformanceRecord,
     PerformanceTracker,
@@ -87,6 +88,42 @@ if TYPE_CHECKING:
     from src.trading.sub_account_registry import SubAccountRegistry
 
 logger = get_logger("crypto_master.runtime.engine")
+
+
+# Timeframe → seconds for the time-stop wall-clock conversion. Kept
+# local to the engine because the only caller today is ``_monitor``;
+# if more sites grow the same need we can promote this to
+# ``src/utils/time.py``. Values cover every label the strategy
+# loader currently accepts; unknown labels fall back to 1h so the
+# fallback keeps the trade alive for at least a default-sized
+# window rather than collapsing to a pathological zero.
+_TIMEFRAME_TO_SECONDS: dict[str, int] = {
+    "1m": 60,
+    "3m": 180,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "2h": 7200,
+    "4h": 14400,
+    "6h": 21600,
+    "8h": 28800,
+    "12h": 43200,
+    "1d": 86400,
+    "3d": 259200,
+    "1w": 604800,
+}
+
+
+def _timeframe_to_seconds(timeframe: str) -> int:
+    """Return the wall-clock second count for one ``timeframe`` candle.
+
+    Unknown labels return 1h (3600s) so a misconfigured strategy
+    doesn't end up with a zero-length time-stop window — the
+    activity log will still surface the unexpected timeframe via the
+    ``POSITION_TIME_STOPPED`` event payload.
+    """
+    return _TIMEFRAME_TO_SECONDS.get(timeframe, 3600)
 
 
 # =============================================================================
@@ -1846,10 +1883,24 @@ class TradingEngine:
 
         Per-trade ticker errors are logged and skipped — one stale
         symbol shouldn't block the rest of the monitor pass.
+
+        After the SL/TP check, if neither bound triggered we evaluate
+        the per-strategy time-stop (``TechniqueInfo.max_bars_held``,
+        or :func:`default_max_bars_held` for the strategy's primary
+        timeframe). The 12-day Fly paper run had 44 open vs 41 closed
+        trades because trades only ever exited on SL/TP — strategies
+        whose thesis decays fast (mean-reversion, ORB) sat
+        indefinitely. The time-stop is *strictly* a fallback: SL and
+        TP win when they fire on the same monitor pass.
         """
         open_trades = trader.get_open_trades()
         closed_count = 0
         account_exchange = exchange or self.exchange
+
+        # Cache strategy lookups across the loop — multiple open
+        # trades from the same technique are common, and each lookup
+        # touches the proposal engine's strategy registry.
+        time_stop_lookup_cache: dict[str, tuple[int, str] | None] = {}
 
         for trade in open_trades:
             if self._missing_position_state(trader, trade.id):
@@ -1894,17 +1945,30 @@ class TradingEngine:
                 continue
 
             should_exit, reason = trader.check_exit_conditions(trade.id, ticker.price)
-            if not should_exit or reason is None:
+            if should_exit and reason is not None:
+                closed_trade = await trader.close_position(
+                    trade.id, ticker.price, reason=reason
+                )
+                if closed_trade is None:
+                    continue
+
+                closed_count += 1
+                self._record_closed_trade(closed_trade, reason, cycle_id)
                 continue
 
-            closed_trade = await trader.close_position(
-                trade.id, ticker.price, reason=reason
+            # SL/TP not hit — evaluate the per-strategy time-stop. The
+            # SL/TP check above always runs first so a price that hits
+            # the bound on the same monitor pass exits with the bound's
+            # reason, not ``time_stop``.
+            time_stopped = await self._maybe_time_stop(
+                trade,
+                ticker.price,
+                trader,
+                cycle_id,
+                time_stop_lookup_cache,
             )
-            if closed_trade is None:
-                continue
-
-            closed_count += 1
-            self._record_closed_trade(closed_trade, reason, cycle_id)
+            if time_stopped:
+                closed_count += 1
 
         result.positions_closed = closed_count
         self.activity_log.append(
@@ -1917,6 +1981,106 @@ class TradingEngine:
             },
             cycle_id=cycle_id,
         )
+
+    async def _maybe_time_stop(
+        self,
+        trade: TradeHistory,
+        current_price: Decimal,
+        trader: Trader,
+        cycle_id: str,
+        lookup_cache: dict[str, tuple[int, str] | None],
+    ) -> bool:
+        """Force-close ``trade`` if it has exceeded its time-stop window.
+
+        Returns ``True`` when the trade was closed so ``_monitor`` can
+        bump its ``closed_count``. Returns ``False`` when the trade is
+        still inside its window or when the close call returned
+        ``None`` (already gone).
+        """
+        technique_name = self._technique_name_for_trade(trade)
+        cache_key = technique_name or "__unknown__"
+        cached = lookup_cache.get(cache_key)
+        if cache_key not in lookup_cache:
+            cached = self._resolve_time_stop_window(technique_name)
+            lookup_cache[cache_key] = cached
+
+        if cached is None:
+            return False
+        max_bars, timeframe = cached
+
+        bar_seconds = _timeframe_to_seconds(timeframe)
+        max_age_seconds = max_bars * bar_seconds
+        age_seconds = (now_utc() - trade.entry_time).total_seconds()
+        if age_seconds < max_age_seconds:
+            return False
+
+        closed_trade = await trader.close_position(
+            trade.id, current_price, reason="time_stop"
+        )
+        if closed_trade is None:
+            return False
+
+        age_hours = round(age_seconds / 3600, 2)
+        self.activity_log.append(
+            ActivityEventType.POSITION_TIME_STOPPED,
+            (
+                f"Time-stop closed {trade.symbol} after "
+                f"{age_hours}h ({max_bars} bars on {timeframe})"
+            ),
+            details={
+                "trade_id": trade.id,
+                "symbol": trade.symbol,
+                "age_hours": age_hours,
+                "max_bars": max_bars,
+                "timeframe": timeframe,
+                "technique_name": technique_name,
+            },
+            cycle_id=cycle_id,
+        )
+        self._record_closed_trade(closed_trade, "time_stop", cycle_id)
+        return True
+
+    def _technique_name_for_trade(self, trade: TradeHistory) -> str | None:
+        """Best-effort lookup of the technique that produced ``trade``.
+
+        Walks the proposal history because :class:`TradeHistory` does
+        not carry the technique name directly. Returns ``None`` when no
+        proposal links to the trade — the caller falls back to
+        timeframe defaults.
+        """
+        record = self._find_proposal_record_for_trade(trade.id)
+        if record is None:
+            return None
+        return record.proposal.technique_name
+
+    def _resolve_time_stop_window(
+        self, technique_name: str | None
+    ) -> tuple[int, str] | None:
+        """Resolve the ``(max_bars, timeframe)`` for a technique.
+
+        ``technique_name=None`` (no linked proposal) and the
+        unknown-technique branch both default to a ``"1h"`` timeframe
+        so the runtime applies a consistent fallback. Returns ``None``
+        only when ``max_bars`` would be non-positive — which the
+        ``TechniqueInfo`` ``ge=1`` constraint prevents on legitimate
+        overrides; the guard exists to keep the loop defensive.
+        """
+        timeframe = "1h"
+        override: int | None = None
+        if technique_name is not None:
+            strategy = self.proposal_engine.strategies.get(technique_name)
+            if strategy is not None:
+                info = strategy.info
+                if info.timeframes:
+                    timeframe = info.timeframes[0]
+                override = info.max_bars_held
+
+        max_bars = (
+            override if override is not None else default_max_bars_held(timeframe)
+        )
+        if max_bars <= 0:
+            return None
+        return max_bars, timeframe
 
     @staticmethod
     def _missing_position_state(trader: Trader, trade_id: str) -> bool:

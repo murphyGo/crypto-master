@@ -33,6 +33,9 @@ TECHNIQUE_INFO = {
     "timeframes": ["1h", "4h", "1d"],
     "status": "experimental",
     "changelog": "Promoted from sample_code.py to a real baseline (Phase 9.2)",
+    # 1h trend follow: 120 bars (~5d) gives a fresh crossover room
+    # to ride before a stalled trade gets force-closed.
+    "max_bars_held": 120,
 }
 
 
