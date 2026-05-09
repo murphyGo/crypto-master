@@ -205,27 +205,33 @@ def bb_module():
 
 async def test_bb_long_when_close_below_lower_band(bb_module) -> None:
     strategy = _build(bb_module)
-    # 19 stable bars + 1 sharp drop → close pierces the lower band.
-    closes = [100.0] * 19 + [85.0]
+    # 19 stable bars + two-bar capitulation. Both the prior bar (85)
+    # and the trigger bar (80) sit below their respective lower bands,
+    # satisfying the v1.1.0 prior-bar confirmation gate as well as the
+    # MIN_ENTRY_DEPTH_FRACTION depth gate.
+    closes = [100.0] * 19 + [85.0, 80.0]
     ohlcv = _make_ohlcv(closes)
 
     result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
 
     assert result.signal == "long"
-    assert result.entry_price == Decimal("85.00")
+    assert result.entry_price == Decimal("80.00")
     # TP is the middle band (the mean to revert to).
     assert result.take_profit > result.entry_price
 
 
 async def test_bb_short_when_close_above_upper_band(bb_module) -> None:
     strategy = _build(bb_module)
-    closes = [100.0] * 19 + [115.0]
+    # Mirror of the long fixture: prior bar above upper, trigger bar
+    # deeper above. Both gates (depth + prior-bar confirmation) are
+    # satisfied so v1.1.0 still emits the short.
+    closes = [100.0] * 19 + [115.0, 120.0]
     ohlcv = _make_ohlcv(closes)
 
     result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
 
     assert result.signal == "short"
-    assert result.entry_price == Decimal("115.00")
+    assert result.entry_price == Decimal("120.00")
     assert result.take_profit < result.entry_price
 
 
@@ -238,6 +244,101 @@ async def test_bb_neutral_when_close_inside_bands(bb_module) -> None:
     result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
 
     assert result.signal == "neutral"
+
+
+async def test_bb_shallow_pierce_returns_neutral(bb_module) -> None:
+    """v1.1.0 MIN_ENTRY_DEPTH_FRACTION=0.25 gate.
+
+    Engineer the recent window so that earlier bars have already widened
+    the bands; the trigger bar then pierces the upper band but only by
+    ~0.16 of half_band_width — below the 0.25 floor → NEUTRAL.
+    """
+    strategy = _build(bb_module)
+    # 18 stable + two bars at 103 + final at 102.9 (just under 103, but
+    # still above the upper band thanks to the 103-103 build-up).
+    closes = [100.0] * 18 + [103.0, 103.0, 102.9]
+    ohlcv = _make_ohlcv(closes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "neutral"
+    assert "depth" in result.reasoning.lower()
+
+
+async def test_bb_deep_pierce_fires_short(bb_module) -> None:
+    """v1.1.0: deep pierce + prior-bar confirmation → SHORT."""
+    strategy = _build(bb_module)
+    # 19 stable + prior bar 115 (above its band) + trigger bar 120.
+    closes = [100.0] * 19 + [115.0, 120.0]
+    ohlcv = _make_ohlcv(closes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "short"
+    assert result.entry_price == Decimal("120.00")
+    assert result.stop_loss > result.entry_price
+    assert result.take_profit < result.entry_price
+
+
+async def test_bb_no_prior_bar_confirmation_returns_neutral(bb_module) -> None:
+    """v1.1.0: REQUIRE_PRIOR_BAR_CONFIRMATION rejects single-bar wicks."""
+    strategy = _build(bb_module)
+    # 20 flat + 1 sharp spike. Current bar pierces deep, but the prior
+    # bar (close 100) sat exactly on its own SMA — no confirmation.
+    closes = [100.0] * 20 + [120.0]
+    ohlcv = _make_ohlcv(closes)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "neutral"
+    assert "prior bar" in result.reasoning.lower()
+
+
+async def test_bb_widened_sl_distance(bb_module) -> None:
+    """v1.1.0 SL_BUFFER_FRACTION 0.5→1.0: SL sits one half-band-width
+    past the triggering band (was 0.5×). Asserted on the band, not on
+    entry, since deep pierces leave entry between upper band and SL.
+    """
+    from src.strategy.indicators import bollinger_bands
+
+    strategy = _build(bb_module)
+    closes = [100.0] * 19 + [115.0, 120.0]
+    ohlcv = _make_ohlcv(closes)
+
+    lower, middle, upper = bollinger_bands(
+        [float(c.close) for c in ohlcv], period=20, std_dev=2.0
+    )
+    half_band_width = upper - middle
+    expected_sl = upper + half_band_width  # SL_BUFFER_FRACTION = 1.0
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "short"
+    # Allow 1 cent rounding tolerance.
+    assert abs(float(result.stop_loss) - expected_sl) < 0.02
+
+
+async def test_bb_long_symmetric_deep_pierce(bb_module) -> None:
+    """v1.1.0 long-side mirror: deep pierce + prior bar below → LONG."""
+    from src.strategy.indicators import bollinger_bands
+
+    strategy = _build(bb_module)
+    closes = [100.0] * 19 + [85.0, 80.0]
+    ohlcv = _make_ohlcv(closes)
+
+    lower, middle, upper = bollinger_bands(
+        [float(c.close) for c in ohlcv], period=20, std_dev=2.0
+    )
+    half_band_width = middle - lower
+    expected_sl = lower - half_band_width  # SL_BUFFER_FRACTION = 1.0
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "1h")
+
+    assert result.signal == "long"
+    assert result.entry_price == Decimal("80.00")
+    assert result.stop_loss < result.entry_price
+    assert result.take_profit > result.entry_price
+    assert abs(float(result.stop_loss) - expected_sl) < 0.02
 
 
 # =============================================================================
