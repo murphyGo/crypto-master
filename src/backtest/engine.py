@@ -327,6 +327,39 @@ class BacktestResult(BaseModel):
     liquidated: bool = False
 
 
+def serialize_backtest_result(result: BacktestResult) -> dict:
+    """Convert a ``BacktestResult`` to a JSON-serializable dict."""
+    data = result.model_dump()
+    for key in ("start_time", "end_time"):
+        data[key] = data[key].isoformat()
+    for key in (
+        "initial_balance",
+        "final_balance",
+        "total_pnl",
+        "total_fees",
+    ):
+        data[key] = str(data[key])
+    for trade in data["trades"]:
+        trade["entry_time"] = trade["entry_time"].isoformat()
+        trade["exit_time"] = trade["exit_time"].isoformat()
+        for key in (
+            "entry_price",
+            "exit_price",
+            "quantity",
+            "stop_loss",
+            "take_profit",
+            "entry_fee",
+            "exit_fee",
+            "pnl",
+        ):
+            if trade.get(key) is not None:
+                trade[key] = str(trade[key])
+    for point in data.get("equity_curve", []):
+        point["timestamp"] = point["timestamp"].isoformat()
+        point["equity"] = str(point["equity"])
+    return data
+
+
 @dataclass
 class _OpenTrade:
     """Internal bookkeeping for a currently-open simulated trade."""
@@ -1225,7 +1258,7 @@ class Backtester:
             for trade in ordered:
                 if trade.exit_time <= ts:
                     realised += trade.pnl
-                elif trade.entry_time <= ts:
+                elif trade.entry_time < ts:
                     # Trade is open at this bar — mark to close.
                     unrealised += pnl_for_trade(
                         entry=trade.entry_price,
@@ -1366,37 +1399,4 @@ class Backtester:
 
     @staticmethod
     def _result_to_dict(result: BacktestResult) -> dict:
-        """Convert a ``BacktestResult`` to a JSON-serializable dict."""
-        data = result.model_dump()
-        # datetimes
-        for key in ("start_time", "end_time"):
-            data[key] = data[key].isoformat()
-        # decimals
-        for key in (
-            "initial_balance",
-            "final_balance",
-            "total_pnl",
-            "total_fees",
-        ):
-            data[key] = str(data[key])
-        # trades
-        for trade in data["trades"]:
-            trade["entry_time"] = trade["entry_time"].isoformat()
-            trade["exit_time"] = trade["exit_time"].isoformat()
-            for key in (
-                "entry_price",
-                "exit_price",
-                "quantity",
-                "stop_loss",
-                "take_profit",
-                "entry_fee",
-                "exit_fee",
-                "pnl",
-            ):
-                if trade.get(key) is not None:
-                    trade[key] = str(trade[key])
-        # Phase 24.1 / DEBT-030: equity curve (timestamp + Decimal equity).
-        for point in data.get("equity_curve", []):
-            point["timestamp"] = point["timestamp"].isoformat()
-            point["equity"] = str(point["equity"])
-        return data
+        return serialize_backtest_result(result)

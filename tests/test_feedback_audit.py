@@ -71,8 +71,25 @@ def test_append_and_read_round_trip(tmp_path: Path) -> None:
 
     history = log.read_all()
     assert len(history) == 2
+    assert history[0].schema_version == 1
     assert history[0].event_type == AuditEventType.GENERATED.value
     assert history[1].event_type == AuditEventType.BACKTESTED.value
+
+
+def test_read_all_legacy_record_defaults_schema_version(tmp_path: Path) -> None:
+    log = AuditLog(path=tmp_path / "feedback.jsonl")
+    rotated = tmp_path / "feedback.2026-04.jsonl"
+    rotated.write_text(
+        '{"timestamp":"2026-04-01T00:00:00+00:00",'
+        '"event_type":"generated","candidate_id":"c1",'
+        '"technique_name":"tech","technique_version":"0.1.0"}\n',
+        encoding="utf-8",
+    )
+
+    events = log.read_all()
+
+    assert events[0].schema_version == 1
+    assert events[0].candidate_id == "c1"
 
 
 def test_append_creates_parent_dir(tmp_path: Path) -> None:

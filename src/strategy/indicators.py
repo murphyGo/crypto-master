@@ -25,7 +25,9 @@ from collections.abc import Sequence
 
 __all__ = [
     "InsufficientDataError",
+    "atr",
     "bollinger_bands",
+    "ema",
     "rsi",
     "sma",
 ]
@@ -62,6 +64,44 @@ def sma(values: Sequence[float], period: int) -> float:
         raise InsufficientDataError(f"sma needs >= {period} values, got {len(values)}")
     window = values[-period:]
     return sum(window) / period
+
+
+def ema(values: Sequence[float], period: int) -> float:
+    """Exponential moving average at the latest bar."""
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
+    if len(values) < period:
+        raise InsufficientDataError(f"ema needs >= {period} values, got {len(values)}")
+    k = 2.0 / (period + 1)
+    current = sum(values[:period]) / period
+    for value in values[period:]:
+        current = value * k + current * (1 - k)
+    return current
+
+
+def atr(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    period: int,
+) -> float:
+    """Average true range over the most recent ``period`` true ranges."""
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
+    if len(closes) < period + 1:
+        raise InsufficientDataError(
+            f"atr needs >= {period + 1} candles, got {len(closes)}"
+        )
+    true_ranges = []
+    for i in range(1, len(closes)):
+        true_ranges.append(
+            max(
+                highs[i] - lows[i],
+                abs(highs[i] - closes[i - 1]),
+                abs(lows[i] - closes[i - 1]),
+            )
+        )
+    return sum(true_ranges[-period:]) / period
 
 
 def rsi(closes: Sequence[float], period: int = 14) -> float:

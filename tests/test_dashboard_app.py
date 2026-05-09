@@ -499,6 +499,8 @@ def test_build_incident_rows_extracts_operator_fields() -> None:
             )
         ],
         now=now,
+        mode="live",
+        scope="default",
     )
 
     assert len(rows) == 1
@@ -511,6 +513,8 @@ def test_build_incident_rows_extracts_operator_fields() -> None:
     assert row.target_page == "trading"
     assert row.query_params["sub_account"] == "default"
     assert row.query_params["symbol"] == "BTC/USDT"
+    assert row.query_params["mode"] == "live"
+    assert row.query_params["scope"] == "default"
 
 
 def test_build_incident_dataframe_empty_has_operator_columns() -> None:
@@ -534,7 +538,7 @@ def test_build_candidate_rows_sorts_recent_records_and_maps_next_steps() -> None
         backtest_run_id=None,
     )
 
-    rows = build_candidate_rows([older, newer])
+    rows = build_candidate_rows([older, newer], mode="paper", scope="alpha")
 
     assert [row.candidate_id for row in rows] == ["newer-candidate", "older-candidate"]
     assert rows[0].robustness == "FAIL"
@@ -542,6 +546,8 @@ def test_build_candidate_rows_sorts_recent_records_and_maps_next_steps() -> None
     assert rows[0].next_step == "Open Feedback Loop approval"
     assert rows[0].target_page == "feedback"
     assert rows[0].query_params["candidate_id"] == "newer-candidate"
+    assert rows[0].query_params["mode"] == "paper"
+    assert rows[0].query_params["scope"] == "alpha"
     assert rows[1].next_step == "Verify promoted strategy"
 
 

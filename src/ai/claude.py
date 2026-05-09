@@ -10,6 +10,7 @@ Related Requirements:
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -35,6 +36,19 @@ DEFAULT_MAX_RETRIES = 1
 # default 120s base and 1 retry, the schedule is 120s → 180s. With 2
 # retries it is 120s → 180s → 270s.
 TIMEOUT_BACKOFF_MULTIPLIER = 1.5
+
+CLAUDE_SUBPROCESS_ENV_ALLOWLIST = {
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+}
 
 # Pattern to extract JSON from markdown code blocks
 JSON_BLOCK_PATTERN = re.compile(
@@ -289,6 +303,7 @@ class ClaudeCLI:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                env=self._subprocess_env(),
             )
             try:
                 stdout, stderr = proc.communicate(timeout=timeout)
@@ -340,6 +355,15 @@ class ClaudeCLI:
 
         self._logger.debug("Claude CLI completed successfully")
         return stdout, stderr
+
+    @staticmethod
+    def _subprocess_env() -> dict[str, str]:
+        """Pass only process basics to Claude CLI, never ambient API keys."""
+        return {
+            key: value
+            for key, value in os.environ.items()
+            if key in CLAUDE_SUBPROCESS_ENV_ALLOWLIST
+        }
 
     def _parse_response(self, raw_output: str) -> dict[str, Any]:
         """Parse Claude response to extract JSON.

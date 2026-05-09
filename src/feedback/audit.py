@@ -83,6 +83,7 @@ class AuditEvent(UtcTimestampMixin, BaseModel):
             paths, etc.
     """
 
+    schema_version: int = 1
     timestamp: datetime = Field(default_factory=now_utc)
     event_type: AuditEventType
     candidate_id: str

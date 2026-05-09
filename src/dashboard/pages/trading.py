@@ -33,6 +33,7 @@ import streamlit as st
 import yaml
 
 from src.config import get_settings
+from src.dashboard.query_params import query_param_first as _query_param_first
 from src.logger import get_logger
 from src.proposal.interaction import ProposalHistory
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
@@ -599,16 +600,6 @@ def render(
             else curve_df
         )
         st.line_chart(chart_data, use_container_width=True)
-
-
-def _query_param_first(name: str) -> str | None:
-    """Return the first query-param value for dashboard drill-through."""
-    raw = st.query_params.get(name)
-    if raw is None:
-        return None
-    if isinstance(raw, list):
-        return str(raw[0]) if raw else None
-    return str(raw)
 
 
 __all__ = [

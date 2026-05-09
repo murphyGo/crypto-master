@@ -8,7 +8,9 @@ import pytest
 
 from src.strategy.indicators import (
     InsufficientDataError,
+    atr,
     bollinger_bands,
+    ema,
     rsi,
     sma,
 )
@@ -44,6 +46,18 @@ def test_sma_zero_period_raises() -> None:
 def test_sma_negative_period_raises() -> None:
     with pytest.raises(ValueError, match="period must be positive"):
         sma([1.0, 2.0, 3.0], period=-3)
+
+
+def test_ema_matches_seeded_exponential_average() -> None:
+    values = [10.0, 11.0, 12.0, 13.0]
+    assert ema(values, period=3) == pytest.approx(12.0)
+
+
+def test_atr_uses_recent_true_ranges() -> None:
+    highs = [11.0, 13.0, 14.0, 16.0]
+    lows = [9.0, 10.0, 12.0, 13.0]
+    closes = [10.0, 12.0, 13.0, 15.0]
+    assert atr(highs, lows, closes, period=2) == pytest.approx(2.5)
 
 
 # =============================================================================

@@ -456,14 +456,27 @@ class TestReport:
         assert "n/a" in report
 
     def test_save_report_writes_file(
-        self, analyzer: PerformanceAnalyzer, tmp_path: Path
+        self,
+        analyzer: PerformanceAnalyzer,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        calls: list[Path] = []
+
+        def fake_atomic_write(path: Path, text: str) -> None:
+            calls.append(path)
+            path.write_text(text, encoding="utf-8")
+
+        monkeypatch.setattr(
+            "src.backtest.analyzer.atomic_write_text", fake_atomic_write
+        )
         result = _make_result([_make_trade("100")])
         path = analyzer.save_report(result, tmp_path / "run-a")
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "Backtest Report" in content
         assert path.name == "report.md"
+        assert calls == [path]
 
 
 # =============================================================================

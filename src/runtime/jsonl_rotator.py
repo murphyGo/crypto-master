@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from collections.abc import Iterator
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -90,6 +91,8 @@ class JsonlRotator:
             raise ValueError(f"retention_months must be >= 1, got {retention_months}")
         self.base_path = base_path
         self.retention_months = retention_months
+        self._append_lock = threading.Lock()
+        self.malformed_line_count = 0
 
     # =========================================================================
     # Path derivation
@@ -183,11 +186,12 @@ class JsonlRotator:
                 for serialization shape (e.g. ``model_dump`` mode);
                 this method just dumps with ``json.dumps``.
         """
-        path = self._active_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(record, default=str)
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
+        with self._append_lock:
+            path = self._active_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
 
     # =========================================================================
     # Read
@@ -239,6 +243,7 @@ class JsonlRotator:
                 try:
                     yield json.loads(stripped)
                 except json.JSONDecodeError as e:
+                    self.malformed_line_count += 1
                     logger.warning(f"Skipping malformed line {lineno} in {path}: {e}")
 
 

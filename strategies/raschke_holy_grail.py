@@ -13,6 +13,8 @@ from decimal import Decimal
 
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, StrategyExecutionError
+from src.strategy.indicators import atr as _atr
+from src.strategy.indicators import ema as _ema
 
 TECHNIQUE_INFO = {
     "name": "raschke_holy_grail",
@@ -114,33 +116,6 @@ class RaschkeHolyGrailStrategy(BaseStrategy):
                 f"-DI={minus_di:.2f}, pulled_back={pulled_back_to_ema}"
             ),
         )
-
-
-def _ema(values: list[float], period: int) -> float:
-    if len(values) < period:
-        raise ValueError(f"ema needs >= {period} values")
-    k = 2.0 / (period + 1)
-    ema = sum(values[:period]) / period
-    for value in values[period:]:
-        ema = value * k + ema * (1 - k)
-    return ema
-
-
-def _atr(
-    highs: list[float], lows: list[float], closes: list[float], period: int
-) -> float:
-    if len(closes) < period + 1:
-        raise ValueError(f"atr needs >= {period + 1} candles")
-    ranges = []
-    for i in range(1, len(closes)):
-        ranges.append(
-            max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i - 1]),
-                abs(lows[i] - closes[i - 1]),
-            )
-        )
-    return sum(ranges[-period:]) / period
 
 
 def _adx(

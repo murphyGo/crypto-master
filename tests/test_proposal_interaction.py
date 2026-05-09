@@ -282,6 +282,40 @@ def test_history_save_load_round_trip(tmp_path: Path) -> None:
     assert loaded.actor == "user"
 
 
+def test_history_load_can_select_sub_account_when_ids_overlap(tmp_path: Path) -> None:
+    history = ProposalHistory(data_dir=tmp_path)
+    proposal = make_proposal(proposal_id="same-id")
+    alpha = ProposalRecord(
+        proposal=proposal.model_copy(update={"sub_account_id": "alpha"}),
+        actor="alpha-operator",
+    )
+    beta = ProposalRecord(
+        proposal=proposal.model_copy(update={"sub_account_id": "beta"}),
+        actor="beta-operator",
+    )
+    history.save(alpha)
+    history.save(beta)
+
+    loaded = history.load("same-id", sub_account_id="beta")
+
+    assert loaded.sub_account_id == "beta"
+    assert loaded.actor == "beta-operator"
+
+
+def test_history_load_rejects_ambiguous_sub_account_id(tmp_path: Path) -> None:
+    history = ProposalHistory(data_dir=tmp_path)
+    proposal = make_proposal(proposal_id="same-id")
+    history.save(
+        ProposalRecord(proposal=proposal.model_copy(update={"sub_account_id": "alpha"}))
+    )
+    history.save(
+        ProposalRecord(proposal=proposal.model_copy(update={"sub_account_id": "beta"}))
+    )
+
+    with pytest.raises(ProposalHistoryError, match="multiple sub-accounts"):
+        history.load("same-id")
+
+
 def test_history_save_creates_directory_lazily(tmp_path: Path) -> None:
     """Caller doesn't have to pre-create data/proposals/."""
     target = tmp_path / "nested" / "proposals"

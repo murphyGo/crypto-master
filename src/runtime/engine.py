@@ -352,6 +352,7 @@ class TradingEngine:
 
         self._stop_event = asyncio.Event()
         self._cycle_index = 0
+        self._strategy_lookup_cache: dict[str, str] | None = None
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -472,6 +473,7 @@ class TradingEngine:
         """
         cycle_id = str(uuid.uuid4())
         self._cycle_index += 1
+        self._strategy_lookup_cache = None
         self.activity_log.append(
             ActivityEventType.CYCLE_STARTED,
             f"Cycle {self._cycle_index} begin",
@@ -871,6 +873,7 @@ class TradingEngine:
         # Link the trade to its proposal record now; realized P&L is
         # filled in by ``_monitor`` once the trade closes.
         self.proposal_history.attach_trade(proposal.proposal_id, trade_id=trade.id)
+        self._strategy_lookup_cache = None
         result.positions_opened += 1
         self.activity_log.append(
             ActivityEventType.POSITION_OPENED,
@@ -1022,11 +1025,14 @@ class TradingEngine:
 
     def _strategy_lookup_for_open_trades(self) -> dict[str, str]:
         """Map open trade ids to proposal technique names when available."""
+        if self._strategy_lookup_cache is not None:
+            return dict(self._strategy_lookup_cache)
         lookup: dict[str, str] = {}
         for record in self.proposal_history.list_all():
             if record.trade_id is None:
                 continue
             lookup[record.trade_id] = record.proposal.technique_name
+        self._strategy_lookup_cache = dict(lookup)
         return lookup
 
     async def _stale_quote_gate(

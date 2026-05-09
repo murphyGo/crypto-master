@@ -25,6 +25,7 @@ from src.backtest.metrics import (
     sharpe_from_returns,
 )
 from src.logger import get_logger
+from src.utils.io import atomic_write_text
 
 logger = get_logger("crypto_master.backtest.analyzer")
 
@@ -520,6 +521,6 @@ class PerformanceAnalyzer:
         report_dir.mkdir(parents=True, exist_ok=True)
         path = report_dir / "report.md"
         text = self.generate_report(result, metrics=metrics)
-        path.write_text(text, encoding="utf-8")
+        atomic_write_text(path, text)
         logger.info(f"Saved backtest report for {result.run_id} to {path}")
         return path

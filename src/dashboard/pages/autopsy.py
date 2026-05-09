@@ -16,6 +16,7 @@ import streamlit as st
 
 from src.config import get_settings
 from src.dashboard.pages.trading import AGGREGATE_SUB_ACCOUNT, discover_sub_account_ids
+from src.dashboard.query_params import query_param_first as _query_param_first
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.strategy.trade_autopsy import TradeAutopsy, TradeAutopsyError
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
@@ -176,15 +177,6 @@ def _load_trades(
     return TradeHistoryTracker(sub_account_id=selected_sub_account).load_trades(
         mode=mode
     )
-
-
-def _query_param_first(name: str) -> str | None:
-    raw = st.query_params.get(name)
-    if raw is None:
-        return None
-    if isinstance(raw, list):
-        return str(raw[0]) if raw else None
-    return str(raw)
 
 
 __all__ = [

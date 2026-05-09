@@ -266,13 +266,18 @@ class ProposalHistory:
             f"decision={record.decision} → {path}"
         )
 
-    def load(self, proposal_id: str) -> ProposalRecord:
+    def load(
+        self,
+        proposal_id: str,
+        *,
+        sub_account_id: str | None = None,
+    ) -> ProposalRecord:
         """Load a single record by proposal_id.
 
         Raises:
             ProposalHistoryError: If no file exists for that id.
         """
-        path = self._path_for(proposal_id)
+        path = self._path_for(proposal_id, sub_account_id=sub_account_id)
         if not path.exists():
             raise ProposalHistoryError(
                 f"No proposal record for id={proposal_id} at {path}"
@@ -402,10 +407,19 @@ class ProposalHistory:
         if legacy_path.exists():
             return legacy_path
 
-        for path in sorted(self.data_dir.glob(f"*/{proposal_id}.json")):
-            if "archive" in path.relative_to(self.data_dir).parts:
-                continue
-            return path
+        matches = [
+            path
+            for path in sorted(self.data_dir.glob(f"*/{proposal_id}.json"))
+            if "archive" not in path.relative_to(self.data_dir).parts
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            accounts = ", ".join(path.parent.name for path in matches)
+            raise ProposalHistoryError(
+                f"Proposal id={proposal_id} exists in multiple sub-accounts: "
+                f"{accounts}. Pass sub_account_id to load the exact record."
+            )
         return default_path
 
     def _iter_record_paths(self) -> list[Path]:

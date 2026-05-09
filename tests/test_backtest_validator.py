@@ -6,7 +6,12 @@ from typing import Literal
 
 import pytest
 
-from src.backtest.engine import BacktestConfig, Backtester
+from src.backtest.engine import (
+    BacktestConfig,
+    BacktestResult,
+    Backtester,
+    BacktestTrade,
+)
 from src.backtest.validator import (
     GateStatus,
     RobustnessConfig,
@@ -507,6 +512,62 @@ class TestRegimeGate:
             for stats in regime.details["per_regime"].values():
                 if stats["evaluable"]:
                     assert stats["expectancy"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_skips_when_only_one_regime_is_evaluable(self) -> None:
+        gate = make_gate(
+            config=RobustnessConfig(
+                regime_sma_period=20,
+                regime_min_trades_per_regime=2,
+            )
+        )
+        candles = make_candles(80, pattern="rising")
+        trades = [
+            BacktestTrade(
+                trade_id=f"t{i}",
+                symbol="BTC/USDT",
+                side="long",
+                entry_time=candles[25 + i].timestamp,
+                exit_time=candles[26 + i].timestamp,
+                entry_price=Decimal("50000"),
+                exit_price=Decimal("50100"),
+                quantity=Decimal("1"),
+                leverage=1,
+                stop_loss=None,
+                take_profit=None,
+                entry_fee=Decimal("0"),
+                exit_fee=Decimal("0"),
+                pnl=Decimal("100"),
+                close_reason="take_profit",
+            )
+            for i in range(2)
+        ]
+        baseline = BacktestResult(
+            run_id="bt-regime",
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            start_time=candles[0].timestamp,
+            end_time=candles[-1].timestamp,
+            initial_balance=Decimal("10000"),
+            final_balance=Decimal("10200"),
+            total_trades=2,
+            wins=2,
+            losses=0,
+            breakevens=0,
+            total_pnl=Decimal("200"),
+            total_fees=Decimal("0"),
+            win_rate=1.0,
+            return_percent=2.0,
+            trades=trades,
+        )
+
+        result = await gate._gate_regime(baseline, candles)
+
+        assert result.status == GateStatus.SKIPPED
+        assert result.details["evaluable_count"] == 1
+        assert "at least 2 evaluable regimes" in result.reason
 
 
 # =============================================================================

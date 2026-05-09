@@ -688,6 +688,20 @@ class RobustnessGate:
                 ),
                 details={"per_regime": per_regime, "unclassified": unclassified},
             )
+        if evaluable_count < 2:
+            return GateResult(
+                name="regime",
+                status=GateStatus.SKIPPED,
+                reason=(
+                    "Need at least 2 evaluable regimes for regime validation; "
+                    f"have {evaluable_count}."
+                ),
+                details={
+                    "per_regime": per_regime,
+                    "unclassified": unclassified,
+                    "evaluable_count": evaluable_count,
+                },
+            )
 
         if cfg.regime_require_positive_in_all:
             passed = not evaluable_failures

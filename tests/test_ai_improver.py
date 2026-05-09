@@ -211,6 +211,23 @@ technique_type: code
 hypothesis: Funding rate above 0.05% per 8h predicts negative 24h returns due to over-leveraged longs
 ---
 body
+
+## Output Contract
+
+Return JSON with keys: signal, entry_price, stop_loss, take_profit.
+```
+"""
+
+MARKDOWN_CODE_WITHOUT_OUTPUT_CONTRACT = """\
+```markdown
+---
+name: funding_reversion
+version: 0.1.0
+description: Mean revert when funding hits extremes
+technique_type: code
+hypothesis: Funding rate above 0.05% per 8h predicts negative 24h returns due to over-leveraged longs
+---
+body
 ```
 """
 
@@ -824,6 +841,16 @@ class TestNewIdeaOutputContract:
         assert '"entry_price"' in prompt
         assert '"stop_loss"' in prompt
         assert '"take_profit"' in prompt
+
+    @pytest.mark.asyncio
+    async def test_markdown_code_type_still_requires_output_contract(
+        self, tmp_path: Path
+    ) -> None:
+        """Markdown output is runtime prompt input even if frontmatter says code."""
+        improver, _ = make_improver(tmp_path, MARKDOWN_CODE_WITHOUT_OUTPUT_CONTRACT)
+
+        with pytest.raises(GeneratedTechniqueError, match="Output Contract"):
+            await improver.generate_idea(context="anything")
 
     @pytest.mark.asyncio
     async def test_improvement_prompt_omits_output_contract(

@@ -60,7 +60,7 @@ from pathlib import Path
 from typing import Literal
 
 from src.backtest.analyzer import PerformanceAnalyzer, PerformanceMetrics
-from src.backtest.engine import Backtester, BacktestResult
+from src.backtest.engine import Backtester, BacktestResult, serialize_backtest_result
 from src.backtest.snapshot import (
     Snapshot,
     SnapshotExchange,
@@ -75,6 +75,7 @@ from src.logger import get_logger
 from src.models import OHLCV
 from src.strategy.base import BaseStrategy
 from src.strategy.loader import load_strategy
+from src.utils.io import atomic_write_text
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.scripts.backtest_baselines")
@@ -283,31 +284,7 @@ def serialize_result(result: BacktestResult) -> dict:
     call that protected helper directly to avoid the coupling, but the
     output shape is the same so downstream consumers can ``BacktestResult(**data)``.
     """
-    data = result.model_dump()
-    for key in ("start_time", "end_time"):
-        data[key] = data[key].isoformat()
-    for key in ("initial_balance", "final_balance", "total_pnl", "total_fees"):
-        data[key] = str(data[key])
-    for trade in data["trades"]:
-        trade["entry_time"] = trade["entry_time"].isoformat()
-        trade["exit_time"] = trade["exit_time"].isoformat()
-        for k in (
-            "entry_price",
-            "exit_price",
-            "quantity",
-            "stop_loss",
-            "take_profit",
-            "entry_fee",
-            "exit_fee",
-            "pnl",
-        ):
-            if trade.get(k) is not None:
-                trade[k] = str(trade[k])
-    # Phase 24.1 / DEBT-030: per-bar equity curve.
-    for point in data.get("equity_curve", []):
-        point["timestamp"] = point["timestamp"].isoformat()
-        point["equity"] = str(point["equity"])
-    return data
+    return serialize_backtest_result(result)
 
 
 def build_summary(
@@ -367,23 +344,23 @@ def write_baseline_artifacts(
     baseline_dir = output_root / spec.technique_name
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
-    (baseline_dir / "result.json").write_text(
+    atomic_write_text(
+        baseline_dir / "result.json",
         json.dumps(serialize_result(result), indent=2),
-        encoding="utf-8",
     )
 
     analyzer = PerformanceAnalyzer()
-    (baseline_dir / "analysis.md").write_text(
+    atomic_write_text(
+        baseline_dir / "analysis.md",
         analyzer.generate_report(result, metrics=metrics),
-        encoding="utf-8",
     )
 
-    (baseline_dir / "summary.json").write_text(
+    atomic_write_text(
+        baseline_dir / "summary.json",
         json.dumps(
             build_summary(spec, metrics, result=result, fetched_at=fetched_at),
             indent=2,
         ),
-        encoding="utf-8",
     )
 
     logger.info(

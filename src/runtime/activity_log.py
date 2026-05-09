@@ -167,6 +167,7 @@ class ActivityEvent(BaseModel):
             (startup, shutdown).
     """
 
+    schema_version: int = 1
     timestamp: datetime = Field(default_factory=now_utc)
     event_type: ActivityEventType
     message: str = ""

@@ -362,3 +362,19 @@ def test_read_with_legacy_naive_timestamp_is_tolerant(
 
     # Both records load and sort by timestamp without raising.
     assert [r["n"] for r in records] == [1, 2]
+
+
+def test_malformed_line_count_tracks_skipped_records(base: Path) -> None:
+    rotator = JsonlRotator(base)
+    path = base.with_name("events.2026-04.jsonl")
+    path.write_text(
+        '{"timestamp": "2026-04-01T00:00:00+00:00", "n": 1}\n'
+        "{bad json}\n"
+        '{"timestamp": "2026-04-01T00:01:00+00:00", "n": 2}\n',
+        encoding="utf-8",
+    )
+
+    records = list(rotator.read_all())
+
+    assert [record["n"] for record in records] == [1, 2]
+    assert rotator.malformed_line_count == 1

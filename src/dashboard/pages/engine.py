@@ -33,6 +33,7 @@ import pandas as pd
 import streamlit as st
 
 from src.logger import get_logger
+from src.dashboard.query_params import query_param_values as _query_param_values
 from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
@@ -523,18 +524,6 @@ def render(
         st.info("No events match the selected filter.")
     else:
         st.dataframe(timeline_df, hide_index=True, use_container_width=True)
-
-
-def _query_param_values(name: str) -> set[str]:
-    """Return comma-aware query-param values for dashboard drill-through."""
-    raw = st.query_params.get(name)
-    if raw is None:
-        return set()
-    values = raw if isinstance(raw, list) else [raw]
-    split_values: set[str] = set()
-    for value in values:
-        split_values.update(part for part in str(value).split(",") if part)
-    return split_values
 
 
 __all__ = [

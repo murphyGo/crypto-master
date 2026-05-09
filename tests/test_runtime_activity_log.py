@@ -76,6 +76,7 @@ def test_append_returns_event(tmp_path: Path) -> None:
     )
 
     assert isinstance(event, ActivityEvent)
+    assert event.schema_version == 1
     assert event.event_type == ActivityEventType.CYCLE_STARTED.value
     assert event.cycle_id == "abc"
     assert event.details == {"cycle_index": 1}
@@ -105,6 +106,22 @@ def test_append_then_read_all_round_trip(tmp_path: Path) -> None:
     ]
     assert events[1].details == {"cycle_index": 1}
     assert events[1].cycle_id == "c1"
+    assert all(event.schema_version == 1 for event in events)
+
+
+def test_read_all_legacy_record_defaults_schema_version(tmp_path: Path) -> None:
+    log = ActivityLog(path=tmp_path / "activity.jsonl")
+    rotated = tmp_path / "activity.2026-04.jsonl"
+    rotated.write_text(
+        '{"timestamp":"2026-04-01T00:00:00+00:00",'
+        '"event_type":"startup","message":"legacy"}\n',
+        encoding="utf-8",
+    )
+
+    events = log.read_all()
+
+    assert events[0].schema_version == 1
+    assert events[0].message == "legacy"
 
 
 def test_read_all_missing_file_returns_empty(tmp_path: Path) -> None:

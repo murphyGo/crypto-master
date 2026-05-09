@@ -20,6 +20,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import get_settings
+from src.dashboard.query_params import query_param_first as _query_param_first
 from src.runtime.activity_log import ActivityLog
 from src.utils.time import ensure_utc, now_utc
 
@@ -174,15 +175,6 @@ def _latest_activity_file(activity_path: Path) -> Path | None:
     if not existing:
         return None
     return max(existing, key=lambda path: path.stat().st_mtime)
-
-
-def _query_param_first(name: str) -> str | None:
-    raw = st.query_params.get(name)
-    if raw is None:
-        return None
-    if isinstance(raw, list):
-        return str(raw[0]) if raw else None
-    return str(raw)
 
 
 __all__ = [

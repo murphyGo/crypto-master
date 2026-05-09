@@ -404,10 +404,13 @@ class StrategyImprover:
         output_kind: OutputKind,
         technique_type: str,
     ) -> None:
-        """Reject generated prompt strategies that cannot run per bar."""
+        """Reject markdown techniques that cannot run per bar.
+
+        Markdown files are executed through the prompt-strategy runtime path.
+        A generated markdown technique that claims ``technique_type: code`` is
+        still markdown on disk, so it must carry the same output contract.
+        """
         if output_kind != "markdown" or kind not in {"new_idea", "user_idea"}:
-            return
-        if technique_type and technique_type != "prompt":
             return
         required = (
             "## Output Contract",

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.dashboard.query_params import query_param_first as _query_param_first
 from src.proposal.replay import (
     ProposalReplayExitAssumption,
     ProposalReplayInputError,
@@ -112,15 +113,6 @@ def render() -> None:
         file_name="proposal-replay-report.md",
         mime="text/markdown",
     )
-
-
-def _query_param_first(name: str) -> str | None:
-    raw = st.query_params.get(name)
-    if raw is None:
-        return None
-    if isinstance(raw, list):
-        return str(raw[0]) if raw else None
-    return str(raw)
 
 
 __all__ = [

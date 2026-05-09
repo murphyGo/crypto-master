@@ -358,7 +358,7 @@ def build_command_center_status(
     open_trades = [trade for trade in trades if trade.status == "open"]
     scoped = scoped_trades or [(DEFAULT_SUB_ACCOUNT_ID, trade) for trade in trades]
     candidate_metrics = candidate_metrics or {}
-    incident_rows = build_incident_rows(scoped_events, now=now)
+    incident_rows = build_incident_rows(scoped_events, now=now, mode=mode, scope=scope)
 
     return CommandCenterStatus(
         safety=safety,
@@ -379,7 +379,11 @@ def build_command_center_status(
         candidates_promoted=candidate_metrics.get("promoted", 0),
         candidates_errored=candidate_metrics.get("errored", 0),
         incident_rows=incident_rows,
-        candidate_rows=build_candidate_rows(candidate_records or []),
+        candidate_rows=build_candidate_rows(
+            candidate_records or [],
+            mode=mode,
+            scope=scope,
+        ),
         diagnostic_rows=build_runtime_diagnostic_rows(
             safety=safety,
             last_cycle_status=cycle_metrics["last_cycle_status"] or "missing",
@@ -517,6 +521,8 @@ def build_incident_rows(
     *,
     now: datetime | None = None,
     limit: int = INCIDENT_DISPLAY_LIMIT,
+    mode: str = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
 ) -> list[CommandCenterIncidentRow]:
     """Build recent actionable event rows for the Home command center."""
     recent = recent_activity_events(
@@ -528,13 +534,18 @@ def build_incident_rows(
         event for event in recent if event.event_type in ACTIONABLE_EVENT_TYPES
     ]
     incidents.sort(key=lambda event: event.timestamp, reverse=True)
-    return [_incident_row(event) for event in incidents[:limit]]
+    return [_incident_row(event, mode=mode, scope=scope) for event in incidents[:limit]]
 
 
-def _incident_row(event: ActivityEvent) -> CommandCenterIncidentRow:
+def _incident_row(
+    event: ActivityEvent,
+    *,
+    mode: str = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
+) -> CommandCenterIncidentRow:
     event_type = str(event.event_type)
     target_page = _incident_target_page(event_type)
-    query_params = _incident_query_params(event, target_page)
+    query_params = _incident_query_params(event, target_page, mode=mode, scope=scope)
     return CommandCenterIncidentRow(
         timestamp=ensure_utc(event.timestamp),
         severity=_incident_severity(event_type),
@@ -586,11 +597,17 @@ def _incident_target_page(event_type: str) -> str:
 def _incident_query_params(
     event: ActivityEvent,
     target_page: str,
+    *,
+    mode: str = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
 ) -> dict[str, str]:
     if target_page == "engine":
-        return {"event_type": str(event.event_type)}
+        return {"event_type": str(event.event_type), "mode": mode, "scope": scope}
     if target_page == "trading":
-        params = {"mode": str(event.details.get("mode", COMMAND_CENTER_DEFAULT_MODE))}
+        params = {
+            "mode": str(event.details.get("mode", mode)),
+            "scope": scope,
+        }
         sub_account_id = event.details.get("sub_account_id")
         symbol = event.details.get("symbol")
         if sub_account_id:
@@ -599,7 +616,7 @@ def _incident_query_params(
             params["symbol"] = str(symbol)
         return params
     if target_page == "feedback":
-        return {"status": "awaiting_approval"}
+        return {"status": "awaiting_approval", "mode": mode, "scope": scope}
     return {}
 
 
@@ -622,16 +639,28 @@ def build_candidate_rows(
     records: list[CandidateRecord],
     *,
     limit: int = CANDIDATE_DISPLAY_LIMIT,
+    mode: str = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
 ) -> list[CommandCenterCandidateRow]:
     """Build recent candidate evidence rows for the Home command center."""
     sorted_records = sorted(records, key=lambda record: record.updated_at, reverse=True)
-    return [_candidate_row(record) for record in sorted_records[:limit]]
+    return [
+        _candidate_row(record, mode=mode, scope=scope)
+        for record in sorted_records[:limit]
+    ]
 
 
-def _candidate_row(record: CandidateRecord) -> CommandCenterCandidateRow:
+def _candidate_row(
+    record: CandidateRecord,
+    *,
+    mode: str = COMMAND_CENTER_DEFAULT_MODE,
+    scope: str = COMMAND_CENTER_AGGREGATE_SCOPE,
+) -> CommandCenterCandidateRow:
     query_params = {
         "candidate_id": record.candidate_id,
         "status": str(record.status),
+        "mode": mode,
+        "scope": scope,
     }
     return CommandCenterCandidateRow(
         candidate_id=record.candidate_id,

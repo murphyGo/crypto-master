@@ -11,6 +11,7 @@ from src.backtest.engine import (
     Backtester,
     BacktestError,
     BacktestResult,
+    BacktestTrade,
 )
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
@@ -1462,6 +1463,34 @@ class TestBacktesterLiquidationParity:
         # Default behaviour preserved: equity curve length matches
         # candle count when no liquidation fires.
         assert len(result.equity_curve) == len(candles)
+
+    def test_equity_curve_does_not_mark_entry_bar_unrealized_pnl(self) -> None:
+        candles = [
+            make_candle(datetime(2026, 1, 1, 0, 0, 0), close=Decimal("100")),
+            make_candle(datetime(2026, 1, 1, 1, 0, 0), close=Decimal("110")),
+        ]
+        trade = BacktestTrade(
+            trade_id="bt-entry-bar",
+            symbol="BTC/USDT",
+            side="long",
+            entry_time=candles[0].timestamp,
+            exit_time=candles[1].timestamp + timedelta(hours=1),
+            entry_price=Decimal("100"),
+            exit_price=Decimal("120"),
+            quantity=Decimal("1"),
+            leverage=1,
+            stop_loss=None,
+            take_profit=None,
+            entry_fee=Decimal("0"),
+            exit_fee=Decimal("0"),
+            pnl=Decimal("20"),
+            close_reason="end_of_data",
+        )
+
+        curve = Backtester._build_equity_curve(candles, [trade], Decimal("1000"))
+
+        assert curve[0].equity == Decimal("1000")
+        assert curve[1].equity == Decimal("1010")
 
     @pytest.mark.asyncio
     async def test_positive_threshold_catches_earlier(self, tmp_path: Path) -> None:

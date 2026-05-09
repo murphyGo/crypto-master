@@ -139,6 +139,27 @@ class TestClaudeCLIAnalyze:
         assert cmd[3:] == ["-p", "test prompt"]
 
     @pytest.mark.asyncio
+    async def test_subprocess_env_uses_allowlist(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        proc = _make_popen_success(json.dumps({"signal": "neutral", "confidence": 0.5}))
+        monkeypatch.setenv("PATH", "/usr/bin")
+        monkeypatch.setenv("HOME", "/tmp/home")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "secret")
+        monkeypatch.setenv("OPENAI_API_KEY", "secret")
+
+        with patch("shutil.which", return_value="/usr/bin/claude"):
+            with patch("subprocess.Popen", return_value=proc) as popen:
+                client = ClaudeCLI()
+                await client.analyze("test prompt")
+
+        env = popen.call_args.kwargs["env"]
+        assert env["PATH"] == "/usr/bin"
+        assert env["HOME"] == "/tmp/home"
+        assert "ANTHROPIC_API_KEY" not in env
+        assert "OPENAI_API_KEY" not in env
+
+    @pytest.mark.asyncio
     async def test_json_in_markdown_code_block(self) -> None:
         """Test parsing JSON wrapped in markdown code block."""
         response = {"signal": "short", "confidence": 0.7}

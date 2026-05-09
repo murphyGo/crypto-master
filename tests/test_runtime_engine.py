@@ -1343,6 +1343,33 @@ async def test_correlation_gate_uses_proposal_history_strategy_lookup(
     assert warning.details["warnings"][0]["strategy_id"] == "tech_a"
 
 
+def test_strategy_lookup_for_open_trades_is_cached_per_cycle(tmp_path: Path) -> None:
+    trade = make_trade(trade_id="cached-trade", symbol="BTC/USDT", side="long")
+    proposal = make_proposal(proposal_id="cached-proposal", composite=2.0)
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    mocks["history"].save(
+        ProposalRecord(
+            proposal=proposal,
+            decision=ProposalDecision.ACCEPTED,
+            trade_id=trade.id,
+        )
+    )
+    calls = 0
+    original = mocks["history"].list_all
+
+    def counted_list_all(*args: object, **kwargs: object) -> list[ProposalRecord]:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    mocks["history"].list_all = counted_list_all
+
+    assert engine._strategy_lookup_for_open_trades() == {trade.id: "tech_a"}
+    assert engine._strategy_lookup_for_open_trades() == {trade.id: "tech_a"}
+
+    assert calls == 1
+
+
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
     """Cap counts trades regardless of side: long blocks a same-symbol short.
 
