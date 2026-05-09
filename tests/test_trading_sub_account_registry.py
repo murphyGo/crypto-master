@@ -23,7 +23,7 @@ from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     CapitalPolicy,
-    RiskOverrides,
+    RiskPolicy,
     StrategyPolicy,
     SubAccount,
     SubAccountNotFoundError,
@@ -108,15 +108,13 @@ def test_default_materialisation_reads_settings(tmp_path: Path) -> None:
     assert sub.name == "Default Account"
     assert sub.mode == "paper"
     assert sub.exchange_ref == "default"
-    assert sub.initial_balance == {}
     assert sub.capital_policy == CapitalPolicy(
         initial_balance={"USDT": Decimal("12345.0")}
     )
-    assert sub.strategy_filter is None
     assert sub.strategy_policy == StrategyPolicy(strategy_filter=None)
     assert sub.effective_initial_balance() == {"USDT": Decimal("12345.0")}
     assert sub.effective_strategy_filter() is None
-    assert sub.risk_overrides == RiskOverrides()
+    assert sub.risk_policy == RiskPolicy()
     assert sub.enabled is True
 
     # Live-mode picks up the trading mode from Settings.
@@ -273,23 +271,23 @@ sub_accounts:
     name: Default
     mode: paper
     exchange_ref: default
-    initial_balance: {USDT: 10000}
-    strategy_filter: null
+    capital_policy: {initial_balance: {USDT: 10000}}
+    strategy_policy: {strategy_filter: null}
     enabled: true
   - id: btc_only
     name: BTC Only
     mode: paper
     exchange_ref: default
-    initial_balance: {USDT: 5000}
-    strategy_filter: [rsi_4h]
+    capital_policy: {initial_balance: {USDT: 5000}}
+    strategy_policy: {strategy_filter: [rsi_4h]}
     enabled: true
   - id: experimental
     name: Experimental
     mode: paper
     exchange_ref: default
-    initial_balance: {USDT: 2500}
+    capital_policy: {initial_balance: {USDT: 2500}}
     notification_route: lab
-    risk_overrides:
+    risk_policy:
       risk_percent: 0.5
       max_open_positions_total: 1
     enabled: false
@@ -304,8 +302,8 @@ sub_accounts:
 
     assert [sub.id for sub in registry.list_active()] == ["default", "btc_only"]
     assert registry.get("experimental").enabled is False
-    assert registry.get("btc_only").strategy_filter == ["rsi_4h"]
-    assert registry.get("experimental").risk_overrides.risk_percent == Decimal("0.5")
+    assert registry.get("btc_only").effective_strategy_filter() == ["rsi_4h"]
+    assert registry.get("experimental").risk_policy.risk_percent == Decimal("0.5")
     assert registry.get("experimental").notification_route == "lab"
     assert registry.get_trader("btc_only") is not registry.get_trader("default")
 

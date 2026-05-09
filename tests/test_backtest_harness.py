@@ -13,7 +13,12 @@ from src.backtest.harness import BacktestHarness
 from src.backtest.validator import RobustnessReport
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
-from src.trading.sub_account import RiskOverrides, SubAccount
+from src.trading.sub_account import (
+    CapitalPolicy,
+    RiskPolicy,
+    StrategyPolicy,
+    SubAccount,
+)
 
 
 def _candles(count: int = 32) -> list[OHLCV]:
@@ -132,9 +137,9 @@ def _sub_account(account_id: str, strategy_name: str) -> SubAccount:
         id=account_id,
         name=account_id,
         mode="paper",
-        initial_balance={"USDT": Decimal("10000")},
-        strategy_filter=[strategy_name],
-        risk_overrides=RiskOverrides(risk_percent=Decimal("1")),
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        strategy_policy=StrategyPolicy(strategy_filter=[strategy_name]),
+        risk_policy=RiskPolicy(risk_percent=Decimal("1")),
     )
 
 

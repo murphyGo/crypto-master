@@ -15,7 +15,7 @@ from src.trading.experiment_marketplace import (
     render_sub_account_yaml_fragment,
     validate_experiment_template,
 )
-from src.trading.sub_account import RiskOverrides, SubAccount
+from src.trading.sub_account import RiskPolicy, SubAccount
 from src.trading.sub_account_registry import SubAccountRegistry
 
 
@@ -26,7 +26,7 @@ def test_experiment_template_materialises_sub_account() -> None:
         description="BTC-only swing strategy lab",
         starting_balance=Decimal("5000"),
         strategy_filter=["chasulang_ict_smc", "rsi_4h"],
-        risk_overrides=RiskOverrides(
+        risk_policy=RiskPolicy(
             risk_percent=Decimal("0.5"),
             max_open_positions_total=1,
         ),
@@ -106,7 +106,7 @@ def test_experiment_template_renders_sub_account_fragment() -> None:
         description="BTC-only swing strategy lab",
         starting_balance=Decimal("5000"),
         strategy_filter=["rsi_4h"],
-        risk_overrides=RiskOverrides(max_open_positions_total=1),
+        risk_policy=RiskPolicy(max_open_positions_total=1),
         notification_route="lab",
     )
 
@@ -154,7 +154,7 @@ def test_validate_experiment_template_accepts_configured_route() -> None:
         name="BTC Swing Lab",
         description="BTC-only swing strategy lab",
         starting_balance=Decimal("5000"),
-        risk_overrides=RiskOverrides(risk_percent=Decimal("0.5")),
+        risk_policy=RiskPolicy(risk_percent=Decimal("0.5")),
         notification_route="lab",
     )
 
@@ -183,7 +183,7 @@ def test_validate_experiment_template_rejects_invalid_risk_percent() -> None:
         name="BTC Swing Lab",
         description="BTC-only swing strategy lab",
         starting_balance=Decimal("5000"),
-        risk_overrides=RiskOverrides(risk_percent=Decimal("150")),
+        risk_policy=RiskPolicy(risk_percent=Decimal("150")),
     )
 
     with pytest.raises(ExperimentTemplateValidationError, match="risk_percent"):

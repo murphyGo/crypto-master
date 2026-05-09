@@ -73,7 +73,7 @@ class TradingProfile(BaseModel):
     description: str = ""
 
     # Risk parameters
-    risk_percent: float = Field(default=1.0, gt=0, le=100)
+    risk_percent: Decimal = Field(default=Decimal("1.0"), gt=0, le=100)
     max_leverage: int = Field(default=10, ge=1, le=125)
     default_leverage: int = Field(default=1, ge=1, le=125)
     max_position_size_percent: float = Field(default=10.0, gt=0, le=100)
@@ -104,7 +104,7 @@ class TradingProfile(BaseModel):
         """
         return TradingStrategyConfig(
             min_risk_reward_ratio=self.min_risk_reward_ratio,
-            default_risk_percent=self.risk_percent,
+            default_risk_percent=float(self.risk_percent),
             default_leverage=self.default_leverage,
             max_leverage=self.max_leverage,
             max_position_size_percent=self.max_position_size_percent,
@@ -196,7 +196,7 @@ def create_position_from_profile(
             symbol=symbol,
             balance=balance,
             leverage=effective_leverage,
-            risk_percent=profile.risk_percent,
+            risk_percent=float(profile.risk_percent),
         )
     except TradingValidationError:
         raise

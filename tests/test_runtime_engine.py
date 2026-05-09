@@ -35,7 +35,6 @@ from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
     ProposalPolicy,
-    RiskOverrides,
     RiskPolicy,
     StrategyPolicy,
     SubAccount,
@@ -310,8 +309,8 @@ async def test_auto_decide_uses_sub_account_threshold_override(
         name="Experimental",
         mode="paper",
         exchange_ref="default",
-        initial_balance={"USDT": Decimal("10000")},
-        risk_overrides=RiskOverrides(auto_approve_threshold=2.0),
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        proposal_policy=ProposalPolicy(auto_approve_threshold=2.0),
     )
     engine.sub_account_registry = FakeSubAccountRegistry(
         [sub],
@@ -577,8 +576,8 @@ async def test_run_cycle_threads_sub_account_risk_override(tmp_path: Path) -> No
         name="Alpha",
         mode="paper",
         exchange_ref="default",
-        initial_balance={"USDT": Decimal("10000")},
-        risk_overrides=RiskOverrides(risk_percent=Decimal("0.25"), leverage_cap=2),
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        risk_policy=RiskPolicy(risk_percent=Decimal("0.25"), leverage_cap=2),
     )
     registry = FakeSubAccountRegistry([sub], {"alpha": mocks["trader"]})
     engine.sub_account_registry = registry  # type: ignore[assignment]

@@ -25,7 +25,6 @@ from src.config import Settings
 from src.trading.sub_account import (
     CapitalPolicy,
     NotificationPolicy,
-    RiskOverrides,
     RiskPolicy,
     StrategyPolicy,
     SubAccount,
@@ -49,7 +48,7 @@ class ExperimentTemplate(BaseModel):
     quote_currency: str = "USDT"
     starting_balance: Decimal = Field(gt=Decimal("0"))
     strategy_filter: list[str] | None = None
-    risk_overrides: RiskOverrides = Field(default_factory=RiskOverrides)
+    risk_policy: RiskPolicy = Field(default_factory=RiskPolicy)
     notification_route: str | None = None
     enabled: bool = True
     tags: list[str] = Field(default_factory=list)
@@ -101,14 +100,7 @@ class ExperimentTemplate(BaseModel):
                 sizing_balance=self.starting_balance,
             ),
             strategy_policy=StrategyPolicy(strategy_filter=self.strategy_filter),
-            risk_policy=RiskPolicy(
-                risk_percent=self.risk_overrides.risk_percent,
-                max_open_positions_total=(self.risk_overrides.max_open_positions_total),
-                max_open_positions_per_symbol=(
-                    self.risk_overrides.max_open_positions_per_symbol
-                ),
-                leverage_cap=self.risk_overrides.leverage_cap,
-            ),
+            risk_policy=self.risk_policy,
             notification_policy=NotificationPolicy(route=self.notification_route),
             enabled=self.enabled,
         )
@@ -153,7 +145,7 @@ def validate_experiment_template(
         else set((settings or Settings()).notification_slack_webhook_urls)
     )
     errors: list[str] = []
-    risk_percent = template.risk_overrides.risk_percent
+    risk_percent = template.risk_policy.risk_percent
     if risk_percent is not None and not (Decimal("0") < risk_percent <= Decimal("100")):
         errors.append("risk_percent must be > 0 and <= 100")
     if (

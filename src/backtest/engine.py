@@ -728,7 +728,7 @@ class Backtester:
     def _resolve_sizing(self, profile: TradingProfile | None) -> tuple[float, int]:
         """Pick risk_percent and leverage for the run."""
         if profile is not None:
-            return profile.risk_percent, profile.default_leverage
+            return float(profile.risk_percent), profile.default_leverage
         return self.config.risk_percent, self.config.leverage
 
     def _raise_if_cumulative_failure_rate_exceeded(

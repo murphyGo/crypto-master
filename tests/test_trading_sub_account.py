@@ -182,8 +182,6 @@ def test_sub_account_effective_policy_prefers_new_policy_blocks() -> None:
         id="rsi_4h",
         name="RSI 4h",
         mode="paper",
-        initial_balance={"USDT": Decimal("10000")},
-        strategy_filter=["legacy"],
         risk_overrides=RiskOverrides(
             risk_percent=Decimal("1"),
             auto_approve_threshold=2.0,
@@ -202,3 +200,43 @@ def test_sub_account_effective_policy_prefers_new_policy_blocks() -> None:
     assert sub.effective_strategy_filter() == ["rsi_4h"]
     assert sub.effective_risk_percent() == Decimal("0.25")
     assert sub.effective_auto_approve_threshold() == 0.0
+
+
+def test_legacy_root_fields_match_policy_block_runtime() -> None:
+    legacy = SubAccount(
+        id="legacy",
+        name="Legacy",
+        mode="paper",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_filter=["rsi_4h"],
+    )
+    policy = SubAccount(
+        id="policy",
+        name="Policy",
+        mode="paper",
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        strategy_policy=StrategyPolicy(strategy_filter=["rsi_4h"]),
+    )
+
+    assert legacy.effective_initial_balance() == policy.effective_initial_balance()
+    assert legacy.effective_strategy_filter() == policy.effective_strategy_filter()
+
+
+def test_dual_source_root_and_policy_fields_raise_clear_conflict() -> None:
+    with pytest.raises(ValidationError, match="capital_policy.initial_balance"):
+        SubAccount(
+            id="dual_balance",
+            name="Dual Balance",
+            mode="paper",
+            initial_balance={"USDT": Decimal("10000")},
+            capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        )
+
+    with pytest.raises(ValidationError, match="strategy_policy.strategy_filter"):
+        SubAccount(
+            id="dual_strategy",
+            name="Dual Strategy",
+            mode="paper",
+            strategy_filter=["legacy"],
+            strategy_policy=StrategyPolicy(strategy_filter=["legacy"]),
+        )

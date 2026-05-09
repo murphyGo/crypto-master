@@ -39,7 +39,6 @@ from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     CapitalPolicy,
-    RiskOverrides,
     StrategyPolicy,
     SubAccount,
     SubAccountError,
@@ -299,7 +298,6 @@ class SubAccountRegistry:
                 },
             ),
             strategy_policy=StrategyPolicy(strategy_filter=None),
-            risk_overrides=RiskOverrides(),
             enabled=True,
         )
 

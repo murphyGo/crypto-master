@@ -202,13 +202,12 @@ class SubAccount(BaseModel):
             ``"binance_main"``, ``"binance_alt"``). Live-mode enabled
             sub-accounts must declare a non-null ``exchange_ref`` so
             credentials can be resolved at startup (DESIGN.md §9.7).
-        initial_balance: Paper-mode seed balance keyed by upper-case
-            currency code (e.g. ``{"USDT": Decimal("10000")}``).
-        strategy_filter: Optional whitelist of technique names. ``None``
-            = all available strategies are eligible for this
-            sub-account; a list narrows it.
-        risk_overrides: Per-sub-account risk-knob overrides; see
-            :class:`RiskOverrides`.
+        initial_balance: Deprecated legacy paper-mode seed balance.
+            New writes must use ``capital_policy.initial_balance``.
+        strategy_filter: Deprecated legacy technique whitelist.
+            New writes must use ``strategy_policy.strategy_filter``.
+        risk_overrides: Deprecated legacy risk-knob override block.
+            New writes must use ``risk_policy`` / ``proposal_policy``.
         notification_route: Optional route ref used by the runtime
             notification router. ``None`` means the account uses the
             global notification push backends.
@@ -271,6 +270,24 @@ class SubAccount(BaseModel):
         return value
 
     @model_validator(mode="after")
+    def _reject_dual_source_policy_fields(self) -> SubAccount:
+        """Reject configs that write both legacy root and policy block fields."""
+        if self.initial_balance and self.capital_policy.initial_balance is not None:
+            raise ValueError(
+                "initial_balance conflicts with capital_policy.initial_balance; "
+                "write initial balances only under capital_policy"
+            )
+        if (
+            self.strategy_filter is not None
+            and self.strategy_policy.strategy_filter is not None
+        ):
+            raise ValueError(
+                "strategy_filter conflicts with strategy_policy.strategy_filter; "
+                "write strategy filters only under strategy_policy"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _live_requires_exchange_ref(self) -> SubAccount:
         """Live + enabled requires a non-null ``exchange_ref``.
 
@@ -306,33 +323,23 @@ class SubAccount(BaseModel):
 
     def effective_risk_percent(self) -> Decimal | None:
         """Return account-specific risk percent, if configured."""
-        if self.risk_policy.risk_percent is not None:
-            return self.risk_policy.risk_percent
-        return self.risk_overrides.risk_percent
+        return self.risk_policy.risk_percent
 
     def effective_leverage_cap(self) -> int | None:
         """Return account-specific leverage cap, if configured."""
-        if self.risk_policy.leverage_cap is not None:
-            return self.risk_policy.leverage_cap
-        return self.risk_overrides.leverage_cap
+        return self.risk_policy.leverage_cap
 
     def effective_max_open_positions_total(self) -> int | None:
         """Return account-specific total open-position cap, if configured."""
-        if self.risk_policy.max_open_positions_total is not None:
-            return self.risk_policy.max_open_positions_total
-        return self.risk_overrides.max_open_positions_total
+        return self.risk_policy.max_open_positions_total
 
     def effective_max_open_positions_per_symbol(self) -> int | None:
         """Return account-specific per-symbol open-position cap, if configured."""
-        if self.risk_policy.max_open_positions_per_symbol is not None:
-            return self.risk_policy.max_open_positions_per_symbol
-        return self.risk_overrides.max_open_positions_per_symbol
+        return self.risk_policy.max_open_positions_per_symbol
 
     def effective_auto_approve_threshold(self) -> float | None:
         """Return account-specific proposal decision threshold, if configured."""
-        if self.proposal_policy.auto_approve_threshold is not None:
-            return self.proposal_policy.auto_approve_threshold
-        return self.risk_overrides.auto_approve_threshold
+        return self.proposal_policy.auto_approve_threshold
 
     def effective_notification_route(self) -> str | None:
         """Return account-specific notification route, if configured."""
