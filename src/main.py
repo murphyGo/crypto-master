@@ -332,6 +332,123 @@ def build_notification_dispatcher(
     return default_dispatcher
 
 
+def _build_engine_settings_phase(
+    settings: Settings,
+    config: EngineConfig | None,
+) -> EngineConfig:
+    """Resolve engine settings into the immutable runtime config artifact."""
+    return config or _engine_config_from_settings(settings)
+
+
+def _build_engine_config_phase(
+    settings: Settings,
+    exchange: BaseExchange,
+    activity: ActivityLog,
+) -> tuple[ProposalEngine, ProposalHistory, ProposalInteraction]:
+    """Build strategy/proposal configuration artifacts."""
+    strategies = load_all_strategies()
+    perf = PerformanceTracker()
+    proposal_config = ProposalEngineConfig(
+        mode=settings.trading_mode,
+        prompt_strategy_min_interval_seconds=(
+            settings.engine_prompt_strategy_min_interval_seconds
+        ),
+    )
+    proposal_engine = ProposalEngine(
+        exchange=exchange,
+        strategies=strategies,
+        performance_tracker=perf,
+        config=proposal_config,
+        activity_log=activity,
+    )
+    history = ProposalHistory()
+    interaction = ProposalInteraction(history=history)
+    return proposal_engine, history, interaction
+
+
+def _build_engine_exchange_phase(
+    settings: Settings,
+    exchange: BaseExchange,
+) -> BaseExchange:
+    """Return the authenticated exchange artifact passed to build_engine."""
+    del settings
+    return exchange
+
+
+def _build_engine_activity_log_phase(
+    activity_log: ActivityLog | None,
+) -> ActivityLog:
+    """Return the shared activity log artifact for runtime components."""
+    return activity_log if activity_log is not None else ActivityLog()
+
+
+def _build_engine_trader_phase(
+    settings: Settings,
+    exchange: BaseExchange,
+    config: EngineConfig,
+    activity: ActivityLog,
+    trader: Trader | None,
+) -> Trader:
+    """Build or reuse the trader artifact."""
+    if trader is not None:
+        return trader
+    return build_trader(settings, exchange, config, activity_log=activity)
+
+
+def _build_engine_registry_phase(
+    settings: Settings,
+    exchange: BaseExchange,
+    config: EngineConfig,
+    activity: ActivityLog,
+    trader: Trader,
+    registry: SubAccountRegistry | None,
+) -> SubAccountRegistry:
+    """Build or reuse the sub-account registry artifact."""
+    if registry is not None:
+        return registry
+    return SubAccountRegistry(
+        settings=settings,
+        trader=trader,
+        exchange=exchange,
+        activity_log=activity,
+        paper_auto_deposit_on_liquidation=config.paper_auto_deposit_on_liquidation,
+    )
+
+
+def _build_engine_runtime_phase(
+    settings: Settings,
+    exchange: BaseExchange,
+    config: EngineConfig,
+    proposal_engine: ProposalEngine,
+    history: ProposalHistory,
+    interaction: ProposalInteraction,
+    trader: Trader,
+    registry: SubAccountRegistry,
+    notifier: NotificationDispatcher,
+    activity: ActivityLog,
+) -> TradingEngine:
+    """Build the final TradingEngine artifact."""
+    logger.info(
+        f"Trading mode: {settings.trading_mode} "
+        f"(trader={type(trader).__name__}, exchange={exchange.name}, "
+        f"testnet={getattr(exchange, 'testnet', '?')})"
+    )
+    return TradingEngine(
+        exchange=exchange,
+        proposal_engine=proposal_engine,
+        proposal_interaction=interaction,
+        proposal_history=history,
+        trader=trader,
+        registry=registry,
+        notification_dispatcher=notifier,
+        activity_log=activity,
+        config=config,
+        portfolio_tracker=PortfolioTracker(),
+        mode=settings.trading_mode,
+        quote_currency="USDT",
+    )
+
+
 def build_engine(
     settings: Settings,
     exchange: BaseExchange,
@@ -358,79 +475,36 @@ def build_engine(
     callers see no behaviour change. The engine does not yet consume
     the registry — 19.2 will fan out ``cycle()`` per sub-account.
     """
-    config = config or _engine_config_from_settings(settings)
-
-    strategies = load_all_strategies()
-    perf = PerformanceTracker()
-    # Phase 12.3: share one ActivityLog instance between the proposal
-    # engine (for ``LLM_TIMEOUT`` events), the paper trader (for
-    # ``LIQUIDATED`` events — Phase 22.2 / DEBT-027), and the trading
-    # engine (for everything else) so the dashboard sees all events on
-    # the same rotated file. Phase 19.1 lets ``run`` pre-build the log
-    # so the same instance can be threaded into a pre-built trader.
-    activity = activity_log if activity_log is not None else ActivityLog()
-    # Phase 24.1 / DEBT-034: forward the trading mode so the proposal
-    # engine can apply the live cold-start guard (no real money to a
-    # technique with zero closed trades).
-    proposal_config = ProposalEngineConfig(
-        mode=settings.trading_mode,
-        prompt_strategy_min_interval_seconds=(
-            settings.engine_prompt_strategy_min_interval_seconds
-        ),
+    config = _build_engine_settings_phase(settings, config)
+    exchange = _build_engine_exchange_phase(settings, exchange)
+    activity = _build_engine_activity_log_phase(activity_log)
+    proposal_engine, history, interaction = _build_engine_config_phase(
+        settings,
+        exchange,
+        activity,
     )
-    proposal_engine = ProposalEngine(
-        exchange=exchange,
-        strategies=strategies,
-        performance_tracker=perf,
-        config=proposal_config,
-        activity_log=activity,
+    trader = _build_engine_trader_phase(settings, exchange, config, activity, trader)
+    registry = _build_engine_registry_phase(
+        settings,
+        exchange,
+        config,
+        activity,
+        trader,
+        registry,
     )
-    history = ProposalHistory()
-    interaction = ProposalInteraction(history=history)
-    if trader is None:
-        trader = build_trader(settings, exchange, config, activity_log=activity)
-
-    # Phase 19.1: registry seam. When the caller didn't supply one,
-    # synthesise the back-compat single-``default`` registry from the
-    # just-built trader. The engine doesn't consume it yet (19.2 will
-    # fan out ``cycle`` per sub-account), but the parameter is in
-    # place so 19.2 doesn't churn ``build_engine``'s signature.
-    if registry is None:
-        registry = SubAccountRegistry(
-            settings=settings,
-            trader=trader,
-            exchange=exchange,
-            activity_log=activity,
-            paper_auto_deposit_on_liquidation=(
-                config.paper_auto_deposit_on_liquidation
-            ),
-        )
-
     notifier = build_notification_dispatcher(settings, config, registry)
-
-    logger.info(
-        f"Trading mode: {settings.trading_mode} "
-        f"(trader={type(trader).__name__}, exchange={exchange.name}, "
-        f"testnet={getattr(exchange, 'testnet', '?')})"
+    return _build_engine_runtime_phase(
+        settings,
+        exchange,
+        config,
+        proposal_engine,
+        history,
+        interaction,
+        trader,
+        registry,
+        notifier,
+        activity,
     )
-
-    portfolio_tracker = PortfolioTracker()
-
-    engine = TradingEngine(
-        exchange=exchange,
-        proposal_engine=proposal_engine,
-        proposal_interaction=interaction,
-        proposal_history=history,
-        trader=trader,
-        registry=registry,
-        notification_dispatcher=notifier,
-        activity_log=activity,
-        config=config,
-        portfolio_tracker=portfolio_tracker,
-        mode=settings.trading_mode,
-        quote_currency="USDT",
-    )
-    return engine
 
 
 def _purge_old_proposals(history: ProposalHistory, retention_months: int) -> int:

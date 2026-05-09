@@ -220,6 +220,183 @@ class AccountRuntimePolicy:
     correlation_max_sub_accounts_per_strategy_symbol_side: int
 
 
+class PolicyResolver:
+    """Resolve one sub-account's runtime policy using field-level precedence."""
+
+    def __init__(
+        self,
+        *,
+        config: EngineConfig,
+        sub_account: SubAccount | None,
+        default_leverage: int,
+    ) -> None:
+        self.config = config
+        self.sub_account = sub_account
+        self.strategy_policy = (
+            sub_account.strategy_policy if sub_account is not None else None
+        )
+        self.execution_policy = (
+            sub_account.execution_policy if sub_account is not None else None
+        )
+        self.default_leverage = default_leverage
+
+    def resolve(self) -> AccountRuntimePolicy:
+        """Return the fully resolved policy artifact."""
+        return AccountRuntimePolicy(
+            bitcoin_symbol=self.bitcoin_symbol(),
+            altcoin_symbols=self.altcoin_symbols(),
+            altcoin_top_k=self.altcoin_top_k(),
+            sizing_balance=self.sizing_balance(),
+            risk_percent=self.risk_percent(),
+            leverage=self.leverage(),
+            auto_approve_threshold=self.auto_approve_threshold(),
+            max_open_positions_total=self.max_open_positions_total(),
+            max_open_positions_per_symbol=self.max_open_positions_per_symbol(),
+            runtime_safety_pause_min_score=self.runtime_safety_pause_min_score(),
+            fill_slippage_tolerance=self.fill_slippage_tolerance(),
+            reject_if_past_stop_loss=self.reject_if_past_stop_loss(),
+            reject_if_stale_quote=self.reject_if_stale_quote(),
+            max_ticker_age_seconds=self.max_ticker_age_seconds(),
+            correlation_gate_enabled=self.correlation_gate_enabled(),
+            correlation_max_sub_accounts_per_symbol_side=(
+                self.correlation_max_sub_accounts_per_symbol_side()
+            ),
+            correlation_max_sub_accounts_per_strategy_symbol_side=(
+                self.correlation_max_sub_accounts_per_strategy_symbol_side()
+            ),
+        )
+
+    def bitcoin_symbol(self) -> str:
+        if (
+            self.strategy_policy is not None
+            and self.strategy_policy.bitcoin_symbol is not None
+        ):
+            return self.strategy_policy.bitcoin_symbol
+        return self.config.bitcoin_symbol
+
+    def altcoin_symbols(self) -> list[str]:
+        if (
+            self.strategy_policy is not None
+            and self.strategy_policy.symbols is not None
+        ):
+            return list(self.strategy_policy.symbols)
+        return list(self.config.altcoin_symbols)
+
+    def altcoin_top_k(self) -> int:
+        if self.strategy_policy is not None and self.strategy_policy.top_k is not None:
+            return self.strategy_policy.top_k
+        return self.config.altcoin_top_k
+
+    def sizing_balance(self) -> Decimal:
+        if self.sub_account is None:
+            return self.config.balance
+        return self.sub_account.effective_sizing_balance(self.config.balance)
+
+    def risk_percent(self) -> Decimal | None:
+        if self.sub_account is None:
+            return None
+        return self.sub_account.effective_risk_percent()
+
+    def leverage(self) -> int:
+        if self.sub_account is None:
+            return int(self.default_leverage)
+        cap = self.sub_account.effective_leverage_cap()
+        if cap is None:
+            return int(self.default_leverage)
+        return min(int(self.default_leverage), cap)
+
+    def auto_approve_threshold(self) -> float:
+        override = (
+            self.sub_account.effective_auto_approve_threshold()
+            if self.sub_account is not None
+            else None
+        )
+        return override if override is not None else self.config.auto_approve_threshold
+
+    def max_open_positions_total(self) -> int | None:
+        if self.sub_account is None:
+            return None
+        return self.sub_account.effective_max_open_positions_total()
+
+    def max_open_positions_per_symbol(self) -> int:
+        override = (
+            self.sub_account.effective_max_open_positions_per_symbol()
+            if self.sub_account is not None
+            else None
+        )
+        if override is not None:
+            return override
+        return self.config.max_open_positions_per_symbol
+
+    def runtime_safety_pause_min_score(self) -> int | None:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.runtime_safety_pause_min_score is not None
+        ):
+            return self.execution_policy.runtime_safety_pause_min_score
+        return self.config.runtime_safety_pause_min_score
+
+    def fill_slippage_tolerance(self) -> Decimal:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.fill_slippage_tolerance is not None
+        ):
+            return self.execution_policy.fill_slippage_tolerance
+        return self.config.fill_slippage_tolerance
+
+    def reject_if_past_stop_loss(self) -> bool:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.reject_if_past_stop_loss is not None
+        ):
+            return self.execution_policy.reject_if_past_stop_loss
+        return self.config.reject_if_past_stop_loss
+
+    def reject_if_stale_quote(self) -> bool:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.reject_if_stale_quote is not None
+        ):
+            return self.execution_policy.reject_if_stale_quote
+        return self.config.reject_if_stale_quote
+
+    def max_ticker_age_seconds(self) -> float:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.max_ticker_age_seconds is not None
+        ):
+            return self.execution_policy.max_ticker_age_seconds
+        return self.config.max_ticker_age_seconds
+
+    def correlation_gate_enabled(self) -> bool:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.correlation_gate_enabled is not None
+        ):
+            return self.execution_policy.correlation_gate_enabled
+        return self.config.correlation_gate_enabled
+
+    def correlation_max_sub_accounts_per_symbol_side(self) -> int:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.correlation_max_sub_accounts_per_symbol_side
+            is not None
+        ):
+            return self.execution_policy.correlation_max_sub_accounts_per_symbol_side
+        return self.config.correlation_max_sub_accounts_per_symbol_side
+
+    def correlation_max_sub_accounts_per_strategy_symbol_side(self) -> int:
+        if (
+            self.execution_policy is not None
+            and self.execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
+            is not None
+        ):
+            return (
+                self.execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
+            )
+        return self.config.correlation_max_sub_accounts_per_strategy_symbol_side
+
+
 # =============================================================================
 # Cycle result (used for tests + the dashboard's per-cycle summary)
 # =============================================================================
@@ -1777,126 +1954,15 @@ class TradingEngine:
         self,
         sub_account: SubAccount | None,
     ) -> AccountRuntimePolicy:
-        strategy_policy = (
-            sub_account.strategy_policy if sub_account is not None else None
-        )
-        execution_policy = (
-            sub_account.execution_policy if sub_account is not None else None
-        )
-        auto_approve_threshold = (
-            sub_account.effective_auto_approve_threshold()
-            if sub_account is not None
-            else None
-        )
-        max_open_positions_per_symbol = (
-            sub_account.effective_max_open_positions_per_symbol()
-            if sub_account is not None
-            else None
-        )
+        return PolicyResolver(
+            config=self.config,
+            sub_account=sub_account,
+            default_leverage=self._default_runtime_leverage(),
+        ).resolve()
 
-        return AccountRuntimePolicy(
-            bitcoin_symbol=(
-                strategy_policy.bitcoin_symbol
-                if strategy_policy is not None
-                and strategy_policy.bitcoin_symbol is not None
-                else self.config.bitcoin_symbol
-            ),
-            altcoin_symbols=(
-                list(strategy_policy.symbols)
-                if strategy_policy is not None and strategy_policy.symbols is not None
-                else list(self.config.altcoin_symbols)
-            ),
-            altcoin_top_k=(
-                strategy_policy.top_k
-                if strategy_policy is not None and strategy_policy.top_k is not None
-                else self.config.altcoin_top_k
-            ),
-            sizing_balance=(
-                sub_account.effective_sizing_balance(self.config.balance)
-                if sub_account is not None
-                else self.config.balance
-            ),
-            risk_percent=(
-                sub_account.effective_risk_percent()
-                if sub_account is not None
-                else None
-            ),
-            leverage=self._runtime_leverage_for(sub_account),
-            auto_approve_threshold=(
-                auto_approve_threshold
-                if auto_approve_threshold is not None
-                else self.config.auto_approve_threshold
-            ),
-            max_open_positions_total=(
-                sub_account.effective_max_open_positions_total()
-                if sub_account is not None
-                else None
-            ),
-            max_open_positions_per_symbol=(
-                max_open_positions_per_symbol
-                if max_open_positions_per_symbol is not None
-                else self.config.max_open_positions_per_symbol
-            ),
-            runtime_safety_pause_min_score=(
-                execution_policy.runtime_safety_pause_min_score
-                if execution_policy is not None
-                and execution_policy.runtime_safety_pause_min_score is not None
-                else self.config.runtime_safety_pause_min_score
-            ),
-            fill_slippage_tolerance=(
-                execution_policy.fill_slippage_tolerance
-                if execution_policy is not None
-                and execution_policy.fill_slippage_tolerance is not None
-                else self.config.fill_slippage_tolerance
-            ),
-            reject_if_past_stop_loss=(
-                execution_policy.reject_if_past_stop_loss
-                if execution_policy is not None
-                and execution_policy.reject_if_past_stop_loss is not None
-                else self.config.reject_if_past_stop_loss
-            ),
-            reject_if_stale_quote=(
-                execution_policy.reject_if_stale_quote
-                if execution_policy is not None
-                and execution_policy.reject_if_stale_quote is not None
-                else self.config.reject_if_stale_quote
-            ),
-            max_ticker_age_seconds=(
-                execution_policy.max_ticker_age_seconds
-                if execution_policy is not None
-                and execution_policy.max_ticker_age_seconds is not None
-                else self.config.max_ticker_age_seconds
-            ),
-            correlation_gate_enabled=(
-                execution_policy.correlation_gate_enabled
-                if execution_policy is not None
-                and execution_policy.correlation_gate_enabled is not None
-                else self.config.correlation_gate_enabled
-            ),
-            correlation_max_sub_accounts_per_symbol_side=(
-                execution_policy.correlation_max_sub_accounts_per_symbol_side
-                if execution_policy is not None
-                and execution_policy.correlation_max_sub_accounts_per_symbol_side
-                is not None
-                else self.config.correlation_max_sub_accounts_per_symbol_side
-            ),
-            correlation_max_sub_accounts_per_strategy_symbol_side=(
-                execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
-                if execution_policy is not None
-                and execution_policy.correlation_max_sub_accounts_per_strategy_symbol_side
-                is not None
-                else self.config.correlation_max_sub_accounts_per_strategy_symbol_side
-            ),
-        )
-
-    def _runtime_leverage_for(self, sub_account: SubAccount | None) -> int:
+    def _default_runtime_leverage(self) -> int:
         default = getattr(getattr(self.proposal_engine, "config", None), "leverage", 1)
-        if sub_account is None:
-            return int(default)
-        cap = sub_account.effective_leverage_cap()
-        if cap is None:
-            return int(default)
-        return min(int(default), cap)
+        return int(default)
 
     async def _auto_decide(
         self,

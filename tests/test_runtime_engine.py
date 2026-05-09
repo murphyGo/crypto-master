@@ -27,6 +27,7 @@ from src.proposal.notification import (
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.runtime.engine import (
     EngineConfig,
+    PolicyResolver,
     TradingEngine,
 )
 from src.strategy.performance import PerformanceTracker, TradeHistory
@@ -939,6 +940,102 @@ def test_cap_default_is_one() -> None:
     config = EngineConfig()
 
     assert config.max_open_positions_per_symbol == 1
+
+
+def test_policy_resolver_field_precedence_matrix() -> None:
+    """Each policy field resolves sub-account overrides before engine defaults."""
+    config = EngineConfig(
+        auto_approve_threshold=1.0,
+        bitcoin_symbol="BTC/USDT",
+        altcoin_symbols=["ETH/USDT"],
+        altcoin_top_k=1,
+        balance=Decimal("10000"),
+        max_open_positions_per_symbol=1,
+        runtime_safety_pause_min_score=80,
+        fill_slippage_tolerance=Decimal("0.005"),
+        reject_if_past_stop_loss=True,
+        reject_if_stale_quote=False,
+        max_ticker_age_seconds=10.0,
+        correlation_gate_enabled=False,
+        correlation_max_sub_accounts_per_symbol_side=1,
+        correlation_max_sub_accounts_per_strategy_symbol_side=1,
+    )
+    sub_account = SubAccount(
+        id="alpha",
+        name="Alpha",
+        mode="paper",
+        exchange_ref="default",
+        capital_policy=CapitalPolicy(sizing_balance=Decimal("2500")),
+        strategy_policy=StrategyPolicy(
+            bitcoin_symbol="BTC-PERP/USDT",
+            symbols=["SOL/USDT", "BNB/USDT"],
+            top_k=2,
+        ),
+        proposal_policy=ProposalPolicy(auto_approve_threshold=1.5),
+        risk_policy=RiskPolicy(
+            risk_percent=Decimal("0.25"),
+            max_open_positions_total=5,
+            max_open_positions_per_symbol=3,
+            leverage_cap=4,
+        ),
+        execution_policy=ExecutionPolicy(
+            runtime_safety_pause_min_score=70,
+            fill_slippage_tolerance=Decimal("0.01"),
+            reject_if_past_stop_loss=False,
+            reject_if_stale_quote=True,
+            max_ticker_age_seconds=3.0,
+            correlation_gate_enabled=True,
+            correlation_max_sub_accounts_per_symbol_side=2,
+            correlation_max_sub_accounts_per_strategy_symbol_side=4,
+        ),
+    )
+
+    resolved = PolicyResolver(
+        config=config,
+        sub_account=sub_account,
+        default_leverage=10,
+    ).resolve()
+
+    assert resolved.bitcoin_symbol == "BTC-PERP/USDT"
+    assert resolved.altcoin_symbols == ["SOL/USDT", "BNB/USDT"]
+    assert resolved.altcoin_top_k == 2
+    assert resolved.sizing_balance == Decimal("2500")
+    assert resolved.risk_percent == Decimal("0.25")
+    assert resolved.leverage == 4
+    assert resolved.auto_approve_threshold == 1.5
+    assert resolved.max_open_positions_total == 5
+    assert resolved.max_open_positions_per_symbol == 3
+    assert resolved.runtime_safety_pause_min_score == 70
+    assert resolved.fill_slippage_tolerance == Decimal("0.01")
+    assert resolved.reject_if_past_stop_loss is False
+    assert resolved.reject_if_stale_quote is True
+    assert resolved.max_ticker_age_seconds == 3.0
+    assert resolved.correlation_gate_enabled is True
+    assert resolved.correlation_max_sub_accounts_per_symbol_side == 2
+    assert resolved.correlation_max_sub_accounts_per_strategy_symbol_side == 4
+
+    defaulted = PolicyResolver(
+        config=config,
+        sub_account=None,
+        default_leverage=10,
+    ).resolve()
+    assert defaulted.bitcoin_symbol == "BTC/USDT"
+    assert defaulted.altcoin_symbols == ["ETH/USDT"]
+    assert defaulted.altcoin_top_k == 1
+    assert defaulted.sizing_balance == Decimal("10000")
+    assert defaulted.risk_percent is None
+    assert defaulted.leverage == 10
+    assert defaulted.auto_approve_threshold == 1.0
+    assert defaulted.max_open_positions_total is None
+    assert defaulted.max_open_positions_per_symbol == 1
+    assert defaulted.runtime_safety_pause_min_score == 80
+    assert defaulted.fill_slippage_tolerance == Decimal("0.005")
+    assert defaulted.reject_if_past_stop_loss is True
+    assert defaulted.reject_if_stale_quote is False
+    assert defaulted.max_ticker_age_seconds == 10.0
+    assert defaulted.correlation_gate_enabled is False
+    assert defaulted.correlation_max_sub_accounts_per_symbol_side == 1
+    assert defaulted.correlation_max_sub_accounts_per_strategy_symbol_side == 1
 
 
 def test_cap_respects_env_via_settings(monkeypatch: pytest.MonkeyPatch) -> None:
