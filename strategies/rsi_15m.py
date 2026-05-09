@@ -36,4 +36,7 @@ TECHNIQUE_INFO = {
     # 15m mean-reversion: 24 bars (~6h) is the outer envelope before
     # an oversold/overbought reading is no longer the same trade.
     "max_bars_held": 24,
+    # Sibling-dedup family (P0-E): see ``strategies/rsi.py`` header
+    # comment. All three RSI cadence variants share this family.
+    "strategy_family": "rsi_mean_reversion",
 }

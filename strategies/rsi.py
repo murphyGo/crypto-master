@@ -45,6 +45,13 @@ TECHNIQUE_INFO = {
     # Mean-reversion thesis decays in 1-2 bars; if RSI hasn't carried
     # us to TP/SL within ~8 hours we have nothing left to wait on.
     "max_bars_held": 8,
+    # Sibling-dedup family (P0-E): rsi_universal, rsi_4h and rsi_15m
+    # all delegate to RSIMeanReversionStrategy and have been observed
+    # firing identical signals on the same symbol within seconds of
+    # each other (12-day Fly paper run, AVAX/USDT short at 9.77).
+    # Sharing this family lets the engine accept only the first sibling
+    # per (symbol, side, cycle) and reject the rest as duplicates.
+    "strategy_family": "rsi_mean_reversion",
 }
 
 

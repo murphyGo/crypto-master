@@ -630,6 +630,18 @@ class TradingEngine:
         # ``(direction, last_close, sma200)`` where ``direction`` is
         # ``"up"`` or ``"down"``.
         self._htf_trend_cache: dict[tuple[str, str], tuple[str, Decimal, Decimal]] = {}
+        # P0-E: sibling-strategy de-duplication cache. Keyed by
+        # ``(strategy_family, symbol, signal)`` and reset at every
+        # ``run_cycle`` start. The value is the ``technique_name`` of
+        # the first strategy in the family that won the gate this
+        # cycle, recorded for traceability in the rejection event of
+        # any later sibling that proposes the same (symbol, side).
+        # A 12-day Fly paper run showed rsi_universal / rsi_4h /
+        # rsi_15m firing identical AVAX/USDT shorts at 9.77 within
+        # seven seconds of each other — effective 3x leverage on the
+        # same losing thesis because the correlation gate keys on
+        # ``technique_name`` and treats them as independent.
+        self._accepted_family_signals: dict[tuple[str, str, str], str] = {}
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -763,6 +775,7 @@ class TradingEngine:
         self._runtime_policy_cache = {}
         self._runtime_safety_score_cache = None
         self._htf_trend_cache = {}
+        self._accepted_family_signals = {}
         self.activity_log.append(
             ActivityEventType.CYCLE_STARTED,
             f"Cycle {self._cycle_index} begin",
@@ -1080,6 +1093,23 @@ class TradingEngine:
                     )
                 return
 
+            sibling_rejection = self._sibling_family_gate(
+                proposal,
+                record,
+                cycle_id,
+            )
+            if sibling_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(sibling_rejection.final_record)
+                for event in events + sibling_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
             post_incident_safety_score = self._current_runtime_safety_score(
                 [event.to_activity_event() for event in events]
             )
@@ -1313,6 +1343,85 @@ class TradingEngine:
                 "leverage": proposal.leverage,
             },
             cycle_id=cycle_id,
+        )
+
+    def _sibling_family_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject sibling-strategy proposals (same family, symbol, side, cycle).
+
+        P0-E sibling de-duplication. Two strategies that share a
+        non-None ``TechniqueInfo.strategy_family`` are treated as
+        cadence variants of the same logic — when both fire the same
+        ``(symbol, signal-side)`` in the same cycle, the engine keeps
+        only the first one and rejects the rest. The correlation gate
+        keys on ``technique_name`` so it sees siblings as independent
+        and does not catch this fan-out on its own.
+
+        Returns ``None`` (pass) when:
+
+        * the strategy is unknown to the proposal engine — fail open
+          rather than block on a registry-lookup glitch, and
+        * ``info.strategy_family is None`` — strategies that have not
+          opted into family grouping are never deduped against any
+          other strategy (preserves all existing single-cadence
+          strategies' behaviour).
+
+        Per-cycle state lives in ``_accepted_family_signals``, which
+        is wiped at every ``run_cycle`` start next to
+        ``_htf_trend_cache``. The cache value records the
+        ``technique_name`` of the first-pass winner so the rejection
+        event can name it for traceability.
+
+        Only proposals that have already been accepted by every prior
+        gate (composite, correlation, trend filter) reach this point,
+        so adding to the cache on first pass is safe — we are
+        recording "this family already won this cycle for this
+        (symbol, side)".
+        """
+        strategy = self.proposal_engine.strategies.get(proposal.technique_name)
+        if strategy is None:
+            return None
+        family = strategy.info.strategy_family
+        if family is None:
+            return None
+
+        key = (family, proposal.symbol, proposal.signal)
+        first_winner = self._accepted_family_signals.get(key)
+        if first_winner is None:
+            self._accepted_family_signals[key] = proposal.technique_name
+            return None
+
+        reason = f"sibling_strategy_dedup:{family}"
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Sibling-dedup rejected {proposal.symbol} {proposal.signal}",
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "family": family,
+                        "symbol": proposal.symbol,
+                        "signal": proposal.signal,
+                        "first_winner_technique": first_winner,
+                    },
+                    cycle_id,
+                )
+            ],
+            rejected_record,
         )
 
     def _runtime_safety_pause_gate(

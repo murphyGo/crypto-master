@@ -3263,3 +3263,370 @@ class TestTrendFilterGate:
         assert result.proposals_rejected == 2
         assert result.positions_opened == 0
         assert get_ohlcv.call_count == 1
+
+
+def _make_family_stub_strategy(
+    name: str, *, strategy_family: str | None
+) -> BaseStrategy:
+    """Build a stub strategy parameterised on ``strategy_family``.
+
+    Counter-trend defaults to False so the trend-filter gate is a
+    no-op and the sibling-family gate is the only thing under test
+    in the table-style cases below.
+    """
+    info = TechniqueInfo(
+        name=name,
+        version="1.0.0",
+        description="stub",
+        technique_type="code",
+        counter_trend=False,
+        strategy_family=strategy_family,
+    )
+    return _StubStrategy(info)
+
+
+class TestSiblingFamilyGate:
+    """P0-E sibling-strategy de-duplication.
+
+    Two strategies sharing a non-None ``strategy_family`` that fire
+    the same ``(symbol, signal-side)`` in the same cycle: only the
+    first wins; the rest are rejected with reason
+    ``sibling_strategy_dedup:<family>``.
+    """
+
+    async def test_first_sibling_proposal_passes_subsequent_blocked(
+        self, tmp_path: Path
+    ) -> None:
+        proposal_a = make_proposal(
+            proposal_id="sib-a",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        proposal_b = make_proposal(
+            proposal_id="sib-b",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_15m"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_a,
+            altcoin_proposals=[proposal_b],
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+            "rsi_15m": _make_family_stub_strategy(
+                "rsi_15m", strategy_family="rsi_mean_reversion"
+            ),
+        }
+
+        result = await engine.run_cycle()
+
+        # First sibling fills; second sibling is rejected by the gate
+        # (composite gate accepted both, so accepted = 2).
+        assert result.proposals_accepted == 2
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 1
+        record_a = mocks["history"].load("sib-a")
+        record_b = mocks["history"].load("sib-b")
+        assert record_a.decision == ProposalDecision.ACCEPTED.value
+        assert record_b.decision == ProposalDecision.REJECTED.value
+        assert "sibling_strategy_dedup" in (record_b.rejection_reason or "")
+        assert "rsi_mean_reversion" in (record_b.rejection_reason or "")
+
+    async def test_different_signal_passes(self, tmp_path: Path) -> None:
+        # Same family + same symbol + opposite side → both pass the
+        # gate. Long and short on the same symbol are distinct theses.
+        proposal_long = make_proposal(
+            proposal_id="sib-long",
+            composite=2.0,
+            signal="long",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.57",
+            tp="10.17",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        proposal_short = make_proposal(
+            proposal_id="sib-short",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_15m"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_long,
+            altcoin_proposals=[proposal_short],
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+            "rsi_15m": _make_family_stub_strategy(
+                "rsi_15m", strategy_family="rsi_mean_reversion"
+            ),
+        }
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 2
+        assert result.positions_opened == 2
+        assert mocks["history"].load("sib-long").decision == (
+            ProposalDecision.ACCEPTED.value
+        )
+        assert mocks["history"].load("sib-short").decision == (
+            ProposalDecision.ACCEPTED.value
+        )
+
+    async def test_different_symbol_passes(self, tmp_path: Path) -> None:
+        # Same family + same side + different symbol → both pass.
+        proposal_avax = make_proposal(
+            proposal_id="sib-avax",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        proposal_sol = make_proposal(
+            proposal_id="sib-sol",
+            composite=2.0,
+            signal="short",
+            symbol="SOL/USDT",
+            entry="90.15",
+            sl="92.0",
+            tp="86.5",
+        ).model_copy(update={"technique_name": "rsi_15m"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_avax,
+            altcoin_proposals=[proposal_sol],
+            ticker_price=Decimal("9.77"),
+        )
+        # Per-symbol ticker so the slippage gate matches each
+        # proposal's entry price exactly. ``build_engine`` defaults to
+        # a single fixed ticker, which would reject SOL because the
+        # AVAX-priced ticker drifts well past tolerance.
+        symbol_to_price = {
+            "AVAX/USDT": Decimal("9.77"),
+            "SOL/USDT": Decimal("90.15"),
+        }
+
+        async def fake_get_ticker(symbol: str) -> Ticker:
+            return Ticker(
+                symbol=symbol,
+                price=symbol_to_price[symbol],
+                timestamp=now_utc(),
+            )
+
+        mocks["exchange"].get_ticker = AsyncMock(side_effect=fake_get_ticker)
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+            "rsi_15m": _make_family_stub_strategy(
+                "rsi_15m", strategy_family="rsi_mean_reversion"
+            ),
+        }
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 2
+        assert result.positions_opened == 2
+
+    async def test_different_family_passes(self, tmp_path: Path) -> None:
+        # Different family + same symbol + same side → both pass.
+        proposal_a = make_proposal(
+            proposal_id="sib-fam-a",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        proposal_b = make_proposal(
+            proposal_id="sib-fam-b",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "ict_smc"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_a,
+            altcoin_proposals=[proposal_b],
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+            "ict_smc": _make_family_stub_strategy(
+                "ict_smc", strategy_family="ict_smc_setups"
+            ),
+        }
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 2
+        assert result.positions_opened == 2
+
+    async def test_no_family_never_deduped(self, tmp_path: Path) -> None:
+        # Both strategies have ``strategy_family=None`` → both pass
+        # even though every other axis (symbol, side) matches the
+        # dedup case. This preserves the historical behaviour for
+        # every existing single-cadence strategy.
+        proposal_a = make_proposal(
+            proposal_id="sib-none-a",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "ema_cross"})
+        proposal_b = make_proposal(
+            proposal_id="sib-none-b",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "macd_div"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_a,
+            altcoin_proposals=[proposal_b],
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "ema_cross": _make_family_stub_strategy("ema_cross", strategy_family=None),
+            "macd_div": _make_family_stub_strategy("macd_div", strategy_family=None),
+        }
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 2
+        assert result.positions_opened == 2
+
+    async def test_cache_cleared_between_cycles(self, tmp_path: Path) -> None:
+        # Same family + same (symbol, side) across two distinct cycles
+        # → both pass. The dedup cache must reset at the start of
+        # every ``run_cycle`` so a winning sibling in cycle N does not
+        # silently block its identical-family sibling in cycle N+1.
+        proposal = make_proposal(
+            proposal_id="sib-cycle-1",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal,
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+        }
+
+        # Cycle 1.
+        result1 = await engine.run_cycle()
+        assert result1.proposals_accepted == 1
+        assert result1.positions_opened == 1
+
+        # Cycle 2: identical proposal (different id) — must pass.
+        proposal2 = make_proposal(
+            proposal_id="sib-cycle-2",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        mocks["proposal_engine"].propose_bitcoin = AsyncMock(return_value=proposal2)
+
+        result2 = await engine.run_cycle()
+        assert result2.proposals_accepted == 1
+        assert result2.proposals_rejected == 0
+        assert result2.positions_opened == 1
+        assert mocks["history"].load("sib-cycle-2").decision == (
+            ProposalDecision.ACCEPTED.value
+        )
+
+    async def test_first_winner_logged_in_event(self, tmp_path: Path) -> None:
+        # The PROPOSAL_REJECTED event for a sibling-dedup miss must
+        # name the technique that won the gate first, so operators can
+        # tell which cadence "stole" the slot from the duplicate.
+        proposal_first = make_proposal(
+            proposal_id="sib-first",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_4h"})
+        proposal_loser = make_proposal(
+            proposal_id="sib-loser",
+            composite=2.0,
+            signal="short",
+            symbol="AVAX/USDT",
+            entry="9.77",
+            sl="9.97",
+            tp="9.37",
+        ).model_copy(update={"technique_name": "rsi_15m"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_first,
+            altcoin_proposals=[proposal_loser],
+            ticker_price=Decimal("9.77"),
+        )
+        mocks["proposal_engine"].strategies = {
+            "rsi_4h": _make_family_stub_strategy(
+                "rsi_4h", strategy_family="rsi_mean_reversion"
+            ),
+            "rsi_15m": _make_family_stub_strategy(
+                "rsi_15m", strategy_family="rsi_mean_reversion"
+            ),
+        }
+
+        await engine.run_cycle()
+
+        rejected = mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        sibling_events = [
+            event
+            for event in rejected
+            if "sibling_strategy_dedup" in (event.details.get("reason") or "")
+        ]
+        assert len(sibling_events) == 1
+        details = sibling_events[0].details
+        assert details["family"] == "rsi_mean_reversion"
+        assert details["symbol"] == "AVAX/USDT"
+        assert details["signal"] == "short"
+        assert details["first_winner_technique"] == "rsi_4h"

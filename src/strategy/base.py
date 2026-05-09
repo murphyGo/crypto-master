@@ -250,6 +250,19 @@ class TechniqueInfo(BaseModel):
         ),
     )
 
+    strategy_family: str | None = Field(
+        default=None,
+        description=(
+            "Optional grouping key for sibling strategies (e.g. cadence "
+            "variants of the same logic). When two strategies share a "
+            "non-None strategy_family AND propose the same (symbol, "
+            "signal-side) within the same cycle, the engine accepts only "
+            "the first one and rejects the rest with reason "
+            "'sibling_strategy_dedup'. Strategies with strategy_family=None "
+            "are never deduped against any other strategy."
+        ),
+    )
+
     model_config = {"frozen": True}
 
 

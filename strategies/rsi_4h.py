@@ -42,4 +42,7 @@ TECHNIQUE_INFO = {
     # oversold/overbought reversion to play out before the thesis
     # stales.
     "max_bars_held": 6,
+    # Sibling-dedup family (P0-E): see ``strategies/rsi.py`` header
+    # comment. All three RSI cadence variants share this family.
+    "strategy_family": "rsi_mean_reversion",
 }
