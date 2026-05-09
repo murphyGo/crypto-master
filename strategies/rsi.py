@@ -8,6 +8,13 @@ the baseline's "edge" lives entirely in signal *timing*, which makes
 it a clean reference point for comparing against LLM-driven
 techniques.
 
+v1.1.0: bump TAKE_PROFIT_PCT 0.04 → 0.05 so the nominal R/R
+becomes 2.5:1 (was 2.0:1). The proposal-layer min R/R floor is
+2.0; an ATR-driven SL widening of even a few basis points was
+silently fail-closing every RSI proposal. R/R 2.5 carries margin
+against widening on volatile 4h/1h alts where ATR floor can push
+SL past the strategy's nominal 2%.
+
 This file is the universal-cadence variant: it runs on whatever
 timeframe the engine passes. Phase 9.4 added explicit
 ``rsi_4h.py`` (swing) and ``rsi_15m.py`` (scalp) siblings that
@@ -30,17 +37,26 @@ from src.strategy.indicators import InsufficientDataError, rsi
 
 TECHNIQUE_INFO = {
     "name": "rsi_universal",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
         "RSI mean-reversion: long when RSI<30, short when RSI>70. "
-        "Universal-timeframe baseline; ``rsi_4h`` and ``rsi_15m`` "
-        "are explicit-cadence siblings."
+        "SL=2% / TP=5% (R/R 2.5:1, carries margin against the 2.0 "
+        "min R/R floor under ATR-driven SL widening). Universal-"
+        "timeframe baseline; ``rsi_4h`` and ``rsi_15m`` are "
+        "explicit-cadence siblings."
     ),
     "author": "system",
     "symbols": [],  # universal
     "timeframes": ["1h", "4h", "15m"],
     "status": "experimental",
-    "changelog": "Initial version (baseline)",
+    "changelog": (
+        "1.1.0: TAKE_PROFIT_PCT 0.04 -> 0.05 (R/R 2.0 -> 2.5). "
+        "12-day Fly proposal data showed RSI median R/R was "
+        "exactly 2.00; the universal SL floor + 2.0 R/R fail-closed "
+        "gate (commits 313a8b7 / 7e9162e) silently dropped ~50% of "
+        "RSI proposals when even a basis point of SL widening fired. "
+        "1.0.0: initial version (baseline)."
+    ),
     "counter_trend": True,
     # Mean-reversion thesis decays in 1-2 bars; if RSI hasn't carried
     # us to TP/SL within ~8 hours we have nothing left to wait on.
@@ -61,7 +77,10 @@ RSI_PERIOD = 14
 OVERSOLD_THRESHOLD = 30.0
 OVERBOUGHT_THRESHOLD = 70.0
 STOP_LOSS_PCT = 0.02  # 2%
-TAKE_PROFIT_PCT = 0.04  # 4% → R/R = 2 : 1
+# v1.1.0: was 0.04 (R/R 2:1). Bumped so the nominal R/R 2.5:1 keeps
+# margin above the proposal-layer 2.0 floor after ATR-driven SL
+# widening on volatile 4h/1h alts (where SL can drift to ~2.25%).
+TAKE_PROFIT_PCT = 0.05  # 5% → R/R = 2.5 : 1
 
 
 class RSIMeanReversionStrategy(BaseStrategy):

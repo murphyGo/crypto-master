@@ -27,16 +27,22 @@ RSI4hMeanReversionStrategy = RSIMeanReversionStrategy
 
 TECHNIQUE_INFO = {
     "name": "rsi_4h",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
         "RSI mean-reversion locked to 4h candles. Swing cadence: "
-        "long when RSI<30, short when RSI>70."
+        "long when RSI<30, short when RSI>70. SL=2% / TP=5% (R/R "
+        "2.5:1, see strategies/rsi.py v1.1.0 changelog)."
     ),
     "author": "system",
     "symbols": [],  # universal — applies to every USDT pair
     "timeframes": ["4h"],
     "status": "experimental",
-    "changelog": "Initial version (4h split from rsi_universal)",
+    "changelog": (
+        "1.1.0: inherits TAKE_PROFIT_PCT=0.05 (R/R 2.5:1) from "
+        "shared RSIMeanReversionStrategy; see strategies/rsi.py "
+        "v1.1.0 for full rationale. "
+        "1.0.0: initial 4h split from rsi_universal."
+    ),
     "counter_trend": True,
     # 4h mean-reversion: 6 bars (~1 day) is plenty for a single
     # oversold/overbought reversion to play out before the thesis
