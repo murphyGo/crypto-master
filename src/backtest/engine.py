@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -370,6 +370,18 @@ class _OpenTrade:
     entry_fee: Decimal
 
 
+@dataclass
+class _BacktestLoopState:
+    """Mutable state shared by single-TF and multi-TF per-bar execution."""
+
+    balance: Decimal
+    trades: list[BacktestTrade]
+    open_trade: _OpenTrade | None = None
+    consecutive_failures: int = 0
+    analyzed_bars: int = 0
+    cumulative_failures: int = 0
+
+
 def slice_multi_tf_by_index(
     primary_ohlcv: list[OHLCV],
     ohlcv_by_timeframe: dict[str, list[OHLCV]] | None,
@@ -488,129 +500,36 @@ class Backtester:
         trading_strategy = self._build_trading_strategy(profile)
         risk_percent, leverage = self._resolve_sizing(profile)
 
-        balance = self.config.initial_balance
-        trades: list[BacktestTrade] = []
-        open_trade: _OpenTrade | None = None
-        # Phase 17.2 / DEBT-019: consecutive-failure counter for the
-        # per-bar circuit breaker. A single non-error bar resets it;
-        # see _check_breaker / the extended try/except below.
-        consecutive_failures = 0
-        analyzed_bars = 0
-        cumulative_failures = 0
+        state = _BacktestLoopState(balance=self.config.initial_balance, trades=[])
 
         warmup_candles = self.effective_warmup_candles(strategy)
 
         # First analysis call happens once we have enough history.
         # Walk candle-by-candle; the strategy only sees up to index i.
         for i, current_candle in enumerate(ohlcv):
-            # 1. Apply intra-candle SL/TP checks to any open trade.
-            open_trade, balance = self._close_open_trade_if_exit_hit(
-                open_trade=open_trade,
-                current_candle=current_candle,
-                balance=balance,
-                trades=trades,
-            )
-
-            # 2. Not enough history yet? skip analysis.
-            if i + 1 < warmup_candles:
-                continue
-
-            # 3. Concurrent positions gate.
-            if open_trade is not None and not self.config.allow_concurrent_positions:
-                continue
-
-            # 4. Run the technique on candles 0..i (inclusive).
-            # Phase 17.2 / DEBT-019: ``asyncio.wait_for`` enforces a
-            # per-bar wall-clock ceiling; ``ClaudeParseError`` is
-            # caught here too because it is NOT a ``StrategyError``
-            # subclass. The consecutive-failure counter resets on any
-            # successful invocation so transient blips don't trip the
-            # breaker.
-            try:
-                analysis = await asyncio.wait_for(
-                    strategy.analyze(ohlcv[: i + 1], symbol, timeframe),
-                    timeout=self.config.per_bar_timeout,
-                )
-            except asyncio.TimeoutError as e:
-                logger.warning(
-                    f"Strategy.analyze exceeded per-bar timeout "
-                    f"({self.config.per_bar_timeout}s) on candle {i}: "
-                    f"{e}; aborting backtest"
-                )
-                raise BacktestAbortedError(
-                    reason="per_bar_timeout", candle_index=i
-                ) from e
-            except StrategyDataInsufficient as e:
-                # Warmup gate — "not enough data yet". Skip the bar
-                # without incrementing the breaker counter (otherwise a
-                # strategy whose internal warmup exceeds
-                # ``BacktestConfig.warmup_candles`` would trip the
-                # breaker immediately, which is a footgun, not a
-                # circuit breaker). Only the dedicated subclass skips —
-                # other ``StrategyValidationError`` paths (bad prompt
-                # placeholder, banned imports, malformed metadata) fall
-                # through to the breaker so a structurally broken
-                # strategy cannot quietly trade for thousands of bars
-                # and emerge with a 0-trade pass (CH-04).
-                logger.debug(
-                    f"Strategy warmup short on candle {i}: {e}; "
-                    "skipping (does not count toward breaker)"
-                )
-                continue
-            except (ClaudeParseError, StrategyError) as e:
-                analyzed_bars += 1
-                cumulative_failures += 1
-                consecutive_failures += 1
-                logger.debug(
-                    f"Strategy raised on candle {i} "
-                    f"({type(e).__name__}, "
-                    f"streak={consecutive_failures}/"
-                    f"{self.config.max_parse_failures}): {e}"
-                )
-                if consecutive_failures >= self.config.max_parse_failures:
-                    logger.warning(
-                        f"Strategy.analyze hit "
-                        f"{self.config.max_parse_failures} consecutive "
-                        f"parse/strategy failures by candle {i}; "
-                        f"aborting backtest"
-                    )
-                    raise BacktestAbortedError(
-                        reason="consecutive_parse_failures",
-                        candle_index=i,
-                    ) from e
-                self._raise_if_cumulative_failure_rate_exceeded(
-                    candle_index=i,
-                    analyzed_bars=analyzed_bars,
-                    cumulative_failures=cumulative_failures,
-                    context="backtest",
-                    source=e,
-                )
-                continue
-            else:
-                analyzed_bars += 1
-                consecutive_failures = 0
-
-            filled = self._open_trade_from_analysis(
-                analysis=analysis,
+            await self._execute_bar(
+                state=state,
+                strategy=strategy,
+                analysis_ohlcv=ohlcv[: i + 1],
+                analyze_kwargs={},
                 symbol=symbol,
+                timeframe=timeframe,
                 current_candle=current_candle,
                 trading_strategy=trading_strategy,
                 profile=profile,
-                balance=balance,
                 leverage=leverage,
                 risk_percent=risk_percent,
                 candle_index=i,
+                can_analyze=i + 1 >= warmup_candles,
+                failure_context="backtest",
             )
-            if filled is None:
-                continue
-            open_trade, balance = filled
 
         # End of data: force-close any lingering position at the last close.
-        open_trade, balance = self._close_open_trade_at_end_of_data(
-            open_trade=open_trade,
+        state.open_trade, state.balance = self._close_open_trade_at_end_of_data(
+            open_trade=state.open_trade,
             last_candle=ohlcv[-1],
-            balance=balance,
-            trades=trades,
+            balance=state.balance,
+            trades=state.trades,
         )
 
         return self._build_result(
@@ -619,8 +538,8 @@ class Backtester:
             symbol=symbol,
             timeframe=timeframe,
             profile=profile,
-            trades=trades,
-            final_balance=balance,
+            trades=state.trades,
+            final_balance=state.balance,
         )
 
     async def run_multi_timeframe(
@@ -687,26 +606,10 @@ class Backtester:
             for tf in higher_timeframes
         }
 
-        balance = self.config.initial_balance
-        trades: list[BacktestTrade] = []
-        open_trade: _OpenTrade | None = None
-        # Phase 17.2 / DEBT-019: consecutive-failure counter for the
-        # per-bar circuit breaker (mirrors single-TF run loop).
-        consecutive_failures = 0
-        analyzed_bars = 0
-        cumulative_failures = 0
+        state = _BacktestLoopState(balance=self.config.initial_balance, trades=[])
         warmup_candles = self.effective_warmup_candles(strategy)
 
         for i, current_candle in enumerate(primary_ohlcv):
-            # 1. Apply intra-candle SL/TP checks to any open trade.
-            open_trade, balance = self._close_open_trade_if_exit_hit(
-                open_trade=open_trade,
-                current_candle=current_candle,
-                balance=balance,
-                trades=trades,
-            )
-
-            # 2. Build the multi-TF slice through the current bar.
             primary_slice = primary_ohlcv[: i + 1]
             slice_dict: dict[str, list[OHLCV]] = {primary_timeframe: primary_slice}
             cur_ts = current_candle.timestamp
@@ -714,105 +617,34 @@ class Backtester:
                 hi = bisect.bisect_right(higher_timestamps[tf], cur_ts)
                 slice_dict[tf] = ohlcv_by_timeframe[tf][:hi]
 
-            # 3. Warmup gate — every TF must have enough history. ICT
-            # / SMC-style top-down analysis is meaningless without a
-            # full higher-TF context window.
-            if any(len(slice_dict[tf]) < warmup_candles for tf in slice_dict):
-                continue
-
-            # 4. Concurrent positions gate.
-            if open_trade is not None and not self.config.allow_concurrent_positions:
-                continue
-
-            # 5. Run the technique with the full multi-TF context.
-            # Phase 17.2 / DEBT-019: per-bar circuit breaker — mirror
-            # of the single-TF path. ``asyncio.wait_for`` caps the
-            # per-bar wall clock; ``ClaudeParseError`` is caught
-            # alongside ``StrategyError`` because it does NOT inherit
-            # from it.
-            try:
-                analysis = await asyncio.wait_for(
-                    strategy.analyze(
-                        primary_slice,
-                        symbol,
-                        primary_timeframe,
-                        ohlcv_by_timeframe=slice_dict,
-                        current_price=current_candle.close,
-                    ),
-                    timeout=self.config.per_bar_timeout,
-                )
-            except asyncio.TimeoutError as e:
-                logger.warning(
-                    f"Strategy.analyze exceeded per-bar timeout "
-                    f"({self.config.per_bar_timeout}s) on candle {i}: "
-                    f"{e}; aborting multi-TF backtest"
-                )
-                raise BacktestAbortedError(
-                    reason="per_bar_timeout", candle_index=i
-                ) from e
-            except StrategyDataInsufficient as e:
-                # See single-TF path (CH-04): warmup-only is a skip.
-                # Structural ``StrategyValidationError`` falls through
-                # to the breaker.
-                logger.debug(
-                    f"Strategy warmup short on candle {i}: {e}; "
-                    "skipping (does not count toward breaker)"
-                )
-                continue
-            except (ClaudeParseError, StrategyError) as e:
-                analyzed_bars += 1
-                cumulative_failures += 1
-                consecutive_failures += 1
-                logger.debug(
-                    f"Strategy raised on candle {i} "
-                    f"({type(e).__name__}, "
-                    f"streak={consecutive_failures}/"
-                    f"{self.config.max_parse_failures}): {e}"
-                )
-                if consecutive_failures >= self.config.max_parse_failures:
-                    logger.warning(
-                        f"Strategy.analyze hit "
-                        f"{self.config.max_parse_failures} consecutive "
-                        f"parse/strategy failures by candle {i}; "
-                        f"aborting multi-TF backtest"
-                    )
-                    raise BacktestAbortedError(
-                        reason="consecutive_parse_failures",
-                        candle_index=i,
-                    ) from e
-                self._raise_if_cumulative_failure_rate_exceeded(
-                    candle_index=i,
-                    analyzed_bars=analyzed_bars,
-                    cumulative_failures=cumulative_failures,
-                    context="multi-TF backtest",
-                    source=e,
-                )
-                continue
-            else:
-                analyzed_bars += 1
-                consecutive_failures = 0
-
-            filled = self._open_trade_from_analysis(
-                analysis=analysis,
+            await self._execute_bar(
+                state=state,
+                strategy=strategy,
+                analysis_ohlcv=primary_slice,
+                analyze_kwargs={
+                    "ohlcv_by_timeframe": slice_dict,
+                    "current_price": current_candle.close,
+                },
                 symbol=symbol,
+                timeframe=primary_timeframe,
                 current_candle=current_candle,
                 trading_strategy=trading_strategy,
                 profile=profile,
-                balance=balance,
                 leverage=leverage,
                 risk_percent=risk_percent,
                 candle_index=i,
+                can_analyze=all(
+                    len(slice_dict[tf]) >= warmup_candles for tf in slice_dict
+                ),
+                failure_context="multi-TF backtest",
             )
-            if filled is None:
-                continue
-            open_trade, balance = filled
 
         # End of data: force-close any lingering position.
-        open_trade, balance = self._close_open_trade_at_end_of_data(
-            open_trade=open_trade,
+        state.open_trade, state.balance = self._close_open_trade_at_end_of_data(
+            open_trade=state.open_trade,
             last_candle=primary_ohlcv[-1],
-            balance=balance,
-            trades=trades,
+            balance=state.balance,
+            trades=state.trades,
         )
 
         return self._build_result(
@@ -821,8 +653,8 @@ class Backtester:
             symbol=symbol,
             timeframe=primary_timeframe,
             profile=profile,
-            trades=trades,
-            final_balance=balance,
+            trades=state.trades,
+            final_balance=state.balance,
         )
 
     async def run_for_strategy(
@@ -925,6 +757,110 @@ class Backtester:
             reason="cumulative_parse_failure_rate",
             candle_index=candle_index,
         ) from source
+
+    async def _execute_bar(
+        self,
+        *,
+        state: _BacktestLoopState,
+        strategy: BaseStrategy,
+        analysis_ohlcv: list[OHLCV],
+        analyze_kwargs: dict[str, Any],
+        symbol: str,
+        timeframe: str,
+        current_candle: OHLCV,
+        trading_strategy: TradingStrategy,
+        profile: TradingProfile | None,
+        leverage: int,
+        risk_percent: float,
+        candle_index: int,
+        can_analyze: bool,
+        failure_context: str,
+    ) -> None:
+        """Execute one walk-forward bar for single-TF and multi-TF backtests."""
+        state.open_trade, state.balance = self._close_open_trade_if_exit_hit(
+            open_trade=state.open_trade,
+            current_candle=current_candle,
+            balance=state.balance,
+            trades=state.trades,
+        )
+
+        if not can_analyze:
+            return
+        if state.open_trade is not None and not self.config.allow_concurrent_positions:
+            return
+
+        try:
+            analysis = await asyncio.wait_for(
+                strategy.analyze(
+                    analysis_ohlcv,
+                    symbol,
+                    timeframe,
+                    **analyze_kwargs,
+                ),
+                timeout=self.config.per_bar_timeout,
+            )
+        except asyncio.TimeoutError as e:
+            logger.warning(
+                f"Strategy.analyze exceeded per-bar timeout "
+                f"({self.config.per_bar_timeout}s) on candle {candle_index}: "
+                f"{e}; aborting {failure_context}"
+            )
+            raise BacktestAbortedError(
+                reason="per_bar_timeout", candle_index=candle_index
+            ) from e
+        except StrategyDataInsufficient as e:
+            logger.debug(
+                f"Strategy warmup short on candle {candle_index}: {e}; "
+                "skipping (does not count toward breaker)"
+            )
+            return
+        except (ClaudeParseError, StrategyError) as e:
+            state.analyzed_bars += 1
+            state.cumulative_failures += 1
+            state.consecutive_failures += 1
+            logger.debug(
+                f"Strategy raised on candle {candle_index} "
+                f"({type(e).__name__}, "
+                f"streak={state.consecutive_failures}/"
+                f"{self.config.max_parse_failures}): {e}"
+            )
+            if state.consecutive_failures >= self.config.max_parse_failures:
+                logger.warning(
+                    f"Strategy.analyze hit "
+                    f"{self.config.max_parse_failures} consecutive "
+                    f"parse/strategy failures by candle {candle_index}; "
+                    f"aborting {failure_context}"
+                )
+                raise BacktestAbortedError(
+                    reason="consecutive_parse_failures",
+                    candle_index=candle_index,
+                ) from e
+            self._raise_if_cumulative_failure_rate_exceeded(
+                candle_index=candle_index,
+                analyzed_bars=state.analyzed_bars,
+                cumulative_failures=state.cumulative_failures,
+                context=failure_context,
+                source=e,
+            )
+            return
+
+        state.analyzed_bars += 1
+        state.consecutive_failures = 0
+
+        filled = self._open_trade_from_analysis(
+            analysis=analysis,
+            symbol=symbol,
+            current_candle=current_candle,
+            trading_strategy=trading_strategy,
+            profile=profile,
+            balance=state.balance,
+            leverage=leverage,
+            risk_percent=risk_percent,
+            candle_index=candle_index,
+        )
+        if filled is None:
+            return
+        state.open_trade, state.balance = filled
 
     def _apply_slippage(
         self,
