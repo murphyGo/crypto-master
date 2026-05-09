@@ -133,7 +133,13 @@ class ControllableStrategy(BaseStrategy):
         self.calls: list[int] = []
 
     async def analyze(
-        self, ohlcv: list[OHLCV], symbol: str, timeframe: str = "1h"
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         index = len(ohlcv) - 1
         self.calls.append(index)
@@ -513,7 +519,7 @@ class TestProfileIntegration:
         profile = TradingProfile(
             name="strict",
             min_confidence=0.9,
-            risk_percent=1.0,
+            risk_percent=Decimal("1.0"),
             max_leverage=5,
             default_leverage=1,
             min_risk_reward_ratio=1.5,
@@ -531,7 +537,7 @@ class TestProfileIntegration:
         profile = TradingProfile(
             name="moderate",
             min_confidence=0.5,
-            risk_percent=1.0,
+            risk_percent=Decimal("1.0"),
             max_leverage=5,
             default_leverage=1,
             min_risk_reward_ratio=1.5,
@@ -711,6 +717,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 raise ClaudeParseError("no parseable JSON in response")
@@ -776,6 +785,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 raise StrategyValidationError(
@@ -830,6 +842,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 raise StrategyDataInsufficient(
@@ -882,6 +897,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 # Block much longer than the per_bar_timeout below.
@@ -935,6 +953,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 if self.calls <= 4:
@@ -991,6 +1012,9 @@ class TestPerBarCircuitBreaker:
                 ohlcv: list[OHLCV],
                 symbol: str,
                 timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+                current_price: Decimal | None = None,
             ) -> AnalysisResult:
                 self.calls += 1
                 if self.calls % 2 == 1:
@@ -1546,3 +1570,286 @@ class TestBacktesterLiquidationParity:
         decision-point default agreed with the lead."""
         config = BacktestConfig()
         assert config.liquidation_threshold == Decimal("0")
+
+
+# =============================================================================
+# CH-27: single-TF / multi-TF execution parity
+# =============================================================================
+
+
+class _MultiModeStrategy(BaseStrategy):
+    """Deterministic strategy usable by both ``run`` and ``run_multi_timeframe``.
+
+    Signals are emitted purely as a function of ``len(ohlcv)`` (i.e. the
+    current candle index + 1) so the same candle stream produces the
+    identical decision sequence in either run mode. A handful of
+    pre-configured indices raise ``ClaudeParseError`` to exercise the
+    per-bar circuit-breaker bookkeeping shared between both modes
+    without tripping the abort threshold.
+    """
+
+    def __init__(
+        self,
+        *,
+        long_indices: set[int],
+        parse_error_indices: set[int],
+        requires_multi_tf: bool,
+    ) -> None:
+        super().__init__(
+            info=TechniqueInfo(
+                name="ch27_parity_strategy",
+                version="1.0.0",
+                description="deterministic single-/multi-TF parity strategy",
+                technique_type="code",
+                requires_multi_timeframe=requires_multi_tf,
+            )
+        )
+        self._long_indices = long_indices
+        self._parse_error_indices = parse_error_indices
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: "dict[str, list[OHLCV]] | None" = None,
+        current_price: "Decimal | None" = None,
+    ) -> AnalysisResult:
+        index = len(ohlcv) - 1
+        if index in self._parse_error_indices:
+            from src.ai.exceptions import ClaudeParseError
+
+            raise ClaudeParseError(f"deterministic parse failure at candle {index}")
+        if index in self._long_indices:
+            return AnalysisResult(
+                signal="long",
+                confidence=0.8,
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("51500"),  # R/R = 1.5 (engine min)
+                reasoning=f"long signal at index {index}",
+            )
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.0,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("51500"),
+            reasoning="neutral",
+        )
+
+
+def _build_parity_fixture() -> tuple[list[OHLCV], set[int], set[int]]:
+    """Build the deterministic 200-candle fixture for the parity test.
+
+    Returns ``(candles, long_indices, parse_error_indices)``. The
+    candle stream defaults to a flat 50_000 close. Selected later
+    candles are widened to engineer a TP hit (``high >= 51000``) or
+    SL hit (``low <= 49000``) so the run produces a mix of wins and
+    losses plus one open position that exits at end-of-data.
+    """
+    base_close = Decimal("50000")
+    spread = Decimal("100")
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    candles: list[OHLCV] = [
+        make_candle(
+            timestamp=start + timedelta(hours=i),
+            open_price=base_close,
+            high=base_close + spread,
+            low=base_close - spread,
+            close=base_close,
+        )
+        for i in range(200)
+    ]
+
+    # Each long entry signals at index N and the very next candle (N+1)
+    # engineered as either a TP or SL hit so the trade closes inside
+    # the run rather than dragging on. The final entry is intentionally
+    # left flat so it force-closes at end-of-data, exercising that path.
+    long_indices = {10, 30, 60, 90, 120, 150, 180, 195}
+    tp_exit_indices = {11, 61, 121, 181}  # win
+    sl_exit_indices = {31, 91, 151}  # loss
+    # index 196 is left flat -> 195's trade closes at end_of_data.
+
+    for i in tp_exit_indices:
+        candles[i] = make_candle(
+            timestamp=candles[i].timestamp,
+            open_price=base_close,
+            high=Decimal("52000"),  # blows through TP 51_500
+            low=base_close - spread,
+            close=Decimal("51700"),
+        )
+    for i in sl_exit_indices:
+        candles[i] = make_candle(
+            timestamp=candles[i].timestamp,
+            open_price=base_close,
+            high=base_close + spread,
+            low=Decimal("48700"),  # blows through SL 49_000
+            close=Decimal("48900"),
+        )
+
+    # Indices that should raise ClaudeParseError. We pick non-signal,
+    # non-exit candles and keep them well below ``max_parse_failures``
+    # consecutive (default 5) so the breaker tracks the failures
+    # without aborting the run.
+    parse_error_indices = {25, 50, 75, 100, 130, 170}
+
+    return candles, long_indices, parse_error_indices
+
+
+class TestRunMultiTimeframeParity:
+    """CH-27 — single-TF and multi-TF run loops execute through the same
+    per-bar helper, so a multi-TF run whose only timeframe mirrors the
+    single-TF series must produce a byte-identical closed-trade ledger,
+    equity curve, and final balance.
+    """
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_identical_ledger(
+        self, tmp_path: Path
+    ) -> None:
+        candles, long_indices, parse_error_indices = _build_parity_fixture()
+
+        single_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=False,
+        )
+        multi_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=True,
+        )
+
+        # Two backtester instances with the same config so the runs
+        # cannot accidentally share mutable state. Both use a fee_rate
+        # and slippage_bps of zero so PnL math reduces to clean
+        # decimals; the parity test is about loop dispatch, not the
+        # fee/slippage helpers (which are already covered above).
+        single_bt = make_backtester(tmp_path / "single", warmup_candles=5, leverage=1)
+        multi_bt = make_backtester(tmp_path / "multi", warmup_candles=5, leverage=1)
+
+        single_result = await single_bt.run(
+            single_strategy, candles, "BTC/USDT", timeframe="1h"
+        )
+        multi_result = await multi_bt.run_multi_timeframe(
+            multi_strategy,
+            {"1h": candles},
+            "BTC/USDT",
+            primary_timeframe="1h",
+        )
+
+        # Sanity checks on the fixture itself: the run actually produced
+        # something interesting. Without these, a no-op strategy could
+        # silently pass the parity assertions.
+        assert single_result.total_trades >= 5
+        assert single_result.wins >= 1
+        assert single_result.losses >= 1
+        # The last entry (index 195) has no engineered exit candle, so
+        # it must close at end_of_data.
+        assert any(t.close_reason == "end_of_data" for t in single_result.trades)
+
+        # Closed-trade ledgers are byte-identical. trade_id is excluded
+        # from the comparison because it embeds a fresh uuid4 per run.
+        def ledger(result: BacktestResult) -> list[tuple[object, ...]]:
+            return [
+                (
+                    t.symbol,
+                    t.side,
+                    t.entry_time,
+                    t.exit_time,
+                    t.entry_price,
+                    t.exit_price,
+                    t.quantity,
+                    t.leverage,
+                    t.stop_loss,
+                    t.take_profit,
+                    t.entry_fee,
+                    t.exit_fee,
+                    t.pnl,
+                    t.close_reason,
+                    t.liquidated,
+                )
+                for t in result.trades
+            ]
+
+        assert len(single_result.trades) == len(multi_result.trades)
+        assert ledger(single_result) == ledger(multi_result)
+
+        # Equity curve is the per-bar mark-to-market series; with
+        # identical inputs both modes must emit the same number of
+        # samples and the same (timestamp, equity) pairs.
+        assert len(single_result.equity_curve) == len(multi_result.equity_curve)
+        assert single_result.equity_curve == multi_result.equity_curve
+
+        # Final balance is the headline number; even a one-off rounding
+        # divergence between the two loops would surface here.
+        assert single_result.final_balance == multi_result.final_balance
+        assert single_result.total_pnl == multi_result.total_pnl
+        assert single_result.total_fees == multi_result.total_fees
+        assert single_result.liquidated == multi_result.liquidated
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_identical_breaker_abort(
+        self, tmp_path: Path
+    ) -> None:
+        """When the parse-failure breaker trips, both loops abort at the
+        same candle index with the same reason. Locks down the shared
+        circuit-breaker contract."""
+        from src.ai.exceptions import ClaudeParseError
+        from src.backtest.engine import BacktestAbortedError
+
+        class AlwaysFails(BaseStrategy):
+            def __init__(self, requires_multi_tf: bool) -> None:
+                super().__init__(
+                    info=TechniqueInfo(
+                        name="always_fails",
+                        version="1.0.0",
+                        description="raises every analyze call",
+                        technique_type="prompt",
+                        requires_multi_timeframe=requires_multi_tf,
+                    )
+                )
+
+            async def analyze(
+                self,
+                ohlcv: list[OHLCV],
+                symbol: str,
+                timeframe: str = "1h",
+                *,
+                ohlcv_by_timeframe: "dict[str, list[OHLCV]] | None" = None,
+                current_price: "Decimal | None" = None,
+            ) -> AnalysisResult:
+                raise ClaudeParseError("deterministic abort")
+
+        candles = make_flat_candles(20)
+        config = BacktestConfig(
+            initial_balance=Decimal("10000"),
+            fee_rate=Decimal("0"),
+            slippage_bps=0,
+            warmup_candles=2,
+            max_parse_failures=3,
+            min_cumulative_parse_failures=1000,  # rate breaker can't fire
+        )
+        single_bt = Backtester(config=config, data_dir=tmp_path / "single")
+        multi_bt = Backtester(config=config, data_dir=tmp_path / "multi")
+
+        with pytest.raises(BacktestAbortedError) as single_exc:
+            await single_bt.run(
+                AlwaysFails(requires_multi_tf=False),
+                candles,
+                "BTC/USDT",
+                timeframe="1h",
+            )
+        with pytest.raises(BacktestAbortedError) as multi_exc:
+            await multi_bt.run_multi_timeframe(
+                AlwaysFails(requires_multi_tf=True),
+                {"1h": candles},
+                "BTC/USDT",
+                primary_timeframe="1h",
+            )
+
+        assert single_exc.value.reason == multi_exc.value.reason
+        assert single_exc.value.candle_index == multi_exc.value.candle_index
+        assert single_exc.value.reason == "consecutive_parse_failures"
