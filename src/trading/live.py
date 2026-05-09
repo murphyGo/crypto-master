@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Literal
 from src.logger import get_logger
 from src.models import Order, OrderRequest, OrderStatus, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
+from src.trading.base import exit_condition_for_position, exit_reason_for_position
 from src.trading.strategy import TradingError
 
 if TYPE_CHECKING:
@@ -265,17 +266,22 @@ class LiveTrader:
             take_profit=position.take_profit,
         )
 
-        self._open_positions[trade.id] = position.model_copy(
-            update={"quantity": filled_qty, "entry_price": entry_fill_price}
-        )
-        self._entry_fees[trade.id] = entry_fee
+        try:
+            self._open_positions[trade.id] = position.model_copy(
+                update={"quantity": filled_qty, "entry_price": entry_fill_price}
+            )
+            self._entry_fees[trade.id] = entry_fee
 
-        logger.info(
-            f"Opened live position: {position.side} {position.symbol} "
-            f"@ {entry_fill_price}, qty={filled_qty}, "
-            f"entry_fee={entry_fee} {order.fee_currency or ''}, "
-            f"order_id={order.id}"
-        )
+            logger.info(
+                f"Opened live position: {position.side} {position.symbol} "
+                f"@ {entry_fill_price}, qty={filled_qty}, "
+                f"entry_fee={entry_fee} {order.fee_currency or ''}, "
+                f"order_id={order.id}"
+            )
+        except Exception:
+            self._open_positions.pop(trade.id, None)
+            self._entry_fees.pop(trade.id, None)
+            raise
         return trade
 
     async def close_position(
@@ -347,10 +353,7 @@ class LiveTrader:
         position = self._open_positions.get(trade_id)
         if position is None:
             return False, None
-        reason = self._check_exit_reason(position, current_price)
-        if reason is None:
-            return False, None
-        return True, reason
+        return exit_condition_for_position(position, current_price)
 
     async def monitor_positions(
         self,
@@ -377,7 +380,7 @@ class LiveTrader:
                 logger.warning(f"Ticker fetch failed for {position.symbol}: {e}")
                 continue
 
-            reason = self._check_exit_reason(position, ticker.price)
+            reason = exit_reason_for_position(position, ticker.price)
             if reason is None:
                 continue
 
@@ -399,23 +402,6 @@ class LiveTrader:
                 closed.append(result)
 
         return closed
-
-    @staticmethod
-    def _check_exit_reason(position: Position, current_price: Decimal) -> str | None:
-        """Return the exit reason if SL/TP is hit, else None."""
-        if position.stop_loss is not None:
-            if position.side == "long" and current_price <= position.stop_loss:
-                return "stop_loss"
-            if position.side == "short" and current_price >= position.stop_loss:
-                return "stop_loss"
-
-        if position.take_profit is not None:
-            if position.side == "long" and current_price >= position.take_profit:
-                return "take_profit"
-            if position.side == "short" and current_price <= position.take_profit:
-                return "take_profit"
-
-        return None
 
     async def _execute_close(
         self,

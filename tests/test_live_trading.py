@@ -346,6 +346,37 @@ class TestLiveOpenPosition:
         assert exc_info.value.status == OrderStatus.OPEN
         assert trader.get_open_trades() == []
 
+    @pytest.mark.asyncio
+    async def test_open_cleans_entry_fee_stash_when_post_persist_step_fails(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A late open failure must not leave stale in-memory fee state."""
+        mock_exchange.create_order.return_value = _make_order(
+            average_price=Decimal("50050"),
+            fee=Decimal("2.5"),
+        )
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        def fail_open_log(message: str, *args: object, **kwargs: object) -> None:
+            if message.startswith("Opened live position:"):
+                raise RuntimeError("post-persist failure")
+
+        monkeypatch.setattr("src.trading.live.logger.info", fail_open_log)
+
+        with pytest.raises(RuntimeError, match="post-persist failure"):
+            await trader.open_position(long_position)
+
+        assert trader._entry_fees == {}
+        assert trader._open_positions == {}
+
 
 # =============================================================================
 # close_position
@@ -746,6 +777,55 @@ class TestLiveMonitorPositions:
         closed = await trader.monitor_positions()
         assert len(closed) == 1
         assert closed[0].close_reason == "stop_loss"
+
+    @pytest.mark.asyncio
+    async def test_check_exit_conditions_uses_shared_boundary_semantics(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        short_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        """Live exit checks use inclusive SL/TP bounds and stop-loss priority."""
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+
+        long_trade = await trader.open_position(long_position)
+        assert trader.check_exit_conditions(long_trade.id, Decimal("49000")) == (
+            True,
+            "stop_loss",
+        )
+        assert trader.check_exit_conditions(long_trade.id, Decimal("52000")) == (
+            True,
+            "take_profit",
+        )
+
+        mock_exchange.create_order.return_value = _make_order(side="sell")
+        short_trade = await trader.open_position(short_position)
+        assert trader.check_exit_conditions(short_trade.id, Decimal("51000")) == (
+            True,
+            "stop_loss",
+        )
+        assert trader.check_exit_conditions(short_trade.id, Decimal("48000")) == (
+            True,
+            "take_profit",
+        )
+
+        priority_position = long_position.model_copy(
+            update={
+                "symbol": "ETH/USDT",
+                "stop_loss": Decimal("50000"),
+                "take_profit": Decimal("50000"),
+            }
+        )
+        priority_trade = await trader.open_position(priority_position)
+        assert trader.check_exit_conditions(priority_trade.id, Decimal("50000")) == (
+            True,
+            "stop_loss",
+        )
 
     @pytest.mark.asyncio
     async def test_monitor_no_exit_when_price_within_range(

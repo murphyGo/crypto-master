@@ -665,6 +665,64 @@ class TestPaperTraderExitConditions:
         assert should_exit is False
         assert reason is None
 
+    async def test_exit_conditions_use_shared_boundary_semantics(
+        self,
+        trader: PaperTrader,
+    ) -> None:
+        """Paper exit checks use inclusive SL/TP bounds and stop-loss priority."""
+        long_position = Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+        )
+        long_trade = await trader.open_position(long_position)
+        assert trader.check_exit_conditions(long_trade.id, Decimal("49000")) == (
+            True,
+            "stop_loss",
+        )
+        assert trader.check_exit_conditions(long_trade.id, Decimal("52000")) == (
+            True,
+            "take_profit",
+        )
+
+        short_position = Position(
+            symbol="ETH/USDT",
+            side="short",
+            entry_price=Decimal("3000"),
+            quantity=Decimal("1"),
+            leverage=5,
+            stop_loss=Decimal("3100"),
+            take_profit=Decimal("2900"),
+        )
+        short_trade = await trader.open_position(short_position)
+        assert trader.check_exit_conditions(short_trade.id, Decimal("3100")) == (
+            True,
+            "stop_loss",
+        )
+        assert trader.check_exit_conditions(short_trade.id, Decimal("2900")) == (
+            True,
+            "take_profit",
+        )
+
+        priority_position = Position(
+            symbol="SOL/USDT",
+            side="long",
+            entry_price=Decimal("100"),
+            quantity=Decimal("2"),
+            leverage=2,
+            stop_loss=Decimal("100"),
+            take_profit=Decimal("100"),
+        )
+        priority_trade = await trader.open_position(priority_position)
+        assert trader.check_exit_conditions(priority_trade.id, Decimal("100")) == (
+            True,
+            "stop_loss",
+        )
+
 
 # =============================================================================
 # PaperTrader Trade Query Tests

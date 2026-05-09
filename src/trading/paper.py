@@ -21,6 +21,7 @@ from src.logger import get_logger
 from src.models import OrderRequest, Position
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
+from src.trading.base import exit_condition_for_position
 from src.trading.strategy import TradingError
 from src.utils.trading_math import pnl_for_trade
 
@@ -754,23 +755,7 @@ class PaperTrader:
         if open_pos is None:
             return False, None
 
-        position = open_pos.position
-
-        # Check stop loss
-        if position.stop_loss is not None:
-            if position.side == "long" and current_price <= position.stop_loss:
-                return True, "stop_loss"
-            if position.side == "short" and current_price >= position.stop_loss:
-                return True, "stop_loss"
-
-        # Check take profit
-        if position.take_profit is not None:
-            if position.side == "long" and current_price >= position.take_profit:
-                return True, "take_profit"
-            if position.side == "short" and current_price <= position.take_profit:
-                return True, "take_profit"
-
-        return False, None
+        return exit_condition_for_position(open_pos.position, current_price)
 
     def get_open_trades(self) -> list[TradeHistory]:
         """Get all open paper trades.

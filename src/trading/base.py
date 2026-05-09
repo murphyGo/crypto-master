@@ -21,10 +21,41 @@ Related Requirements:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 from src.models import Position
 from src.strategy.performance import TradeHistory
+
+ExitReason = Literal["stop_loss", "take_profit"]
+
+
+def exit_reason_for_position(
+    position: Position,
+    current_price: Decimal,
+) -> ExitReason | None:
+    """Return the SL/TP exit reason for ``position`` at ``current_price``."""
+    if position.stop_loss is not None:
+        if position.side == "long" and current_price <= position.stop_loss:
+            return "stop_loss"
+        if position.side == "short" and current_price >= position.stop_loss:
+            return "stop_loss"
+
+    if position.take_profit is not None:
+        if position.side == "long" and current_price >= position.take_profit:
+            return "take_profit"
+        if position.side == "short" and current_price <= position.take_profit:
+            return "take_profit"
+
+    return None
+
+
+def exit_condition_for_position(
+    position: Position,
+    current_price: Decimal,
+) -> tuple[bool, ExitReason | None]:
+    """Return the shared trader exit-condition tuple."""
+    reason = exit_reason_for_position(position, current_price)
+    return (reason is not None, reason)
 
 
 @runtime_checkable
@@ -103,4 +134,9 @@ class Trader(Protocol):
         ...
 
 
-__all__ = ["Trader"]
+__all__ = [
+    "ExitReason",
+    "Trader",
+    "exit_condition_for_position",
+    "exit_reason_for_position",
+]
