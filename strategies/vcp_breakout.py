@@ -5,6 +5,14 @@ template and volatility contraction pattern. It looks for a strong
 uptrend, recent range/ATR contraction, and a volume-backed pivot
 breakout.
 
+v1.1.0: relaxed for crypto cycles. Dropped EMA200 from the trend
+template (EMA50 > EMA150 alignment is sufficient on 4h crypto where
+a 200-period EMA is ~33 days and rarely satisfied). Slope check now
+uses EMA150 instead of EMA200 (more responsive to crypto regime
+flips). CONTRACTION_RATIO 0.8 -> 0.9 and VOLUME_MULTIPLIER 1.4 -> 1.2
+make the contraction + breakout-volume gate less restrictive without
+abandoning the core thesis.
+
 Related Requirements:
 - FR-001 / FR-002 / FR-003 / FR-004 / FR-005
 """
@@ -19,16 +27,24 @@ from src.strategy.indicators import ema as _ema
 
 TECHNIQUE_INFO = {
     "name": "vcp_breakout",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
-        "Crypto Minervini VCP breakout: trend-template alignment, "
+        "Crypto Minervini VCP breakout: EMA50/EMA150 trend template, "
         "volatility contraction, pivot breakout, and volume expansion."
     ),
     "author": "system",
     "symbols": [],
     "timeframes": ["4h", "1d"],
     "status": "experimental",
-    "changelog": "Initial deterministic VCP candidate",
+    "changelog": (
+        "1.1.0: drop EMA200 from trend template (rarely satisfied "
+        "on 4h crypto cycles); slope check moved to EMA150; "
+        "CONTRACTION_RATIO 0.8 -> 0.9; VOLUME_MULTIPLIER 1.4 -> 1.2. "
+        "12-day Fly paper data showed zero fires under v1.0.0 -- the "
+        "compound AND of strict trend + tight contraction + strong "
+        "volume was structurally unattainable. "
+        "1.0.0: initial deterministic VCP candidate."
+    ),
     # 4h VCP swing: 84 bars (~2 weeks) captures the typical
     # post-pivot move while still cutting late-stage drift.
     "max_bars_held": 84,
@@ -37,7 +53,6 @@ TECHNIQUE_INFO = {
 
 EMA_FAST = 50
 EMA_MID = 150
-EMA_SLOW = 200
 EMA_SLOPE_LOOKBACK = 20
 HIGH_LOOKBACK = 120
 LOW_LOOKBACK = 120
@@ -45,8 +60,14 @@ PIVOT_LOOKBACK = 20
 ATR_FAST = 10
 ATR_SLOW = 40
 VOLUME_LOOKBACK = 20
-VOLUME_MULTIPLIER = 1.4
-CONTRACTION_RATIO = 0.8
+# v1.1.0: relaxed from 1.4. Crypto breakout bars often print with
+# only 1.1-1.3x volume (24/7 markets dilute the prior-bar baseline);
+# 1.4x was structurally unattainable on the 12-day Fly run.
+VOLUME_MULTIPLIER = 1.2
+# v1.1.0: relaxed from 0.8. True Minervini-style 3-2-1 contractions
+# are rare in crypto's noisier ATR; 0.9 still requires a measurable
+# contraction without demanding an equity-style coil.
+CONTRACTION_RATIO = 0.9
 STOP_BUFFER_ATR = 0.5
 TAKE_PROFIT_R = 2.5
 
@@ -56,7 +77,10 @@ class VCPBreakoutStrategy(BaseStrategy):
 
     @property
     def minimum_candles(self) -> int:
-        return max(EMA_SLOW + EMA_SLOPE_LOOKBACK, HIGH_LOOKBACK + 1)
+        # v1.1.0: was max(EMA_SLOW + EMA_SLOPE_LOOKBACK, HIGH_LOOKBACK + 1)
+        # = 220. Dropping EMA_SLOW lets the strategy fire after 170 candles
+        # (EMA_MID + EMA_SLOPE_LOOKBACK) -- ~28 days on 4h instead of 37.
+        return max(EMA_MID + EMA_SLOPE_LOOKBACK, HIGH_LOOKBACK + 1)
 
     async def analyze(
         self,
@@ -75,8 +99,10 @@ class VCPBreakoutStrategy(BaseStrategy):
 
             ema_fast = _ema(closes, EMA_FAST)
             ema_mid = _ema(closes, EMA_MID)
-            ema_slow = _ema(closes, EMA_SLOW)
-            ema_slow_prev = _ema(closes[:-EMA_SLOPE_LOOKBACK], EMA_SLOW)
+            # v1.1.0: slope check now anchored on EMA_MID (was EMA_SLOW).
+            # EMA_MID inflects ~33% faster, catching crypto regime flips
+            # before the slow EMA confirms.
+            ema_mid_prev = _ema(closes[:-EMA_SLOPE_LOOKBACK], EMA_MID)
             recent_high = max(highs[-HIGH_LOOKBACK:])
             recent_low = min(lows[-LOW_LOOKBACK:])
             pivot = max(highs[-PIVOT_LOOKBACK - 1 : -1])
@@ -93,8 +119,10 @@ class VCPBreakoutStrategy(BaseStrategy):
             ) from e
 
         trend_ok = (
-            current_price > ema_fast > ema_mid > ema_slow
-            and ema_slow > ema_slow_prev
+            # v1.1.0: dropped `> ema_slow` -- on 4h crypto the 200-period
+            # EMA is ~33 days, often unsatisfied even mid-bull.
+            current_price > ema_fast > ema_mid
+            and ema_mid > ema_mid_prev
             and current_price >= recent_high * 0.75
             and current_price >= recent_low * 1.25
         )
@@ -133,7 +161,7 @@ class VCPBreakoutStrategy(BaseStrategy):
             take_profit=take_profit,
             reasoning=(
                 f"VCP breakout above pivot {pivot:.2f}; EMA "
-                f"{EMA_FAST}/{EMA_MID}/{EMA_SLOW} aligned, ATR contraction "
+                f"{EMA_FAST}/{EMA_MID} aligned, ATR contraction "
                 f"{atr_fast:.2f}/{atr_slow:.2f}, volume {volumes[-1]:.0f} "
                 f"vs avg {avg_volume:.0f}"
             ),
