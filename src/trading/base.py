@@ -133,6 +133,38 @@ class Trader(Protocol):
         """
         ...
 
+    async def force_close_orphan(
+        self,
+        trade_id: str,
+        exit_price: Decimal,
+    ) -> TradeHistory | None:
+        """Close an open trade whose in-memory position state was lost.
+
+        DEBT-058 follow-up watchdog hook. Bypasses the normal
+        ``_open_positions`` lookup; reconstructs the minimum
+        information needed (PnL from on-disk ``TradeHistory``) to
+        close the trade and free the persisted state.
+
+        Implementations must:
+
+        * Update the persisted ``TradeHistory`` row to
+          ``status="closed"`` with ``close_reason="orphan_force_close"``,
+          recording ``exit_price`` and computed PnL.
+        * Be idempotent against an already-closed trade — return
+          ``None`` rather than raising, mirroring
+          ``close_position``'s missing-trade contract.
+        * Not invoke exchange order-placement APIs — orphan
+          force-close is a *persistence repair*, not an exchange
+          operation. The live implementation logs a WARNING that
+          exchange-side positions may still need separate operator
+          reconciliation.
+
+        Returns:
+            The closed ``TradeHistory``, or ``None`` if the trade is
+            unknown or already closed.
+        """
+        ...
+
 
 __all__ = [
     "ExitReason",

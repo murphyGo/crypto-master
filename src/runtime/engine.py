@@ -126,6 +126,16 @@ def _timeframe_to_seconds(timeframe: str) -> int:
     return _TIMEFRAME_TO_SECONDS.get(timeframe, 3600)
 
 
+# DEBT-058 follow-up: number of consecutive monitor cycles a trade
+# may be observed in the orphan (``_missing_position_state == True``)
+# branch before the engine force-closes it at the latest ticker
+# price. Picked at K=5 so transient rehydration races (one cycle
+# orphan, recovers next) never trip the watchdog, while a genuinely
+# stuck trade (the Fly 260h BNB short) is force-closed within a
+# handful of monitor passes rather than drifting indefinitely.
+ORPHAN_AUTO_CLOSE_THRESHOLD = 5
+
+
 # =============================================================================
 # Config
 # =============================================================================
@@ -642,6 +652,15 @@ class TradingEngine:
         # same losing thesis because the correlation gate keys on
         # ``technique_name`` and treats them as independent.
         self._accepted_family_signals: dict[tuple[str, str, str], str] = {}
+
+        # DEBT-058 follow-up: count consecutive monitor cycles each open
+        # trade has been seen as an orphan (missing in-memory position
+        # state). After ``ORPHAN_AUTO_CLOSE_THRESHOLD`` strikes the
+        # engine force-closes at the latest ticker price with
+        # ``reason="orphan_force_close"`` so the trade cannot drift
+        # indefinitely (see the Fly 260h BNB short case where the
+        # orphan branch fired forever without ever closing).
+        self._orphan_strike_counts: dict[str, int] = {}
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -2006,6 +2025,18 @@ class TradingEngine:
         closed_count = 0
         account_exchange = exchange or self.exchange
 
+        # DEBT-058 follow-up: prune the orphan-strike counter to only
+        # trades that are currently open. A trade that closed (SL/TP,
+        # time-stop, manual close) on a previous cycle leaves a stale
+        # entry that would otherwise persist forever — and would
+        # double-count if the same id ever recurred (defensive).
+        open_trade_ids = {trade.id for trade in open_trades}
+        self._orphan_strike_counts = {
+            trade_id: strikes
+            for trade_id, strikes in self._orphan_strike_counts.items()
+            if trade_id in open_trade_ids
+        }
+
         # Cache strategy lookups across the loop — multiple open
         # trades from the same technique are common, and each lookup
         # touches the proposal engine's strategy registry.
@@ -2013,9 +2044,17 @@ class TradingEngine:
 
         for trade in open_trades:
             if self._missing_position_state(trader, trade.id):
+                # DEBT-058 follow-up: count consecutive orphan
+                # observations and force-close once the threshold is
+                # reached so a perpetually-orphaned trade (Fly 260h
+                # BNB short) cannot drift indefinitely.
+                strikes = self._orphan_strike_counts.get(trade.id, 0) + 1
+                self._orphan_strike_counts[trade.id] = strikes
+
                 message = (
                     f"Open trade {trade.id} has no in-memory position state; "
-                    "operator reconciliation required before SL/TP monitoring"
+                    f"operator reconciliation required before SL/TP monitoring "
+                    f"(strike {strikes}/{ORPHAN_AUTO_CLOSE_THRESHOLD})"
                 )
                 self.activity_log.append(
                     ActivityEventType.MONITOR_ERRORED,
@@ -2023,6 +2062,8 @@ class TradingEngine:
                     details={
                         "trade_id": trade.id,
                         "sub_account_id": self._sub_account_id(sub_account),
+                        "strike_count": strikes,
+                        "threshold": ORPHAN_AUTO_CLOSE_THRESHOLD,
                     },
                     cycle_id=cycle_id,
                 )
@@ -2033,7 +2074,104 @@ class TradingEngine:
                         detail=f"orphan_open_trade:{trade.id}",
                     )
                 )
+
+                if strikes < ORPHAN_AUTO_CLOSE_THRESHOLD:
+                    continue
+
+                # Threshold reached — force-close at the latest
+                # ticker. Failure to fetch the ticker leaves the
+                # strike counter intact so the next cycle retries.
+                try:
+                    ticker = await account_exchange.get_ticker(trade.symbol)
+                except Exception as e:
+                    self.activity_log.append(
+                        ActivityEventType.MONITOR_ERRORED,
+                        (
+                            f"Orphan force-close ticker fetch failed for "
+                            f"{trade.symbol}: {e}"
+                        ),
+                        details={
+                            "trade_id": trade.id,
+                            "sub_account_id": self._sub_account_id(sub_account),
+                            "error": str(e),
+                            "phase": "orphan_ticker_fetch_failed",
+                        },
+                        cycle_id=cycle_id,
+                    )
+                    continue
+
+                force_close = getattr(trader, "force_close_orphan", None)
+                if not callable(force_close):
+                    # Defensive: a Trader implementation without the
+                    # watchdog hook can't be force-closed. Surface
+                    # the gap and leave the strike count intact so
+                    # the next cycle keeps recording the orphan.
+                    self.activity_log.append(
+                        ActivityEventType.MONITOR_ERRORED,
+                        (
+                            f"Trader missing force_close_orphan; cannot "
+                            f"auto-close orphaned trade {trade.id}"
+                        ),
+                        details={
+                            "trade_id": trade.id,
+                            "sub_account_id": self._sub_account_id(sub_account),
+                            "phase": "orphan_force_close_unsupported",
+                        },
+                        cycle_id=cycle_id,
+                    )
+                    continue
+
+                try:
+                    closed_trade = await force_close(trade.id, ticker.price)
+                except Exception as e:
+                    self.activity_log.append(
+                        ActivityEventType.MONITOR_ERRORED,
+                        (f"Orphan force-close failed for {trade.id}: {e}"),
+                        details={
+                            "trade_id": trade.id,
+                            "sub_account_id": self._sub_account_id(sub_account),
+                            "error": str(e),
+                            "phase": "orphan_force_close_failed",
+                        },
+                        cycle_id=cycle_id,
+                    )
+                    continue
+
+                # Drop the strike count and emit the high-severity
+                # event so the dashboard surfaces the watchdog action.
+                self._orphan_strike_counts.pop(trade.id, None)
+                pnl_percent = (
+                    closed_trade.pnl_percent
+                    if closed_trade is not None and closed_trade.pnl_percent is not None
+                    else 0.0
+                )
+                self.activity_log.append(
+                    ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED,
+                    (
+                        f"Orphan force-closed {trade.symbol} {trade.side} "
+                        f"after {strikes} strikes at {ticker.price}"
+                    ),
+                    details={
+                        "trade_id": trade.id,
+                        "sub_account_id": self._sub_account_id(sub_account),
+                        "symbol": trade.symbol,
+                        "side": trade.side,
+                        "entry_price": str(trade.entry_price),
+                        "exit_price": str(ticker.price),
+                        "pnl_percent": pnl_percent,
+                        "strikes": strikes,
+                        "threshold": ORPHAN_AUTO_CLOSE_THRESHOLD,
+                    },
+                    cycle_id=cycle_id,
+                )
+                if closed_trade is not None:
+                    closed_count += 1
                 continue
+            # State recovered (e.g. late rehydration ran) — drop any
+            # stale strike count so the watchdog won't prematurely
+            # force-close on the next orphan blip.
+            self._orphan_strike_counts.pop(trade.id, None)
+
             try:
                 ticker = await account_exchange.get_ticker(trade.symbol)
             except Exception as e:

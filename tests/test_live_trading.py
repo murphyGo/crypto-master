@@ -1031,3 +1031,123 @@ class TestExceptionHierarchy:
         err = LiveOrderRejectedError("x", order_id="oid", status=OrderStatus.REJECTED)
         assert err.order_id == "oid"
         assert err.status == OrderStatus.REJECTED
+
+
+# =============================================================================
+# force_close_orphan (DEBT-058 follow-up)
+# =============================================================================
+
+
+class TestForceCloseOrphanLive:
+    """Persistence-only orphan force-close on LiveTrader.
+
+    DEBT-058 follow-up watchdog hook. The live implementation must
+    update the persisted ledger without placing an exchange order
+    (the orphan branch by definition has no in-memory position the
+    engine can use to construct one) and must log a WARNING that
+    operator reconciliation may still be needed.
+    """
+
+    @pytest.mark.asyncio
+    async def test_force_close_orphan_persists_closed_live_trade(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+
+        # Drop the in-memory state to simulate the orphan scenario.
+        trader._open_positions.pop(trade.id, None)
+        trader._entry_fees.pop(trade.id, None)
+
+        # Reset create_order so the test can assert it was NOT called
+        # by the watchdog path.
+        mock_exchange.create_order.reset_mock()
+
+        closed = await trader.force_close_orphan(trade.id, Decimal("48500"))
+
+        assert closed is not None
+        assert closed.status == "closed"
+        assert closed.close_reason == "orphan_force_close"
+        assert closed.exit_price == Decimal("48500")
+
+        # Crucially: the watchdog must NOT submit any exchange order.
+        mock_exchange.create_order.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_force_close_orphan_logs_warning_about_exchange_state(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A WARNING must be emitted naming the exchange-side reconciliation gap."""
+        import logging
+
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+        trader._open_positions.pop(trade.id, None)
+        trader._entry_fees.pop(trade.id, None)
+
+        # ``get_logger`` disables propagation; attach the caplog handler
+        # to the named logger so the assertion can see the WARNING.
+        target_logger = logging.getLogger("crypto_master.trading.live")
+        target_logger.addHandler(caplog.handler)
+        target_logger.setLevel(logging.WARNING)
+        try:
+            await trader.force_close_orphan(trade.id, Decimal("48500"))
+        finally:
+            target_logger.removeHandler(caplog.handler)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert any(
+            "exchange-side position may still be open" in r.getMessage()
+            for r in warnings
+        ), [r.getMessage() for r in warnings]
+
+    @pytest.mark.asyncio
+    async def test_force_close_orphan_idempotent_on_already_closed(
+        self,
+        mock_exchange: MagicMock,
+        long_position: Position,
+        tmp_path: Path,
+    ) -> None:
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        trade = await trader.open_position(long_position)
+        trader._open_positions.pop(trade.id, None)
+        trader._entry_fees.pop(trade.id, None)
+
+        first = await trader.force_close_orphan(trade.id, Decimal("48500"))
+        assert first is not None
+
+        second = await trader.force_close_orphan(trade.id, Decimal("48400"))
+        assert second is None
+
+    @pytest.mark.asyncio
+    async def test_force_close_orphan_returns_none_for_unknown_trade(
+        self,
+        mock_exchange: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        trader = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path,
+            confirmation_callback=make_approve(),
+        )
+        result = await trader.force_close_orphan("does-not-exist", Decimal("50000"))
+        assert result is None

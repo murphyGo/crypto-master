@@ -26,6 +26,7 @@ from src.proposal.notification import (
 )
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.runtime.engine import (
+    ORPHAN_AUTO_CLOSE_THRESHOLD,
     EngineConfig,
     EngineError,
     ErrorCategory,
@@ -909,6 +910,196 @@ async def test_monitor_pass_no_open_trades(tmp_path: Path) -> None:
     passes = mocks["activity_log"].filter(event_type=ActivityEventType.MONITOR_PASS)
     assert len(passes) == 1
     assert passes[0].details["open_count"] == 0
+
+
+# =============================================================================
+# Orphan auto-close watchdog (DEBT-058 follow-up)
+# =============================================================================
+
+
+class TestOrphanAutoClose:
+    """Watchdog that force-closes a perpetually orphaned trade.
+
+    The runtime's existing orphan branch fires
+    ``MONITOR_ERRORED:orphan_open_trade`` whenever a trade is open in
+    the persisted ledger but missing from the trader's in-memory
+    ``_open_positions`` map. Without this watchdog the same trade can
+    drift indefinitely (the Fly 260h BNB short is the canonical
+    case). After ``ORPHAN_AUTO_CLOSE_THRESHOLD`` consecutive strikes
+    on the same trade id, the engine force-closes via
+    ``Trader.force_close_orphan`` and emits a
+    ``POSITION_ORPHAN_FORCE_CLOSED`` activity event.
+    """
+
+    async def test_first_orphan_increment_does_not_close(self, tmp_path: Path) -> None:
+        """One orphan strike must not trigger force_close_orphan."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        await engine.run_cycle()
+
+        assert engine._orphan_strike_counts == {"orphan": 1}
+        mocks["trader"].force_close_orphan.assert_not_awaited()
+        force_closed = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+        )
+        assert force_closed == []
+
+    async def test_strike_below_threshold_continues(self, tmp_path: Path) -> None:
+        """Cycles 1..K-1 increment but never call force_close_orphan."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        for _ in range(ORPHAN_AUTO_CLOSE_THRESHOLD - 1):
+            await engine.run_cycle()
+
+        assert engine._orphan_strike_counts == {
+            "orphan": ORPHAN_AUTO_CLOSE_THRESHOLD - 1
+        }
+        mocks["trader"].force_close_orphan.assert_not_awaited()
+        # Each cycle still recorded the MONITOR_ERRORED event.
+        errors = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MONITOR_ERRORED
+        )
+        assert len(errors) == ORPHAN_AUTO_CLOSE_THRESHOLD - 1
+
+    async def test_strike_threshold_triggers_force_close(self, tmp_path: Path) -> None:
+        """Cycle K → force_close_orphan called, event emitted, counter pruned."""
+        open_trade = make_trade(trade_id="orphan", side="short", entry="50000")
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            open_trades=[open_trade],
+            ticker_price=Decimal("48500"),
+        )
+        mocks["trader"].get_open_position.return_value = None
+        closed = make_trade(
+            trade_id="orphan",
+            side="short",
+            entry="50000",
+            exit_price="48500",
+            pnl_percent=3.0,
+            status="closed",
+        )
+        mocks["trader"].force_close_orphan = AsyncMock(return_value=closed)
+
+        for _ in range(ORPHAN_AUTO_CLOSE_THRESHOLD):
+            await engine.run_cycle()
+
+        mocks["trader"].force_close_orphan.assert_awaited_once_with(
+            "orphan", Decimal("48500")
+        )
+        # Strike count dropped after the watchdog fired.
+        assert "orphan" not in engine._orphan_strike_counts
+
+        events = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+        )
+        assert len(events) == 1
+        details = events[0].details
+        assert details["trade_id"] == "orphan"
+        assert details["symbol"] == "BTC/USDT"
+        assert details["side"] == "short"
+        assert details["entry_price"] == "50000"
+        assert details["exit_price"] == "48500"
+        assert details["pnl_percent"] == 3.0
+        assert details["strikes"] == ORPHAN_AUTO_CLOSE_THRESHOLD
+        assert details["threshold"] == ORPHAN_AUTO_CLOSE_THRESHOLD
+
+    async def test_strike_count_resets_when_trade_closes(self, tmp_path: Path) -> None:
+        """Trade no longer in ``open_trades`` → counter pruned."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        await engine.run_cycle()
+        await engine.run_cycle()
+        assert engine._orphan_strike_counts == {"orphan": 2}
+
+        # Subsequent monitor pass returns no open trades — the prune
+        # step at the top of ``_monitor`` should drop the stale entry.
+        mocks["trader"].get_open_trades.return_value = []
+        await engine.run_cycle()
+
+        assert engine._orphan_strike_counts == {}
+
+    async def test_strike_count_resets_when_state_recovered(
+        self, tmp_path: Path
+    ) -> None:
+        """Rehydration on a later cycle drops the strike count."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        await engine.run_cycle()
+        assert engine._orphan_strike_counts == {"orphan": 1}
+
+        # Simulate rehydration: ``_missing_position_state`` now returns
+        # False (the in-memory map carries the position again).
+        mocks["trader"].get_open_position.return_value = MagicMock()
+
+        await engine.run_cycle()
+
+        assert engine._orphan_strike_counts == {}
+        mocks["trader"].force_close_orphan.assert_not_awaited()
+
+    async def test_orphan_event_details_include_strike_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        """``MONITOR_ERRORED`` payload exposes ``strike_count`` + ``threshold``."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        await engine.run_cycle()
+
+        errors = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MONITOR_ERRORED
+        )
+        assert len(errors) == 1
+        details = errors[0].details
+        assert details["strike_count"] == 1
+        assert details["threshold"] == ORPHAN_AUTO_CLOSE_THRESHOLD
+        assert details["trade_id"] == "orphan"
+
+    async def test_force_close_skipped_when_ticker_fetch_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """Threshold reached but ticker fetch fails → strike count survives."""
+        open_trade = make_trade(trade_id="orphan")
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            open_trades=[open_trade],
+        )
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        # Drive the strike count up to the threshold.
+        for _ in range(ORPHAN_AUTO_CLOSE_THRESHOLD - 1):
+            await engine.run_cycle()
+
+        # On the threshold cycle, the ticker fetch fails.
+        mocks["exchange"].get_ticker.side_effect = ExchangeAPIError("ticker down")
+        await engine.run_cycle()
+
+        mocks["trader"].force_close_orphan.assert_not_awaited()
+        # Strike count must remain at the threshold so the next cycle
+        # retries — the watchdog should not silently drop the trade.
+        assert engine._orphan_strike_counts["orphan"] == ORPHAN_AUTO_CLOSE_THRESHOLD
+        # A dedicated MONITOR_ERRORED event named the failure phase.
+        errors = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MONITOR_ERRORED
+        )
+        ticker_failures = [
+            e for e in errors if e.details.get("phase") == "orphan_ticker_fetch_failed"
+        ]
+        assert len(ticker_failures) == 1
 
 
 # =============================================================================

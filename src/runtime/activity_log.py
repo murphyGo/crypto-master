@@ -78,6 +78,28 @@ class ActivityEventType(str, Enum):
     POSITION_CLOSED = "position_closed"
     MONITOR_ERRORED = "monitor_errored"
 
+    # Orphan auto-close watchdog (DEBT-058 follow-up). Emitted by
+    # :meth:`~src.runtime.engine.TradingEngine._monitor` after a trade
+    # has been observed in the ``_missing_position_state`` branch for
+    # ``ORPHAN_AUTO_CLOSE_THRESHOLD`` consecutive monitor cycles. The
+    # engine force-closes the persisted state via
+    # ``Trader.force_close_orphan`` at the latest ticker price with
+    # ``close_reason="orphan_force_close"`` so a perpetually orphaned
+    # trade (the Fly 260h BNB short case) cannot drift indefinitely.
+    # ``details`` payload (structured-fields contract — pinned by
+    # ``test_strike_threshold_triggers_force_close``):
+    #
+    #     trade_id (str)
+    #     sub_account_id (str)
+    #     symbol (str)
+    #     side ("long" | "short")
+    #     entry_price (str Decimal)
+    #     exit_price (str Decimal)
+    #     pnl_percent (float)
+    #     strikes (int)
+    #     threshold (int)
+    POSITION_ORPHAN_FORCE_CLOSED = "position_orphan_force_closed"
+
     # Per-strategy time-stop. Emitted from
     # :meth:`~src.runtime.engine.TradingEngine._monitor` when a trade
     # has exceeded its ``TechniqueInfo.max_bars_held`` (or the

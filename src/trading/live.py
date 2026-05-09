@@ -356,6 +356,66 @@ class LiveTrader:
             return False, None
         return exit_condition_for_position(position, current_price)
 
+    async def force_close_orphan(
+        self,
+        trade_id: str,
+        exit_price: Decimal,
+    ) -> TradeHistory | None:
+        """Persistence-only force-close for an orphaned live trade.
+
+        DEBT-058 follow-up watchdog hook (see
+        :class:`~src.trading.base.Trader`). Closes the persisted trade
+        record without touching the exchange — by definition the
+        in-memory ``_open_positions`` entry is gone, and the watchdog
+        cannot safely place an exchange order without it.
+
+        Returns ``None`` (no-op) when the trade is already closed or
+        unknown; mirrors the missing-trade contract on
+        :meth:`close_position`.
+
+        IMPORTANT: this method does NOT call
+        ``exchange.create_order(close)``. The exchange-side position
+        (if any still exists) must be reconciled separately by an
+        operator. A WARNING is logged at force-close time so the
+        situation is never silent.
+        """
+        existing = self._trade_tracker.get_trade(trade_id)
+        if existing is None or existing.status != "open":
+            logger.warning(
+                "force_close_orphan: live trade %s not found or not open "
+                "(status=%s); no-op",
+                trade_id,
+                existing.status if existing is not None else "missing",
+            )
+            return None
+
+        # Defensive race: if a late rehydration restored
+        # ``_open_positions[trade_id]`` between the watchdog's
+        # ``_missing_position_state`` check and now, drop it so the
+        # in-memory map doesn't outlive the persisted "closed" row.
+        self._open_positions.pop(trade_id, None)
+        self._entry_fees.pop(trade_id, None)
+
+        closed = self._trade_tracker.close_trade(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            close_reason="orphan_force_close",
+        )
+
+        if closed is not None:
+            logger.warning(
+                "force_close_orphan: closed persisted live trade %s at %s "
+                "(side=%s entry=%s pnl=%s) — exchange-side position may still "
+                "be open; operator reconciliation required",
+                trade_id,
+                exit_price,
+                closed.side,
+                closed.entry_price,
+                closed.pnl,
+            )
+
+        return closed
+
     async def monitor_positions(
         self,
     ) -> list[TradeHistory]:

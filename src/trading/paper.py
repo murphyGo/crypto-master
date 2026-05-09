@@ -822,6 +822,81 @@ class PaperTrader:
 
         return closed_trade
 
+    async def force_close_orphan(
+        self,
+        trade_id: str,
+        exit_price: Decimal,
+    ) -> TradeHistory | None:
+        """Persistence-only force-close for an orphaned paper trade.
+
+        DEBT-058 follow-up watchdog hook (see
+        :class:`~src.trading.base.Trader`). Closes the persisted trade
+        record without requiring ``self._open_positions[trade_id]`` —
+        by definition the in-memory position state is gone, which is
+        precisely what makes the trade an orphan.
+
+        Returns ``None`` (no-op) when the trade is already closed or
+        unknown; mirrors the missing-trade contract on
+        :meth:`close_position` so the runtime watchdog doesn't crash
+        on a transient race.
+
+        Best-effort balance unlock: ``OpenPosition.margin`` is the
+        only authoritative source for the originally-locked margin,
+        and by the time a trade is orphaned that record is gone. The
+        caller (the runtime watchdog) accepts that ``PaperBalance``
+        may drift; an operator can run a rebalance script later.
+        Fees on the persisted trade are left as their existing value
+        — fee inputs are not available here (no order fill to read
+        from), so under-counting is preferable to fabricating numbers.
+        """
+        existing = self._trade_tracker.get_trade(trade_id)
+        if existing is None or existing.status != "open":
+            logger.warning(
+                "force_close_orphan: trade %s not found or not open "
+                "(status=%s); no-op",
+                trade_id,
+                existing.status if existing is not None else "missing",
+            )
+            return None
+
+        # Defensive race: if a late rehydration restored
+        # ``_open_positions[trade_id]`` between the watchdog's
+        # ``_missing_position_state`` check and now, drop it so the
+        # in-memory map doesn't outlive the persisted "closed" row.
+        # Best-effort margin unlock if we still have it.
+        open_pos = self._open_positions.pop(trade_id, None)
+        if open_pos is not None:
+            balance = self.get_balance(open_pos.quote_currency)
+            if balance is not None:
+                try:
+                    balance.unlock(open_pos.margin)
+                except PaperTradingError as e:
+                    logger.warning(
+                        "force_close_orphan: best-effort margin unlock "
+                        "failed for %s (%s); operator rebalance may be needed",
+                        trade_id,
+                        e,
+                    )
+
+        closed = self._trade_tracker.close_trade(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            close_reason="orphan_force_close",
+        )
+
+        if closed is not None:
+            logger.warning(
+                "force_close_orphan: closed orphaned paper trade %s at %s "
+                "(side=%s entry=%s pnl=%s)",
+                trade_id,
+                exit_price,
+                closed.side,
+                closed.entry_price,
+                closed.pnl,
+            )
+
+        return closed
+
     def check_exit_conditions(
         self,
         trade_id: str,

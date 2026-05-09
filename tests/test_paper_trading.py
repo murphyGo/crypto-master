@@ -1879,3 +1879,140 @@ class TestPaperRehydration:
         assert balance_after.locked == Decimal("0")
         # 9500 + 500 (unlocked) + (-100 pnl) - 0 (zero-fee config) = 9900
         assert balance_after.free == Decimal("9900")
+
+
+# =============================================================================
+# force_close_orphan (DEBT-058 follow-up)
+# =============================================================================
+
+
+class TestForceCloseOrphan:
+    """Persistence-only orphan force-close on PaperTrader.
+
+    The watchdog in :meth:`TradingEngine._monitor` calls this when a
+    persisted open trade has been observed without an in-memory
+    position for ``ORPHAN_AUTO_CLOSE_THRESHOLD`` consecutive cycles.
+    The implementation must close the persisted record at the supplied
+    ``exit_price`` with ``close_reason="orphan_force_close"`` even when
+    the in-memory ``_open_positions`` map is empty (which is what
+    makes the trade an orphan in the first place).
+    """
+
+    @pytest.fixture
+    def long_position(self) -> Position:
+        return Position(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            quantity=Decimal("0.1"),
+            leverage=10,
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+        )
+
+    async def test_force_close_orphan_persists_closed_trade(
+        self, tmp_path: Path, long_position: Position
+    ) -> None:
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        trade = await trader.open_position(long_position)
+
+        # Drop the in-memory state to simulate the orphan scenario.
+        trader._open_positions.pop(trade.id, None)
+
+        closed = await trader.force_close_orphan(trade.id, Decimal("48500"))
+
+        assert closed is not None
+        assert closed.status == "closed"
+        assert closed.close_reason == "orphan_force_close"
+        assert closed.exit_price == Decimal("48500")
+
+        # Reading it back fresh proves the row hit disk.
+        fresh = TradeHistoryTracker(data_dir=tmp_path).get_trade(trade.id)
+        assert fresh is not None
+        assert fresh.status == "closed"
+        assert fresh.close_reason == "orphan_force_close"
+
+    async def test_force_close_orphan_computes_pnl_correctly(
+        self, tmp_path: Path, long_position: Position
+    ) -> None:
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        trade = await trader.open_position(long_position)
+        trader._open_positions.pop(trade.id, None)
+
+        # Long entry 50000 qty 0.1 → exit 51000 → pnl = 100, pct = 2.0%
+        closed = await trader.force_close_orphan(trade.id, Decimal("51000"))
+
+        assert closed is not None
+        assert closed.pnl == Decimal("100")
+        assert closed.pnl_percent == pytest.approx(2.0)
+
+    async def test_force_close_orphan_idempotent_on_already_closed(
+        self, tmp_path: Path, long_position: Position
+    ) -> None:
+        """Second call on a closed trade is a no-op (returns None).
+
+        Documented contract: ``force_close_orphan`` mirrors
+        :meth:`PaperTrader.close_position`'s missing-trade behaviour
+        and returns ``None`` rather than raising. The runtime watchdog
+        is allowed to call it speculatively without crashing the
+        cycle.
+        """
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        trade = await trader.open_position(long_position)
+        trader._open_positions.pop(trade.id, None)
+
+        first = await trader.force_close_orphan(trade.id, Decimal("48500"))
+        assert first is not None
+
+        second = await trader.force_close_orphan(trade.id, Decimal("48400"))
+        assert second is None
+
+        # Persisted exit_price still reflects the first call.
+        fresh = trader.get_trade(trade.id)
+        assert fresh is not None
+        assert fresh.exit_price == Decimal("48500")
+
+    async def test_force_close_orphan_returns_none_for_unknown_trade(
+        self, tmp_path: Path
+    ) -> None:
+        """Unknown trade id is a no-op (returns None) — defensive contract."""
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        result = await trader.force_close_orphan("does-not-exist", Decimal("50000"))
+        assert result is None
+
+    async def test_force_close_orphan_unlocks_margin_when_position_lingers(
+        self, tmp_path: Path, long_position: Position
+    ) -> None:
+        """Defensive race: lingering ``_open_positions`` entry → margin unlock."""
+        trader = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        trade = await trader.open_position(long_position)
+
+        # Note: do NOT pop _open_positions — simulate the late-rehydration
+        # race where the in-memory map is repopulated between the
+        # watchdog's check and force_close_orphan's call.
+        balance_before = trader.get_balance("USDT")
+        assert balance_before is not None
+        locked_before = balance_before.locked
+
+        await trader.force_close_orphan(trade.id, Decimal("50000"))
+
+        # Margin returned to ``free``; in-memory entry dropped.
+        assert trader.get_open_position(trade.id) is None
+        balance_after = trader.get_balance("USDT")
+        assert balance_after is not None
+        assert balance_after.locked == locked_before - Decimal("500")
