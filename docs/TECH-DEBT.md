@@ -171,6 +171,34 @@ Either (a) persist `PaperBalance` snapshot to disk and reload on init (preferred
 - commit `36eb2f3`
 - `src/trading/paper.py:_rehydrate_open_positions`
 
+### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-10 |
+| **Phase** | Review follow-up |
+| **Component** | strategy-framework / RSI baselines |
+
+**Description:**
+12-day Fly paper proposal data showed `rsi_universal` / `rsi_4h` / `rsi_15m` had a median R/R of exactly 2.00 (TP=4%, SL=2%, ratio=2.0:1). Commit `7e9162e` (P1 item I) raised `min_risk_reward_ratio` from 1.5 to 2.0 globally. Combined with the SL widening shipped in commit `313a8b7` (P1 F+G), any RSI signal that gets its SL widened by even a basis point now has post-widen R/R < 2.0 and is silently fail-closed at the proposal layer. Estimated impact: ~50% of RSI proposals now blocked.
+
+**Impact:**
+RSI baseline family throughput halved without an explicit "this strategy is broken" signal. The baselines exist as a degraded-mode safety net (per `docs/baselines.md`) so silent throughput collapse undermines the LLM-comparison floor and the rate-limit fallback. Operators have no easy way to distinguish "RSI didn't fire because conditions weren't met" from "RSI fired but got rejected at the R/R gate".
+
+**Suggested Resolution:**
+Quant-trader-expert review of the RSI TP-distance heuristic. Options:
+- (a) Bump TP from 4% to 5%/5.5% so R/R naturally lands at 2.5:1 with margin to absorb SL widening.
+- (b) Switch to ATR-scaled TP (e.g. `TP_distance = 3 × ATR(14)`) so TP grows with volatility regime alongside SL.
+- (c) Accept the throughput drop and document RSI as a "rare but high-conviction" baseline.
+Pair with a metric on the proposal-engine fail-closed rate per strategy so this kind of silent change shows up in the dashboard going forward.
+
+**Related:**
+- commit `7e9162e` (R/R floor 1.5 → 2.0)
+- commit `313a8b7` (universal SL floor)
+- `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py`
+- `src/proposal/engine.py:650` (catch-and-return-None path)
+
 ## Resolved Debt Items
 
 <!--
@@ -660,10 +688,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 5 |
+| Total Active | 6 |
 | Critical | 0 |
 | High | 2 |
-| Medium | 2 |
+| Medium | 3 |
 | Low | 1 |
 | Resolved (All Time) | 50 |
 
@@ -673,6 +701,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-10 | Added | DEBT-060 RSI baseline family TP-distance redesign for 2.0 R/R floor (Medium) — Flagged by senior-developer during P1 (I) (commit 7e9162e); RSI rr_med=2.00 in 12-day Fly data, ~50% throughput drop expected after R/R floor + SL widening interact |
 | 2026-05-10 | Added | DEBT-057 paper-mode entry-fee not persisted to TradeHistory (Medium) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
 | 2026-05-10 | Added | DEBT-058 production trades.json backfill for legacy SL/TP-null rows (High) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
 | 2026-05-10 | Added | DEBT-059 PaperBalance.locked not reconciled across runtime restart (High) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
