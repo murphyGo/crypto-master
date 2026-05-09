@@ -300,7 +300,7 @@ async def test_propose_bitcoin_skips_when_strategy_raises() -> None:
 
 
 async def test_propose_bitcoin_skips_when_rr_below_floor() -> None:
-    """TradingStrategy default min R/R is 1.5; a 1:1 should reject."""
+    """TradingStrategy default min R/R is 2.0; a 1:1 should reject."""
     strategy = make_strategy(
         analysis=make_analysis(entry="50000", sl="49500", tp="50500")  # RR = 1.0
     )
@@ -1212,7 +1212,7 @@ async def test_proposal_engine_widens_tight_sl() -> None:
             signal="long",
             entry="50000",
             sl="49900",  # distance 100 — well below 400 TF floor
-            tp="51500",  # leave RR comfortably above the 1.5 floor post-widen
+            tp="51500",  # leave RR comfortably above the 2.0 floor post-widen
         ),
     )
     engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
@@ -1312,3 +1312,53 @@ async def test_proposal_engine_widens_short_sl_upward() -> None:
     assert proposal is not None
     assert proposal.signal == "short"
     assert proposal.stop_loss == Decimal("50400")
+
+
+async def test_proposal_rejected_when_declared_rr_below_2_0_floor() -> None:
+    """P1 (I): A declared R/R of 1.8 (would have passed the old 1.5
+    floor) is rejected by the new 2.0 floor — the fail-closed gate
+    returns None instead of issuing a degraded proposal.
+    """
+    # ATR floor matches the declared SL distance, so widening is a no-op
+    # and the rejection is purely a function of the new R/R floor.
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="1000")
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="47500",  # 5% — already wider than the 3% ATR floor
+            tp="54500",  # 9% reward; R/R = 9/5 = 1.8 < 2.0
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is None
+
+
+async def test_proposal_rejected_when_widening_drags_rr_below_floor() -> None:
+    """P1 (I): A signal whose declared SL is widened by the floor has
+    its R/R dragged below the new 2.0 default and is rejected.
+
+    Setup: ATR(14) ~= 1000 ⇒ ATR floor distance = 1.5 × 1000 = 1500.
+    Declared SL=49500 (risk 500 = 1%) is inside the floor → engine
+    widens to risk 1500. TP=52250 (reward 2250) ⇒ pre-widen R/R = 4.5
+    (would pass); post-widen R/R = 2250 / 1500 = 1.5 → rejected.
+    """
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range="1000")
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="49500",  # 1% — inside the 3% ATR floor
+            tp="52250",  # 4.5% reward; post-widen R/R = 2250/1500 = 1.5
+        ),
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is None

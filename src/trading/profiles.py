@@ -77,7 +77,7 @@ class TradingProfile(BaseModel):
     max_leverage: int = Field(default=10, ge=1, le=125)
     default_leverage: int = Field(default=1, ge=1, le=125)
     max_position_size_percent: float = Field(default=10.0, gt=0, le=100)
-    min_risk_reward_ratio: float = Field(default=1.5, gt=0)
+    min_risk_reward_ratio: float = Field(default=2.0, gt=0)
 
     # Signal filtering
     min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)

@@ -118,7 +118,7 @@ class TestTradingStrategyConfig:
     def test_default_values(self) -> None:
         """Test default configuration values."""
         config = TradingStrategyConfig()
-        assert config.min_risk_reward_ratio == 1.5
+        assert config.min_risk_reward_ratio == 2.0
         assert config.default_risk_percent == 1.0
         assert config.default_leverage == 1
         assert config.max_leverage == 125
@@ -341,13 +341,58 @@ class TestRiskRewardValidation:
             reasoning="Test",
         )
 
-        # Default min is 1.5, should fail
+        # Default min is 2.0, should fail
         with pytest.raises(TradingValidationError):
             strategy.validate_risk_reward(analysis)
 
         # Override to 0.5, should pass
         rr = strategy.validate_risk_reward(analysis, min_ratio=0.5)
         assert rr == 1.0
+
+    def test_rr_at_2_0_floor_passes(self, strategy: TradingStrategy) -> None:
+        """R/R exactly at the new 2.0 default floor passes (P1 (I))."""
+        # entry 50000, SL 49500 → risk 500; TP 51000 → reward 1000; R/R = 2.0
+        analysis = AnalysisResult(
+            signal="long",
+            confidence=0.8,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49500"),
+            take_profit=Decimal("51000"),
+            reasoning="exactly at floor",
+        )
+        rr = strategy.validate_risk_reward(analysis)
+        assert rr == 2.0
+
+    def test_rr_just_below_2_0_rejected(self, strategy: TradingStrategy) -> None:
+        """R/R 1.99 (just under the 2.0 default floor) is rejected (P1 (I))."""
+        # risk = 100 (49900 → 50000); reward = 199 (50000 → 50199); R/R = 1.99
+        analysis = AnalysisResult(
+            signal="long",
+            confidence=0.8,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49900"),
+            take_profit=Decimal("50199"),
+            reasoning="just under floor",
+        )
+        with pytest.raises(TradingValidationError) as exc_info:
+            strategy.validate_risk_reward(analysis)
+        assert exc_info.value.field == "risk_reward_ratio"
+
+    def test_rr_at_old_1_5_floor_now_rejected(self, strategy: TradingStrategy) -> None:
+        """A signal that would have passed under the old 1.5 floor (R/R 1.7)
+        is now rejected by the new 2.0 default (P1 (I))."""
+        # risk 1000 (49000 → 50000); reward 1700 (50000 → 51700); R/R = 1.7
+        analysis = AnalysisResult(
+            signal="long",
+            confidence=0.8,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("51700"),
+            reasoning="ok at 1.5 floor, blocked at 2.0",
+        )
+        with pytest.raises(TradingValidationError) as exc_info:
+            strategy.validate_risk_reward(analysis)
+        assert exc_info.value.field == "risk_reward_ratio"
 
 
 class TestAnalysisValidation:

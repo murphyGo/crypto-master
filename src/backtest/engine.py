@@ -164,7 +164,7 @@ class BacktestConfig(BaseModel):
     warmup_candles: int = Field(default=20, ge=1)
     leverage: int = Field(default=1, ge=1, le=125)
     risk_percent: float = Field(default=1.0, gt=0, le=100)
-    min_risk_reward_ratio: float = Field(default=1.5, gt=0)
+    min_risk_reward_ratio: float = Field(default=2.0, gt=0)
     max_position_size_percent: float = Field(default=10.0, gt=0, le=100)
     allow_concurrent_positions: bool = False
     # Phase 17.2 / DEBT-019: per-bar circuit breaker. Defaults match

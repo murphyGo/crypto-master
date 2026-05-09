@@ -91,7 +91,7 @@ class TradingStrategyConfig(BaseModel):
         max_position_size_percent: Maximum position size as % of balance.
     """
 
-    min_risk_reward_ratio: float = Field(default=1.5, gt=0)
+    min_risk_reward_ratio: float = Field(default=2.0, gt=0)
     default_risk_percent: float = Field(default=1.0, gt=0, le=100)
     default_leverage: int = Field(default=1, ge=1, le=125)
     max_leverage: int = Field(default=125, ge=1, le=125)
