@@ -227,6 +227,17 @@ class TechniqueInfo(BaseModel):
         ),
     )
 
+    counter_trend: bool = Field(
+        default=False,
+        description=(
+            "When True, this strategy fades the prevailing trend by design "
+            "(mean-reversion class). Engine applies an HTF trend filter at "
+            "the proposal gate: shorts are rejected when 1D close > SMA200, "
+            "longs rejected when 1D close < SMA200. Trend-following and "
+            "balanced LLM strategies leave this False."
+        ),
+    )
+
     model_config = {"frozen": True}
 
 

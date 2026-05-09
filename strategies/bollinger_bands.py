@@ -33,6 +33,7 @@ TECHNIQUE_INFO = {
     "timeframes": ["1h", "4h"],
     "status": "experimental",
     "changelog": "Initial version (baseline)",
+    "counter_trend": True,
 }
 
 

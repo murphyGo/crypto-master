@@ -585,6 +585,14 @@ class TradingEngine:
         self._strategy_lookup_cache: dict[str, str] | None = None
         self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
         self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
+        # HTF trend filter cache. Keyed by ``(symbol, ymd)`` so the
+        # natural date rollover invalidates entries; ``run_cycle`` also
+        # clears at cycle start so very long-running processes never
+        # serve a stale 1D direction even if the system clock drifts
+        # without crossing midnight UTC. Value is
+        # ``(direction, last_close, sma200)`` where ``direction`` is
+        # ``"up"`` or ``"down"``.
+        self._htf_trend_cache: dict[tuple[str, str], tuple[str, Decimal, Decimal]] = {}
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -717,6 +725,7 @@ class TradingEngine:
         self._strategy_lookup_cache = None
         self._runtime_policy_cache = {}
         self._runtime_safety_score_cache = None
+        self._htf_trend_cache = {}
         self.activity_log.append(
             ActivityEventType.CYCLE_STARTED,
             f"Cycle {self._cycle_index} begin",
@@ -1016,6 +1025,24 @@ class TradingEngine:
                     )
                 return
 
+            trend_rejection = await self._trend_filter_gate(
+                proposal,
+                record,
+                exchange or self.exchange,
+                cycle_id,
+            )
+            if trend_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(trend_rejection.final_record)
+                for event in events + trend_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
             post_incident_safety_score = self._current_runtime_safety_score(
                 [event.to_activity_event() for event in events]
             )
@@ -1289,6 +1316,114 @@ class TradingEngine:
                         "runtime_safety_score": safety_score.score,
                         "runtime_safety_band": safety_score.band.value,
                         "runtime_safety_pause_min_score": pause_min_score,
+                    },
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    async def _trend_filter_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        exchange: BaseExchange | None,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject counter-trend signals against the 1D SMA200 trend.
+
+        Returns ``None`` when the gate should not block the proposal:
+
+        * the strategy is not flagged ``counter_trend`` in its
+          ``TechniqueInfo`` (trend-following / balanced strategies are
+          out of scope here),
+        * the strategy is unknown to the proposal engine (cannot read
+          ``counter_trend`` — fail open rather than block on a lookup
+          glitch),
+        * no exchange is available for the OHLCV fetch,
+        * fewer than 200 daily candles are returned (warm-up — refusing
+          to trade simply because history is short would silently
+          disable new symbols), or
+        * the OHLCV fetch raises (transient errors must not silently
+          disable trading; a WARN is logged for the operator).
+
+        For counter_trend strategies with sufficient 1D history:
+
+        * ``signal == "short"`` AND ``last_close > SMA200`` (uptrend)
+          rejects with reason ``counter_trend_short_in_uptrend``.
+        * ``signal == "long"``  AND ``last_close < SMA200`` (downtrend)
+          rejects with reason ``counter_trend_long_in_downtrend``.
+
+        Cached per-cycle on ``(symbol, ymd)`` so a single 1D fetch
+        serves every proposal sharing the symbol; the cache is wiped
+        at ``run_cycle`` start.
+        """
+        strategy = self.proposal_engine.strategies.get(proposal.technique_name)
+        if strategy is None:
+            return None
+        if not strategy.info.counter_trend:
+            return None
+        if exchange is None:
+            return None
+
+        cache_key = (proposal.symbol, now_utc().strftime("%Y-%m-%d"))
+        cached = self._htf_trend_cache.get(cache_key)
+        if cached is not None:
+            direction, last_close, sma200 = cached
+        else:
+            try:
+                ohlcv = await exchange.get_ohlcv(
+                    proposal.symbol, timeframe="1d", limit=200
+                )
+            except Exception as e:
+                logger.warning(
+                    "trend_filter_fetch_failed: symbol=%s proposal_id=%s "
+                    "error_type=%s error=%s",
+                    proposal.symbol,
+                    proposal.proposal_id,
+                    type(e).__name__,
+                    e,
+                )
+                return None
+            if len(ohlcv) < 200:
+                # Insufficient history — do not block the proposal. The
+                # gate is purely additive; refusing to trade fresh
+                # listings would be a regression.
+                return None
+            last_close = ohlcv[-1].close
+            closes = [c.close for c in ohlcv[-200:]]
+            sma200 = sum(closes, Decimal("0")) / Decimal(len(closes))
+            direction = "up" if last_close > sma200 else "down"
+            self._htf_trend_cache[cache_key] = (direction, last_close, sma200)
+
+        if proposal.signal == "short" and direction == "up":
+            reason = "counter_trend_short_in_uptrend"
+        elif proposal.signal == "long" and direction == "down":
+            reason = "counter_trend_long_in_downtrend"
+        else:
+            return None
+
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Trend-filter rejected {proposal.symbol} {proposal.signal}",
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "htf_timeframe": "1d",
+                        "htf_last_close": str(last_close),
+                        "htf_sma200": str(sma200),
+                        "htf_direction": direction,
                     },
                     cycle_id,
                 )

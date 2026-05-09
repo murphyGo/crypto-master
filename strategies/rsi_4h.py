@@ -37,4 +37,5 @@ TECHNIQUE_INFO = {
     "timeframes": ["4h"],
     "status": "experimental",
     "changelog": "Initial version (4h split from rsi_universal)",
+    "counter_trend": True,
 }

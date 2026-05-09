@@ -26,6 +26,7 @@ TECHNIQUE_INFO = {
     "timeframes": ["15m", "1h"],
     "status": "experimental",
     "changelog": "Initial deterministic VWAP pullback candidate",
+    "counter_trend": True,
 }
 
 

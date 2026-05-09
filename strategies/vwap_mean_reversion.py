@@ -27,6 +27,7 @@ TECHNIQUE_INFO = {
     "timeframes": ["15m", "1h"],
     "status": "experimental",
     "changelog": "Initial deterministic VWAP mean-reversion candidate",
+    "counter_trend": True,
 }
 
 

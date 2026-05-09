@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.exchange.base import BaseExchange, ExchangeAPIError
-from src.models import Ticker
+from src.models import OHLCV, AnalysisResult, Ticker
 from src.proposal.engine import Proposal, ProposalEngine, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
@@ -32,6 +32,7 @@ from src.runtime.engine import (
     PolicyResolver,
     TradingEngine,
 )
+from src.strategy.base import BaseStrategy, TechniqueInfo
 from src.strategy.performance import PerformanceTracker, TradeHistory
 from src.trading.sub_account import (
     CapitalPolicy,
@@ -148,6 +149,12 @@ def build_engine(
         )
 
     proposal_engine = MagicMock(spec=ProposalEngine)
+    # Default to an empty strategy registry so the HTF trend filter
+    # gate (which looks up ``proposal.technique_name`` in
+    # ``proposal_engine.strategies``) treats every test proposal as
+    # "unknown strategy → fail open". Tests that exercise the gate
+    # itself overwrite this with a real ``{name: BaseStrategy}`` dict.
+    proposal_engine.strategies = {}
     if isinstance(btc_proposal, Exception):
         proposal_engine.propose_bitcoin = AsyncMock(side_effect=btc_proposal)
     else:
@@ -2701,3 +2708,274 @@ async def test_engine_wires_per_notifier_failure_callback(tmp_path: Path) -> Non
     assert event.details["symbol"] == "BTC/USDT"
     assert event.details["error_type"] == "RuntimeError"
     assert event.details["error_message"] == "slack 503"
+
+
+# =============================================================================
+# _trend_filter_gate (HTF SMA200 trend filter for counter-trend strategies)
+# =============================================================================
+
+
+class _StubStrategy(BaseStrategy):
+    """Minimal BaseStrategy stand-in for trend-filter tests.
+
+    We only need ``info.counter_trend`` to be readable by the gate;
+    ``analyze`` is never invoked in these tests because the gate runs
+    after the proposal already exists.
+    """
+
+    async def analyze(  # type: ignore[override]
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
+    ) -> AnalysisResult:
+        raise NotImplementedError
+
+
+def _make_stub_strategy(name: str, *, counter_trend: bool) -> BaseStrategy:
+    info = TechniqueInfo(
+        name=name,
+        version="1.0.0",
+        description="stub",
+        technique_type="code",
+        counter_trend=counter_trend,
+    )
+    return _StubStrategy(info)
+
+
+def _make_daily_ohlcv(closes: list[float]) -> list[OHLCV]:
+    """Build a list of OHLCV daily candles with the given close prices.
+
+    The other fields are filled with the same value because the trend
+    filter only consumes ``close``.
+    """
+    base_ts = datetime(2026, 1, 1, 0, 0, 0)
+    bars: list[OHLCV] = []
+    for index, close in enumerate(closes):
+        price = Decimal(str(close))
+        bars.append(
+            OHLCV(
+                timestamp=base_ts.replace(day=((index % 28) + 1)),
+                open=price,
+                high=price,
+                low=price,
+                close=price,
+                volume=Decimal("1"),
+            )
+        )
+    return bars
+
+
+class TestTrendFilterGate:
+    """HTF 1D SMA200 trend filter for counter_trend strategies."""
+
+    async def test_short_in_uptrend_rejected(self, tmp_path: Path) -> None:
+        # 200 candles all at 100 → SMA200 = 100; final close at 200 →
+        # uptrend. A counter-trend short must be rejected.
+        closes = [100.0] * 199 + [200.0]
+        proposal = make_proposal(
+            proposal_id="ct-short-up", composite=2.0, signal="short"
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=True
+            )
+        }
+        mocks["exchange"].get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 1
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 0
+        mocks["trader"].open_position.assert_not_called()
+        record = mocks["history"].load("ct-short-up")
+        assert record.decision == ProposalDecision.REJECTED.value
+        assert record.rejection_reason == "counter_trend_short_in_uptrend"
+        rejected = mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        assert any(
+            "counter_trend" in (event.details.get("reason") or "") for event in rejected
+        )
+
+    async def test_long_in_downtrend_rejected(self, tmp_path: Path) -> None:
+        # 200 candles all at 200 → SMA200 = 200; final close at 100 →
+        # downtrend. A counter-trend long must be rejected.
+        closes = [200.0] * 199 + [100.0]
+        proposal = make_proposal(
+            proposal_id="ct-long-down",
+            composite=2.0,
+            signal="long",
+            entry="100",
+            sl="98",
+            tp="106",
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=True
+            )
+        }
+        mocks["exchange"].get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 0
+        record = mocks["history"].load("ct-long-down")
+        assert record.rejection_reason == "counter_trend_long_in_downtrend"
+
+    async def test_short_in_downtrend_passes(self, tmp_path: Path) -> None:
+        # SMA200 = 200, last close = 100 → downtrend. A counter-trend
+        # short *with* the trend should NOT be blocked by this gate.
+        closes = [200.0] * 199 + [100.0]
+        proposal = make_proposal(
+            proposal_id="ct-short-down",
+            composite=2.0,
+            signal="short",
+            entry="100",
+            sl="102",
+            tp="94",
+        )
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal,
+            ticker_price=Decimal("100"),
+        )
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=True
+            )
+        }
+        mocks["exchange"].get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 1
+        assert result.positions_opened == 1
+        # No trend-filter rejection on the record.
+        record = mocks["history"].load("ct-short-down")
+        assert record.decision == ProposalDecision.ACCEPTED.value
+
+    async def test_long_in_uptrend_passes(self, tmp_path: Path) -> None:
+        closes = [100.0] * 199 + [200.0]
+        proposal = make_proposal(
+            proposal_id="ct-long-up",
+            composite=2.0,
+            signal="long",
+            entry="200",
+            sl="196",
+            tp="212",
+        )
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal,
+            ticker_price=Decimal("200"),
+        )
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=True
+            )
+        }
+        mocks["exchange"].get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 1
+        assert result.positions_opened == 1
+        record = mocks["history"].load("ct-long-up")
+        assert record.decision == ProposalDecision.ACCEPTED.value
+
+    async def test_non_counter_trend_strategy_skipped(self, tmp_path: Path) -> None:
+        # A trend-following strategy: even with a clearly counter-trend
+        # short in an uptrend, the gate must not fetch HTF data and
+        # must not block the fill.
+        proposal = make_proposal(
+            proposal_id="tf-short-up",
+            composite=2.0,
+            signal="short",
+            entry="50000",
+            sl="50500",
+            tp="48500",
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=False
+            )
+        }
+        get_ohlcv = AsyncMock(return_value=[])
+        mocks["exchange"].get_ohlcv = get_ohlcv
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        get_ohlcv.assert_not_called()
+
+    async def test_insufficient_history_passes(self, tmp_path: Path) -> None:
+        # Only 50 daily candles — gate must fail open rather than
+        # silently disable trading on fresh listings.
+        closes = [100.0] * 49 + [200.0]
+        proposal = make_proposal(
+            proposal_id="ct-shorthist",
+            composite=2.0,
+            signal="short",
+            entry="50000",
+            sl="50500",
+            tp="48500",
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        mocks["proposal_engine"].strategies = {
+            proposal.technique_name: _make_stub_strategy(
+                proposal.technique_name, counter_trend=True
+            )
+        }
+        mocks["exchange"].get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        record = mocks["history"].load("ct-shorthist")
+        assert record.decision == ProposalDecision.ACCEPTED.value
+
+    async def test_cache_used_within_cycle(self, tmp_path: Path) -> None:
+        # Two proposals on the same symbol in the same cycle should
+        # share the cached HTF sample → ``get_ohlcv`` called once.
+        closes = [100.0] * 199 + [200.0]  # uptrend → both shorts rejected
+        btc_short = make_proposal(
+            proposal_id="ct-cache-1",
+            composite=2.0,
+            signal="short",
+            symbol="BTC/USDT",
+        )
+        eth_short = make_proposal(
+            proposal_id="ct-cache-2",
+            composite=2.0,
+            signal="short",
+            symbol="BTC/USDT",  # same symbol on purpose to hit cache
+        )
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=btc_short,
+            altcoin_proposals=[eth_short],
+        )
+        mocks["proposal_engine"].strategies = {
+            btc_short.technique_name: _make_stub_strategy(
+                btc_short.technique_name, counter_trend=True
+            )
+        }
+        get_ohlcv = AsyncMock(return_value=_make_daily_ohlcv(closes))
+        mocks["exchange"].get_ohlcv = get_ohlcv
+
+        result = await engine.run_cycle()
+
+        # Both proposals were rejected by the trend filter and
+        # ``get_ohlcv`` was invoked exactly once thanks to the cache.
+        assert result.proposals_rejected == 2
+        assert result.positions_opened == 0
+        assert get_ohlcv.call_count == 1

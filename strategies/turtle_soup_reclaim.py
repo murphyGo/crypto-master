@@ -26,6 +26,7 @@ TECHNIQUE_INFO = {
     "timeframes": ["4h", "1d"],
     "status": "experimental",
     "changelog": "Initial deterministic Turtle Soup candidate",
+    "counter_trend": True,
 }
 
 
