@@ -15,6 +15,11 @@ The audit log is the source of truth for "what happened to which
 candidate." ``CandidateRecord`` JSON files capture the latest snapshot;
 this log captures the full history.
 
+Parse-error rule: this module is read-only during replay, so malformed
+retained audit records are skipped with a warning. Write-path state
+loaders in ``src.feedback.loop`` raise instead because callers are
+about to mutate or promote a specific candidate.
+
 Phase 10.4 routes the file through :class:`JsonlRotator` so writes
 land in monthly files (``feedback.YYYY-MM.jsonl``) and reads merge the
 active month + the most-recent ``Settings.log_retention_months``

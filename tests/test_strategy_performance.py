@@ -1771,6 +1771,7 @@ class TestPhase21_2UtcAware:
             stop_loss=Decimal("49000"),
             take_profit=Decimal("52000"),
             confidence=0.7,
+            exit_price="51000",
             analysis_timestamp="2026-01-01T00:00:00",  # naive ISO string
             exit_timestamp="2026-01-05T00:00:00",  # naive ISO string
         )
@@ -1779,6 +1780,9 @@ class TestPhase21_2UtcAware:
         assert record.exit_timestamp.tzinfo is not None
         # Naive treated as UTC.
         assert record.analysis_timestamp == datetime(2026, 1, 1, tzinfo=timezone.utc)
+        assert isinstance(record.entry_price, Decimal)
+        assert isinstance(record.exit_price, Decimal)
+        assert isinstance(record.fees, Decimal)
 
     def test_trade_history_default_entry_time_is_utc(self) -> None:
         trade = TradeHistory(
@@ -1795,14 +1799,22 @@ class TestPhase21_2UtcAware:
             symbol="BTC/USDT",
             side="long",
             mode="paper",
-            entry_price=Decimal("50000"),
-            entry_quantity=Decimal("0.1"),
+            entry_price="50000",
+            entry_quantity="0.1",
+            exit_price="51000",
+            exit_quantity="0.1",
+            fees="1.23",
+            pnl="98.77",
             entry_time="2026-01-01T00:00:00",  # naive
             exit_time="2026-01-02T00:00:00",  # naive
         )
         assert trade.entry_time.tzinfo is not None
         assert trade.exit_time is not None
         assert trade.exit_time.tzinfo is not None
+        assert isinstance(trade.entry_price, Decimal)
+        assert isinstance(trade.exit_price, Decimal)
+        assert isinstance(trade.fees, Decimal)
+        assert isinstance(trade.pnl, Decimal)
 
     def test_get_trades_by_date_range_tolerates_naive_bounds(
         self, tmp_path: Path

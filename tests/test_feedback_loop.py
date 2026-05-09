@@ -633,6 +633,15 @@ def test_load_state_missing_raises(tmp_path: Path) -> None:
         loop.load_state("does-not-exist")
 
 
+def test_load_state_corrupt_record_raises_feedback_loop_error(tmp_path: Path) -> None:
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+    loop.state_dir.mkdir(parents=True, exist_ok=True)
+    (loop.state_dir / "bad-cand.json").write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(FeedbackLoopError, match="Failed to parse saved state"):
+        loop.load_state("bad-cand")
+
+
 def test_constructor_respects_settings_data_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

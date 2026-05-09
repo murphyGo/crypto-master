@@ -138,6 +138,23 @@ def test_read_returns_empty_for_missing_file(tmp_path: Path) -> None:
     assert log.read_all() == []
 
 
+def test_read_all_skips_invalid_schema_records(tmp_path: Path) -> None:
+    log = AuditLog(path=tmp_path / "audit.jsonl")
+    rotated = tmp_path / "audit.2026-04.jsonl"
+    rotated.write_text(
+        "\n".join(
+            [
+                json.dumps(make_event(candidate_id="valid").model_dump(mode="json")),
+                json.dumps({"timestamp": "2026-04-01T00:00:00"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert [event.candidate_id for event in log.read_all()] == ["valid"]
+
+
 def test_filter_by_candidate_and_event_type(tmp_path: Path) -> None:
     log = AuditLog(path=tmp_path / "audit.jsonl")
     log.append(make_event(candidate_id="A", event_type=AuditEventType.GENERATED))

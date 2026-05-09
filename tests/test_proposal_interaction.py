@@ -278,7 +278,7 @@ def test_history_save_load_round_trip(tmp_path: Path) -> None:
     assert loaded.proposal.entry_price == proposal.entry_price
     assert loaded.proposal.score.composite == proposal.score.composite
     assert loaded.decision == ProposalDecision.ACCEPTED.value
-    assert loaded.decision_at == datetime(2026, 4, 26, 12, 0, 0)
+    assert loaded.decision_at == datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
     assert loaded.actor == "user"
 
 
@@ -823,6 +823,20 @@ def test_attach_outcome_writes_utc_aware_outcome_recorded_at(
 
     assert updated.outcome_recorded_at is not None
     assert updated.outcome_recorded_at.tzinfo is not None
+
+
+def test_proposal_record_coerces_legacy_decision_timestamps_to_utc() -> None:
+    record = ProposalRecord(
+        proposal=make_proposal(proposal_id="utc-legacy"),
+        decision=ProposalDecision.ACCEPTED,
+        decision_at="2026-04-26T12:00:00",
+        outcome_recorded_at="2026-04-27T12:00:00",
+    )
+
+    assert record.decision_at == datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc)
+    assert record.outcome_recorded_at == datetime(
+        2026, 4, 27, 12, 0, tzinfo=timezone.utc
+    )
 
 
 def test_list_all_tolerates_legacy_naive_created_at(

@@ -38,7 +38,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from src.ai.exceptions import ClaudeTimeoutError
 from src.exchange.base import BaseExchange, ExchangeError
@@ -49,6 +49,7 @@ from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.strategy.prompt_filters import should_run_prompt_strategy
 from src.trading.strategy import TradingStrategy, TradingValidationError
+from src.utils.pydantic_mixins import UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_types import PositionSide
 
@@ -101,7 +102,7 @@ class ProposalScore(BaseModel):
     composite: float
 
 
-class Proposal(BaseModel):
+class Proposal(UtcTimestampMixin, BaseModel):
     """A trade idea ready for the user-interaction layer.
 
     Attributes:
@@ -140,12 +141,6 @@ class Proposal(BaseModel):
     risk_reward_ratio: float
     score: ProposalScore
     reasoning: str = ""
-
-    @field_validator("created_at", mode="after")
-    @classmethod
-    def _coerce_created_at_to_utc(cls, value: datetime) -> datetime:
-        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
-        return ensure_utc(value)
 
 
 class ProposalEngineConfig(BaseModel):

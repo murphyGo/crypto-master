@@ -20,13 +20,14 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult
 from src.strategy.base import TechniqueInfo
 from src.utils.io import atomic_write_text
+from src.utils.pydantic_mixins import DecimalFieldsMixin, UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
 
@@ -46,7 +47,7 @@ class TradeOutcome(str, Enum):
     PENDING = "pending"  # Trade not yet closed
 
 
-class PerformanceRecord(BaseModel):
+class PerformanceRecord(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     """Single analysis/trade performance record.
 
     Stores the analysis result and its eventual trade outcome
@@ -105,54 +106,6 @@ class PerformanceRecord(BaseModel):
     profile_name: str | None = None
 
     model_config = {"use_enum_values": True}
-
-    @field_validator("entry_price", "stop_loss", "take_profit", mode="before")
-    @classmethod
-    def convert_to_decimal(cls, v: str | int | float | Decimal) -> Decimal:
-        """Convert numeric values to Decimal."""
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator(
-        "exit_price",
-        "quantity",
-        "actual_entry_price",
-        "actual_exit_price",
-        mode="before",
-    )
-    @classmethod
-    def convert_optional_to_decimal(
-        cls, v: str | int | float | Decimal | None
-    ) -> Decimal | None:
-        """Convert optional numeric values to Decimal if present."""
-        if v is None:
-            return None
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator("fees", mode="before")
-    @classmethod
-    def convert_fees_to_decimal(cls, v: str | int | float | Decimal) -> Decimal:
-        """Convert fees to Decimal."""
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator("analysis_timestamp", mode="after")
-    @classmethod
-    def _coerce_analysis_timestamp_to_utc(cls, value: datetime) -> datetime:
-        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
-        return ensure_utc(value)
-
-    @field_validator("exit_timestamp", mode="after")
-    @classmethod
-    def _coerce_exit_timestamp_to_utc(cls, value: datetime | None) -> datetime | None:
-        """Coerce naive on-disk timestamps to UTC (DEBT-025 / Phase 21.2)."""
-        if value is None:
-            return None
-        return ensure_utc(value)
 
     def calculate_pnl(self) -> float | None:
         """Calculate P&L percentage based on outcome.
@@ -747,7 +700,7 @@ class PerformanceTracker:
 DEFAULT_TRADES_DIR = Path("data/trades")
 
 
-class TradeHistory(BaseModel):
+class TradeHistory(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     """Complete trade lifecycle record.
 
     Stores full details of a trade execution including entry, exit,
@@ -820,55 +773,6 @@ class TradeHistory(BaseModel):
     close_reason: str | None = None  # "take_profit", "stop_loss", "manual"
 
     model_config = {"use_enum_values": True}
-
-    @field_validator("entry_price", "entry_quantity", mode="before")
-    @classmethod
-    def convert_entry_to_decimal(cls, v: str | int | float | Decimal) -> Decimal:
-        """Convert entry values to Decimal."""
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator(
-        "exit_price",
-        "exit_quantity",
-        "pnl",
-        "stop_loss",
-        "take_profit",
-        mode="before",
-    )
-    @classmethod
-    def convert_exit_fields_to_decimal(
-        cls, v: str | int | float | Decimal | None
-    ) -> Decimal | None:
-        """Convert optional exit fields to Decimal."""
-        if v is None:
-            return None
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator("fees", mode="before")
-    @classmethod
-    def convert_trade_fees_to_decimal(cls, v: str | int | float | Decimal) -> Decimal:
-        """Convert fees to Decimal."""
-        if isinstance(v, Decimal):
-            return v
-        return Decimal(str(v))
-
-    @field_validator("entry_time", mode="after")
-    @classmethod
-    def _coerce_entry_time_to_utc(cls, value: datetime) -> datetime:
-        """Coerce naive on-disk entry timestamps to UTC (DEBT-025 / Phase 21.2)."""
-        return ensure_utc(value)
-
-    @field_validator("exit_time", mode="after")
-    @classmethod
-    def _coerce_exit_time_to_utc(cls, value: datetime | None) -> datetime | None:
-        """Coerce naive on-disk exit timestamps to UTC (DEBT-025 / Phase 21.2)."""
-        if value is None:
-            return None
-        return ensure_utc(value)
 
     def calculate_pnl(self) -> tuple[Decimal | None, float | None]:
         """Calculate P&L based on entry and exit.

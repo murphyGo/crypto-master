@@ -27,7 +27,7 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
@@ -38,7 +38,8 @@ from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.engine import Proposal
 from src.utils.io import atomic_write_text
-from src.utils.time import now_utc
+from src.utils.pydantic_mixins import UtcTimestampMixin
+from src.utils.time import ensure_utc, now_utc
 
 logger = get_logger("crypto_master.proposal.interaction")
 
@@ -94,7 +95,7 @@ ProposalDecisionCallback = Callable[[Proposal], Awaitable[ProposalDecisionInput]
 # =============================================================================
 
 
-class ProposalRecord(BaseModel):
+class ProposalRecord(UtcTimestampMixin, BaseModel):
     """A proposal plus the user's decision and (later) realized outcome.
 
     Attributes:
@@ -306,15 +307,8 @@ class ProposalHistory:
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Skipping unreadable proposal file {path}: {e}")
 
-        # DEBT-025 (Phase 21.2): legacy proposals on disk may carry
-        # naive ``created_at`` while new ones (post-21.2) are UTC-aware.
-        # Coerce to UTC at the sort key so aware-vs-naive comparisons
-        # don't raise ``TypeError``.
         def _sort_key(r: ProposalRecord) -> datetime:
-            ts = r.proposal.created_at
-            if ts.tzinfo is None:
-                return ts.replace(tzinfo=timezone.utc)
-            return ts
+            return ensure_utc(r.proposal.created_at)
 
         records.sort(key=_sort_key)
 
@@ -480,11 +474,8 @@ class ProposalHistory:
 
         if now is None:
             now = now_utc()
-        elif now.tzinfo is None:
-            # DEBT-025 (Phase 21.2): tolerate test callers that still
-            # pass naive datetimes; treat them as UTC so the cutoff
-            # comparison stays aware-vs-aware.
-            now = now.replace(tzinfo=timezone.utc)
+        else:
+            now = ensure_utc(now)
         if retention_months is None:
             retention_months = get_settings().log_retention_months
         # DEBT-036 (Phase 26.2): true calendar months. The legacy
@@ -505,13 +496,7 @@ class ProposalHistory:
                 )
                 continue
 
-            created_at = record.proposal.created_at
-            # DEBT-025 (Phase 21.2): legacy proposals on disk carry
-            # naive timestamps; coerce to UTC at the read boundary so
-            # the cutoff comparison stays aware-vs-aware regardless of
-            # when the record was originally written.
-            if created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = ensure_utc(record.proposal.created_at)
             if created_at >= cutoff:
                 continue
 

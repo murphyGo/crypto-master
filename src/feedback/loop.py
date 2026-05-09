@@ -18,6 +18,11 @@ Every state transition is recorded in the audit log so a future
 operator can answer "why is this technique active?" or "what made us
 discard that one?" without spelunking the codebase.
 
+Parse-error rule: broad read-only listings such as ``list_pending()``
+warn and skip malformed candidate snapshots, while single-record
+write-path loads such as ``load_state()`` raise ``FeedbackLoopError``.
+Promotion and status writes must never proceed from a corrupt snapshot.
+
 Related Requirements:
 - FR-026: Automated Feedback Loop
 - FR-027: Technique Adoption (user approval required)
@@ -485,8 +490,13 @@ class FeedbackLoop:
             raise FeedbackLoopError(
                 f"No saved state for candidate {candidate_id} at {path}"
             )
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return CandidateRecord(**payload)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return CandidateRecord(**payload)
+        except (json.JSONDecodeError, ValueError) as e:
+            raise FeedbackLoopError(
+                f"Failed to parse saved state for candidate {candidate_id} at {path}: {e}"
+            ) from e
 
     def list_pending(self) -> list[CandidateRecord]:
         """Return every candidate currently awaiting approval."""
