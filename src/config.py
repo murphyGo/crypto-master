@@ -211,12 +211,14 @@ class Settings(BaseSettings):
     # string before the validator runs; without it,
     # ``ENGINE_SYMBOLS=BTC/USDT,ETH/USDT`` raises a JSON decode error.
     engine_symbols: Annotated[list[str], NoDecode] = Field(
+        # 2026-05-10: SOL/USDT and AVAX/USDT removed pending strategy
+        # fixes (see commit eb1ece5 / .env.example for the data-grounded
+        # justification). Operators that want them back set ENGINE_SYMBOLS
+        # explicitly via env / fly secret.
         default_factory=lambda: [
             "ETH/USDT",
-            "SOL/USDT",
             "BNB/USDT",
             "ADA/USDT",
-            "AVAX/USDT",
         ]
     )
     engine_balance: Decimal = Field(default=Decimal("10000"))

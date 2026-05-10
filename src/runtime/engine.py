@@ -163,12 +163,12 @@ class EngineConfig(BaseModel):
     )
     bitcoin_symbol: str = "BTC/USDT"
     altcoin_symbols: list[str] = Field(
+        # Mirrors src/config.py Settings.engine_symbols default. SOL/AVAX
+        # removed 2026-05-10 pending strategy fixes (commit eb1ece5).
         default_factory=lambda: [
             "ETH/USDT",
-            "SOL/USDT",
             "BNB/USDT",
             "ADA/USDT",
-            "AVAX/USDT",
         ]
     )
     altcoin_top_k: int = Field(default=3, ge=1)
