@@ -21,7 +21,7 @@ from src.strategy.base import BaseStrategy, StrategyExecutionError
 
 TECHNIQUE_INFO = {
     "name": "vwap_mean_reversion",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": (
         "VWAP band mean reversion: fade 2-sigma VWAP extensions when "
         "local trend slope is muted."
@@ -31,6 +31,11 @@ TECHNIQUE_INFO = {
     "timeframes": ["15m", "1h"],
     "status": "experimental",
     "changelog": (
+        "1.1.1: DEBT-061 -- guard wrong-side stop. When overshoot "
+        "exceeds STOP_BAND_MULTIPLIER * sigma the band-anchored "
+        "stop ends up on the wrong side of entry; return NEUTRAL "
+        "with explicit reason instead of letting the proposal die "
+        "downstream at validate_prices. "
         "1.1.0: wire STOP_BAND_MULTIPLIER for band-anchored stops; "
         "tighten MAX_TREND_SLOPE 0.015 -> 0.005 (filter requires "
         "tighter range regime). Removes dead constant fallback."
@@ -83,11 +88,26 @@ class VWAPMeanReversionStrategy(BaseStrategy):
         range_ok = trend_slope <= MAX_TREND_SLOPE
 
         if current_price < lower and range_ok:
-            # Band-anchored stop: 0.8 sigma below the lower trigger band.
+            # Band-anchored stop: STOP_BAND_MULTIPLIER sigma below VWAP.
             # The strategy's thesis is "price overshoots, will revert to
             # VWAP" — the stop has to live OUTSIDE the band so a further
             # excursion (still consistent with the thesis) doesn't clip.
             stop = vwap - sigma * STOP_BAND_MULTIPLIER
+            # DEBT-061 guard: if overshoot exceeds the stop band, the
+            # band-anchored stop ends up ABOVE the entry (wrong side for
+            # a long). The thesis has no headroom left -- the overshoot
+            # already consumed the entire stop band. NEUTRAL with reason.
+            if stop >= current_price:
+                return _neutral_result(
+                    current_price,
+                    (
+                        f"Long VWAP overshoot exceeds stop band: "
+                        f"close {current_price:.2f}, stop {stop:.2f}, "
+                        f"vwap {vwap:.2f}, sigma {sigma:.4f} "
+                        f"(overshoot/sigma={(vwap - current_price) / max(sigma, 1e-9):.2f} "
+                        f">= STOP_BAND_MULTIPLIER={STOP_BAND_MULTIPLIER})"
+                    ),
+                )
             return _directional_result(
                 signal="long",
                 current_price=current_price,
@@ -102,6 +122,18 @@ class VWAPMeanReversionStrategy(BaseStrategy):
         if current_price > upper and range_ok:
             # Symmetric band-anchored stop above the upper trigger band.
             stop = vwap + sigma * STOP_BAND_MULTIPLIER
+            # DEBT-061 guard: symmetric wrong-side check for short.
+            if stop <= current_price:
+                return _neutral_result(
+                    current_price,
+                    (
+                        f"Short VWAP overshoot exceeds stop band: "
+                        f"close {current_price:.2f}, stop {stop:.2f}, "
+                        f"vwap {vwap:.2f}, sigma {sigma:.4f} "
+                        f"(overshoot/sigma={(current_price - vwap) / max(sigma, 1e-9):.2f} "
+                        f">= STOP_BAND_MULTIPLIER={STOP_BAND_MULTIPLIER})"
+                    ),
+                )
             return _directional_result(
                 signal="short",
                 current_price=current_price,

@@ -586,6 +586,43 @@ async def test_vwap_mr_calm_regime_still_fires(vwap_reversion_module) -> None:
     assert result.signal == "long"
 
 
+async def test_vwap_mr_long_overshoot_beyond_stop_band_neutral(
+    vwap_reversion_module,
+) -> None:
+    """DEBT-061: long overshoot exceeding STOP_BAND_MULTIPLIER returns NEUTRAL."""
+    strategy = _build(vwap_reversion_module)
+    # Oscillating series keeps sigma small (~0.25). Final close drops far
+    # below the lower band -- past where the band-anchored stop sits, so
+    # the would-be stop ends up ABOVE the entry. Strategy must NEUTRAL.
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [97.0]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "neutral"
+    assert "Long VWAP overshoot exceeds stop band" in result.reasoning
+
+
+async def test_vwap_mr_short_overshoot_beyond_stop_band_neutral(
+    vwap_reversion_module,
+) -> None:
+    """DEBT-061: short overshoot exceeding STOP_BAND_MULTIPLIER returns NEUTRAL."""
+    strategy = _build(vwap_reversion_module)
+    # Mirror of the long overshoot test: final close pushes far above the
+    # upper band, past the band-anchored stop on the upside.
+    closes = [100.0 + ((-1) ** i) * 0.2 for i in range(52)] + [103.0]
+    highs = [close + 0.2 for close in closes]
+    lows = [close - 0.2 for close in closes]
+    ohlcv = _make_ohlcv(closes, highs=highs, lows=lows)
+
+    result = await strategy.analyze(ohlcv, "BTC/USDT", "15m")
+
+    assert result.signal == "neutral"
+    assert "Short VWAP overshoot exceeds stop band" in result.reasoning
+
+
 @pytest.fixture
 def weinstein_module():
     return _load_strategy_module("weinstein_stage2_filter.py")
