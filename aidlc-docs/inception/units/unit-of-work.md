@@ -36,7 +36,11 @@ For active technical debt grouped by these units, see
 | `runtime-safety-score` | Operator-facing runtime safety score and degraded-state signals | `src/runtime/`, `src/proposal/`, `src/dashboard/pages/engine.py`, `tests/test_runtime_*`, `tests/test_dashboard_engine.py` |
 | `proposal-replay-simulator` | Historical proposal replay and threshold/exit sensitivity reports | `src/proposal/`, `src/backtest/`, `scripts/`, `tests/test_proposal_*`, `tests/test_scripts_*` |
 | `strategy-correlation-governor` | Correlation-aware exposure limits across strategies, symbols, and sub-accounts | `src/backtest/`, `src/runtime/`, `src/trading/`, `tests/test_backtest_*`, `tests/test_runtime_*` |
+| `runtime-reconciliation` | Repair and monitor deployed paper-runtime state so open trades, persisted bounds, balances, and dashboard positions stay reconciled | `src/trading/`, `src/runtime/`, `src/tools/`, `src/dashboard/`, `tests/test_paper_trading.py`, `tests/test_runtime_*`, `tests/test_tools_*` |
+| `proposal-funnel-audit` | Operator-visible proposal funnel from generated proposal through post-approval gates and opened trades | `src/proposal/`, `src/runtime/`, `src/dashboard/`, `tests/test_proposal_*`, `tests/test_runtime_*`, `tests/test_dashboard_*` |
+| `cross-account-risk-policy` | Cross-sub-account exposure, risk sizing, stale-position, and kill-switch policies for strategy labs | `src/runtime/`, `src/trading/sub_account*.py`, `config/sub_accounts.yaml`, `tests/test_runtime_*`, `tests/test_trading_sub_account*` |
 | `market-regime` | Current market regime classification and per-sub-account regime gating policy | `src/runtime/`, `src/trading/sub_account*.py`, `src/dashboard/`, `tests/test_runtime_*`, `tests/test_trading_sub_account*`, `tests/test_dashboard_*` |
+| `strategy-tuning` | Data-driven tuning, pausing, and promotion policy for live paper-lab strategy families | `strategies/`, `config/sub_accounts.yaml`, `src/proposal/`, `src/dashboard/`, `tests/test_baseline_strategies.py`, `tests/test_runtime_*`, `tests/test_dashboard_*` |
 
 ## Detailed Units
 
@@ -306,6 +310,60 @@ For active technical debt grouped by these units, see
 - **Suggested Tests**: `tests/test_backtest_harness.py`,
   `tests/test_runtime_engine.py`, `tests/test_trading_sub_account_registry.py`.
 
+### `runtime-reconciliation`
+
+- **Responsibilities**: Reconcile deployed paper runtime state so open trades
+  are monitorable, persisted trade rows carry SL/TP and proposal/performance
+  links, balance snapshots match open exposure, orphan trades are visible, and
+  dashboards do not silently show cash-only state while ledger trades remain
+  open.
+- **Related Requirements**: FR-010, FR-014, FR-029, FR-036, NFR-007, NFR-008,
+  NFR-012.
+- **Existing Status**: New product/operations unit created from the 2026-05-13
+  Fly runtime strategy-performance review.
+- **Future Change Triggers**: Paper trade backfill, balance snapshot repair,
+  orphan/open-position reconciliation, monitor-health blocking signals,
+  deployed `/data` migration or repair tooling.
+- **Suggested Tests**: `tests/test_paper_trading.py`,
+  `tests/test_runtime_engine.py`, `tests/test_dashboard_engine.py`,
+  `tests/test_tools_backfill_paper_sl_tp.py`.
+
+### `proposal-funnel-audit`
+
+- **Responsibilities**: Make the proposal lifecycle observable as one funnel:
+  generated, scored, initially accepted, rejected by later gates, blocked by
+  caps/correlation/stale quote, opened as a trade, and eventually linked to
+  outcomes. Preserve enough rejection metadata for operators to distinguish
+  weak strategy signals from healthy risk controls.
+- **Related Requirements**: FR-011, FR-012, FR-013, FR-014, FR-015, FR-029,
+  FR-043, NFR-007, NFR-012.
+- **Existing Status**: New product/operations unit created from the 2026-05-13
+  Fly runtime strategy-performance review.
+- **Future Change Triggers**: Proposal decision schema changes, post-approval
+  gate changes, cap/correlation diagnostics, dashboard funnel views, score
+  threshold tuning.
+- **Suggested Tests**: `tests/test_proposal_engine.py`,
+  `tests/test_proposal_interaction.py`, `tests/test_runtime_engine.py`,
+  `tests/test_dashboard_trading.py`.
+
+### `cross-account-risk-policy`
+
+- **Responsibilities**: Control portfolio-level risk across strategy-isolated
+  paper accounts, including risk-based sizing, cross-account same-symbol and
+  same-side exposure caps, stale-position age limits, account/global drawdown
+  kill switches, and account-tier risk modes.
+- **Related Requirements**: FR-036, FR-037, FR-038, FR-044, NFR-007, NFR-008,
+  NFR-012.
+- **Existing Status**: New risk-policy unit created from the 2026-05-13 Fly
+  runtime strategy-performance review.
+- **Future Change Triggers**: Sub-account risk schema changes, runtime sizing
+  formula changes, global exposure caps, drawdown pause behavior, strategy lab
+  account tiering.
+- **Suggested Tests**: `tests/test_runtime_engine.py`,
+  `tests/test_trading_sub_account.py`,
+  `tests/test_trading_sub_account_registry.py`,
+  `tests/test_dashboard_trading.py`.
+
 ### `market-regime`
 
 - **Responsibilities**: Shared bull / bear / sideways / unknown market-regime
@@ -320,3 +378,21 @@ For active technical debt grouped by these units, see
 - **Suggested Tests**: regime classifier unit tests, sub-account policy
   validation tests, runtime proposal-gating tests, activity event tests,
   dashboard rendering tests.
+
+### `strategy-tuning`
+
+- **Responsibilities**: Convert observed paper-lab outcomes into explicit
+  strategy-family actions: pause, scout-size, keep, promote, or retune. Owns
+  RSI-family consolidation, mean-reversion regime/exit improvements, VCP
+  no-signal diagnostics, ORB/session stale-exit rules, and default/LLM account
+  isolation.
+- **Related Requirements**: FR-001, FR-002, FR-005, FR-013, FR-027, FR-034,
+  FR-036, FR-039, NFR-006, NFR-007.
+- **Existing Status**: New strategy-improvement unit created from the
+  2026-05-13 Fly runtime strategy-performance review.
+- **Future Change Triggers**: Strategy parameter tuning, strategy family pause
+  or promotion decisions, new paper-lab evidence, default/LLM account
+  separation, dashboard recommendation changes.
+- **Suggested Tests**: `tests/test_baseline_strategies.py`,
+  `tests/test_strategy_loader.py`, `tests/test_proposal_engine.py`,
+  `tests/test_runtime_engine.py`, dashboard strategy evidence tests.
