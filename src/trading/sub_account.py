@@ -27,6 +27,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from src.strategy.tuning import StrategyTuningPolicy
+
 # Filesystem-safe id pattern: lowercase ASCII, digits, underscore,
 # leading letter. Matches sub-account ids used both as registry keys
 # and as path segments under ``data/.../{sub_account_id}/...``.
@@ -448,6 +450,12 @@ class SubAccount(BaseModel):
     execution_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     notification_policy: NotificationPolicy = Field(default_factory=NotificationPolicy)
     market_regime: MarketRegimePolicy = Field(default_factory=MarketRegimePolicy)
+    # strategy-tuning §"Account Policy": opt-in per-account block
+    # carrying applied/recommended action overrides per strategy plus
+    # the recommender's evidence thresholds. Default
+    # ``enabled=False`` is the no-op back-compat floor — accounts that
+    # don't declare ``strategy_tuning`` behave exactly as before.
+    strategy_tuning: StrategyTuningPolicy = Field(default_factory=StrategyTuningPolicy)
     notification_route: str | None = None
     enabled: bool = True
 
@@ -577,6 +585,7 @@ __all__ = [
     "RiskOverrides",
     "RiskPolicy",
     "StrategyPolicy",
+    "StrategyTuningPolicy",
     "SubAccount",
     "SubAccountError",
     "SubAccountNotFoundError",

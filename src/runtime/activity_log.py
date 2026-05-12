@@ -288,6 +288,35 @@ class ActivityEventType(str, Enum):
     #                                 iteration started
     RECONCILIATION_HEALTH_CHECK_FAILED = "reconciliation_health_check_failed"
 
+    # Strategy-tuning applied-state change (strategy-tuning unit).
+    # Emitted whenever the applied action for a ``(sub_account,
+    # strategy)`` pair transitions — operator-initiated YAML reload
+    # or (future) automated policy. The event payload carries the
+    # transition tuple so dashboards / audit log can reconstruct the
+    # history without re-deriving it from YAML diffs. ``details``
+    # payload (structured-fields contract — pinned by
+    # ``test_strategy_action_applied_event_payload``):
+    #
+    #     sub_account_id (str)
+    #     strategy (str)             technique name
+    #     prior_state (str)           StrategyAction value
+    #     new_state (str)             StrategyAction value
+    #     applied_by ("operator" | "system")
+    #     evidence_snapshot (dict | None)
+    STRATEGY_ACTION_APPLIED = "strategy_action_applied"
+
+    # Strategy-tuning retune advisory (strategy-tuning unit). Emitted
+    # by the runtime strategy-action gate when the applied state is
+    # ``retune``: the proposal still flows through, but the dashboard
+    # surfaces the flag so operators see which strategies are queued
+    # for parameter / prompt work. ``details`` payload:
+    #
+    #     proposal_id (str)
+    #     sub_account_id (str)
+    #     technique_name (str)
+    #     symbol (str)
+    RETUNE_FLAGGED = "retune_flagged"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

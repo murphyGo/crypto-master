@@ -986,3 +986,44 @@ def test_proposal_record_round_trip_preserves_each_terminal_state(
         )
         loaded = history.load(proposal.proposal_id)
         assert loaded.final_state == state.value
+
+
+# =============================================================================
+# strategy-tuning: shadow field + new final-state members
+# =============================================================================
+
+
+def test_proposal_record_shadow_field_defaults_to_false() -> None:
+    """Default ``shadow=False`` keeps pre-cutover records loading unchanged."""
+    proposal = make_proposal()
+    record = ProposalRecord(proposal=proposal)
+    assert record.shadow is False
+
+
+def test_proposal_record_shadow_field_persists_round_trip(tmp_path: Path) -> None:
+    """The ``shadow`` marker survives JSON persistence."""
+    history = ProposalHistory(data_dir=tmp_path)
+    proposal = make_proposal(proposal_id="shadow_round_trip")
+    history.save(
+        ProposalRecord(
+            proposal=proposal,
+            shadow=True,
+            final_state=ProposalFinalState.SHADOW_RECORDED,
+        )
+    )
+    loaded = history.load(proposal.proposal_id)
+    assert loaded.shadow is True
+    assert loaded.final_state == ProposalFinalState.SHADOW_RECORDED.value
+
+
+def test_proposal_final_state_includes_strategy_action_pause_and_shadow_recorded() -> (
+    None
+):
+    """New terminals from strategy-tuning are reachable by name."""
+    assert (
+        ProposalFinalState("gate_rejected_strategy_action_pause")
+        is ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE
+    )
+    assert (
+        ProposalFinalState("shadow_recorded") is ProposalFinalState.SHADOW_RECORDED
+    )

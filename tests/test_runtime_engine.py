@@ -36,6 +36,11 @@ from src.runtime.engine import (
 )
 from src.strategy.base import BaseStrategy, TechniqueInfo
 from src.strategy.performance import PerformanceTracker, TradeHistory
+from src.strategy.tuning import (
+    StrategyAction,
+    StrategyOverride,
+    StrategyTuningPolicy,
+)
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
@@ -5140,3 +5145,216 @@ async def test_stale_position_block_gate_handles_naive_entry_time_defensively(
         == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
     )
     assert "stale_position_block" in (record.rejection_reason or "")
+
+
+# =============================================================================
+# strategy-tuning: _strategy_action_gate (Slice 1)
+# =============================================================================
+
+
+def _make_sub_account_with_action(
+    *,
+    action: StrategyAction,
+    technique_name: str = "tech_a",
+    scout_size_factor: Decimal | None = None,
+    enabled: bool = True,
+) -> SubAccount:
+    """Build a sub-account whose strategy_tuning policy has the given action."""
+    override_kwargs: dict[str, object] = {"applied": action}
+    if scout_size_factor is not None:
+        override_kwargs["scout_size_factor"] = scout_size_factor
+    policy = StrategyTuningPolicy(
+        enabled=enabled,
+        strategy_overrides={
+            technique_name: StrategyOverride(**override_kwargs),
+        },
+    )
+    return SubAccount(
+        id="tuning_test",
+        name="Tuning Test",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_tuning=policy,
+    )
+
+
+def test_strategy_action_gate_keep_is_no_op(tmp_path: Path) -> None:
+    """``keep`` returns the inputs unchanged and emits no outcome."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="keep-test")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(action=StrategyAction.KEEP)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert new_proposal is proposal
+    assert new_record is record
+    assert outcome is None
+
+
+def test_strategy_action_gate_promote_is_no_op(tmp_path: Path) -> None:
+    """``promote`` is recommendation-only; runtime behaviour is keep-like."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="promote-test")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(action=StrategyAction.PROMOTE)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal is proposal
+    assert new_record is record
+
+
+def test_strategy_action_gate_retune_passes_through_and_emits_advisory(
+    tmp_path: Path,
+) -> None:
+    """``retune`` flows through but emits a ``RETUNE_FLAGGED`` advisory event."""
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="retune-test")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(action=StrategyAction.RETUNE)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal is proposal
+    flagged = mocks["activity_log"].filter(
+        event_type=ActivityEventType.RETUNE_FLAGGED
+    )
+    assert len(flagged) == 1
+    assert flagged[0].details["technique_name"] == proposal.technique_name
+
+
+def test_strategy_action_gate_scout_scales_quantity(tmp_path: Path) -> None:
+    """``scout`` rewrites ``proposal.quantity`` by ``scout_size_factor``."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="scout-test", quantity="0.4")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(
+        action=StrategyAction.SCOUT,
+        scout_size_factor=Decimal("0.25"),
+    )
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal.quantity == Decimal("0.4") * Decimal("0.25")
+    # Other fields untouched.
+    assert new_proposal.entry_price == proposal.entry_price
+    assert new_record is record
+
+
+def test_strategy_action_gate_shadow_persists_with_shadow_marker(
+    tmp_path: Path,
+) -> None:
+    """``shadow`` returns a rejected outcome with ``shadow=True`` on the record."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="shadow-test")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(action=StrategyAction.SHADOW)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is not None
+    assert new_record.shadow is True
+    assert (
+        new_record.final_state == ProposalFinalState.SHADOW_RECORDED.value
+    )
+    assert outcome.final_record is new_record
+    # Event payload carries the shadow marker for dashboards.
+    assert outcome.events[0].details["shadow"] is True
+
+
+def test_strategy_action_gate_pause_rejects_with_dedicated_terminal(
+    tmp_path: Path,
+) -> None:
+    """``pause`` rejects with the ``GATE_REJECTED_STRATEGY_ACTION_PAUSE`` terminal."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="pause-test")
+    record = ProposalRecord(proposal=proposal)
+    sub = _make_sub_account_with_action(action=StrategyAction.PAUSE)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is not None
+    assert new_record.decision == ProposalDecision.REJECTED.value
+    assert (
+        new_record.final_state
+        == ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE.value
+    )
+    assert new_record.rejection_reason == "strategy_action_pause"
+    assert outcome.events[0].details["gate_reason"] == "strategy_action_pause"
+
+
+def test_strategy_action_gate_disabled_policy_is_no_op(tmp_path: Path) -> None:
+    """``strategy_tuning.enabled=False`` keeps the gate a complete no-op."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="disabled-test")
+    record = ProposalRecord(proposal=proposal)
+    # Even with PAUSE in the overrides, disabled means the gate never fires.
+    sub = _make_sub_account_with_action(
+        action=StrategyAction.PAUSE,
+        enabled=False,
+    )
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal is proposal
+    assert new_record is record
+
+
+def test_strategy_action_gate_unknown_strategy_defaults_to_keep(
+    tmp_path: Path,
+) -> None:
+    """Strategies without an explicit override default to ``keep``."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="default-keep")
+    record = ProposalRecord(proposal=proposal)
+    # Policy enabled but no override for ``tech_a``.
+    sub = SubAccount(
+        id="default_keep",
+        name="Default Keep",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        strategy_tuning=StrategyTuningPolicy(enabled=True),
+    )
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, sub, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal is proposal
+
+
+def test_strategy_action_gate_no_sub_account_is_no_op(tmp_path: Path) -> None:
+    """Legacy path without a sub-account never gates."""
+    engine, _ = build_engine(tmp_path=tmp_path)
+    proposal = make_proposal(proposal_id="no-sub")
+    record = ProposalRecord(proposal=proposal)
+
+    new_proposal, new_record, outcome = engine._strategy_action_gate(
+        proposal, record, None, cycle_id="cy1"
+    )
+
+    assert outcome is None
+    assert new_proposal is proposal
+    assert new_record is record

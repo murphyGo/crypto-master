@@ -87,6 +87,13 @@ class FunnelCounts(BaseModel):
     gate_rejected_account_aggregate_cap: int = 0
     gate_rejected_stale_position_block: int = 0
     gate_rejected_risk_sizing: int = 0
+    # strategy-tuning (2026-05-13): action-driven terminals. Pause
+    # rides on a dedicated ``gate_rejected_*`` bucket; shadow is a
+    # *non-rejection* terminal that records the proposal without
+    # opening, so the dashboard separates "blocked" from "measured-
+    # only".
+    gate_rejected_strategy_action_pause: int = 0
+    shadow_recorded: int = 0
     gate_rejected_unknown: int = 0
     proposal_opened: int = 0
     trade_opened: int = 0
@@ -109,6 +116,7 @@ class FunnelCounts(BaseModel):
             + self.gate_rejected_account_aggregate_cap
             + self.gate_rejected_stale_position_block
             + self.gate_rejected_risk_sizing
+            + self.gate_rejected_strategy_action_pause
             + self.gate_rejected_unknown
         )
 
@@ -127,6 +135,7 @@ class FunnelCounts(BaseModel):
         return (
             self.score_accepted
             + self.gate_rejected_total
+            + self.shadow_recorded
             + self.proposal_opened
             + self.trade_opened
             + self.outcome_linked
@@ -159,6 +168,10 @@ _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
         "gate_rejected_stale_position_block"
     ),
     ProposalFinalState.GATE_REJECTED_RISK_SIZING: "gate_rejected_risk_sizing",
+    ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE: (
+        "gate_rejected_strategy_action_pause"
+    ),
+    ProposalFinalState.SHADOW_RECORDED: "shadow_recorded",
     ProposalFinalState.GATE_REJECTED_UNKNOWN: "gate_rejected_unknown",
     ProposalFinalState.PROPOSAL_OPENED: "proposal_opened",
     ProposalFinalState.TRADE_OPENED: "trade_opened",

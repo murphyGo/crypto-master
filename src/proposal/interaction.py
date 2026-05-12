@@ -115,6 +115,16 @@ class ProposalFinalState(str, Enum):
     GATE_REJECTED_ACCOUNT_AGGREGATE_CAP = "gate_rejected_account_aggregate_cap"
     GATE_REJECTED_STALE_POSITION_BLOCK = "gate_rejected_stale_position_block"
     GATE_REJECTED_RISK_SIZING = "gate_rejected_risk_sizing"
+    # strategy-tuning (2026-05-13): the ``pause`` applied-action
+    # rejection rides on its own terminal so the funnel separates
+    # action-driven blocks from gate-driven ones.
+    GATE_REJECTED_STRATEGY_ACTION_PAUSE = "gate_rejected_strategy_action_pause"
+    # strategy-tuning §"Runtime Behavior": ``shadow`` persists the
+    # proposal record (with ``shadow=True``) without opening — the
+    # terminal is a non-rejection bucket separate from the gate
+    # rejections so dashboards count "we measured this signal but
+    # didn't open" distinctly from "a gate blocked it".
+    SHADOW_RECORDED = "shadow_recorded"
     GATE_REJECTED_UNKNOWN = "gate_rejected_unknown"
     PROPOSAL_OPENED = "proposal_opened"
     TRADE_OPENED = "trade_opened"
@@ -180,6 +190,15 @@ class ProposalRecord(UtcTimestampMixin, BaseModel):
     # whose ``decision`` is non-PENDING but ``final_state`` is still
     # ``GENERATED`` into ``GATE_REJECTED_UNKNOWN``.
     final_state: ProposalFinalState = ProposalFinalState.GENERATED
+    # strategy-tuning §"Runtime Behavior": when the applied action for
+    # ``(sub_account, strategy)`` is ``shadow``, the record is
+    # persisted with ``shadow=True`` and no trade is opened. The
+    # field mirrors the ``synthetic`` marker pattern on
+    # :class:`PerformanceRecord` (DEBT-065) — defaults to ``False``
+    # so pre-cutover records load unchanged, and downstream tools
+    # filter on the explicit flag rather than inferring from
+    # ``final_state``.
+    shadow: bool = False
 
     model_config = {"use_enum_values": True}
 

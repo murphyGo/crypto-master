@@ -41,6 +41,41 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-069: `strategy-tuning` Slice 2 umbrella
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Phase** | strategy-tuning Slice 2 |
+| **Component** | strategy-framework + proposal-runtime + dashboard-operator-ui |
+
+**Description:**
+`strategy-tuning` Slice 1 (2026-05-13) shipped the state machine + recommender + runtime gate (`StrategyAction` enum + `StrategyTuningPolicy` frozen-Pydantic config with per-account + per-strategy override fall-through; pure `recommend_action` recommender with priority `pause → shadow → scout → retune → keep → promote`; `_strategy_action_gate` wired after `_correlation_gate` with 6 action behaviors; 2 new `ProposalFinalState` terminals + funnel plumbing). Slice 2 wires the remaining surfaces per the functional-design spec plus 3 quant-trader-expert follow-ups and 2 QA follow-ups:
+
+- **(a) Dashboard view + YAML clipboard helper** (spec Step 4) — per-(sub-account, strategy) row with Applied / Recommended columns + evidence summary + clipboard YAML diff for the operator-apply workflow. Write path explicitly out of scope per the resolved Open Decision.
+- **(b) Initial-action seeding for named strategy families** (spec §"Initial Actions") — RSI scout, `momentum_pinball_orb` pause, mean-reversion family pause, default/LLM retune, `raschke_holy_grail` + `ma_crossover` scout, `vcp_breakout` + `session_vwap_pullback` conditional keep/retune. Populates the Recommended column on day one based on the 2026-05-13 Fly evidence snapshot.
+- **(c) Observation store** for recommendation history — pattern analogous to `PromotionObservationStore` from `strategy-promotion-lab` so the dashboard can render trends without re-running the recommender at every page load.
+- **(d) `STRATEGY_ACTION_APPLIED` emission** — enum value reserved at `src/runtime/activity_log.py` but never emitted. Add a startup-time diff emitter that fires on prior-state → new-state transitions detected at config-reload.
+- **(e) True profit-factor computation** (quant Q2 follow-up) — add `gross_win_pct` / `gross_loss_pct` / `max_drawdown_pct` to `TechniquePerformance.from_records` at `src/strategy/performance.py:218-255`; drop the `_infer_profit_factor` approximation at `src/strategy/tuning_recommender.py:113-142`; recalibrate thresholds based on the real PF distribution. The current approximation systematically over-weights extreme winners/losers (bad for crypto fat-tail distributions).
+- **(f) Split `pause` reason into evidence vs gate-config** (quant Q5 follow-up) — either two enum values (`StrategyAction.PAUSE_EVIDENCE` / `StrategyAction.PAUSE_GATE_CONFIG`) or a single `PAUSE` with `pause_reason` field in event details. Dashboard's pause-triage view routes gate-config pauses to the funnel audit. Files: `src/strategy/tuning_recommender.py:168-176`, `src/runtime/engine.py:2366-2397`.
+- **(g) Threshold calibration after first 2 weeks paper evidence** (quant Q1 follow-up) — widen `scout.sample_size_max` to ~15 to align with `keep.sample_size_min` and avoid the 11-19 dead zone; review `keep_min PF=1.3` against actual paper distribution; document the "wall of retune" expectation in dashboard copy.
+- **(h) Shadow-aware filter defensive comment** (quant Q4 follow-up) — add a comment in `src/strategy/performance.py::from_records` flagging that any future "shadow-aware" performance derivation must filter `shadow=True` records analogously to the `synthetic=True` filter at line 218-219.
+- **(i) Funnel unit-test coverage gaps** (QA follow-up) — append `GATE_REJECTED_STRATEGY_ACTION_PAUSE` to `test_gate_rejected_total_sums_every_gate_bucket` (lines 158-182); append `GATE_REJECTED_STRATEGY_ACTION_PAUSE` + `SHADOW_RECORDED` to `test_score_accepted_total_sums_every_post_score_state` (lines 185-239).
+
+**Impact:**
+Slice 1 alone is operator-meaningful for paper-mode pause/scout/shadow enforcement via YAML-edit + restart, but operators get no in-dashboard recommendation visibility, no initial-action seeding, and no recommendation-history audit trail. Some sub-strategies will sit in `retune` limbo until PF computation is upgraded ((e)). Two `_STATE_TO_FIELD` aggregator buckets are exercised only indirectly via engine tests until (i) lands.
+
+**Suggested Resolution:**
+Sequential or bundled — (a)+(b)+(c) ship together as the dashboard pass; (d) bundles cheaply with (a); (e) is its own cycle (recalibrates thresholds); (f) bundles with (e); (g) is post-evidence calibration; (h), (i) are mechanical follow-up commits.
+
+**Related:**
+- quant-trader-expert Q1/Q2/Q5 review (`docs/sessions/2026-05-13-strategy-tuning-slice-1-shipped.md`)
+- QA review notes (same session log)
+- `src/strategy/tuning.py`
+- `src/strategy/tuning_recommender.py`
+- `src/runtime/engine.py::_strategy_action_gate`
+
 ### DEBT-068: `cross-account-risk-policy` Slice 2 umbrella
 
 | Field | Value |
@@ -760,10 +795,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 7 |
+| Total Active | 8 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 5 |
 | Low | 3 |
 | Resolved (All Time) | 57 |
 
@@ -773,6 +808,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-069 `strategy-tuning` Slice 2 umbrella (Medium) — filed at the close of `strategy-tuning` Slice 1 (2026-05-13); Slice 1 shipped the state machine + recommender + runtime gate (`StrategyAction` enum + `StrategyTuningPolicy` frozen-Pydantic config with per-account + per-strategy override fall-through; pure `recommend_action` recommender with priority `pause → shadow → scout → retune → keep → promote`; `_strategy_action_gate` wired after `_correlation_gate` with 6 action behaviors — keep/promote pass-through, retune pass-through + `RETUNE_FLAGGED` advisory, scout scales `proposal.quantity *= scout_size_factor`, shadow persists `shadow=True` record without opening, pause rejects with `gate_rejected_strategy_action_pause`; 2 new `ProposalFinalState` terminals + funnel plumbing) at ~805 LoC well under the 1200-LoC scope-split guard; Slice 2 wires the remaining surfaces per the functional-design spec plus 3 quant-trader-expert follow-ups (Q1 threshold calibration after first 2 weeks of paper evidence, Q2 true profit-factor computation replacing the `_infer_profit_factor` approximation, Q5 pause-reason split between evidence-driven and gate-config-driven causes) and 2 QA follow-ups (funnel `_STATE_TO_FIELD` aggregator coverage gaps for the 2 new states) — (a) dashboard view + YAML clipboard helper (spec Step 4); (b) initial-action seeding for named strategy families per spec §"Initial Actions"; (c) observation store for recommendation history analogous to `PromotionObservationStore`; (d) `STRATEGY_ACTION_APPLIED` emission (enum reserved at `src/runtime/activity_log.py` but never emitted); (e) true profit-factor computation via new `gross_win_pct`/`gross_loss_pct`/`max_drawdown_pct` on `TechniquePerformance.from_records`; (f) split `pause` reason; (g) threshold calibration (widen `scout.sample_size_max` to ~15 to align with `keep.sample_size_min`); (h) shadow-aware filter defensive comment in `src/strategy/performance.py::from_records`; (i) funnel unit-test gaps — append `GATE_REJECTED_STRATEGY_ACTION_PAUSE` to `test_gate_rejected_total_sums_every_gate_bucket` and `GATE_REJECTED_STRATEGY_ACTION_PAUSE` + `SHADOW_RECORDED` to `test_score_accepted_total_sums_every_post_score_state`; suggested sequencing — (a)+(b)+(c) bundle as the dashboard pass, (d) bundles cheaply with (a), (e) is its own cycle (recalibrates thresholds), (f) bundles with (e), (g) is post-evidence calibration, (h) and (i) are mechanical follow-up commits |
 | 2026-05-13 | Added | DEBT-068 `cross-account-risk-policy` Slice 2 umbrella (Medium) — filed at the close of `cross-account-risk-policy` Slice 1 (2026-05-13); Slice 1 shipped schema extensions + `compute_risk_budget_size` pure helper + 2 of 5 planned gates (`_account_aggregate_cap_gate` notional + stop-risk, `_stale_position_block_gate`) under the 1357-LoC scope-split guard (~706 LoC actual); Slice 2 wires the remaining surfaces per the functional-design spec — (a) `compute_risk_budget_size` wire-in to `ProposalEngine` + removal of the `_reject_risk_budget_mode_until_wired_in` validator added in R2 as a footgun-prevention measure; (b) global symbol/side caps with cross-sub-account state aggregation; (c) per-account + portfolio kill switches with realized-PnL-since-UTC-midnight aggregation + persisted state surviving restart; (d) operator freeze toggle reload-per-cycle infrastructure; (e) stale `auto_close` + `alert_only` actions (monitor-loop hook + interaction matrix with `runtime-reconciliation` state taxonomy); (f) dashboard exposure panel matching the runtime-reconciliation banner color pattern; (g) dedicated `RISK_CAP_ADVISORY` `ActivityEventType` migrating paper-mode emissions off the current `PROPOSAL_REJECTED + details.advisory=True` reuse; (h) `runtime-safety-score` integration of kill-switch triggers; suggested sequencing — (a) first as a small slice, then (b)/(c)/(e)/(f)/(g) sequentially, with (d) and (h) bundling into (f); risk-budget sizing mode is currently fail-closed at `RiskPolicy` validation until (a) lands |
 | 2026-05-13 | Added | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — QA observation across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); 3 errors at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance) make `mypy src` not fully clean repo-wide and force reviewers to filter known noise on every diff; resolution is a mechanical 2-line + 2-line fix (explicit `Literal[...]` cast at 285, `list[X]` → `Sequence[X]` covariant-read parameters at 869 + 882) |
 | 2026-05-13 | Added | DEBT-066 In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` (Low) — surfaced from quant-trader-expert (Q1) during proposal-funnel-audit unit close-out review; R1 of `_build_cap_blocker_payload` did per-blocker `await exchange.get_ticker()` on the hot path (10+ sequential ticker fetches per cap rejection, and cap rejections are the dominant rejection path per the 2026-05-13 Fly snapshot); R2 dropped the fetch and set `unrealized_pnl_percent=None` per the spec's documented fallback, but no in-memory mark cache exists anywhere in `src/runtime/engine.py` / `src/trading/portfolio.py` / `src/trading/paper.py` (`PortfolioManager` only sees marks via `record_snapshot(current_prices=...)`); suggested resolution is a `dict[str, Decimal]` cache on `TradingEngine` populated by `_record_asset_snapshot` + the monitor-pass ticker reads (which already happen) with TTL or last-seen-timestamp freshness — zero new exchange calls on the rejection path; not a money-handling defect, first-order signal (`entry_price + age_seconds + monitorable + symbol + record_id`) intact |

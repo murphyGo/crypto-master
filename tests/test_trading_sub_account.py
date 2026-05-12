@@ -13,6 +13,13 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from src.strategy.tuning import (
+    DEFAULT_SCOUT_SIZE_FACTOR,
+    StrategyAction,
+    StrategyOverride,
+    StrategyTuningPolicy,
+    ThresholdSpec,
+)
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
@@ -298,3 +305,100 @@ def test_dual_source_root_and_policy_fields_raise_clear_conflict() -> None:
             strategy_filter=["legacy"],
             strategy_policy=StrategyPolicy(strategy_filter=["legacy"]),
         )
+
+
+# =============================================================================
+# strategy-tuning: StrategyTuningPolicy parsing + helpers
+# =============================================================================
+
+
+def test_strategy_tuning_policy_defaults_are_no_op() -> None:
+    """Default ``StrategyTuningPolicy`` is disabled with conservative knobs.
+
+    The default ``enabled=False`` is the back-compat floor — accounts
+    that don't declare ``strategy_tuning`` parse cleanly and the
+    runtime gate stays a no-op.
+    """
+    sa = SubAccount(id="quiet", name="Quiet", mode="paper")
+    policy = sa.strategy_tuning
+    assert policy.enabled is False
+    assert policy.scout_size_factor == DEFAULT_SCOUT_SIZE_FACTOR
+    assert policy.strategy_overrides == {}
+    # The default applied state for any unknown strategy is KEEP.
+    assert policy.applied_action_for("anything") == StrategyAction.KEEP
+
+
+def test_strategy_tuning_policy_parses_strategy_overrides() -> None:
+    """Per-strategy overrides hydrate from a plain dict (YAML shape)."""
+    sa = SubAccount(
+        id="paper_alt",
+        name="Paper Alt",
+        mode="paper",
+        strategy_tuning=StrategyTuningPolicy(
+            enabled=True,
+            scout_size_factor=Decimal("0.50"),
+            strategy_overrides={
+                "rsi_universal": StrategyOverride(
+                    applied=StrategyAction.SCOUT,
+                    scout_size_factor=Decimal("0.10"),
+                ),
+                "momentum_pinball_orb": StrategyOverride(
+                    applied=StrategyAction.PAUSE,
+                ),
+            },
+        ),
+    )
+    policy = sa.strategy_tuning
+    assert policy.enabled is True
+    assert policy.applied_action_for("rsi_universal") == StrategyAction.SCOUT
+    assert policy.applied_action_for("momentum_pinball_orb") == StrategyAction.PAUSE
+    # Per-strategy override wins for scout factor.
+    assert policy.scout_size_factor_for("rsi_universal") == Decimal("0.10")
+    # Missing per-strategy override falls back to account-level factor.
+    assert policy.scout_size_factor_for("momentum_pinball_orb") == Decimal("0.50")
+    # Unknown strategy defaults to KEEP.
+    assert policy.applied_action_for("vwap_mean_reversion") == StrategyAction.KEEP
+
+
+def test_strategy_tuning_policy_rejects_scout_size_factor_above_one() -> None:
+    """``scout`` is by definition reduced-risk; factor>1 is a config error."""
+    with pytest.raises(ValidationError, match="scout_size_factor"):
+        StrategyTuningPolicy(enabled=True, scout_size_factor=Decimal("1.5"))
+
+
+def test_strategy_tuning_policy_rejects_override_scout_factor_above_one() -> None:
+    """Per-strategy override scout factor also bounded at <= 1."""
+    with pytest.raises(ValidationError, match="scout_size_factor"):
+        StrategyTuningPolicy(
+            enabled=True,
+            strategy_overrides={
+                "rsi_universal": StrategyOverride(
+                    applied=StrategyAction.SCOUT,
+                    scout_size_factor=Decimal("2.0"),
+                ),
+            },
+        )
+
+
+def test_strategy_tuning_policy_is_frozen() -> None:
+    """Policy is frozen — runtime callers can't mutate behind the registry."""
+    policy = StrategyTuningPolicy(enabled=True)
+    with pytest.raises(ValidationError):
+        policy.enabled = False  # type: ignore[misc]
+
+
+def test_strategy_tuning_policy_thresholds_for_falls_through() -> None:
+    """``thresholds_for`` returns per-strategy override or account default."""
+    custom = ThresholdSpec(window_closed_trades=50)
+    policy = StrategyTuningPolicy(
+        enabled=True,
+        thresholds=ThresholdSpec(window_closed_trades=15),
+        strategy_overrides={
+            "rsi_universal": StrategyOverride(
+                applied=StrategyAction.SCOUT,
+                thresholds=custom,
+            ),
+        },
+    )
+    assert policy.thresholds_for("rsi_universal") is custom
+    assert policy.thresholds_for("anything_else").window_closed_trades == 15

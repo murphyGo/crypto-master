@@ -89,6 +89,7 @@ from src.strategy.performance import (
     TradeHistory,
     TradeOutcome,
 )
+from src.strategy.tuning import StrategyAction
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
 
@@ -1144,6 +1145,32 @@ class TradingEngine:
                 )
                 self.proposal_history.save(outcome.final_record)
                 for event in outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+            # strategy-tuning §"Runtime Behavior": enforce the applied
+            # action for this ``(sub_account, strategy)`` pair. ``keep``
+            # / ``promote`` pass through, ``retune`` emits an advisory
+            # event and passes through, ``scout`` rewrites
+            # ``proposal.quantity`` × ``scout_size_factor`` BEFORE the
+            # downstream gates that consume the quantity (account
+            # aggregate cap, stale-position block). ``shadow`` and
+            # ``pause`` short-circuit with their own terminals.
+            record = correlation_outcome.final_record
+            proposal, record, action_outcome = self._strategy_action_gate(
+                proposal,
+                record,
+                sub_account,
+                cycle_id,
+            )
+            if action_outcome is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(action_outcome.final_record)
+                for event in events + action_outcome.events:
                     self.activity_log.append(
                         event.event_type,
                         event.message,
@@ -2213,6 +2240,165 @@ class TradingEngine:
             ],
             rejected_record,
         )
+
+    def _strategy_action_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        cycle_id: str,
+    ) -> tuple[Proposal, ProposalRecord, GateOutcome | None]:
+        """Enforce the applied strategy-tuning action on a proposal.
+
+        strategy-tuning §"Runtime Behavior". Sequenced after the
+        correlation gate so the upstream regime / correlation gates
+        still get a chance to reject before we either rewrite size
+        (``scout``) or persist a shadow record. The gate is a no-op
+        for accounts that have not opted in
+        (``strategy_tuning.enabled=False``) or for strategies whose
+        applied action is ``keep`` / ``promote``.
+
+        Returns a triple ``(proposal, record, outcome)``:
+
+        * ``proposal`` is the (possibly resized) proposal that the
+          caller threads through downstream gates / the executor.
+          Only ``scout`` modifies the quantity; every other action
+          returns the input unchanged.
+        * ``record`` is the (possibly updated) :class:`ProposalRecord`.
+          For ``shadow`` the record carries ``shadow=True`` and
+          ``final_state=SHADOW_RECORDED``; for ``pause`` it carries
+          ``decision=REJECTED`` and the dedicated pause terminal.
+        * ``outcome`` is ``None`` when the proposal should continue
+          through the downstream gate chain (``keep`` / ``promote`` /
+          ``scout`` / ``retune``). For ``shadow`` and ``pause`` the
+          outcome is non-``None`` and the caller short-circuits.
+
+        ``shadow`` is a *terminal* but not a rejection: the gate
+        returns a :class:`GateOutcome` whose ``decision`` is
+        :attr:`GateDecision.REJECTED` (since no trade opens) but the
+        record's ``final_state`` is :attr:`SHADOW_RECORDED` rather
+        than a ``gate_rejected_*`` bucket — funnel counters separate
+        "measured-only" from "blocked".
+        """
+        if sub_account is None or not sub_account.strategy_tuning.enabled:
+            return proposal, record, None
+
+        policy = sub_account.strategy_tuning
+        action = policy.applied_action_for(proposal.technique_name)
+
+        # ``keep`` / ``promote`` are runtime no-ops. ``promote`` is a
+        # recommendation-only signal — applying it requires an
+        # operator moving the strategy to a different sub-account
+        # (operator-only resolution 2026-05-13), so at runtime it
+        # behaves exactly like ``keep`` here.
+        if action in (StrategyAction.KEEP, StrategyAction.PROMOTE):
+            return proposal, record, None
+
+        if action == StrategyAction.RETUNE:
+            # ``retune`` flows through; the dashboard reads the
+            # advisory event to surface the Retune badge.
+            self.activity_log.append(
+                ActivityEventType.RETUNE_FLAGGED,
+                f"Retune advisory for {proposal.technique_name} on {proposal.symbol}",
+                details={
+                    "proposal_id": proposal.proposal_id,
+                    "sub_account_id": proposal.sub_account_id,
+                    "technique_name": proposal.technique_name,
+                    "symbol": proposal.symbol,
+                },
+                cycle_id=cycle_id,
+            )
+            return proposal, record, None
+
+        if action == StrategyAction.SCOUT:
+            factor = policy.scout_size_factor_for(proposal.technique_name)
+            scaled_qty = proposal.quantity * factor
+            resized = proposal.model_copy(update={"quantity": scaled_qty})
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_ACCEPTED,
+                (
+                    f"Scout-scaled {proposal.symbol} {proposal.signal} "
+                    f"qty={proposal.quantity}->{scaled_qty} (×{factor})"
+                ),
+                details={
+                    **_proposal_summary(resized),
+                    "reason": "strategy_action_scout",
+                    "scout_size_factor": str(factor),
+                    "original_quantity": str(proposal.quantity),
+                    "scaled_quantity": str(scaled_qty),
+                },
+                cycle_id=cycle_id,
+            )
+            return resized, record, None
+
+        if action == StrategyAction.SHADOW:
+            shadow_record = record.model_copy(
+                update={
+                    "shadow": True,
+                    "decision": ProposalDecision.REJECTED.value,
+                    "rejection_reason": "strategy_action_shadow",
+                    "decision_at": now_utc(),
+                    "final_state": ProposalFinalState.SHADOW_RECORDED.value,
+                }
+            )
+            event = GateActivityEvent(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Shadow-recorded {proposal.symbol} {proposal.signal}",
+                {
+                    **_proposal_summary(proposal),
+                    "reason": "strategy_action_shadow",
+                    "gate_reason": "strategy_action_shadow",
+                    "shadow": True,
+                },
+                cycle_id,
+            )
+            return (
+                proposal,
+                shadow_record,
+                GateOutcome(
+                    GateDecision.REJECTED,
+                    "strategy_action_shadow",
+                    [event],
+                    shadow_record,
+                ),
+            )
+
+        if action == StrategyAction.PAUSE:
+            reason = "strategy_action_pause"
+            paused_record = record.model_copy(
+                update={
+                    "decision": ProposalDecision.REJECTED.value,
+                    "rejection_reason": reason,
+                    "decision_at": now_utc(),
+                    "final_state": (
+                        ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE.value
+                    ),
+                }
+            )
+            event = GateActivityEvent(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Strategy-pause rejected {proposal.symbol} {proposal.signal}",
+                {
+                    **_proposal_summary(proposal),
+                    "reason": reason,
+                    "gate_reason": reason,
+                },
+                cycle_id,
+            )
+            return (
+                proposal,
+                paused_record,
+                GateOutcome(
+                    GateDecision.REJECTED,
+                    reason,
+                    [event],
+                    paused_record,
+                ),
+            )
+
+        # Defensive: unknown enum value. Fail open — leave the
+        # proposal untouched rather than silently dropping it.
+        return proposal, record, None
 
     def _correlation_gate(
         self,
