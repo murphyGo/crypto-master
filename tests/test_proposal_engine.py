@@ -1121,6 +1121,162 @@ async def test_live_mode_blocks_when_only_cold_start_techniques_present() -> Non
     assert altcoins == []
 
 
+async def test_cold_start_blocks_live_excludes_synthetic_trades(
+    tmp_path: Path,
+) -> None:
+    """DEBT-065: synthetic reconciliation-close rows must not inflate
+    the live-promotion cold-start gate.
+
+    The canonical defect scenario: 9 real + 2 synthetic closes against
+    a ``min_closed_trades_for_live_promotion=10`` threshold. Before the
+    fix this passed (``total_trades`` reported 11 ≥ 10); after the fix
+    the gate reads ``real_trade_count`` so the strategy stays blocked
+    and the activity event reflects the real-only count.
+    """
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    strategy = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+    perf = TechniquePerformance(
+        technique_name="alpha",
+        technique_version="1.0.0",
+        total_trades=11,
+        synthetic_count=2,
+        avg_pnl_percent=2.0,
+    )
+    # Sanity check the property the fix relies on.
+    assert perf.real_trade_count == 9
+
+    engine, _ = make_engine(
+        strategies={"alpha": strategy},
+        perf_records={"alpha": perf},
+        config=ProposalEngineConfig(
+            mode="live",
+            min_closed_trades_for_live_promotion=10,
+        ),
+        activity_log=activity_log,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    events = activity_log.tail(50)
+    cold_events = [
+        e for e in events if e.event_type == ActivityEventType.COLD_START_BLOCKED.value
+    ]
+    assert len(cold_events) == 1
+    event = cold_events[0]
+    # Per-technique snapshot and max_trades_observed reflect the
+    # real-only count (9), not the synthetic-inclusive 11.
+    assert event.details["per_technique_trades"] == {"alpha": 9}
+    assert event.details["max_trades_observed"] == 9
+
+
+async def test_cold_start_blocks_live_passes_at_threshold_real_only() -> None:
+    """DEBT-065 boundary: a strategy at exactly ``threshold`` real
+    trades (with any number of synthetic rows on top) passes the gate.
+
+    Confirms the fix doesn't accidentally over-correct — synthetic
+    rows are *excluded* from gating, not *deducted* from a threshold
+    operators set against real signal outcomes.
+    """
+    strategy = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    perf = TechniquePerformance(
+        technique_name="alpha",
+        technique_version="1.0.0",
+        total_trades=15,  # 10 real + 5 synthetic
+        synthetic_count=5,
+        avg_pnl_percent=2.0,
+    )
+    assert perf.real_trade_count == 10
+
+    engine, _ = make_engine(
+        strategies={"alpha": strategy},
+        perf_records={"alpha": perf},
+        config=ProposalEngineConfig(
+            mode="live",
+            min_closed_trades_for_live_promotion=10,
+            multi_technique_per_symbol=False,
+        ),
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert proposal.technique_name == "alpha"
+
+
+async def test_score_sample_size_excludes_synthetic_trades() -> None:
+    """DEBT-065: ``_score``'s ``sample_size`` derivation reads
+    ``real_trade_count``.
+
+    With 8 real + 3 synthetic and
+    ``min_trades_for_full_score=10``, ``sample_factor`` blends to
+    ``8 / 10 = 0.8`` — not the 1.0 (clamped from 11/10) it would have
+    been before the fix.
+    """
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    perf = TechniquePerformance(
+        technique_name="tech_a",
+        technique_version="1.0.0",
+        total_trades=11,
+        synthetic_count=3,
+        win_rate=0.6,
+        avg_pnl_percent=2.0,
+    )
+    assert perf.real_trade_count == 8
+
+    engine, _ = make_engine(
+        strategies={"tech_a": strategy},
+        perf_records={"tech_a": perf},
+        config=ProposalEngineConfig(min_trades_for_full_score=10),
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert proposal.score.sample_size == 8
+    assert proposal.score.sample_factor == pytest.approx(0.8, rel=1e-9)
+
+
+async def test_score_sample_size_collapses_to_cold_start_when_all_synthetic() -> None:
+    """DEBT-065: a perf record with only synthetic rows is treated as
+    cold-start by ``_score`` — ``sample_size`` is 0 and the blended
+    formula collapses to ``confidence × prior``.
+    """
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    perf = TechniquePerformance(
+        technique_name="tech_a",
+        technique_version="1.0.0",
+        total_trades=5,
+        synthetic_count=5,
+    )
+    assert perf.real_trade_count == 0
+
+    engine, _ = make_engine(
+        strategies={"tech_a": strategy},
+        perf_records={"tech_a": perf},
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert proposal.score.sample_size == 0
+    assert proposal.score.sample_factor == 0.0
+
+
 async def test_prompt_strategy_cooldown_skips_repeated_symbol_runs() -> None:
     """Prompt strategies should not spend Claude tokens every cycle when
     a runtime cooldown is configured.

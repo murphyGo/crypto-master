@@ -183,6 +183,22 @@ class TechniquePerformance(BaseModel):
     # closed" without polluting win-rate / Sharpe / expectancy.
     synthetic_count: int = 0
 
+    @property
+    def real_trade_count(self) -> int:
+        """Closed-trade count excluding synthetic reconciliation rows.
+
+        DEBT-065: ``total_trades`` intentionally includes synthetic
+        reconciliation-close rows so operator-facing record counts stay
+        honest (see the comment in :meth:`from_records` and the
+        ``synthetic``/``reconciliation_close`` markers at
+        ``PerformanceRecord``). Promotion-gating consumers
+        (``ProposalEngine._cold_start_blocks_live`` and ``_score``'s
+        ``sample_size``) must read *this* property instead, so
+        synthetic markers cannot inflate a strategy past the live
+        cold-start threshold.
+        """
+        return self.total_trades - self.synthetic_count
+
     @classmethod
     def from_records(
         cls,

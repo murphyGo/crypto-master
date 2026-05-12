@@ -1058,10 +1058,14 @@ class ProposalEngine:
             perf = self.performance_tracker.get_performance(
                 strategy.name, strategy.version
             )
-            per_technique[strategy.name] = perf.total_trades
-            if perf.total_trades > max_trades:
-                max_trades = perf.total_trades
-            if perf.total_trades >= threshold:
+            # DEBT-065: gate on real (non-synthetic) trade count so
+            # operator reconciliation-close rows can't inflate a
+            # strategy past ``min_closed_trades_for_live_promotion``.
+            real_count = perf.real_trade_count
+            per_technique[strategy.name] = real_count
+            if real_count > max_trades:
+                max_trades = real_count
+            if real_count >= threshold:
                 return False
         logger.info(
             "live cold-start guard: no applicable technique on %s has "
@@ -1192,12 +1196,17 @@ class ProposalEngine:
         # blended formula collapses to ``confidence × prior`` when
         # ``sample_factor == 0`` so we no longer need a separate
         # cold-start branch.
-        if perf is None or perf.total_trades == 0:
+        # DEBT-065: ``sample_size`` feeds the sample-factor blend that
+        # governs how much weight history carries in the composite
+        # score. Synthetic reconciliation-close rows encode no real
+        # signal outcome, so they must not pull the blend toward the
+        # edge-driven term.
+        if perf is None or perf.real_trade_count == 0:
             sample_size = 0
             win_rate = 0.0
             expected_value = 0.0
         else:
-            sample_size = perf.total_trades
+            sample_size = perf.real_trade_count
             win_rate = perf.win_rate
             expected_value = perf.avg_pnl_percent
 

@@ -174,29 +174,28 @@ Per-row warning counter for (a) computed from `last_seen_at` vs `now`. Separate 
 - quant-trader-expert review Q1 (`docs/sessions/2026-05-13-runtime-reconciliation-unit-shipped.md`)
 - `src/runtime/reconciliation.py:286` filter
 
-### DEBT-065: Synthetic reconciliation-close rows leak into live-promotion gating
+### DEBT-070: `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count`
 
 | Field | Value |
 |-------|-------|
-| **Priority** | Medium |
+| **Priority** | Low |
 | **Created** | 2026-05-13 |
-| **Phase** | runtime-reconciliation QA follow-up |
-| **Component** | runtime-reconciliation + proposal-runtime + strategy-promotion-lab |
+| **Phase** | DEBT-065 close-out follow-up |
+| **Component** | proposal-runtime |
 
 **Description:**
-`TechniquePerformance.total_trades = len(records)` (`src/strategy/performance.py:244`) includes synthetic reconciliation-close rows. `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1061-1064`) and `_score`'s `sample_size` (`src/proposal/engine.py:1200`) read `total_trades` directly. So a strategy with 9 real + 2 synthetic closes can pass `threshold=10` live promotion despite the synthetic markers being intended to *exclude* such rows from promotion gating (see `src/strategy/performance.py:214` comment). Test `tests/test_strategy_performance.py:2066` currently locks the synthetic-inclusive behavior in `total_trades`.
+DEBT-065 close-out (2026-05-13) introduced `TechniquePerformance.real_trade_count` (`total_trades - synthetic_count`) and switched the 2 promotion-gating consumer sites (`ProposalEngine._cold_start_blocks_live` + `_score.sample_size`) to read it. QA confirmed dev's flag that 4 additional `perf.total_trades` reads remain in `ProposalEngine._select_best_technique` and `_select_all_techniques` at `src/proposal/engine.py:996, 1010, 1014, 1132` (QA corrected dev's :1128 mis-cite to :1132). These 4 reads affect **strategy-selection ranking** — not promotion gating. With current `total_trades` semantics, a strategy with only synthetic reconciliation-close rows registers as "has history" (line 996), wins tie-breakers over real-history-light strategies (line 1010), and passes through downstream as if it had history (lines 1014, 1132). DEBT-065 scoped its fix to promotion-gating only; the ranking-side reads remain on `total_trades`.
 
 **Impact:**
-Synthetic close events from operator reconciliation tooling could artificially inflate a strategy's sample-size signal toward live promotion. Narrow blast radius (operator-driven path, conservative threshold) but the contract gap is real and growing with each operator reconciliation event.
+Mild strategy-selection distortion — synthetic-heavy strategies can win the "best technique" ranking on a per-(symbol, sub-account) cycle over genuine cold-start strategies, even though composite/edge dominates the actual scoring formula. Blast radius: an operator who has run reconciliation tooling repeatedly may see synthetic-heavy strategies surface in selection before their real-history-light siblings. Not a money-safety defect — promotion gating is correctly fenced by DEBT-065's fix; this is only the ranking-order surface.
 
 **Suggested Resolution:**
-Either (a) make `total_trades` count real records only and expose `total_trades_all` for operator-facing counting; or (b) update `_cold_start_blocks_live` and `_score.sample_size` to use `perf.total_trades - perf.synthetic_count` (or a new `real_trade_count` property). Option (b) is the smaller diff. Either way: update `tests/test_strategy_performance.py:2066` to assert the new semantics.
+Switch the 4 ranking-side reads (`src/proposal/engine.py:996, 1010, 1014, 1132`) to `perf.real_trade_count`. Same pattern as the DEBT-065 fix. Add regression tests pinning that a synthetic-heavy strategy does NOT win ranking over a real-history strategy at equal composite.
 
 **Related:**
-- QA flagged during runtime-reconciliation final review
-- `src/strategy/performance.py:244`
-- `src/proposal/engine.py:1061-1064`, `:1200`
-- comment at `src/strategy/performance.py:214`
+- QA flagged during DEBT-065 close-out (`docs/sessions/2026-05-13-debt-065-synthetic-row-leak-fix.md`)
+- `src/proposal/engine.py:996`, `:1010`, `:1014`, `:1132`
+- Display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain synthetic-inclusive — those are operator-facing counts and out of scope.
 
 ### DEBT-062: Market-regime gate sequencing
 
@@ -257,6 +256,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-065: Synthetic reconciliation-close rows leak into live-promotion gating ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Same-day fix as the runtime-reconciliation QA follow-up. Per DEBT-065 option (b): new `TechniquePerformance.real_trade_count: int` property on `src/strategy/performance.py` defined as `total_trades - synthetic_count` (docstring cites DEBT-065). `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1062-1068`, including the activity-log payload — `per_technique_trades`, `max_trades_observed` — which now reports real-only counts) and `_score.sample_size` derivation (`src/proposal/engine.py:1199-1209`, flowing into `sample_factor` blend) switched to read `perf.real_trade_count`. `total_trades` semantics intentionally preserved (operator-facing dashboard "Total Trades" column + improver prompt rendering remain synthetic-inclusive per the design intent: operator counts should match what the underlying ledger holds). Canonical DEBT-065 defect scenario (9 real + 2 synthetic at threshold 10) now correctly blocks at `_cold_start_blocks_live`; boundary at 10 real + 5 synthetic correctly admits. `_score.sample_factor` now reflects real-signal sample size only. Tests: +3 in `tests/test_strategy_performance.py` (property arithmetic) + 4 in `tests/test_proposal_engine.py` (canonical 9+2 defect, 10-real boundary, `_score` 8+3, all-synthetic collapses to cold-start). `pytest -q` 2054 passed (was 2047; net +7, zero regressions); `ruff check src tests` clean; `mypy src/strategy/performance.py src/proposal/engine.py` clean. QA-surfaced follow-up filed as DEBT-070: 4 additional `perf.total_trades` reads in `ProposalEngine._select_best_technique` / `_select_all_techniques` at `src/proposal/engine.py:996, 1010, 1014, 1132` affect strategy-selection ranking (not promotion gating) and remain on `total_trades`; DEBT-065 stayed in scope (gating-only). Display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally untouched — operator-facing counts. |
 
 ### DEBT-061: Per-strategy proposal-engine fail-closed-rate metric for dashboard observability ✅
 
@@ -798,9 +806,9 @@ Move resolved items here with resolution date and notes.
 | Total Active | 8 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 5 |
-| Low | 3 |
-| Resolved (All Time) | 57 |
+| Medium | 4 |
+| Low | 4 |
+| Resolved (All Time) | 58 |
 
 ---
 
@@ -808,6 +816,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — same-day fix per option (b) from the DEBT-065 suggested resolution; new `TechniquePerformance.real_trade_count` property (`total_trades - synthetic_count`) added on `src/strategy/performance.py`; `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1062-1068`, incl. `per_technique_trades` / `max_trades_observed` payload) and `_score.sample_size` derivation (`src/proposal/engine.py:1199-1209`, flowing into `sample_factor`) switched to read it; `total_trades` semantics preserved for operator-facing display (`src/dashboard/pages/strategies.py:118` "Total Trades" column + `src/ai/improver.py:667` prompt rendering); canonical 9+2 defect at threshold 10 now correctly blocks at `_cold_start_blocks_live`; boundary at 10 real + 5 synthetic correctly admits; tests +3 in `tests/test_strategy_performance.py` (property arithmetic) + 4 in `tests/test_proposal_engine.py` (canonical 9+2 defect, 10-real boundary, `_score` 8+3, all-synthetic collapses to cold-start); pytest 2054 passed (was 2047; net +7, zero regressions); ruff + mypy clean; QA-surfaced follow-up filed as DEBT-070 |
+| 2026-05-13 | Added | DEBT-070 `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` (Low) — surfaced from QA during DEBT-065 close-out (`docs/sessions/2026-05-13-debt-065-synthetic-row-leak-fix.md`); 4 additional `perf.total_trades` reads in `ProposalEngine._select_best_technique` / `_select_all_techniques` at `src/proposal/engine.py:996, 1010, 1014, 1132` (QA corrected dev's :1128 mis-cite to :1132) affect strategy-selection ranking — not promotion gating — so DEBT-065 correctly stayed in scope (gating-only); with current `total_trades` semantics, a strategy with only synthetic reconciliation-close rows registers as "has history" (line 996), wins tie-breakers over real-history-light strategies (line 1010), and passes through downstream as if it had history (lines 1014, 1132); blast radius is narrow (operator-driven path, composite/edge dominates the actual scoring formula) but synthetic-heavy strategies can win "best technique" ranking on a per-(symbol, sub-account) cycle over genuine cold-start strategies; suggested resolution is the same pattern as the DEBT-065 fix (switch all 4 reads to `perf.real_trade_count`) plus regression tests pinning that a synthetic-heavy strategy does NOT win ranking over a real-history strategy at equal composite; display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain synthetic-inclusive (operator-facing counts) |
 | 2026-05-13 | Added | DEBT-069 `strategy-tuning` Slice 2 umbrella (Medium) — filed at the close of `strategy-tuning` Slice 1 (2026-05-13); Slice 1 shipped the state machine + recommender + runtime gate (`StrategyAction` enum + `StrategyTuningPolicy` frozen-Pydantic config with per-account + per-strategy override fall-through; pure `recommend_action` recommender with priority `pause → shadow → scout → retune → keep → promote`; `_strategy_action_gate` wired after `_correlation_gate` with 6 action behaviors — keep/promote pass-through, retune pass-through + `RETUNE_FLAGGED` advisory, scout scales `proposal.quantity *= scout_size_factor`, shadow persists `shadow=True` record without opening, pause rejects with `gate_rejected_strategy_action_pause`; 2 new `ProposalFinalState` terminals + funnel plumbing) at ~805 LoC well under the 1200-LoC scope-split guard; Slice 2 wires the remaining surfaces per the functional-design spec plus 3 quant-trader-expert follow-ups (Q1 threshold calibration after first 2 weeks of paper evidence, Q2 true profit-factor computation replacing the `_infer_profit_factor` approximation, Q5 pause-reason split between evidence-driven and gate-config-driven causes) and 2 QA follow-ups (funnel `_STATE_TO_FIELD` aggregator coverage gaps for the 2 new states) — (a) dashboard view + YAML clipboard helper (spec Step 4); (b) initial-action seeding for named strategy families per spec §"Initial Actions"; (c) observation store for recommendation history analogous to `PromotionObservationStore`; (d) `STRATEGY_ACTION_APPLIED` emission (enum reserved at `src/runtime/activity_log.py` but never emitted); (e) true profit-factor computation via new `gross_win_pct`/`gross_loss_pct`/`max_drawdown_pct` on `TechniquePerformance.from_records`; (f) split `pause` reason; (g) threshold calibration (widen `scout.sample_size_max` to ~15 to align with `keep.sample_size_min`); (h) shadow-aware filter defensive comment in `src/strategy/performance.py::from_records`; (i) funnel unit-test gaps — append `GATE_REJECTED_STRATEGY_ACTION_PAUSE` to `test_gate_rejected_total_sums_every_gate_bucket` and `GATE_REJECTED_STRATEGY_ACTION_PAUSE` + `SHADOW_RECORDED` to `test_score_accepted_total_sums_every_post_score_state`; suggested sequencing — (a)+(b)+(c) bundle as the dashboard pass, (d) bundles cheaply with (a), (e) is its own cycle (recalibrates thresholds), (f) bundles with (e), (g) is post-evidence calibration, (h) and (i) are mechanical follow-up commits |
 | 2026-05-13 | Added | DEBT-068 `cross-account-risk-policy` Slice 2 umbrella (Medium) — filed at the close of `cross-account-risk-policy` Slice 1 (2026-05-13); Slice 1 shipped schema extensions + `compute_risk_budget_size` pure helper + 2 of 5 planned gates (`_account_aggregate_cap_gate` notional + stop-risk, `_stale_position_block_gate`) under the 1357-LoC scope-split guard (~706 LoC actual); Slice 2 wires the remaining surfaces per the functional-design spec — (a) `compute_risk_budget_size` wire-in to `ProposalEngine` + removal of the `_reject_risk_budget_mode_until_wired_in` validator added in R2 as a footgun-prevention measure; (b) global symbol/side caps with cross-sub-account state aggregation; (c) per-account + portfolio kill switches with realized-PnL-since-UTC-midnight aggregation + persisted state surviving restart; (d) operator freeze toggle reload-per-cycle infrastructure; (e) stale `auto_close` + `alert_only` actions (monitor-loop hook + interaction matrix with `runtime-reconciliation` state taxonomy); (f) dashboard exposure panel matching the runtime-reconciliation banner color pattern; (g) dedicated `RISK_CAP_ADVISORY` `ActivityEventType` migrating paper-mode emissions off the current `PROPOSAL_REJECTED + details.advisory=True` reuse; (h) `runtime-safety-score` integration of kill-switch triggers; suggested sequencing — (a) first as a small slice, then (b)/(c)/(e)/(f)/(g) sequentially, with (d) and (h) bundling into (f); risk-budget sizing mode is currently fail-closed at `RiskPolicy` validation until (a) lands |
 | 2026-05-13 | Added | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — QA observation across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); 3 errors at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance) make `mypy src` not fully clean repo-wide and force reviewers to filter known noise on every diff; resolution is a mechanical 2-line + 2-line fix (explicit `Literal[...]` cast at 285, `list[X]` → `Sequence[X]` covariant-read parameters at 869 + 882) |

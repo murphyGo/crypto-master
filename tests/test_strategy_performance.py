@@ -2108,3 +2108,47 @@ class TestSyntheticMarkers:
         assert perf.losses == 0
         assert perf.win_rate == 0.0
         assert perf.avg_pnl_percent == 0.0
+
+    def test_real_trade_count_excludes_synthetic_rows(self) -> None:
+        """DEBT-065: ``real_trade_count`` returns ``total_trades -
+        synthetic_count``.
+
+        Same fixture as
+        :meth:`test_from_records_excludes_synthetic_from_win_rate` (3
+        real + 1 synthetic). Promotion-gating consumers in
+        ``ProposalEngine`` must read this property so synthetic
+        reconciliation-close rows can't inflate a strategy past the
+        live cold-start threshold.
+        """
+        records = [
+            self._real_win(),
+            self._real_win(pnl_percent=3.0, exit_price="51500"),
+            self._real_loss(),
+            self._synthetic_breakeven(),
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        # ``total_trades`` semantics unchanged — still operator-facing
+        # "rows on disk" count.
+        assert perf.total_trades == 4
+        assert perf.synthetic_count == 1
+        # The new property surfaces the gating-relevant count.
+        assert perf.real_trade_count == 3
+
+    def test_real_trade_count_no_synthetic_equals_total(self) -> None:
+        """DEBT-065: with no synthetic rows ``real_trade_count`` matches
+        ``total_trades`` — the property is a clean override only when
+        synthetic markers exist."""
+        perf = TechniquePerformance.from_records(
+            "test", "1.0.0", [self._real_win(), self._real_loss()]
+        )
+        assert perf.total_trades == 2
+        assert perf.real_trade_count == 2
+
+    def test_real_trade_count_all_synthetic_is_zero(self) -> None:
+        """DEBT-065: all-synthetic input → ``real_trade_count == 0``,
+        even though ``total_trades`` is nonzero."""
+        perf = TechniquePerformance.from_records(
+            "test", "1.0.0", [self._synthetic_breakeven(), self._synthetic_breakeven()]
+        )
+        assert perf.total_trades == 2
+        assert perf.real_trade_count == 0
