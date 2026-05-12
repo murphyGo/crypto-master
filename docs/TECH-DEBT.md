@@ -41,6 +41,49 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-066: In-memory mark-price cache for cap-blocker `unrealized_pnl_percent`
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Phase** | proposal-funnel-audit quant-review follow-up |
+| **Component** | proposal-runtime + runtime-reconciliation |
+
+**Description:**
+`_build_cap_blocker_payload` (`src/runtime/engine.py`) currently sets `unrealized_pnl_percent = None` for every blocking trade in a cap-rejection event because the R1 implementation's per-blocker `await exchange.get_ticker()` was a hot-path latency tax (10+ sequential ticker fetches per cap rejection, and cap rejections are the dominant rejection path per the 2026-05-13 Fly snapshot). Quant Q1 verdict: drop the fetch. But there's no in-memory mark-price cache anywhere in `src/runtime/engine.py`, `src/trading/portfolio.py`, or `src/trading/paper.py` — `PortfolioManager` only sees marks when callers hand them in via `record_snapshot(current_prices=...)`. Operators have lost a second-order diagnostic field.
+
+**Impact:**
+Cap-rejection events show `unrealized_pnl_percent=None` for every blocking trade. Operators triaging "is the blocking position underwater?" must look elsewhere. Not a money-handling defect (`entry_price + age_seconds + monitorable + symbol + record_id` give the first-order signal); a diagnostic-quality gap.
+
+**Suggested Resolution:**
+Add a `dict[str, Decimal]` mark cache on `TradingEngine` populated by `_record_asset_snapshot` and the monitor-pass ticker reads (which already happen). TTL or last-seen-timestamp keeps it fresh. `_build_cap_blocker_payload` consumes from the cache; falls back to `None` if symbol is uncached. Zero new exchange calls on the rejection path.
+
+**Related:**
+- quant-trader-expert review Q1 (`docs/sessions/2026-05-13-proposal-funnel-audit-unit-shipped.md`)
+- `src/runtime/engine.py::_build_cap_blocker_payload`
+
+### DEBT-067: Pre-existing `src/dashboard/app.py` mypy errors
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Phase** | proposal-funnel-audit QA observation |
+| **Component** | dashboard-operator-ui |
+
+**Description:**
+3 pre-existing mypy errors in `src/dashboard/app.py` at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance). Surfaced repeatedly during the past 4 unit cycles' QA passes; never filed as TECH-DEBT.
+
+**Impact:**
+`mypy src` is not fully clean repo-wide. Reviewers must manually filter known noise; new mypy regressions in unrelated files become harder to spot.
+
+**Suggested Resolution:**
+line 285 — explicit `Literal[...]` cast on the `mode` default; lines 869 + 882 — change parameter types from `list[X]` to `Sequence[X]` for covariant reads. Mechanical 2-line + 2-line fix.
+
+**Related:**
+- QA observation across DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit cycles
+
 ### DEBT-064: Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows
 
 | Field | Value |
@@ -684,11 +727,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 4 |
+| Total Active | 6 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 3 |
-| Low | 1 |
+| Low | 3 |
 | Resolved (All Time) | 57 |
 
 ---
@@ -697,6 +740,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — QA observation across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); 3 errors at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance) make `mypy src` not fully clean repo-wide and force reviewers to filter known noise on every diff; resolution is a mechanical 2-line + 2-line fix (explicit `Literal[...]` cast at 285, `list[X]` → `Sequence[X]` covariant-read parameters at 869 + 882) |
+| 2026-05-13 | Added | DEBT-066 In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` (Low) — surfaced from quant-trader-expert (Q1) during proposal-funnel-audit unit close-out review; R1 of `_build_cap_blocker_payload` did per-blocker `await exchange.get_ticker()` on the hot path (10+ sequential ticker fetches per cap rejection, and cap rejections are the dominant rejection path per the 2026-05-13 Fly snapshot); R2 dropped the fetch and set `unrealized_pnl_percent=None` per the spec's documented fallback, but no in-memory mark cache exists anywhere in `src/runtime/engine.py` / `src/trading/portfolio.py` / `src/trading/paper.py` (`PortfolioManager` only sees marks via `record_snapshot(current_prices=...)`); suggested resolution is a `dict[str, Decimal]` cache on `TradingEngine` populated by `_record_asset_snapshot` + the monitor-pass ticker reads (which already happen) with TTL or last-seen-timestamp freshness — zero new exchange calls on the rejection path; not a money-handling defect, first-order signal (`entry_price + age_seconds + monitorable + symbol + record_id`) intact |
 | 2026-05-13 | Added | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — surfaced from QA during runtime-reconciliation final review; `TechniquePerformance.total_trades = len(records)` (`src/strategy/performance.py:244`) includes synthetic reconciliation-close rows, and `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1061-1064`) + `_score.sample_size` (`src/proposal/engine.py:1200`) read it directly, so a strategy with 9 real + 2 synthetic closes can pass `threshold=10` live promotion despite `src/strategy/performance.py:214`'s comment explicitly stating synthetic rows "must not feed CON-003 promotion gating"; smaller-diff resolution is option (b) — switch the two consumer sites to `perf.total_trades - perf.synthetic_count` (or a new `real_trade_count` property) and update `tests/test_strategy_performance.py:2066` to match; narrow blast radius (operator-driven path, conservative threshold) but contract gap grows with every operator reconciliation event |
 | 2026-05-13 | Added | DEBT-064 Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows (Low) — surfaced from quant-trader-expert (Q1) during runtime-reconciliation unit close-out review; `OpenTradeState` (`monitorable`/`degraded`/`unrecoverable`/`legacy_no_perf_link`) covers ledger-shape but misses (a) stale-but-valid rows whose monitor loop hasn't ticked in >N days (currently classified `monitorable`) and (b) half-closed rows (`status="closed"` with no `exit_price`/`exit_time` — `_load_open_trade_rows` at `src/runtime/reconciliation.py:286` filters by `status == "open"` so they're never classified, yet `close_unrecoverable_paper_trades` can write exactly this shape on partial failure); suggested resolution is auxiliary signals on the existing classifier (per-row warning counter from `last_seen_at` vs `now` for (a); separate "closed-but-malformed" sweep pass for (b)) rather than new enum states |
 | 2026-05-13 | Added | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — surfaced from quant-trader-expert (Q4) during market-regime unit close-out review; single-candle band crossings flip the regime label every cycle when price chops in the 1.5%-2.5% range around SMA(200), producing correlated entries at the band edges and noise-driven strategy throughput; suggested resolution is two-bar confirmation in `classify_regime_detailed` (`src/runtime/market_regime.py:207-217`) — keep the ±2% threshold (matches `RobustnessGate._classify_regimes` at `src/backtest/validator.py:929-959`), change the rule not the number |

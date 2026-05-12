@@ -23,37 +23,37 @@ trades, derived funnel-conversion aggregator, and operator dashboard views.
 
 ## Steps
 
-- [ ] Add `final_state` enum + field to `ProposalRecord` with legacy-record
+- [x] Add `final_state` enum + field to `ProposalRecord` with legacy-record
       backfill inference on read.
-- [ ] Thread `record_id` into every post-acceptance gate event payload
+- [x] Thread `record_id` into every post-acceptance gate event payload
       (`market_regime`, `correlation`, `trend_filter`, `sibling_family`,
       `runtime_safety_pause`, `total_cap`, `symbol_cap`, `stale_quote`).
-- [ ] Update `_handle_proposal` so every gate rejection rewrites
+- [x] Update `_handle_proposal` so every gate rejection rewrites
       `final_state` via `record.model_copy(update={...})`; accept path
       sets `proposal_opened`, `_execute` success path sets `trade_opened`.
-- [ ] Build `_build_cap_blocker_payload` helper with the §3 blocking-trades
+- [x] Build `_build_cap_blocker_payload` helper with the §3 blocking-trades
       shape and the `runtime-reconciliation` `monitorable` flag.
-- [ ] Wire `attach_outcome` to set `final_state=outcome_linked` and
+- [x] Wire `attach_outcome` to set `final_state=outcome_linked` and
       propagate `proposal_id` / `record_id` into `POSITION_CLOSED` details.
-- [ ] Add `src/proposal/funnel.py` with `FunnelCounts` Pydantic model and
+- [x] Add `src/proposal/funnel.py` with `FunnelCounts` Pydantic model and
       `compute_funnel_counts(records, window)` pure function.
-- [ ] Add dashboard views: conversion table, per-gate volume + sample,
+- [x] Add dashboard views: conversion table, per-gate volume + sample,
       per-strategy heatmap, drill-through panel, and command-center
       single-line summary.
-- [ ] Add fixtures/tests per spec §5: gate transition tests,
+- [x] Add fixtures/tests per spec §5: gate transition tests,
       `ProposalRecord` schema round-trip, cap-diagnostic payload, record_id
       join, funnel aggregator, dashboard rendering.
 
 ## Verification
 
-- [ ] `uv run pytest tests/test_runtime_engine.py tests/test_proposal_interaction.py -q`
-- [ ] Targeted dashboard tests for the funnel views.
-- [ ] Targeted aggregator tests for `compute_funnel_counts`.
-- [ ] `ruff check src tests` clean and `mypy` clean on changed files.
+- [x] `uv run pytest tests/test_runtime_engine.py tests/test_proposal_interaction.py -q`
+- [x] Targeted dashboard tests for the funnel views.
+- [x] Targeted aggregator tests for `compute_funnel_counts`.
+- [x] `ruff check src tests` clean and `mypy` clean on changed files.
 
 ## Completion Checklist
 
-- [ ] Code implemented.
-- [ ] Tests pass.
-- [ ] Session log and cross-check added.
-- [ ] `aidlc-docs/aidlc-state.md` updated.
+- [x] Code implemented.
+- [x] Tests pass.
+- [x] Session log and cross-check added.
+- [x] `aidlc-docs/aidlc-state.md` updated.

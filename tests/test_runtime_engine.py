@@ -15,6 +15,7 @@ from src.models import OHLCV, AnalysisResult, Ticker
 from src.proposal.engine import Proposal, ProposalEngine, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
+    ProposalFinalState,
     ProposalHistory,
     ProposalInteraction,
     ProposalRecord,
@@ -4440,3 +4441,228 @@ def test_startup_emits_health_check_failed_event(tmp_path: Path) -> None:
     event_types = {e.event_type for e in mocks["activity_log"].read_all()}
     assert ActivityEventType.STARTUP.value in event_types
     assert ActivityEventType.SHUTDOWN.value in event_types
+
+
+# =============================================================================
+# proposal-funnel-audit — final_state transitions + record_id join key
+# =============================================================================
+
+
+async def test_score_rejected_proposal_carries_score_rejected_final_state(
+    tmp_path: Path,
+) -> None:
+    """Below-threshold proposals end in ``final_state=score_rejected``."""
+    proposal = make_proposal(proposal_id="ff_score_rej", composite=0.1)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=2.0),
+    )
+    await engine.run_cycle()
+    record = mocks["history"].load("ff_score_rej")
+    assert record.final_state == ProposalFinalState.SCORE_REJECTED.value
+
+
+async def test_build_cap_blocker_payload_shape(tmp_path: Path) -> None:
+    """The cap-blocker helper produces the spec §3 shape per open trade.
+
+    The blocker entry must carry: ``trade_id``, ``symbol``, ``side``,
+    ``entry_price``, ``entry_time`` (isoformat string), ``age_seconds``,
+    ``monitorable``, ``cap_value``, ``current_open_count`` and the
+    optional ``unrealized_pnl_percent`` / ``technique_name`` /
+    ``proposal_record_id`` fields.
+    """
+    proposal = make_proposal(proposal_id="ff_cap_helper", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    open_trade = make_trade(
+        trade_id="t-helper",
+        symbol="BNB/USDT",
+        side="short",
+        performance_record_id="perf-1",
+    )
+    payload = await engine._build_cap_blocker_payload(
+        open_trades=[open_trade],
+        cap=5,
+        reason="symbol_cap",
+    )
+    assert len(payload) == 1
+    entry = payload[0]
+    for required in (
+        "trade_id",
+        "symbol",
+        "side",
+        "entry_price",
+        "entry_time",
+        "age_seconds",
+        "monitorable",
+        "unrealized_pnl_percent",
+        "technique_name",
+        "proposal_record_id",
+        "cap_value",
+        "current_open_count",
+        "reason",
+    ):
+        assert required in entry, f"missing {required} from cap blocker entry"
+    assert entry["trade_id"] == "t-helper"
+    assert entry["cap_value"] == 5
+    assert entry["current_open_count"] == 1
+    # Cap rejection is a hot-path; the helper must not call the
+    # exchange (no ticker fetch per blocker).
+    mocks["exchange"].get_ticker.assert_not_awaited()
+
+
+async def test_build_cap_blocker_payload_falls_back_to_none_when_mark_unknown(
+    tmp_path: Path,
+) -> None:
+    """``unrealized_pnl_percent`` is ``None`` — no in-memory mark cache exists.
+
+    Pins the current-build contract: the cap-blocker payload never
+    fetches a fresh ticker (would re-introduce the hot-path latency
+    tax) and no other in-memory mark source exists today, so the
+    diagnostic field always carries ``None``. If a mark-price cache
+    lands later, this test should be updated alongside the new field
+    population.
+    """
+    proposal = make_proposal(proposal_id="ff_cap_none_pnl", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    open_trade = make_trade(
+        trade_id="t-no-mark",
+        symbol="ETH/USDT",
+        side="long",
+        performance_record_id="perf-no-mark",
+    )
+    payload = await engine._build_cap_blocker_payload(
+        open_trades=[open_trade],
+        cap=3,
+        reason="total_cap",
+    )
+    assert len(payload) == 1
+    assert payload[0]["unrealized_pnl_percent"] is None
+    mocks["exchange"].get_ticker.assert_not_awaited()
+
+
+async def test_symbol_cap_rejection_carries_symbol_cap_final_state(
+    tmp_path: Path,
+) -> None:
+    """Per-symbol cap rejection promotes the record to
+    ``gate_rejected_symbol_cap`` and only lists same-symbol blockers."""
+    existing = make_trade(
+        trade_id="t-bnb-existing",
+        symbol="BNB/USDT",
+        side="short",
+    )
+    proposal = make_proposal(
+        proposal_id="ff_sym_cap",
+        symbol="BNB/USDT",
+        signal="short",
+        composite=2.0,
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+        open_trades=[existing],
+    )
+    await engine.run_cycle()
+    record = mocks["history"].load("ff_sym_cap")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_SYMBOL_CAP.value
+
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    cap_rejection = next(
+        e for e in rejections if e.details.get("gate_reason") == "symbol_cap"
+    )
+    assert cap_rejection.details["record_id"] == "ff_sym_cap"
+    blockers = cap_rejection.details["blocking_trades"]
+    assert len(blockers) == 1
+    assert blockers[0]["trade_id"] == "t-bnb-existing"
+    assert blockers[0]["symbol"] == "BNB/USDT"
+
+
+async def test_accepted_proposal_advances_to_trade_opened_final_state(
+    tmp_path: Path,
+) -> None:
+    """A proposal that clears every gate and fills lands in
+    ``final_state=trade_opened``."""
+    proposal = make_proposal(proposal_id="ff_opened", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    await engine.run_cycle()
+    record = mocks["history"].load("ff_opened")
+    assert record.final_state == ProposalFinalState.TRADE_OPENED.value
+
+    # POSITION_OPENED event carries the record_id join key.
+    opened_events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.POSITION_OPENED
+    )
+    assert len(opened_events) == 1
+    assert opened_events[0].details["record_id"] == "ff_opened"
+
+
+async def test_position_closed_event_carries_record_id(tmp_path: Path) -> None:
+    """When a trade closes, the POSITION_CLOSED event carries the
+    record_id join key and the record advances to ``outcome_linked``."""
+    proposal = make_proposal(proposal_id="ff_closed", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    # Run the cycle that opens the trade.
+    await engine.run_cycle()
+
+    # Now configure trader to report an SL exit on the next monitor pass.
+    trader = mocks["trader"]
+    # Capture the trade just opened to feed the SL exit branch.
+    captured_trade = make_trade(
+        trade_id="t-BTC/USDT-long",
+        symbol="BTC/USDT",
+        side="long",
+        entry="50000",
+        quantity="0.1",
+        status="open",
+    )
+    trader.get_open_trades.return_value = [captured_trade]
+    closed_trade = make_trade(
+        trade_id="t-BTC/USDT-long",
+        symbol="BTC/USDT",
+        side="long",
+        entry="50000",
+        quantity="0.1",
+        exit_price="49500",
+        pnl_percent=-1.0,
+        status="closed",
+    )
+    trader.check_exit_conditions.return_value = (True, "stop_loss")
+    trader.close_position = AsyncMock(return_value=closed_trade)
+
+    # Trigger a monitor-only cycle: no new proposals.
+    mocks["proposal_engine"].propose_bitcoin = AsyncMock(return_value=None)
+    mocks["proposal_engine"].propose_altcoins = AsyncMock(return_value=[])
+    await engine.run_cycle()
+
+    closed_events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.POSITION_CLOSED
+    )
+    assert len(closed_events) >= 1
+    last_close = closed_events[-1]
+    assert last_close.details["record_id"] == "ff_closed"
+    assert last_close.details["proposal_id"] == "ff_closed"
+
+    record = mocks["history"].load("ff_closed")
+    assert record.final_state == ProposalFinalState.OUTCOME_LINKED.value

@@ -73,6 +73,45 @@ class ProposalDecision(str, Enum):
     REJECTED = "rejected"
 
 
+class ProposalFinalState(str, Enum):
+    """Terminal funnel-state for a proposal.
+
+    See ``aidlc-docs/construction/proposal-funnel-audit/functional-design/spec.md``
+    §1 for the canonical funnel taxonomy. ``decision`` (above) records
+    the *score-time* outcome; ``final_state`` records the *funnel
+    terminal* — a proposal can carry ``decision=ACCEPTED`` *and*
+    ``final_state=gate_rejected_symbol_cap`` once a post-acceptance
+    gate fires.
+
+    Legacy-record backfill policy (resolved 2026-05-13): forward-only
+    with ``gate_rejected_unknown`` as the fallback bucket for any
+    on-disk record that pre-dates this field. The funnel aggregator
+    inspects the persisted ``final_state`` (defaulting to
+    ``GENERATED`` on the model) and re-maps legacy rows whose
+    ``decision`` is set but ``final_state`` is still the default into
+    ``GATE_REJECTED_UNKNOWN`` — we do *not* walk history to infer the
+    original gate. New rows always carry the precise terminal state.
+    """
+
+    GENERATED = "generated"
+    SCORED = "scored"
+    SCORE_ACCEPTED = "score_accepted"
+    SCORE_REJECTED = "score_rejected"
+    GATE_REJECTED_MARKET_REGIME = "gate_rejected_market_regime"
+    GATE_REJECTED_CORRELATION = "gate_rejected_correlation"
+    GATE_REJECTED_TREND_FILTER = "gate_rejected_trend_filter"
+    GATE_REJECTED_SIBLING_FAMILY = "gate_rejected_sibling_family"
+    GATE_REJECTED_RUNTIME_SAFETY_PAUSE = "gate_rejected_runtime_safety_pause"
+    GATE_REJECTED_TOTAL_CAP = "gate_rejected_total_cap"
+    GATE_REJECTED_SYMBOL_CAP = "gate_rejected_symbol_cap"
+    GATE_REJECTED_STALE_QUOTE = "gate_rejected_stale_quote"
+    GATE_REJECTED_UNKNOWN = "gate_rejected_unknown"
+    PROPOSAL_OPENED = "proposal_opened"
+    TRADE_OPENED = "trade_opened"
+    OUTCOME_LINKED = "outcome_linked"
+    OPEN_ERRORED = "open_errored"
+
+
 @dataclass
 class ProposalDecisionInput:
     """Result returned by a ``ProposalDecisionCallback``.
@@ -125,6 +164,12 @@ class ProposalRecord(UtcTimestampMixin, BaseModel):
     trade_id: str | None = None
     outcome_pnl_percent: float | None = None
     outcome_recorded_at: datetime | None = None
+    # proposal-funnel-audit (2026-05-13): terminal funnel state for the
+    # record. Defaults to ``GENERATED`` so legacy rows (pre-cutover)
+    # load successfully; the funnel aggregator buckets any legacy row
+    # whose ``decision`` is non-PENDING but ``final_state`` is still
+    # ``GENERATED`` into ``GATE_REJECTED_UNKNOWN``.
+    final_state: ProposalFinalState = ProposalFinalState.GENERATED
 
     model_config = {"use_enum_values": True}
 
@@ -348,6 +393,10 @@ class ProposalHistory:
                 "trade_id": trade_id,
                 "outcome_pnl_percent": pnl_percent,
                 "outcome_recorded_at": now_utc(),
+                # proposal-funnel-audit §1 State 7: outcome linkage is
+                # the funnel terminal once a closed trade is paired
+                # back to its originating proposal record.
+                "final_state": ProposalFinalState.OUTCOME_LINKED.value,
             }
         )
         self.save(updated)
@@ -632,6 +681,7 @@ __all__ = [
     "ProposalDecision",
     "ProposalDecisionCallback",
     "ProposalDecisionInput",
+    "ProposalFinalState",
     "ProposalHistory",
     "ProposalHistoryError",
     "ProposalInteraction",

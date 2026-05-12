@@ -15,6 +15,7 @@ from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
     ProposalDecisionInput,
+    ProposalFinalState,
     ProposalHistory,
     ProposalHistoryError,
     ProposalInteraction,
@@ -934,3 +935,54 @@ def test_proposal_history_save_crash_preserves_prior_record(
     # The original ACCEPTED record is still readable verbatim.
     loaded = history.load("prop-22-1")
     assert loaded.decision == ProposalDecision.ACCEPTED.value
+
+
+# =============================================================================
+# proposal-funnel-audit — final_state schema + attach_outcome wiring
+# =============================================================================
+
+
+def test_proposal_record_defaults_final_state_to_generated_enum() -> None:
+    """The new field defaults to ``GENERATED`` so legacy reads work."""
+    record = ProposalRecord(proposal=make_proposal(proposal_id="ff_default"))
+    assert record.final_state == ProposalFinalState.GENERATED.value
+
+
+def test_attach_outcome_sets_final_state_to_outcome_linked(tmp_path: Path) -> None:
+    """Linking a closed trade promotes the record to ``outcome_linked``.
+
+    Spec §1 State 7: a closed trade joined back to its originating
+    proposal record is the funnel terminal.
+    """
+    history = ProposalHistory(data_dir=tmp_path)
+    proposal = make_proposal(proposal_id="ff_outcome")
+    history.save(
+        ProposalRecord(
+            proposal=proposal,
+            decision=ProposalDecision.ACCEPTED,
+            final_state=ProposalFinalState.TRADE_OPENED,
+        )
+    )
+    updated = history.attach_outcome(
+        proposal.proposal_id, trade_id="trade-77", pnl_percent=0.5
+    )
+    assert updated.final_state == ProposalFinalState.OUTCOME_LINKED.value
+    reloaded = history.load(proposal.proposal_id)
+    assert reloaded.final_state == ProposalFinalState.OUTCOME_LINKED.value
+
+
+def test_proposal_record_round_trip_preserves_each_terminal_state(
+    tmp_path: Path,
+) -> None:
+    """Every ``ProposalFinalState`` survives JSON persistence."""
+    history = ProposalHistory(data_dir=tmp_path)
+    for index, state in enumerate(ProposalFinalState):
+        proposal = make_proposal(proposal_id=f"ff_state_{index}")
+        history.save(
+            ProposalRecord(
+                proposal=proposal,
+                final_state=state,
+            )
+        )
+        loaded = history.load(proposal.proposal_id)
+        assert loaded.final_state == state.value

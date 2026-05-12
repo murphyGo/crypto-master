@@ -50,6 +50,7 @@ from src.proposal.engine import Proposal, ProposalEngine
 from src.proposal.interaction import (
     ProposalDecision,
     ProposalDecisionInput,
+    ProposalFinalState,
     ProposalHistory,
     ProposalInteraction,
     ProposalRecord,
@@ -72,7 +73,10 @@ from src.runtime.market_regime import (
     RegimeClassification,
     classify_regime_detailed,
 )
-from src.runtime.reconciliation import compute_health_report
+from src.runtime.reconciliation import (
+    classify_open_trade,
+    compute_health_report,
+)
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
@@ -86,7 +90,7 @@ from src.strategy.performance import (
     TradeOutcome,
 )
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
-from src.utils.time import now_utc
+from src.utils.time import ensure_utc, now_utc
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -1085,11 +1089,21 @@ class TradingEngine:
 
         if record.decision == ProposalDecision.ACCEPTED.value:
             result.proposals_accepted += 1
+            # proposal-funnel-audit §1 State 3a: score gate accepted.
+            # Subsequent gate rejections will overwrite ``final_state``;
+            # the score-accepted bucket is for the in-flight transition
+            # and the final terminal record when every gate accepts.
+            record = record.model_copy(
+                update={"final_state": ProposalFinalState.SCORE_ACCEPTED.value}
+            )
             events.append(
                 GateActivityEvent(
                     ActivityEventType.PROPOSAL_ACCEPTED,
                     f"Auto-accepted {proposal.symbol} {proposal.signal}",
-                    _proposal_summary(proposal),
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": "score_above_threshold",
+                    },
                     cycle_id,
                 )
             )
@@ -1209,14 +1223,23 @@ class TradingEngine:
                     f"total open-position cap {total_cap} reached on "
                     f"sub-account {proposal.sub_account_id} ({len(open_trades)} open)"
                 )
+                # proposal-funnel-audit §1 State 4: total-cap rejection.
                 rejected_record = record.model_copy(
                     update={
                         "decision": ProposalDecision.REJECTED.value,
                         "rejection_reason": reason,
                         "decision_at": now_utc(),
+                        "final_state": (
+                            ProposalFinalState.GATE_REJECTED_TOTAL_CAP.value
+                        ),
                     }
                 )
                 result.proposals_rejected += 1
+                blocking_trades = await self._build_cap_blocker_payload(
+                    open_trades=open_trades,
+                    cap=total_cap,
+                    reason="total_cap",
+                )
                 outcome = GateOutcome(
                     GateDecision.REJECTED,
                     reason,
@@ -1228,8 +1251,10 @@ class TradingEngine:
                             {
                                 **_proposal_summary(proposal),
                                 "reason": reason,
+                                "gate_reason": "total_cap",
                                 "open_count": len(open_trades),
                                 "cap": total_cap,
+                                "blocking_trades": blocking_trades,
                             },
                             cycle_id,
                         )
@@ -1253,14 +1278,30 @@ class TradingEngine:
                     f"symbol {proposal.symbol} cap {cap} reached on "
                     f"sub-account {proposal.sub_account_id} ({existing} open)"
                 )
+                # proposal-funnel-audit §1 State 4: symbol-cap rejection.
                 rejected_record = record.model_copy(
                     update={
                         "decision": ProposalDecision.REJECTED.value,
                         "rejection_reason": reason,
                         "decision_at": now_utc(),
+                        "final_state": (
+                            ProposalFinalState.GATE_REJECTED_SYMBOL_CAP.value
+                        ),
                     }
                 )
                 result.proposals_rejected += 1
+                # Filter to the per-symbol blockers only — these are the
+                # trades that actually count against the per-symbol cap;
+                # the dashboard's diagnostic panel must not list trades
+                # on other symbols as the blocker.
+                symbol_blockers = [
+                    trade for trade in open_trades if trade.symbol == proposal.symbol
+                ]
+                blocking_trades = await self._build_cap_blocker_payload(
+                    open_trades=symbol_blockers,
+                    cap=cap,
+                    reason="symbol_cap",
+                )
                 outcome = GateOutcome(
                     GateDecision.REJECTED,
                     reason,
@@ -1272,8 +1313,10 @@ class TradingEngine:
                             {
                                 **_proposal_summary(proposal),
                                 "reason": reason,
+                                "gate_reason": "symbol_cap",
                                 "open_count": existing,
                                 "cap": cap,
+                                "blocking_trades": blocking_trades,
                             },
                             cycle_id,
                         )
@@ -1290,6 +1333,15 @@ class TradingEngine:
                     )
                 return
 
+            # proposal-funnel-audit §1 State 5: every gate accepted;
+            # the record advances to ``proposal_opened``. ``_execute``
+            # promotes to ``trade_opened`` on a successful fill, and
+            # the post-execute stale-quote gate (inside ``_execute``)
+            # rewrites the record back to
+            # ``gate_rejected_stale_quote`` if it fires.
+            record = record.model_copy(
+                update={"final_state": ProposalFinalState.PROPOSAL_OPENED.value}
+            )
             outcome = GateOutcome(GateDecision.ACCEPTED, None, events, record)
             self.proposal_history.save(outcome.final_record)
             for event in outcome.events:
@@ -1302,6 +1354,10 @@ class TradingEngine:
             await self._execute(proposal, cycle_id, result, trader, exchange)
         else:
             result.proposals_rejected += 1
+            # proposal-funnel-audit §1 State 3b: score gate rejection.
+            rejected_record = record.model_copy(
+                update={"final_state": ProposalFinalState.SCORE_REJECTED.value}
+            )
             outcome = GateOutcome(
                 GateDecision.REJECTED,
                 record.rejection_reason,
@@ -1317,7 +1373,7 @@ class TradingEngine:
                         cycle_id,
                     )
                 ],
-                record,
+                rejected_record,
             )
             self.proposal_history.save(outcome.final_record)
             for event in outcome.events:
@@ -1367,11 +1423,33 @@ class TradingEngine:
         try:
             trade = await trader.open_position(position)
         except Exception as e:
+            # proposal-funnel-audit §1 State 6 (terminal ``open_errored``):
+            # exchange / trader raised on the fill; the record stays in
+            # ``proposal_opened`` per spec §1 State 6 and we promote it
+            # to the explicit ``open_errored`` terminal so the funnel
+            # surfaces fill failures distinctly from the silent "opened
+            # but no fill" case the dashboard previously had to fuzzy-
+            # join.
+            try:
+                existing = self.proposal_history.load(proposal.proposal_id)
+                updated = existing.model_copy(
+                    update={
+                        "final_state": ProposalFinalState.OPEN_ERRORED.value,
+                    }
+                )
+                self.proposal_history.save(updated)
+            except Exception:  # pragma: no cover - defensive
+                pass
             self.activity_log.append(
                 ActivityEventType.POSITION_OPEN_ERRORED,
                 f"Failed to open {proposal.symbol}: {e}",
                 details={
                     "proposal_id": proposal.proposal_id,
+                    "record_id": proposal.proposal_id,
+                    "sub_account_id": proposal.sub_account_id,
+                    "symbol": proposal.symbol,
+                    "signal": proposal.signal,
+                    "technique_name": proposal.technique_name,
                     "error": str(e),
                     "error_type": type(e).__name__,
                 },
@@ -1390,6 +1468,24 @@ class TradingEngine:
         # Link the trade to its proposal record now; realized P&L is
         # filled in by ``_monitor`` once the trade closes.
         self.proposal_history.attach_trade(proposal.proposal_id, trade_id=trade.id)
+        # proposal-funnel-audit §1 State 6: fill confirmed; promote
+        # the record to ``trade_opened``. ``attach_trade`` already
+        # persisted the trade-id link; this is a second small write
+        # (load -> model_copy -> save) per the spec's "rewrite on each
+        # transition" contract. ``ProposalHistory.save`` is atomic so a
+        # crash between the two writes still leaves a coherent record.
+        try:
+            existing = self.proposal_history.load(proposal.proposal_id)
+            updated = existing.model_copy(
+                update={"final_state": ProposalFinalState.TRADE_OPENED.value}
+            )
+            self.proposal_history.save(updated)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning(
+                "Failed to promote proposal record %s to trade_opened: %s",
+                proposal.proposal_id,
+                e,
+            )
         self._strategy_lookup_cache = None
         result.positions_opened += 1
         self.activity_log.append(
@@ -1397,10 +1493,14 @@ class TradingEngine:
             f"Opened {proposal.symbol} {proposal.signal} qty={trade.entry_quantity}",
             details={
                 "proposal_id": proposal.proposal_id,
+                # proposal-funnel-audit §1 State 5: record_id join key.
+                "record_id": proposal.proposal_id,
                 "sub_account_id": proposal.sub_account_id,
+                "technique_name": proposal.technique_name,
                 "trade_id": trade.id,
                 "symbol": proposal.symbol,
                 "side": proposal.signal,
+                "signal": proposal.signal,
                 "entry_price": str(proposal.entry_price),
                 "quantity": str(trade.entry_quantity),
                 "leverage": proposal.leverage,
@@ -1464,6 +1564,11 @@ class TradingEngine:
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
+                # proposal-funnel-audit §1 State 4: sibling-family
+                # dedup rejection.
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY.value
+                ),
             }
         )
         return GateOutcome(
@@ -1476,6 +1581,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
+                        "gate_reason": "sibling_family_dedup",
                         "family": family,
                         "symbol": proposal.symbol,
                         "signal": proposal.signal,
@@ -1510,6 +1616,11 @@ class TradingEngine:
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
+                # proposal-funnel-audit §1 State 4: runtime-safety-pause
+                # rejection.
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_RUNTIME_SAFETY_PAUSE.value
+                ),
             }
         )
         return GateOutcome(
@@ -1522,6 +1633,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
+                        "gate_reason": "runtime_safety_paused",
                         "runtime_safety_score": safety_score.score,
                         "runtime_safety_band": safety_score.band.value,
                         "runtime_safety_pause_min_score": pause_min_score,
@@ -1617,6 +1729,10 @@ class TradingEngine:
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
+                # proposal-funnel-audit §1 State 4: trend-filter rejection.
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_TREND_FILTER.value
+                ),
             }
         )
         return GateOutcome(
@@ -1629,6 +1745,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
+                        "gate_reason": "trend_filter_blocked",
                         "htf_timeframe": "1d",
                         "htf_last_close": str(last_close),
                         "htf_sma200": str(sma200),
@@ -1774,8 +1891,16 @@ class TradingEngine:
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
+                # proposal-funnel-audit §1 State 4: market-regime rejection.
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_MARKET_REGIME.value
+                ),
             }
         )
+        # ``details`` already carries ``proposal_id`` / ``record_id`` /
+        # ``sub_account_id`` via ``_proposal_summary``; ``gate_reason``
+        # is the spec §1 canonical discriminator string.
+        details["gate_reason"] = "market_regime_blocked"
         return GateOutcome(
             GateDecision.REJECTED,
             reason,
@@ -1846,6 +1971,10 @@ class TradingEngine:
                 "decision": ProposalDecision.REJECTED.value,
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
+                # proposal-funnel-audit §1 State 4: correlation rejection.
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_CORRELATION.value
+                ),
             }
         )
         events.append(
@@ -1855,6 +1984,7 @@ class TradingEngine:
                 {
                     **_proposal_summary(proposal),
                     "reason": reason,
+                    "gate_reason": "correlation_blocked",
                     "warnings": warning_details,
                 },
                 cycle_id,
@@ -1898,6 +2028,123 @@ class TradingEngine:
             lookup[record.trade_id] = record.proposal.technique_name
         self._strategy_lookup_cache = dict(lookup)
         return lookup
+
+    async def _build_cap_blocker_payload(
+        self,
+        *,
+        open_trades: list[TradeHistory],
+        cap: int,
+        reason: str,
+    ) -> list[dict[str, Any]]:
+        """Build the ``blocking_trades`` array for a cap-rejection event.
+
+        Per proposal-funnel-audit spec §3, every cap rejection
+        (``total_cap`` / ``symbol_cap``) carries a list of the existing
+        open trades that count toward the cap so operators can
+        immediately answer "which position is blocking?". Per-blocker
+        fields:
+
+        * ``trade_id`` — ``TradeHistory.id`` of the blocker.
+        * ``symbol`` / ``side`` / ``entry_price`` / ``entry_time`` —
+          read straight off the trade row.
+        * ``age_seconds`` — ``now_utc() - entry_time`` at decision
+          time (UTC-aware subtraction; on-disk rows are coerced to
+          UTC by the ``TradeHistory`` validator).
+        * ``unrealized_pnl_percent`` — always ``None`` in the current
+          build. Cap rejection is the dominant rejection path (Fly
+          snapshot: concentrated ETH longs / BNB shorts hit
+          ``symbol_cap`` / ``total_cap`` on most cycles), and a fresh
+          ``await exchange.get_ticker(...)`` per blocker was a hot-path
+          latency tax we cannot afford. No in-memory mark-price cache
+          exists today (``PortfolioManager`` only persists marks on
+          ``AssetSnapshot``), so we omit the metric rather than read
+          from disk. Operator value is in ``entry_price`` +
+          ``age_seconds`` + ``monitorable`` + ``symbol`` + ``record_id``;
+          ``unrealized_pnl_percent`` is second-order and can be added
+          back once an in-memory mark-price cache lands.
+        * ``monitorable`` — coordinate from
+          :func:`src.runtime.reconciliation.classify_open_trade`;
+          ``True`` iff the row's classified state is ``MONITORABLE``.
+          A blocker that is *not* monitorable is the exact "blocked
+          by a position the engine cannot close" case spec §3 calls
+          out.
+        * ``technique_name`` — joined back through the proposal
+          history (`trade_id` -> `technique_name`) when available;
+          ``None`` for orphan trades.
+        * ``proposal_record_id`` — the blocker's proposal id when the
+          link is intact; ``None`` otherwise.
+        """
+        strategy_lookup = self._strategy_lookup_for_open_trades()
+        # ``trade_id -> proposal_id`` join. The strategy lookup above
+        # only carries ``trade_id -> technique_name``; rebuild the
+        # proposal-id map here so we can populate
+        # ``proposal_record_id`` for the blocker payload.
+        proposal_id_by_trade: dict[str, str] = {}
+        for record in self.proposal_history.list_all():
+            if record.trade_id is None:
+                continue
+            proposal_id_by_trade[record.trade_id] = record.proposal.proposal_id
+
+        now = now_utc()
+        payload: list[dict[str, Any]] = []
+        for trade in open_trades:
+            entry_time = ensure_utc(trade.entry_time)
+            age_seconds = int((now - entry_time).total_seconds())
+
+            # ``unrealized_pnl_percent`` is intentionally always ``None``
+            # — see the docstring. No in-memory mark-price cache exists
+            # to look up here; reading from the persisted snapshot would
+            # re-introduce the I/O tax we just removed.
+            unrealized_pnl_percent: float | None = None
+
+            # Classify the row via the runtime-reconciliation taxonomy
+            # so we can surface the "blocked by an unmonitorable open"
+            # case. The classifier wants the on-disk row shape; the
+            # in-memory ``TradeHistory`` carries equivalent fields.
+            row = {
+                "id": trade.id,
+                "symbol": trade.symbol,
+                "side": trade.side,
+                "entry_price": (
+                    str(trade.entry_price) if trade.entry_price is not None else None
+                ),
+                "entry_quantity": (
+                    str(trade.entry_quantity)
+                    if trade.entry_quantity is not None
+                    else None
+                ),
+                "stop_loss": (
+                    str(trade.stop_loss) if trade.stop_loss is not None else None
+                ),
+                "take_profit": (
+                    str(trade.take_profit)
+                    if trade.take_profit is not None
+                    else None
+                ),
+                "performance_record_id": trade.performance_record_id,
+                "sub_account_id": trade.sub_account_id,
+            }
+            classification = classify_open_trade(row, set())
+            monitorable = classification.state == "monitorable"
+
+            payload.append(
+                {
+                    "trade_id": trade.id,
+                    "symbol": trade.symbol,
+                    "side": trade.side,
+                    "entry_price": str(trade.entry_price),
+                    "entry_time": entry_time.isoformat(),
+                    "age_seconds": age_seconds,
+                    "unrealized_pnl_percent": unrealized_pnl_percent,
+                    "monitorable": monitorable,
+                    "technique_name": strategy_lookup.get(trade.id),
+                    "proposal_record_id": proposal_id_by_trade.get(trade.id),
+                    "cap_value": cap,
+                    "current_open_count": len(open_trades),
+                    "reason": reason,
+                }
+            )
+        return payload
 
     async def _stale_quote_gate(
         self,
@@ -2104,6 +2351,13 @@ class TradingEngine:
                     "decision": ProposalDecision.REJECTED.value,
                     "rejection_reason": reason,
                     "decision_at": now_utc(),
+                    # proposal-funnel-audit §1 State 4 (presented at
+                    # State 4 in the UI even though it fires inside
+                    # ``_execute`` — open-decision §6 stale-quote
+                    # resolution, 2026-05-13).
+                    "final_state": (
+                        ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value
+                    ),
                 }
             )
             self.proposal_history.save(updated)
@@ -2128,6 +2382,7 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "reason": reason,
+                "gate_reason": "stale_quote_no_live_data",
                 "proposal_stop_loss": str(proposal.stop_loss),
                 "live_price": str(live_price),
                 "drift_bps": drift_bps,
@@ -2163,6 +2418,12 @@ class TradingEngine:
                     "decision": ProposalDecision.REJECTED.value,
                     "rejection_reason": reason,
                     "decision_at": now_utc(),
+                    # proposal-funnel-audit §1 State 4: presented at
+                    # State 4 in the UI per open-decision §6 stale-
+                    # quote resolution (2026-05-13).
+                    "final_state": (
+                        ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value
+                    ),
                 }
             )
             self.proposal_history.save(updated)
@@ -2188,6 +2449,7 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "reason": reason,
+                "gate_reason": "stale_quote_no_live_data",
                 "detail": detail,
                 "proposal_stop_loss": str(proposal.stop_loss),
             },
@@ -2625,9 +2887,21 @@ class TradingEngine:
             details={
                 "trade_id": trade.id,
                 "proposal_id": proposal_id,
+                # proposal-funnel-audit §1 State 7: ``record_id`` is the
+                # canonical funnel-join key. For now each proposal maps
+                # 1:1 to its record so the two ids coincide; the
+                # separate field exists so dashboards can switch joins
+                # without re-tagging events.
+                "record_id": proposal_id,
                 "sub_account_id": trade.sub_account_id,
+                "technique_name": (
+                    proposal_record.proposal.technique_name
+                    if proposal_record is not None
+                    else None
+                ),
                 "symbol": trade.symbol,
                 "side": trade.side,
+                "signal": trade.side,
                 "reason": reason,
                 "pnl_percent": pnl_percent,
                 "exit_price": (
@@ -2973,13 +3247,24 @@ def _correlation_warning_details(
 
 
 def _proposal_summary(proposal: Proposal) -> dict[str, object]:
-    """Compact dict used as the ``details`` payload for proposal events."""
+    """Compact dict used as the ``details`` payload for proposal events.
+
+    ``record_id`` is included as a stable funnel-join key per the
+    proposal-funnel-audit spec §2. Each proposal maps 1:1 to a single
+    ``ProposalRecord`` on disk so the join key equals
+    ``proposal.proposal_id``; the dashboard joins activity events on
+    this field to collapse "accepted-then-blocked" proposals into one
+    funnel row.
+    """
     return {
         "proposal_id": proposal.proposal_id,
+        "record_id": proposal.proposal_id,
         "sub_account_id": proposal.sub_account_id,
         "symbol": proposal.symbol,
         "side": proposal.signal,
+        "signal": proposal.signal,
         "technique": proposal.technique_name,
+        "technique_name": proposal.technique_name,
         "score": proposal.score.composite,
         "confidence": proposal.score.confidence,
         "expected_value": proposal.score.expected_value,

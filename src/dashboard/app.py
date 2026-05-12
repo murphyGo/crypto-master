@@ -54,6 +54,7 @@ from src.dashboard.pages import autopsy as autopsy_page
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import ops as ops_page
+from src.dashboard.pages import proposals as proposals_page
 from src.dashboard.pages import replay as replay_page
 from src.dashboard.pages import strategies as strategies_page
 from src.dashboard.pages import trading as trading_page
@@ -235,6 +236,22 @@ def render_home() -> None:
             "Experimental candidates, backtest verdicts, audit trail.\n\n"
             "_Available now — see the sidebar._"
         )
+
+    # proposal-funnel-audit (2026-05-13): single-line funnel summary
+    # so operators see today's proposal-to-fill conversion against the
+    # long-run baseline without leaving the home view.
+    try:
+        from src.dashboard.pages import proposals as proposals_page
+
+        funnel_counts = proposals_page.load_funnel_summary(window_label="24h")
+        st.caption(
+            f"Funnel (24h): "
+            f"{proposals_page.build_command_center_summary(funnel_counts)}"
+        )
+    except Exception:  # pragma: no cover - dashboard read-only
+        # The funnel summary is purely additive; a read failure must
+        # not block the home view.
+        pass
 
     st.markdown("### Getting started")
     st.markdown(
@@ -1085,6 +1102,13 @@ def page_for_key(page_key: str) -> StreamlitPage:
             icon="⚙️",
             url_path="engine",
         )
+    if page_key == "proposals":
+        return st.Page(
+            proposals_page.render,
+            title="Proposal Funnel",
+            icon="🪜",
+            url_path="proposals",
+        )
     return st.Page(render_home, title="Home", icon="🏠", default=True)
 
 
@@ -1120,6 +1144,7 @@ def build_navigation() -> StreamlitPage:
     autopsy = page_for_key("autopsy")
     ops = page_for_key("ops")
     engine = page_for_key("engine")
+    proposals = page_for_key("proposals")
     return st.navigation(
         {
             "Overview": [home],
@@ -1131,6 +1156,7 @@ def build_navigation() -> StreamlitPage:
                 autopsy,
                 ops,
                 engine,
+                proposals,
             ],
         }
     )
