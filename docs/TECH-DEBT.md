@@ -41,42 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-056: Pre-existing test flake + ruff I001 import-order hits on clean tree
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-09 |
-| **Phase** | CH-27 follow-up (surfaced during QA full-suite run) |
-| **Component** | ai-feedback-loop (test); dashboard-operator-ui + backtesting-validation (lint) |
-
-**Description:**
-Two pre-existing issues observed on a clean tree, refreshed during the DEBT-055 closeout (2026-05-13):
-
-1. All 6 tests in `tests/test_scripts_auto_research_candidates.py` now fail on a clean tree through the same `GeneratedTechniqueError` raise path at `src/ai/improver.py:374` ("Generated technique must include a falsifiable hypothesis."). Failure count widened from 1 → 6 since the 2026-05-09 entry. Failure is unrelated to the DEBT-055 test-only diff (no `src/` changes this cycle) and was independently confirmed by QA via `git stash` on a clean tree. Owner unit: `ai-feedback-loop`. Affected tests:
-   - `test_run_picks_orchestrates_each_candidate`
-   - `test_run_picks_threads_sub_account_id`
-   - `test_dry_run_skips_backtest`
-   - `test_pick_failure_captured_not_raised`
-   - `test_code_type_pick_runs_without_per_bar_claude_calls`
-   - `test_code_type_pick_produces_backtest_trade_without_claude_analyze`
-2. `ruff check` reports two pre-existing `I001` import-order violations on a clean tree:
-   - `src/dashboard/pages/engine.py:25`
-   - `tests/test_backtest_validator.py:3`
-   Neither is in the DEBT-055 touched-file set; both are mechanical `ruff check --fix` candidates.
-
-**Impact:**
-Full-suite test count reads "1802 pass / 6 pre-existing fail" instead of clean green on every cycle, costing reviewer attention. Two `I001` hits keep `ruff check` non-clean repo-wide, masking new lint regressions in unrelated files until reviewers manually filter them out.
-
-**Suggested Resolution:**
-- Test: investigate the `improver.py:374` raise path — the `_validate_generated_metadata` hypothesis-empty branch is now firing for all 6 orchestration tests; likely a fixture / mock drift around generated-technique metadata. Either fix the test fixtures to emit a non-empty `hypothesis` field or repair the production behaviour they pin.
-- Lint: run `ruff check --fix` against the two named files in a small lint-only commit.
-
-**Related:**
-- Failing tests (all 6 in file): `tests/test_scripts_auto_research_candidates.py`
-- Raise site: `src/ai/improver.py:374` (corrected from prior `:425`; verified 2026-05-13)
-- Lint sites: `src/dashboard/pages/engine.py:25`, `tests/test_backtest_validator.py:3`
-
 ### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor
 
 | Field | Value |
@@ -119,6 +83,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-056: Pre-existing test flake + ruff I001 import-order hits on clean tree ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-09 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Both lint hits cleared via `ruff check --fix` (`src/dashboard/pages/engine.py` and `tests/test_backtest_validator.py` — pre-existing `I001` import-order sorts). The 6 fixtures-vs-validator drift failures in `tests/test_scripts_auto_research_candidates.py` resolved by aligning `GOOD_RESPONSE`, `GOOD_PYTHON_STRATEGY`, and `TRADE_PRODUCING_PYTHON_STRATEGY` with the runtime-validator contracts introduced in commit `85a33b0` (2026-05-08, "Harden runtime consistency followups"): (1) `GOOD_RESPONSE` markdown body gained a `## Output Contract` block listing `signal` / `entry_price` / `stop_loss` / `take_profit`; (2) `GOOD_PYTHON_STRATEGY::TECHNIQUE_INFO` gained `"hypothesis"`; (3) `TRADE_PRODUCING_PYTHON_STRATEGY::TECHNIQUE_INFO` gained `"hypothesis"`. Failure split (correcting the 2026-05-13 over-correction to all-`:374`): **2 failures hit `src/ai/improver.py:374`** (code-type tests, hypothesis gate) — `test_code_type_pick_runs_without_per_bar_claude_calls`, `test_code_type_pick_produces_backtest_trade_without_claude_analyze`; **4 failures hit `src/ai/improver.py:425`** (markdown-pick tests, runtime Output Contract gate) — `test_run_picks_orchestrates_each_candidate`, `test_run_picks_threads_sub_account_id`, `test_dry_run_skips_backtest`, `test_pick_failure_captured_not_raised`. Production validators at `:374` (hypothesis gate) and `:425` (runtime Output Contract gate) were intentionally untouched — they are the contracts being enforced. `pytest -q` 1808 passed (was 1802 + 6 failing; net +6 fixes, zero regressions); `ruff check src tests` fully clean. Reviewer 🟢; fixture-only diff plus 2 import-sort lints. |
 
 ### DEBT-055: CH-27 multi-TF parity test gaps ✅
 
@@ -630,12 +603,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 1 |
-| Low | 1 |
-| Resolved (All Time) | 54 |
+| Low | 0 |
+| Resolved (All Time) | 55 |
 
 ---
 
@@ -643,6 +616,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-056 Pre-existing test flake + ruff I001 import-order hits — `ruff --fix` cleared the 2 lint sites; 6 fixture-vs-validator drift failures resolved by adding `## Output Contract` block to `GOOD_RESPONSE` (fixes 4 markdown-pick tests at `src/ai/improver.py:425`) and adding `"hypothesis"` to `GOOD_PYTHON_STRATEGY` + `TRADE_PRODUCING_PYTHON_STRATEGY` `TECHNIQUE_INFO` (fixes 2 code-type tests at `src/ai/improver.py:374`); corrected the prior all-`:374` split to the accurate 2×`:374` + 4×`:425` split; production validators untouched; pytest 1808 passed |
 | 2026-05-13 | Resolved | DEBT-055 CH-27 multi-TF parity test gaps — landed 4 parity-variant tests (slippage, liquidation, short-side, true non-degenerate multi-TF divergence) in `tests/test_backtest_engine.py::TestRunMultiTimeframeParity`; divergence test pins multi-TF warmup contract via strict-subset entry-bar indices; superseded `test_single_and_multi_tf_modes_share_closed_trade_ledger` deleted outright |
 | 2026-05-13 | Updated | DEBT-056 Pre-existing test flake refreshed — failure count widened from 1 → 6 tests in `tests/test_scripts_auto_research_candidates.py` on clean tree (all 6 fail through the same `GeneratedTechniqueError` path); raise-site line corrected from `src/ai/improver.py:425` to `src/ai/improver.py:374` |
 | 2026-05-12 | Resolved | DEBT-059 PaperBalance.locked not reconciled across runtime restart — added atomic per-sub-account `balances.json` snapshots, snapshot-first startup load, and one-time legacy open-position balance reconciliation |

@@ -8,8 +8,8 @@ import pytest
 
 from src.backtest.engine import (
     BacktestConfig,
-    BacktestResult,
     Backtester,
+    BacktestResult,
     BacktestTrade,
 )
 from src.backtest.validator import (

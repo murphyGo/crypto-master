@@ -36,7 +36,9 @@ GOOD_RESPONSE = (
     "trend regime in BTC.\n"
     "---\n"
     "# Smoke Donchian\n"
-    "Long when close > 55-bar high. SL at 20-bar low.\n"
+    "Long when close > 55-bar high. SL at 20-bar low.\n\n"
+    "## Output Contract\n"
+    "Return JSON keys: signal, entry_price, stop_loss, take_profit.\n"
     "```"
 )
 
@@ -604,6 +606,7 @@ TECHNIQUE_INFO = {
     "version": "0.1.0",
     "description": "Donchian fixture for code-path integration test",
     "author": "system",
+    "hypothesis": "Donchian channel breakouts capture continuation regimes in liquid crypto pairs.",
     "symbols": ["BTC/USDT"],
     "timeframes": ["1h"],
     "status": "experimental",
@@ -647,6 +650,7 @@ TECHNIQUE_INFO = {
     "version": "0.1.0",
     "description": "Trade-producing fixture for code-path integration test",
     "author": "system",
+    "hypothesis": "Donchian channel breakouts capture continuation regimes in liquid crypto pairs.",
     "symbols": ["BTC/USDT"],
     "timeframes": ["1h"],
     "status": "experimental",
