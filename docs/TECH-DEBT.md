@@ -41,33 +41,28 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor
+### DEBT-061: Per-strategy proposal-engine fail-closed-rate metric for dashboard observability
 
 | Field | Value |
 |-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-10 |
-| **Phase** | Review follow-up |
-| **Component** | strategy-framework / RSI baselines |
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Phase** | DEBT-060 close-out follow-up |
+| **Component** | `dashboard-operator-ui` + `proposal-runtime` |
 
 **Description:**
-12-day Fly paper proposal data showed `rsi_universal` / `rsi_4h` / `rsi_15m` had a median R/R of exactly 2.00 (TP=4%, SL=2%, ratio=2.0:1). Commit `7e9162e` (P1 item I) raised `min_risk_reward_ratio` from 1.5 to 2.0 globally. Combined with the SL widening shipped in commit `313a8b7` (P1 F+G), any RSI signal that gets its SL widened by even a basis point now has post-widen R/R < 2.0 and is silently fail-closed at the proposal layer. Estimated impact: ~50% of RSI proposals now blocked.
+The proposal engine fail-closes (returns `None`) when SL widening drags R/R below the 2.0 floor, when ATR data is insufficient, when sizing fails, etc. Today these rejections are logged but not aggregated per-strategy on the dashboard, so a silent throughput collapse — exactly the failure-mode that motivated DEBT-060 (~50% of RSI proposals fail-closed at the R/R gate after the 1.5→2.0 floor bump in `7e9162e`, undetected for ~12 days) — is only visible by tailing logs.
 
 **Impact:**
-RSI baseline family throughput halved without an explicit "this strategy is broken" signal. The baselines exist as a degraded-mode safety net (per `docs/baselines.md`) so silent throughput collapse undermines the LLM-comparison floor and the rate-limit fallback. Operators have no easy way to distinguish "RSI didn't fire because conditions weren't met" from "RSI fired but got rejected at the R/R gate".
+Future silent regressions (e.g. a TP tightening, an SL-floor change, an ATR-data outage on a single TF) drop a whole strategy below the gate across every cycle without operator visibility until proposal counts collapse to zero. Multi-day runs of empty cycles cost the LLM-comparison floor + proposal throughput before anyone notices.
 
 **Suggested Resolution:**
-Quant-trader-expert review of the RSI TP-distance heuristic. Options:
-- (a) Bump TP from 4% to 5%/5.5% so R/R naturally lands at 2.5:1 with margin to absorb SL widening.
-- (b) Switch to ATR-scaled TP (e.g. `TP_distance = 3 × ATR(14)`) so TP grows with volatility regime alongside SL.
-- (c) Accept the throughput drop and document RSI as a "rare but high-conviction" baseline.
-Pair with a metric on the proposal-engine fail-closed rate per strategy so this kind of silent change shows up in the dashboard going forward.
+Add per-strategy `proposals_emitted` / `proposals_fail_closed` counter pair to the proposal runtime, persist alongside performance data, and surface as a "fail-closed rate" column on the Strategies dashboard page. Optionally add a per-reason breakdown (R/R floor, ATR-data-insufficient, sizing-failed, correlation-rejected, etc.) so operators can distinguish "strategy didn't fire" from "strategy fired but got rejected at gate X".
 
 **Related:**
-- commit `7e9162e` (R/R floor 1.5 → 2.0)
-- commit `313a8b7` (universal SL floor)
-- `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py`
-- `src/proposal/engine.py:650` (catch-and-return-None path)
+- Surfaced from quant-trader-expert during DEBT-060 close-out review; explicitly *not* a regression of `14ca04c`.
+- Owner unit pointer: `aidlc-docs/inception/units/unit-of-work.md`.
+- Adjacent code: `src/proposal/engine.py:650` (catch-and-return-None path).
 
 ## Resolved Debt Items
 
@@ -83,6 +78,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-10 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | `TAKE_PROFIT_PCT` raised from 0.04 → 0.05 across `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py` in commit `14ca04c` (path (a) from the DEBT-060 options list). Quant-ratified math: post-widen R/R floor = 2.22 on the binding 4h-alt case (worst-case widened SL ~2.25% per `src/utils/trading_math.py` SL-widening table vs TP 5%), safely above the 2.0 gate; quant explicitly rejected bumping 4h to 5.5% (would lower hit-rate within `max_bars_held=6`). Regression coverage added today: per-strategy `TAKE_PROFIT_PCT == 0.05` pin in `tests/test_rsi_variants.py::test_all_rsi_variants_pin_take_profit_pct_at_0_05` (also asserts the two sibling files do not shadow the constant), plus parametrized RSI-positive R/R floor mirror `tests/test_proposal_engine.py::test_rsi_variants_clear_rr_floor_under_worst_case_widening` covering all three timeframe rows `(rsi_universal@1h 2.4%, rsi_4h@4h 2.25%, rsi_15m@15m 2.1%)` under the per-TF worst-case widening, mirroring the existing negative `test_proposal_rejected_when_widening_drags_rr_below_floor` at `tests/test_proposal_engine.py:1503`. `pytest -q` 1812 passed (was 1808; net +4); focused `tests/test_rsi_variants.py tests/test_proposal_engine.py -q` 68 passed (was 64; net +4); `ruff check src tests` fully clean. The dashboard fail-closed-rate metric mentioned in DEBT-060's suggested resolution is intentionally scope-split to DEBT-061 (filed separately) — not blocking closure. |
 
 ### DEBT-056: Pre-existing test flake + ruff I001 import-order hits on clean tree ✅
 
@@ -606,9 +610,9 @@ Move resolved items here with resolution date and notes.
 | Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
-| Low | 0 |
-| Resolved (All Time) | 55 |
+| Medium | 0 |
+| Low | 1 |
+| Resolved (All Time) | 56 |
 
 ---
 
@@ -616,6 +620,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability (Low) — surfaced from quant-trader-expert during DEBT-060 close-out review; observability scope-split from DEBT-060 (silent ~50% RSI throughput collapse went undetected for ~12 days because per-strategy fail-closed rates are not aggregated on the dashboard); resolution shape is `proposals_emitted` / `proposals_fail_closed` counter pair persisted alongside performance data + Strategies-page "fail-closed rate" column, optionally with per-reason breakdown (R/R floor, ATR-data-insufficient, sizing-failed, correlation-rejected); explicitly *not* a regression of `14ca04c` |
+| 2026-05-13 | Resolved | DEBT-060 RSI baseline family TP-distance redesign for 2.0 R/R floor — `TAKE_PROFIT_PCT` raised from 0.04 → 0.05 across `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py` in commit `14ca04c` (path (a) from the DEBT-060 options list); quant-ratified math gives post-widen R/R floor = 2.22 on the binding 4h-alt case (worst-case widened SL ~2.25% vs TP 5%), safely above the 2.0 gate; regression coverage added today via `tests/test_rsi_variants.py::test_all_rsi_variants_pin_take_profit_pct_at_0_05` (TP constant pin + no-shadow assertions on sibling files) and parametrized `tests/test_proposal_engine.py::test_rsi_variants_clear_rr_floor_under_worst_case_widening` (3-row positive R/R floor mirror under per-TF worst-case widening); pytest 1812 passed (net +4); dashboard fail-closed-rate metric scope-split to DEBT-061 |
 | 2026-05-13 | Resolved | DEBT-056 Pre-existing test flake + ruff I001 import-order hits — `ruff --fix` cleared the 2 lint sites; 6 fixture-vs-validator drift failures resolved by adding `## Output Contract` block to `GOOD_RESPONSE` (fixes 4 markdown-pick tests at `src/ai/improver.py:425`) and adding `"hypothesis"` to `GOOD_PYTHON_STRATEGY` + `TRADE_PRODUCING_PYTHON_STRATEGY` `TECHNIQUE_INFO` (fixes 2 code-type tests at `src/ai/improver.py:374`); corrected the prior all-`:374` split to the accurate 2×`:374` + 4×`:425` split; production validators untouched; pytest 1808 passed |
 | 2026-05-13 | Resolved | DEBT-055 CH-27 multi-TF parity test gaps — landed 4 parity-variant tests (slippage, liquidation, short-side, true non-degenerate multi-TF divergence) in `tests/test_backtest_engine.py::TestRunMultiTimeframeParity`; divergence test pins multi-TF warmup contract via strict-subset entry-bar indices; superseded `test_single_and_multi_tf_modes_share_closed_trade_ledger` deleted outright |
 | 2026-05-13 | Updated | DEBT-056 Pre-existing test flake refreshed — failure count widened from 1 → 6 tests in `tests/test_scripts_auto_research_candidates.py` on clean tree (all 6 fail through the same `GeneratedTechniqueError` path); raise-site line corrected from `src/ai/improver.py:425` to `src/ai/improver.py:374` |

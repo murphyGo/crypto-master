@@ -138,3 +138,42 @@ def test_variants_do_not_share_technique_info_dict() -> None:
     assert universal_mod.TECHNIQUE_INFO is not rsi_4h_mod.TECHNIQUE_INFO
     assert universal_mod.TECHNIQUE_INFO is not rsi_15m_mod.TECHNIQUE_INFO
     assert rsi_4h_mod.TECHNIQUE_INFO is not rsi_15m_mod.TECHNIQUE_INFO
+
+
+def test_all_rsi_variants_pin_take_profit_pct_at_0_05() -> None:
+    """DEBT-060 regression pin: all RSI variants ship TP = 5%.
+
+    The 5% TP gives the family a nominal R/R of 2.5:1 against the
+    fixed 2% SL, which carries enough margin above the proposal-
+    layer 2.0 R/R floor to survive worst-case ATR-driven SL
+    widening (~2.25% on 4h alts per ``src/utils/trading_math.py``).
+    A future "tighten TP" change without re-running the widening
+    math would silently fail-closed; this pin keeps the value
+    explicit so any regression must update the test in lockstep.
+    """
+    import strategies.rsi as universal_mod
+    import strategies.rsi_4h as rsi_4h_mod
+    import strategies.rsi_15m as rsi_15m_mod
+
+    # rsi_4h and rsi_15m delegate to the universal class but re-
+    # declare their own ``TAKE_PROFIT_PCT`` for documentation /
+    # debuggability. Assert the value on whichever module owns it
+    # (universal is the canonical source; the two siblings inherit
+    # behaviorally via direct class reuse — see test_variants_match_
+    # universal_on_same_input).
+    assert universal_mod.TAKE_PROFIT_PCT == 0.05
+    # Siblings import the class, so they see the same constant
+    # through ``strategies.rsi`` at runtime. Pin the module-level
+    # constant on the siblings too if they redeclare it (they
+    # currently do not — they inherit via class reuse, so the
+    # universal pin above is sufficient). Belt-and-suspenders:
+    # confirm neither sibling has shadowed the constant locally
+    # with a different value.
+    for mod in (rsi_4h_mod, rsi_15m_mod):
+        local_tp = getattr(mod, "TAKE_PROFIT_PCT", None)
+        if local_tp is not None:
+            assert local_tp == 0.05, (
+                f"{mod.__name__} shadows TAKE_PROFIT_PCT with "
+                f"{local_tp!r}; must stay 0.05 to preserve R/R margin "
+                f"above the 2.0 proposal-engine floor."
+            )

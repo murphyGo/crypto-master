@@ -1524,3 +1524,81 @@ async def test_proposal_rejected_when_widening_drags_rr_below_floor() -> None:
     proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
 
     assert proposal is None
+
+
+# DEBT-060 positive mirror: each RSI variant ships SL=2% / TP=5%
+# (nominal R/R 2.5). Under worst-case ATR-driven SL widening per
+# the per-TF table in ``src/utils/trading_math.py``, the post-widen
+# R/R stays at or above the 2.0 proposal-engine floor and the
+# proposal is accepted. ``test_proposal_rejected_when_widening_drags_
+# rr_below_floor`` above is the matching negative case (proves the
+# gate fires when R/R < 2); this parametrized triple proves the
+# shipped RSI tunables survive the gate. Each row encodes the worst-
+# plausible widening for the variant's primary timeframe and
+# documents the resulting R/R inline so a future tightening of either
+# the TP, the ATR multiplier, or the per-TF floor table is caught
+# here before it silently fail-closes a strategy in production.
+@pytest.mark.parametrize(
+    "variant_name,timeframe,bar_range,expected_widened_sl,expected_rr",
+    [
+        # rsi_universal — primary TF in production is 1h. TF floor =
+        # 0.8% (400 on 50k). ATR floor binds when 1.5*ATR > 400. With
+        # bar_range=800 → ATR≈800 → ATR floor distance = 1200 (2.4%).
+        # SL widens 49000→48800. Reward 2500 / Risk 1200 → R/R ≈ 2.083.
+        ("rsi_universal", "1h", "800", "48800", 2500.0 / 1200.0),
+        # rsi_4h — quant's worst-case binding (~2.25% widened SL).
+        # TF floor = 1.5% (750). ATR floor binds when 1.5*ATR > 750.
+        # bar_range=750 → ATR≈750 → ATR floor distance = 1125 (2.25%).
+        # SL widens 49000→48875. Reward 2500 / Risk 1125 → R/R ≈ 2.222.
+        ("rsi_4h", "4h", "750", "48875", 2500.0 / 1125.0),
+        # rsi_15m — TF floor = 0.4% (200). ATR floor dominates almost
+        # always on this TF. bar_range=700 → ATR≈700 → ATR floor
+        # distance = 1050 (2.1%). SL widens 49000→48950. Reward 2500
+        # / Risk 1050 → R/R ≈ 2.381.
+        ("rsi_15m", "15m", "700", "48950", 2500.0 / 1050.0),
+    ],
+)
+async def test_rsi_variants_clear_rr_floor_under_worst_case_widening(
+    variant_name: str,
+    timeframe: str,
+    bar_range: str,
+    expected_widened_sl: str,
+    expected_rr: float,
+) -> None:
+    """DEBT-060 positive mirror: shipped RSI tunables (SL=2%, TP=5%)
+    keep R/R >= 2.0 after the per-TF worst-case SL widening.
+
+    See module-level comment above for the parametrization rationale.
+    Mirror of :func:`test_proposal_rejected_when_widening_drags_rr_
+    below_floor` — same OHLCV-with-known-ATR helper, same widening
+    math, opposite expected outcome.
+    """
+    ohlcv = _flat_ohlcv_with_atr(n=30, base_price="50000", bar_range=bar_range)
+    # Mock strategy stands in for the real RSI variant. Returns the
+    # exact entry/SL/TP the shipped strategy would emit on a 50000
+    # close (entry=50000, SL=49000 [2% below for a long], TP=52500
+    # [5% above]); the engine then re-applies the universal SL floor
+    # exactly as it does for the real strategy.
+    strategy = make_strategy(
+        info=make_info(variant_name, symbols=["BTC/USDT"]),
+        analysis=make_analysis(
+            signal="long",
+            entry="50000",
+            sl="49000",  # 2% — matches strategies/rsi.py STOP_LOSS_PCT
+            tp="52500",  # 5% — matches strategies/rsi.py TAKE_PROFIT_PCT
+        ),
+    )
+    engine, _ = make_engine(strategies={variant_name: strategy}, ohlcv=ohlcv)
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT", timeframe=timeframe)
+
+    assert proposal is not None, (
+        f"{variant_name}@{timeframe} proposal was fail-closed despite "
+        f"shipped tunables (SL=2%, TP=5%) clearing the 2.0 R/R floor "
+        f"under worst-case widening; the regression DEBT-060 was opened "
+        f"for has re-appeared."
+    )
+    assert proposal.stop_loss == Decimal(expected_widened_sl)
+    assert proposal.take_profit == Decimal("52500")
+    assert proposal.risk_reward_ratio == pytest.approx(expected_rr, rel=1e-6)
+    assert proposal.risk_reward_ratio >= 2.0
