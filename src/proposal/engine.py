@@ -44,6 +44,7 @@ from src.ai.exceptions import ClaudeTimeoutError
 from src.exchange.base import BaseExchange, ExchangeError
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult
+from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
@@ -292,6 +293,7 @@ class ProposalEngine:
         trading_strategy: TradingStrategy | None = None,
         config: ProposalEngineConfig | None = None,
         activity_log: ActivityLog | None = None,
+        fail_closed_tracker: FailClosedMetricsTracker | None = None,
     ) -> None:
         """Initialize the engine.
 
@@ -312,6 +314,15 @@ class ProposalEngine:
                 so the dashboard can surface LLM reliability. Default
                 ``None`` keeps backward compatibility for tests and
                 callers that do not need activity logging.
+            fail_closed_tracker: Optional per-strategy emission /
+                fail-closed counter (DEBT-061). When supplied, the
+                engine increments ``proposals_emitted`` every time it
+                invokes ``strategy.analyze()`` and
+                ``proposals_fail_closed`` for every post-emission
+                rejection (``StrategyError`` from analyze, or
+                ``TradingValidationError`` from sizing). Default
+                ``None`` keeps backward compatibility — tests that do
+                not exercise observability skip the tracker entirely.
         """
         self.exchange = exchange
         self.strategies = strategies
@@ -319,7 +330,66 @@ class ProposalEngine:
         self.trading_strategy = trading_strategy or TradingStrategy()
         self.config = config or ProposalEngineConfig()
         self.activity_log = activity_log
+        self.fail_closed_tracker = fail_closed_tracker
         self._prompt_strategy_last_run_at: dict[tuple[str, str], datetime] = {}
+
+    # ------------------------------------------------------------------
+    # DEBT-061: emission / fail-closed counters
+    # ------------------------------------------------------------------
+
+    def _record_emitted(self, strategy: BaseStrategy, sub_account_id: str) -> None:
+        """Increment ``proposals_emitted`` for ``sub_account_id`` if wired.
+
+        No-op when ``fail_closed_tracker`` is ``None`` — direct test
+        callers and pre-DEBT-061 callsites need not provide one.
+        Persistence failures (disk full, permission denied) are caught
+        and logged at WARNING — observability counters must not crash
+        the engine because that would convert a *visibility* problem
+        into a *trading* problem.
+
+        The ``sub_account_id`` is passed through to the tracker so
+        emissions land in the per-sub-account
+        ``<sub_account_id>/<technique>/fail_closed.json`` namespace
+        instead of aggregating under one shared default sub-account
+        (the per-sub-account-plumbing defect quant-trader-expert
+        flagged after the initial DEBT-061 landing).
+        """
+        if self.fail_closed_tracker is None:
+            return
+        try:
+            self.fail_closed_tracker.record_emitted(
+                strategy.name,
+                strategy.version,
+                sub_account_id=sub_account_id,
+            )
+        except OSError as exc:
+            logger.warning(
+                "Failed to persist proposals_emitted for %s: %s",
+                strategy.name,
+                exc,
+            )
+
+    def _record_fail_closed(self, strategy: BaseStrategy, sub_account_id: str) -> None:
+        """Increment ``proposals_fail_closed`` for ``sub_account_id`` if wired.
+
+        Same crash-tolerance contract as :meth:`_record_emitted`. See
+        that method for why ``sub_account_id`` is per-call rather than
+        constructor-bound.
+        """
+        if self.fail_closed_tracker is None:
+            return
+        try:
+            self.fail_closed_tracker.record_fail_closed(
+                strategy.name,
+                strategy.version,
+                sub_account_id=sub_account_id,
+            )
+        except OSError as exc:
+            logger.warning(
+                "Failed to persist proposals_fail_closed for %s: %s",
+                strategy.name,
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -631,6 +701,15 @@ class ProposalEngine:
         ):
             return None
         self._mark_prompt_strategy_run(strategy, symbol)
+        # DEBT-061: emission point — the strategy got past every
+        # pre-analyze short-circuit (cooldown, trigger filter, OHLCV
+        # availability) and the engine is about to spend the
+        # strategy's analyze() budget. Counting here makes the
+        # fail-closed denominator "of the times we actually fired the
+        # strategy" rather than "of the cycles where any strategy
+        # could have fired", which is what an operator triaging a
+        # silent-throughput-collapse needs.
+        self._record_emitted(strategy, sub_account_id)
         try:
             if ohlcv_by_tf is not None:
                 analysis = await strategy.analyze(
@@ -648,6 +727,10 @@ class ProposalEngine:
                 )
         except StrategyError as e:
             self._handle_strategy_error(e, strategy, symbol)
+            # DEBT-061: seed pointer fail-closed site. The strategy
+            # fired but blew up before producing an analysis
+            # (LLM timeout, missing-indicator-data, etc.).
+            self._record_fail_closed(strategy, sub_account_id)
             return None
 
         if analysis.signal == "neutral":
@@ -691,6 +774,13 @@ class ProposalEngine:
             )
         except TradingValidationError as e:
             logger.info(f"Position rejected for {symbol} via {strategy.name}: {e}")
+            # DEBT-061: this is the canonical R/R-floor /
+            # sizing-failed fail-closed case named in the debt
+            # description — the strategy emitted a real candidate
+            # and the trading-strategy gate rejected it. Silent
+            # ~50% collapse of RSI throughput in DEBT-060 was
+            # exactly this site firing under the 1.5→2.0 floor bump.
+            self._record_fail_closed(strategy, sub_account_id)
             return None
 
         rr = analysis.risk_reward_ratio or 0.0

@@ -41,28 +41,7 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-061: Per-strategy proposal-engine fail-closed-rate metric for dashboard observability
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-13 |
-| **Phase** | DEBT-060 close-out follow-up |
-| **Component** | `dashboard-operator-ui` + `proposal-runtime` |
-
-**Description:**
-The proposal engine fail-closes (returns `None`) when SL widening drags R/R below the 2.0 floor, when ATR data is insufficient, when sizing fails, etc. Today these rejections are logged but not aggregated per-strategy on the dashboard, so a silent throughput collapse — exactly the failure-mode that motivated DEBT-060 (~50% of RSI proposals fail-closed at the R/R gate after the 1.5→2.0 floor bump in `7e9162e`, undetected for ~12 days) — is only visible by tailing logs.
-
-**Impact:**
-Future silent regressions (e.g. a TP tightening, an SL-floor change, an ATR-data outage on a single TF) drop a whole strategy below the gate across every cycle without operator visibility until proposal counts collapse to zero. Multi-day runs of empty cycles cost the LLM-comparison floor + proposal throughput before anyone notices.
-
-**Suggested Resolution:**
-Add per-strategy `proposals_emitted` / `proposals_fail_closed` counter pair to the proposal runtime, persist alongside performance data, and surface as a "fail-closed rate" column on the Strategies dashboard page. Optionally add a per-reason breakdown (R/R floor, ATR-data-insufficient, sizing-failed, correlation-rejected, etc.) so operators can distinguish "strategy didn't fire" from "strategy fired but got rejected at gate X".
-
-**Related:**
-- Surfaced from quant-trader-expert during DEBT-060 close-out review; explicitly *not* a regression of `14ca04c`.
-- Owner unit pointer: `aidlc-docs/inception/units/unit-of-work.md`.
-- Adjacent code: `src/proposal/engine.py:650` (catch-and-return-None path).
+_No active debt items._
 
 ## Resolved Debt Items
 
@@ -78,6 +57,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-061: Per-strategy proposal-engine fail-closed-rate metric for dashboard observability ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Same-day filing-and-close as a scope-split close-out from DEBT-060. (a) **Engine instrumentation**: three increment sites in `ProposalEngine._build_proposal_for_strategy` (`src/proposal/engine.py`) — emit (~L709, post short-circuits, pre-`analyze`); `StrategyError` catch (~L730); `TradingValidationError` catch (~L780, the canonical R/R-floor / sizing-failed path that triggered the DEBT-060 silent ~50% RSI collapse). `_record_emitted` / `_record_fail_closed` helpers are OSError-tolerant so observability never crashes the hot path. `ProposalEngine.__init__` accepts an optional `fail_closed_tracker`; `src/main.py::_build_engine_config_phase` wires `FailClosedMetricsTracker()` in. **`sub_account_id` is a per-call argument** on `record_emitted` / `record_fail_closed` / `get` / `list_techniques` (constructor default kept only as fallback for callers that don't pass per-call) — this was the second-round fix per quant Q3 option (a) after the initial implementation bound `sub_account_id` at constructor and would have aggregated all sub-accounts under `default/`. (b) **Quant adjudications across four semantic questions**: Q1 (pre-emit data outage) ratified as shipped — kept as "neither emitted nor fail_closed" so the operator signal "emitted=0 → data outage" stays distinct from "fail_closed_rate=high → gate rejection" (conflating destroys the triage signal); Q2 (neutral signal) ratified as shipped — kept as "emitted only" because strategies returning `neutral` are doing their job and counting them as fail_closed would make conservative strategies look like they're silently collapsing; Q3 (sub_account_id="default" plumbing) 🔴 caught after first dev round, fixed in second round per quant's option (a) — `sub_account_id` is now a per-call argument, not a constructor binding; Q4 (per-reason breakdown) deferred — the DEBT-060 retro signal was "emissions still happening but proposals dropped to ~0", caught by a single rate column, and per-reason becomes valuable for triage after the alarm fires (cost of shipping it now does not pay until the simple rate column proves insufficient; non-breaking extension reserved as `Dict[str, int]` optional field on the snapshot). (c) **Validator-enforcement fix** (addressed QA's first-round 🟡): `StrategyFailClosedCounts` is a Pydantic model with `Field(ge=0)` re-run via `model_validate(...)` on every increment so the non-negativity constraint is enforced post-construction, not just at instantiation. (d) **Storage path shape**: `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` written via `src/utils/io.py::atomic_write_text`. (e) **Dashboard columns**: `Emitted`, `Fail-Closed`, `Fail-Closed %` on the Strategies page (`src/dashboard/pages/strategies.py`) — `build_summary_dataframe` + `render` gained the columns and accept optional `sub_account_id` (resolved from `perf_tracker.sub_account_id` when None, scoped inside the `fail_closed_tracker is not None` branch to avoid the `MagicMock(spec=PerformanceTracker)` test breakage). (f) **Explicit deferrals**: per-reason fail-close breakdown (Q4); windowed / rolling fail-closed rates (operators currently only see lifetime cumulative; useful for "last 7 days" triage). Implementation: new `src/proposal/fail_closed_metrics.py` (model + `FailClosedMetricsTracker`); modified `src/proposal/engine.py`, `src/main.py`, `src/dashboard/pages/strategies.py`. Tests: new `tests/test_proposal_fail_closed_metrics.py` (20 tests incl. round-trip / restart / per-call sub-account isolation / per-call-overrides-constructor-default / corrupt-file degrade); +8 in `tests/test_proposal_engine.py` (3 increment-site semantics + 3 short-circuit non-increment + 2 per-call sub-account routing end-to-end via `propose_bitcoin`); +3 in `tests/test_dashboard_strategies.py` (column shape, end-to-end percent, per-sub-account rendering). `pytest -q` 1843 passed (was 1812; net +31); focused `tests/test_proposal_fail_closed_metrics.py tests/test_proposal_engine.py tests/test_dashboard_strategies.py -q` 106 passed; `ruff check src tests` fully clean; targeted `mypy` on the four touched files clean (3 pre-existing `src/dashboard/app.py:268,852,865` errors out of scope). |
 
 ### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor ✅
 
@@ -607,12 +595,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 1 |
-| Resolved (All Time) | 56 |
+| Low | 0 |
+| Resolved (All Time) | 57 |
 
 ---
 
@@ -620,6 +608,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability — same-day filing-and-close scope-split from DEBT-060; new `src/proposal/fail_closed_metrics.py` (`StrategyFailClosedCounts` Pydantic model with `Field(ge=0)` re-validated via `model_validate(...)` on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`); three increment sites threaded into `ProposalEngine._build_proposal_for_strategy` (emit, `StrategyError` catch, `TradingValidationError` catch) with OSError-tolerant helpers so observability never crashes the hot path; `sub_account_id` plumbed as per-call argument on tracker public methods (second-round 🔴 fix per quant Q3 option (a) after first round had bound it at constructor and would have aggregated all sub-accounts under `default/`); `src/main.py` wires `FailClosedMetricsTracker()` into `_build_engine_config_phase`; `src/dashboard/pages/strategies.py` adds `Emitted` / `Fail-Closed` / `Fail-Closed %` columns scoped under the `fail_closed_tracker is not None` branch (avoids MagicMock-spec test breakage); quant Q1/Q2/Q4 ratified-as-shipped (Q1: pre-emit outage = neither counter; Q2: neutral = emitted only; Q4: per-reason breakdown deferred as non-breaking `Dict[str, int]` extension); `pytest -q` 1843 passed (net +31); `ruff check src tests` clean; targeted `mypy` clean |
 | 2026-05-13 | Added | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability (Low) — surfaced from quant-trader-expert during DEBT-060 close-out review; observability scope-split from DEBT-060 (silent ~50% RSI throughput collapse went undetected for ~12 days because per-strategy fail-closed rates are not aggregated on the dashboard); resolution shape is `proposals_emitted` / `proposals_fail_closed` counter pair persisted alongside performance data + Strategies-page "fail-closed rate" column, optionally with per-reason breakdown (R/R floor, ATR-data-insufficient, sizing-failed, correlation-rejected); explicitly *not* a regression of `14ca04c` |
 | 2026-05-13 | Resolved | DEBT-060 RSI baseline family TP-distance redesign for 2.0 R/R floor — `TAKE_PROFIT_PCT` raised from 0.04 → 0.05 across `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py` in commit `14ca04c` (path (a) from the DEBT-060 options list); quant-ratified math gives post-widen R/R floor = 2.22 on the binding 4h-alt case (worst-case widened SL ~2.25% vs TP 5%), safely above the 2.0 gate; regression coverage added today via `tests/test_rsi_variants.py::test_all_rsi_variants_pin_take_profit_pct_at_0_05` (TP constant pin + no-shadow assertions on sibling files) and parametrized `tests/test_proposal_engine.py::test_rsi_variants_clear_rr_floor_under_worst_case_widening` (3-row positive R/R floor mirror under per-TF worst-case widening); pytest 1812 passed (net +4); dashboard fail-closed-rate metric scope-split to DEBT-061 |
 | 2026-05-13 | Resolved | DEBT-056 Pre-existing test flake + ruff I001 import-order hits — `ruff --fix` cleared the 2 lint sites; 6 fixture-vs-validator drift failures resolved by adding `## Output Contract` block to `GOOD_RESPONSE` (fixes 4 markdown-pick tests at `src/ai/improver.py:425`) and adding `"hypothesis"` to `GOOD_PYTHON_STRATEGY` + `TRADE_PRODUCING_PYTHON_STRATEGY` `TECHNIQUE_INFO` (fixes 2 code-type tests at `src/ai/improver.py:374`); corrected the prior all-`:374` split to the accurate 2×`:374` + 4×`:425` split; production validators untouched; pytest 1808 passed |

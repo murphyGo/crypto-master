@@ -1602,3 +1602,195 @@ async def test_rsi_variants_clear_rr_floor_under_worst_case_widening(
     assert proposal.take_profit == Decimal("52500")
     assert proposal.risk_reward_ratio == pytest.approx(expected_rr, rel=1e-6)
     assert proposal.risk_reward_ratio >= 2.0
+
+
+# =============================================================================
+# DEBT-061: per-strategy emission / fail-closed counters
+# =============================================================================
+
+
+async def test_fail_closed_tracker_increments_emitted_on_successful_proposal(
+    tmp_path: Path,
+) -> None:
+    """A clean proposal counts as an emission, not a fail-closed."""
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    strategy = make_strategy()
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    counts = tracker.get("tech_a")
+    assert counts.proposals_emitted == 1
+    assert counts.proposals_fail_closed == 0
+
+
+async def test_fail_closed_tracker_does_not_increment_on_neutral_signal(
+    tmp_path: Path,
+) -> None:
+    """Neutral is 'no signal', not fail-closed — per DEBT-061 spec.
+
+    The strategy still emitted (it ran analyze and looked at the
+    data), so ``proposals_emitted`` does increment. What must NOT
+    increment is ``proposals_fail_closed`` — neutral days are normal.
+    """
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    strategy = make_strategy(analysis=make_analysis(signal="neutral"))
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    counts = tracker.get("tech_a")
+    assert counts.proposals_emitted == 1
+    assert counts.proposals_fail_closed == 0
+
+
+async def test_fail_closed_tracker_increments_on_strategy_error(
+    tmp_path: Path,
+) -> None:
+    """Seed pointer at engine.py:650 — StrategyError raised inside analyze()."""
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    strategy = make_strategy(
+        analysis=StrategyExecutionError("blew up", strategy_name="tech_a")
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    counts = tracker.get("tech_a")
+    assert counts.proposals_emitted == 1
+    assert counts.proposals_fail_closed == 1
+
+
+async def test_fail_closed_tracker_increments_on_rr_floor_rejection(
+    tmp_path: Path,
+) -> None:
+    """The canonical DEBT-060 R/R-floor fail-closed case.
+
+    A 1:1 R/R proposal trips ``TradingValidationError`` during
+    sizing. The strategy still emitted (analyze ran, produced a
+    non-neutral analysis), so both counters move: emitted += 1,
+    fail_closed += 1. That's the silent-throughput-collapse signature
+    operators need to see on the dashboard.
+    """
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    strategy = make_strategy(
+        analysis=make_analysis(entry="50000", sl="49500", tp="50500")  # R/R = 1.0
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    counts = tracker.get("tech_a")
+    assert counts.proposals_emitted == 1
+    assert counts.proposals_fail_closed == 1
+
+
+async def test_fail_closed_tracker_noop_when_not_wired(tmp_path: Path) -> None:
+    """Pre-DEBT-061 callers without a tracker work unchanged."""
+    strategy = make_strategy()
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    # fail_closed_tracker stays None — default.
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    assert engine.fail_closed_tracker is None
+
+
+async def test_fail_closed_tracker_accumulates_across_calls(
+    tmp_path: Path,
+) -> None:
+    """Cumulative semantics: multiple calls accrue against the same snapshot."""
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    # Strategy that always trips the R/R floor (1:1 candidate).
+    strategy = make_strategy(
+        analysis=make_analysis(entry="50000", sl="49500", tp="50500")
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    for _ in range(3):
+        await engine.propose_bitcoin()
+
+    counts = tracker.get("tech_a")
+    assert counts.proposals_emitted == 3
+    assert counts.proposals_fail_closed == 3
+    assert counts.fail_closed_rate == 1.0
+
+
+async def test_fail_closed_tracker_routes_to_per_call_sub_account(
+    tmp_path: Path,
+) -> None:
+    """Quant-trader-expert pin: sub_account_id reaches the tracker per call.
+
+    Pre-fix bug: ``_record_emitted`` / ``_record_fail_closed`` ignored
+    the sub-account in scope and delegated to the tracker's
+    constructor-bound ``default`` namespace, so every sub-account's
+    emissions aggregated under ``default/``. This pin guards the fix
+    — when the proposal engine is invoked with ``sub_account_id="paper_alt"``,
+    the emission must land in the ``paper_alt`` namespace, not
+    ``default``.
+    """
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    strategy = make_strategy()
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin(sub_account_id="paper_alt")
+
+    assert proposal is not None
+    paper_alt_counts = tracker.get("tech_a", sub_account_id="paper_alt")
+    default_counts = tracker.get("tech_a")  # default namespace
+    assert paper_alt_counts.proposals_emitted == 1
+    assert default_counts.proposals_emitted == 0
+
+
+async def test_fail_closed_tracker_routes_rr_floor_reject_to_per_call_sub_account(
+    tmp_path: Path,
+) -> None:
+    """The fail-closed increment site also routes per-call sub-account.
+
+    Distinct from the emission test: an R/R-floor reject must increment
+    ``proposals_fail_closed`` under the *caller's* sub-account, not
+    aggregate under ``default``. This pins the second of the three
+    ``_record_*`` call sites the quant-trader-expert flagged.
+    """
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    # 1:1 R/R candidate — sizing-gate rejects → fail_closed += 1.
+    strategy = make_strategy(
+        analysis=make_analysis(entry="50000", sl="49500", tp="50500")
+    )
+    engine, _ = make_engine(strategies={"tech_a": strategy})
+    engine.fail_closed_tracker = tracker
+
+    proposal = await engine.propose_bitcoin(sub_account_id="paper_alt")
+
+    assert proposal is None
+    paper_alt_counts = tracker.get("tech_a", sub_account_id="paper_alt")
+    default_counts = tracker.get("tech_a")
+    assert paper_alt_counts.proposals_emitted == 1
+    assert paper_alt_counts.proposals_fail_closed == 1
+    assert default_counts.proposals_emitted == 0
+    assert default_counts.proposals_fail_closed == 0

@@ -211,6 +211,94 @@ def test_summary_empty_strategies_gives_empty_frame() -> None:
 
 
 # =============================================================================
+# DEBT-061: fail-closed columns
+# =============================================================================
+
+
+def test_summary_emits_zero_fail_closed_columns_when_tracker_omitted() -> None:
+    """Legacy callers (no fail-closed tracker) still get the columns at zero."""
+    tracker = MagicMock(spec=PerformanceTracker)
+    tracker.get_performance.side_effect = lambda name, version: make_perf(name)
+    strategies = {"tech_a": make_strategy(make_info("tech_a"))}
+
+    df = build_summary_dataframe(strategies, tracker)
+
+    assert "Emitted" in df.columns
+    assert "Fail-Closed" in df.columns
+    assert "Fail-Closed %" in df.columns
+    assert df.iloc[0]["Emitted"] == 0
+    assert df.iloc[0]["Fail-Closed"] == 0
+    assert df.iloc[0]["Fail-Closed %"] == 0.0
+
+
+def test_summary_surfaces_fail_closed_rate_per_strategy(tmp_path: Path) -> None:
+    """End-to-end: a strategy that fail-closed 3/10 emissions shows 30%."""
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    fc_tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    for _ in range(10):
+        fc_tracker.record_emitted("tech_a", "1.0.0")
+    for _ in range(3):
+        fc_tracker.record_fail_closed("tech_a", "1.0.0")
+
+    perf_tracker = MagicMock(spec=PerformanceTracker)
+    # The fail-closed tracker is queried with the perf tracker's
+    # ``sub_account_id`` (canonical pattern in
+    # ``build_summary_dataframe``), so the MagicMock must expose the
+    # "default" namespace that ``record_emitted`` wrote under.
+    perf_tracker.sub_account_id = "default"
+    perf_tracker.get_performance.side_effect = lambda name, version: make_perf(name)
+    strategies = {"tech_a": make_strategy(make_info("tech_a"))}
+
+    df = build_summary_dataframe(strategies, perf_tracker, fc_tracker)
+
+    row = df.iloc[0]
+    assert row["Emitted"] == 10
+    assert row["Fail-Closed"] == 3
+    assert row["Fail-Closed %"] == 30.0
+
+
+def test_summary_renders_per_sub_account_fail_closed_counts(tmp_path: Path) -> None:
+    """Two sub-accounts running the same strategy show their own counts.
+
+    Pin for the post-quant-fix per-call sub-account API: when the same
+    ``FailClosedMetricsTracker`` instance carries counters for multiple
+    sub-accounts, the dashboard summary for sub-account ``paper`` must
+    surface ``paper``'s counts, not aggregate over every sub-account.
+    """
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    fc_tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    # Heavily-fail-closed under "paper", clean under "paper_alt".
+    for _ in range(8):
+        fc_tracker.record_emitted("tech_a", "1.0.0", sub_account_id="paper")
+    for _ in range(2):
+        fc_tracker.record_fail_closed("tech_a", "1.0.0", sub_account_id="paper")
+    for _ in range(4):
+        fc_tracker.record_emitted("tech_a", "1.0.0", sub_account_id="paper_alt")
+
+    perf_tracker = MagicMock(spec=PerformanceTracker)
+    perf_tracker.get_performance.side_effect = lambda name, version: make_perf(name)
+    strategies = {"tech_a": make_strategy(make_info("tech_a"))}
+
+    paper_df = build_summary_dataframe(
+        strategies, perf_tracker, fc_tracker, sub_account_id="paper"
+    )
+    paper_alt_df = build_summary_dataframe(
+        strategies, perf_tracker, fc_tracker, sub_account_id="paper_alt"
+    )
+
+    paper_row = paper_df.iloc[0]
+    paper_alt_row = paper_alt_df.iloc[0]
+    assert paper_row["Emitted"] == 8
+    assert paper_row["Fail-Closed"] == 2
+    assert paper_row["Fail-Closed %"] == 25.0
+    assert paper_alt_row["Emitted"] == 4
+    assert paper_alt_row["Fail-Closed"] == 0
+    assert paper_alt_row["Fail-Closed %"] == 0.0
+
+
+# =============================================================================
 # build_trend_dataframe
 # =============================================================================
 

@@ -23,6 +23,7 @@ import streamlit as st
 
 from src.backtest.multi_account_report import MultiAccountReport
 from src.logger import get_logger
+from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.strategy.base import BaseStrategy
 from src.strategy.loader import DEFAULT_STRATEGIES_DIR, load_all_strategies
 from src.strategy.performance import PerformanceRecord, PerformanceTracker
@@ -39,6 +40,8 @@ DEFAULT_COMBINATIONS_DIR = Path("data/backtest/combinations")
 def build_summary_dataframe(
     strategies: dict[str, BaseStrategy],
     tracker: PerformanceTracker,
+    fail_closed_tracker: FailClosedMetricsTracker | None = None,
+    sub_account_id: str | None = None,
 ) -> pd.DataFrame:
     """One row per technique with aggregate performance.
 
@@ -46,6 +49,24 @@ def build_summary_dataframe(
         strategies: ``{name: BaseStrategy}``, typically from
             ``load_all_strategies``.
         tracker: ``PerformanceTracker`` to query for each technique.
+        fail_closed_tracker: Optional DEBT-061 emission / fail-closed
+            tracker. When supplied, three additional columns are
+            populated per row: ``Emitted``, ``Fail-Closed``, and
+            ``Fail-Closed %``. Operators read the percentage to
+            detect silent throughput collapse (a strategy that
+            consistently emits then fail-closes at the R/R gate
+            shows up as high % with non-zero Emitted). When omitted
+            (e.g. legacy callers, fresh test fixtures), the columns
+            still render with zeros so the column shape is stable
+            across pages.
+        sub_account_id: Which sub-account's fail-closed counters to
+            query. Defaults to the ``PerformanceTracker``'s
+            ``sub_account_id`` (canonical pattern — the perf tracker
+            is the source of truth for "which sub-account is this
+            page rendering"). Passing this explicitly is the way to
+            render a per-sub-account view from a single shared
+            ``FailClosedMetricsTracker`` instance (post-quant-fix
+            shape: per-call sub-account, not constructor-bound).
 
     Returns:
         A DataFrame ordered by technique name. Numeric performance
@@ -58,6 +79,36 @@ def build_summary_dataframe(
         strategy = strategies[name]
         info = strategy.info
         perf = tracker.get_performance(strategy.name, strategy.version)
+        # DEBT-061: fetch zero-snapshot when no tracker is wired in or
+        # when the strategy has no recorded emissions, so the column
+        # shape is stable whether the runtime persisted anything yet.
+        if fail_closed_tracker is None:
+            emitted = 0
+            fail_closed = 0
+            fail_closed_rate = 0.0
+        else:
+            # Canonical pattern: the performance tracker is
+            # sub-account-scoped at construction, so its
+            # ``sub_account_id`` is the source of truth for which
+            # sub-account this page is rendering. The fail-closed
+            # tracker is *not* sub-account-scoped at construction
+            # (post-quant fix) so we pass the sub-account through per
+            # call. Only resolved when the fail-closed tracker is
+            # wired in — legacy callers that pass a MagicMock perf
+            # tracker (which doesn't surface ``sub_account_id``)
+            # never reach this branch.
+            effective_sub_account = (
+                sub_account_id
+                if sub_account_id is not None
+                else tracker.sub_account_id
+            )
+            counts = fail_closed_tracker.get(
+                strategy.name,
+                sub_account_id=effective_sub_account,
+            )
+            emitted = counts.proposals_emitted
+            fail_closed = counts.proposals_fail_closed
+            fail_closed_rate = counts.fail_closed_rate
         rows.append(
             {
                 "Technique": info.name,
@@ -72,6 +123,9 @@ def build_summary_dataframe(
                 "Total P&L %": round(perf.total_pnl_percent, 2),
                 "Best Trade %": round(perf.best_trade_pnl, 2),
                 "Worst Trade %": round(perf.worst_trade_pnl, 2),
+                "Emitted": emitted,
+                "Fail-Closed": fail_closed,
+                "Fail-Closed %": round(fail_closed_rate * 100, 2),
             }
         )
     return pd.DataFrame(rows)
@@ -160,6 +214,7 @@ def build_combinations_equity_dataframe(report: MultiAccountReport) -> pd.DataFr
 def render(
     strategies_dir: Path | None = None,
     tracker: PerformanceTracker | None = None,
+    fail_closed_tracker: FailClosedMetricsTracker | None = None,
 ) -> None:
     """Render the Analysis Techniques page.
 
@@ -168,6 +223,10 @@ def render(
             ``strategies/`` (loader's default).
         tracker: Override the performance source. Defaults to
             ``PerformanceTracker()`` (reads from ``data/performance/``).
+        fail_closed_tracker: Override the DEBT-061 emission /
+            fail-closed source. Defaults to
+            ``FailClosedMetricsTracker()`` so the dashboard shows the
+            same cumulative counts the runtime engine writes.
     """
     st.title("📊 Analysis Techniques")
     st.caption("Registered techniques and their performance over time.")
@@ -183,6 +242,7 @@ def render(
         return
 
     perf_tracker = tracker or PerformanceTracker()
+    fc_tracker = fail_closed_tracker or FailClosedMetricsTracker()
 
     latest_combo = latest_combinations_run()
     if latest_combo is not None:
@@ -194,7 +254,7 @@ def render(
 
     # ---- Summary table ----
     st.subheader("Summary")
-    summary = build_summary_dataframe(strategies, perf_tracker)
+    summary = build_summary_dataframe(strategies, perf_tracker, fc_tracker)
     st.dataframe(summary, hide_index=True, use_container_width=True)
 
     # ---- Per-technique trend ----

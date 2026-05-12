@@ -36,6 +36,7 @@ from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
 from src.logger import get_logger
 from src.proposal.engine import ProposalEngine, ProposalEngineConfig
+from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.proposal.interaction import ProposalHistory, ProposalInteraction
 from src.proposal.notification import (
     ConsoleNotifier,
@@ -348,6 +349,14 @@ def _build_engine_config_phase(
     """Build strategy/proposal configuration artifacts."""
     strategies = load_all_strategies()
     perf = PerformanceTracker()
+    # DEBT-061: per-strategy emission / fail-closed counters. The
+    # tracker is sub-account-agnostic at construction — callers pass
+    # ``sub_account_id`` per record/get call so a single tracker
+    # instance handles every sub-account the engine schedules. This
+    # is the post-quant-fix shape; the prior constructor-scoped form
+    # silently aggregated every sub-account's emissions under
+    # ``DEFAULT_SUB_ACCOUNT_ID``.
+    fail_closed = FailClosedMetricsTracker()
     proposal_config = ProposalEngineConfig(
         mode=settings.trading_mode,
         prompt_strategy_min_interval_seconds=(
@@ -360,6 +369,7 @@ def _build_engine_config_phase(
         performance_tracker=perf,
         config=proposal_config,
         activity_log=activity,
+        fail_closed_tracker=fail_closed,
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
