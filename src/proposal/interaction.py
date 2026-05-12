@@ -105,6 +105,16 @@ class ProposalFinalState(str, Enum):
     GATE_REJECTED_TOTAL_CAP = "gate_rejected_total_cap"
     GATE_REJECTED_SYMBOL_CAP = "gate_rejected_symbol_cap"
     GATE_REJECTED_STALE_QUOTE = "gate_rejected_stale_quote"
+    # cross-account-risk-policy (2026-05-13): four new terminals for
+    # the risk-policy gate stack. Per the spec resolutions, paper-mode
+    # behaviour for the aggregate-cap / stale-block / risk-sizing
+    # rejections is advisory — the proposal record still lands in the
+    # appropriate ``gate_rejected_*`` bucket so the funnel surfaces
+    # it, but live mode is the only place that hard-blocks. The
+    # bucket itself is shared across both modes for funnel accounting.
+    GATE_REJECTED_ACCOUNT_AGGREGATE_CAP = "gate_rejected_account_aggregate_cap"
+    GATE_REJECTED_STALE_POSITION_BLOCK = "gate_rejected_stale_position_block"
+    GATE_REJECTED_RISK_SIZING = "gate_rejected_risk_sizing"
     GATE_REJECTED_UNKNOWN = "gate_rejected_unknown"
     PROPOSAL_OPENED = "proposal_opened"
     TRADE_OPENED = "trade_opened"

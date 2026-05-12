@@ -117,14 +117,125 @@ class ProposalPolicy(BaseModel):
 
 
 class RiskPolicy(BaseModel):
-    """Per-sub-account risk knobs used by runtime and backtests."""
+    """Per-sub-account risk knobs used by runtime and backtests.
+
+    cross-account-risk-policy (2026-05-13) extends this block with the
+    risk-based sizing fields, the aggregate exposure caps
+    (``max_gross_notional`` / ``max_open_stop_risk``), and the
+    stale-position / kill-switch fields. All new fields default to
+    ``None`` so existing YAML configs continue to parse unchanged.
+    """
 
     risk_percent: Decimal | None = None
     max_open_positions_total: int | None = Field(default=None, ge=1)
     max_open_positions_per_symbol: int | None = Field(default=None, ge=1)
     leverage_cap: int | None = Field(default=None, ge=1, le=125)
 
+    # cross-account-risk-policy §"Risk-Based Sizing".
+    # ``sizing_mode`` defaults to ``fixed_notional`` so accounts that
+    # don't opt in keep today's sizing path unchanged. When
+    # ``risk_budget`` is selected, ``risk_budget_pct`` is required
+    # (validated below).
+    sizing_mode: Literal["risk_budget", "fixed_notional"] = "fixed_notional"
+    risk_budget_pct: Decimal | None = Field(default=None, gt=Decimal("0"))
+    min_notional_per_trade: Decimal | None = Field(default=None, gt=Decimal("0"))
+    max_notional_per_trade: Decimal | None = Field(default=None, gt=Decimal("0"))
+    min_stop_distance_bps: int | None = Field(default=None, ge=1)
+
+    # cross-account-risk-policy §"Per-Account Caps".
+    # ``max_gross_notional``: sum of open-position notional across this
+    # sub-account, in the account quote currency.
+    # ``max_open_stop_risk``: sum across open positions of
+    # ``abs(entry-stop) * qty`` — worst-case loss if every stop fires.
+    max_gross_notional: Decimal | None = Field(default=None, gt=Decimal("0"))
+    max_open_stop_risk: Decimal | None = Field(default=None, gt=Decimal("0"))
+
+    # cross-account-risk-policy §"Stale-Position Age Caps".
+    max_time_in_position_hours: int | None = Field(default=None, ge=1)
+    stale_position_action: (
+        Literal["auto_close", "block_new_entries", "alert_only"] | None
+    ) = None
+
+    # cross-account-risk-policy §"Kill Switches" — per-account.
+    # Field names intentionally mirror the spec's YAML keys.
+    daily_loss_limit_pct: Decimal | None = Field(default=None, gt=Decimal("0"))
+    open_unrealized_drawdown_limit_pct: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+    )
+    open_stop_risk_limit_pct: Decimal | None = Field(default=None, gt=Decimal("0"))
+
     model_config = ConfigDict(frozen=True)
+
+    @model_validator(mode="after")
+    def _risk_budget_mode_requires_pct(self) -> RiskPolicy:
+        """``sizing_mode=risk_budget`` requires ``risk_budget_pct``.
+
+        cross-account-risk-policy §"Risk-Based Sizing" — the formula
+        ``account_risk_budget = E * risk_budget_pct`` is undefined
+        without an explicit ``risk_budget_pct``. Catching the missing
+        value at config-load time keeps the sizing helper free of a
+        "policy malformed" branch.
+        """
+        if self.sizing_mode == "risk_budget" and self.risk_budget_pct is None:
+            raise ValueError(
+                "risk_policy.sizing_mode='risk_budget' requires risk_budget_pct"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _reject_risk_budget_mode_until_wired_in(self) -> RiskPolicy:
+        """``sizing_mode=risk_budget`` is not yet wired into ``ProposalEngine``.
+
+        Slice 1 of cross-account-risk-policy landed the
+        :func:`compute_risk_budget_size` helper and unit-tested it in
+        isolation, but ``ProposalEngine`` still sizes through the
+        legacy fixed-notional path. Accepting ``sizing_mode=risk_budget``
+        in config silently does nothing at runtime — a textbook
+        operator footgun. Reject the mode at parse time until Slice 2
+        (tracked as DEBT-068) wires the helper through the sizing call
+        site.
+        """
+        if self.sizing_mode == "risk_budget":
+            raise ValueError(
+                "sizing_mode='risk_budget' is configured but not yet wired "
+                "into the proposal engine (tracked as DEBT-068). Use "
+                "sizing_mode='fixed_notional' until that lands, or remove "
+                "the field."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _stale_position_action_requires_max_hours(self) -> RiskPolicy:
+        """``stale_position_action`` requires ``max_time_in_position_hours``.
+
+        A stale-action without an age cap is a config error — there is
+        no threshold to compare against, so the action would never
+        fire. Rejecting at parse time surfaces the typo immediately.
+        """
+        if (
+            self.stale_position_action is not None
+            and self.max_time_in_position_hours is None
+        ):
+            raise ValueError(
+                "risk_policy.stale_position_action requires "
+                "max_time_in_position_hours"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _notional_floor_below_ceiling(self) -> RiskPolicy:
+        """``min_notional_per_trade`` must be ``<= max_notional_per_trade``."""
+        if (
+            self.min_notional_per_trade is not None
+            and self.max_notional_per_trade is not None
+            and self.min_notional_per_trade > self.max_notional_per_trade
+        ):
+            raise ValueError(
+                "risk_policy.min_notional_per_trade must be <= "
+                "max_notional_per_trade"
+            )
+        return self
 
 
 class ExecutionPolicy(BaseModel):
@@ -211,6 +322,57 @@ class MarketRegimePolicy(BaseModel):
                 f"{sorted(_ALLOWED_MARKET_REGIMES)!r}"
             )
         return value
+
+
+class GlobalRiskPolicy(BaseModel):
+    """Top-level cross-account exposure caps and kill switches.
+
+    cross-account-risk-policy §"Global Symbol/Side Caps" /
+    §"Global Kill Switches" / §"Operator Manual Freeze".
+
+    This block lives next to the ``sub_accounts`` list in the registry
+    YAML and is consumed by the proposal-runtime gates. Every field is
+    optional and defaults to ``None`` / ``False`` so absent or partial
+    blocks parse cleanly and behave as "no global gate" — the cycle
+    semantics are unchanged for deployments that don't opt in.
+    """
+
+    # Aggregate count and notional caps across all enabled sub-accounts.
+    max_open_positions_per_symbol_side: int | None = Field(default=None, ge=1)
+    max_gross_notional_per_symbol_side: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+    )
+    max_gross_notional_per_symbol: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+    )
+
+    # Cap-resolution mode. Default per resolved Open Decision (2026-05-13):
+    # first-come-first-serve — cycle order wins. ``account_priority`` is
+    # still parseable so operators can flip to ``lowest_priority_loses``
+    # without a schema migration.
+    cap_resolution: Literal[
+        "first_come_first_serve", "lowest_priority_loses"
+    ] = "first_come_first_serve"
+    account_priority: list[str] = Field(default_factory=list)
+
+    # Portfolio-level kill switches. Computed over the sum of all
+    # enabled sub-account equity and PnL in the common quote currency.
+    portfolio_daily_loss_limit_pct: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+    )
+    portfolio_unrealized_drawdown_limit_pct: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+    )
+
+    # Operator manual freeze. Default ``False`` so engine startup with
+    # an absent config block trades normally.
+    operator_freeze: bool = False
+
+    model_config = ConfigDict(frozen=True)
 
 
 class RiskOverrides(BaseModel):
@@ -408,6 +570,7 @@ class SubAccount(BaseModel):
 __all__ = [
     "CapitalPolicy",
     "ExecutionPolicy",
+    "GlobalRiskPolicy",
     "MarketRegimePolicy",
     "NotificationPolicy",
     "ProposalPolicy",

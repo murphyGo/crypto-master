@@ -80,6 +80,13 @@ class FunnelCounts(BaseModel):
     gate_rejected_total_cap: int = 0
     gate_rejected_symbol_cap: int = 0
     gate_rejected_stale_quote: int = 0
+    # cross-account-risk-policy (2026-05-13): new buckets for the
+    # per-account aggregate cap, stale-position block, and risk-sizing
+    # rejections. ``gate_rejected_unknown`` remains the legacy
+    # fallback for pre-cutover rows.
+    gate_rejected_account_aggregate_cap: int = 0
+    gate_rejected_stale_position_block: int = 0
+    gate_rejected_risk_sizing: int = 0
     gate_rejected_unknown: int = 0
     proposal_opened: int = 0
     trade_opened: int = 0
@@ -99,6 +106,9 @@ class FunnelCounts(BaseModel):
             + self.gate_rejected_total_cap
             + self.gate_rejected_symbol_cap
             + self.gate_rejected_stale_quote
+            + self.gate_rejected_account_aggregate_cap
+            + self.gate_rejected_stale_position_block
+            + self.gate_rejected_risk_sizing
             + self.gate_rejected_unknown
         )
 
@@ -142,6 +152,13 @@ _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
     ProposalFinalState.GATE_REJECTED_TOTAL_CAP: "gate_rejected_total_cap",
     ProposalFinalState.GATE_REJECTED_SYMBOL_CAP: "gate_rejected_symbol_cap",
     ProposalFinalState.GATE_REJECTED_STALE_QUOTE: "gate_rejected_stale_quote",
+    ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP: (
+        "gate_rejected_account_aggregate_cap"
+    ),
+    ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK: (
+        "gate_rejected_stale_position_block"
+    ),
+    ProposalFinalState.GATE_REJECTED_RISK_SIZING: "gate_rejected_risk_sizing",
     ProposalFinalState.GATE_REJECTED_UNKNOWN: "gate_rejected_unknown",
     ProposalFinalState.PROPOSAL_OPENED: "proposal_opened",
     ProposalFinalState.TRADE_OPENED: "trade_opened",

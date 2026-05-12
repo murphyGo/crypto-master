@@ -4666,3 +4666,477 @@ async def test_position_closed_event_carries_record_id(tmp_path: Path) -> None:
 
     record = mocks["history"].load("ff_closed")
     assert record.final_state == ProposalFinalState.OUTCOME_LINKED.value
+
+
+# =============================================================================
+# cross-account-risk-policy: per-account aggregate cap gate
+# =============================================================================
+
+
+def _make_risk_sub(
+    *,
+    id: str = "rsi_lab",
+    max_gross_notional: Decimal | None = None,
+    max_open_stop_risk: Decimal | None = None,
+    max_time_in_position_hours: int | None = None,
+    stale_position_action: str | None = None,
+) -> SubAccount:
+    """SubAccount factory for the risk-policy gate tests."""
+    return SubAccount(
+        id=id,
+        name=id,
+        mode="paper",
+        exchange_ref="default",
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        risk_policy=RiskPolicy(
+            max_gross_notional=max_gross_notional,
+            max_open_stop_risk=max_open_stop_risk,
+            max_time_in_position_hours=max_time_in_position_hours,
+            stale_position_action=stale_position_action,  # type: ignore[arg-type]
+        ),
+    )
+
+
+async def test_account_aggregate_cap_gate_live_rejects_over_notional(
+    tmp_path: Path,
+) -> None:
+    """Live mode + ``max_gross_notional`` breached → hard-block rejection."""
+    existing = make_trade(
+        trade_id="t-existing",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="2",  # notional = 4000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    proposal = make_proposal(
+        proposal_id="rsi-1",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        quantity="0.05",  # notional = 2500
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(max_gross_notional=Decimal("5000"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("rsi-1")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    assert "gross_notional" in (record.rejection_reason or "")
+
+
+async def test_account_aggregate_cap_gate_paper_emits_advisory_but_continues(
+    tmp_path: Path,
+) -> None:
+    """Paper mode: cap breach is advisory-with-event; proposal still executes.
+
+    Pins the resolved 2026-05-13 Open Decision: paper-first means caps
+    are advisory in paper, hard-blocking in live. The proposal record
+    must NOT carry the ``gate_rejected_account_aggregate_cap`` terminal
+    when the engine is in paper mode — the advisory event lives in the
+    activity log only.
+    """
+    existing = make_trade(
+        trade_id="t-existing",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="2",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-paper",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        quantity="0.05",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "paper"  # explicit
+    sub = _make_risk_sub(max_gross_notional=Decimal("5000"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    # Proposal executes; cap is advisory only.
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+    # Advisory event present in activity log.
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "account_aggregate_cap"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is True
+    assert advisories[0].details["mode"] == "paper"
+
+
+async def test_account_aggregate_cap_gate_open_stop_risk_breach_live(
+    tmp_path: Path,
+) -> None:
+    """``max_open_stop_risk`` independently triggers rejection in live mode.
+
+    Two-cap branch coverage: notional is well within bounds, but the
+    aggregated worst-case stop risk would exceed the cap.
+    """
+    existing = make_trade(
+        trade_id="t-existing-stop",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="0.5",  # notional = 1000
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "stop_loss": Decimal("1800"),  # stop_risk = 200 * 0.5 = 100
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="rsi-stop",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        sl="49000",  # stop distance = 1000
+        quantity="0.02",  # contribution = 1000 * 0.02 = 20
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(max_open_stop_risk=Decimal("50"))  # 100 alone > 50
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    record = mocks["history"].load("rsi-stop")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    assert "open_stop_risk" in (record.rejection_reason or "")
+
+
+async def test_account_aggregate_cap_gate_under_caps_passes(tmp_path: Path) -> None:
+    """When the post-fill totals stay under both caps, the proposal continues."""
+    existing = make_trade(
+        trade_id="t-small",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="0.1",  # notional = 200
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-ok",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        quantity="0.01",  # notional = 500
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(max_gross_notional=Decimal("10000"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+
+async def test_account_aggregate_cap_gate_no_caps_configured_is_noop(
+    tmp_path: Path,
+) -> None:
+    """Sub-account with no aggregate caps falls through cleanly."""
+    proposal = make_proposal(proposal_id="rsi-none", composite=2.0).model_copy(
+        update={"sub_account_id": "rsi_lab"}
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+# =============================================================================
+# cross-account-risk-policy: stale-position block gate
+# =============================================================================
+
+
+async def test_stale_position_block_gate_live_rejects_when_stale_trade_open(
+    tmp_path: Path,
+) -> None:
+    """Live mode + open trade > ``max_time_in_position_hours`` → reject new entries."""
+    # Trade opened 100 hours ago; cap at 24h.
+    stale_trade = make_trade(
+        trade_id="t-stale",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": now_utc() - timedelta(hours=100),
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="rsi-blocked", composite=2.0
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[stale_trade],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="block_new_entries",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("rsi-blocked")
+    assert (
+        record.final_state == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
+    )
+    assert "stale_position_block" in (record.rejection_reason or "")
+
+
+async def test_stale_position_block_gate_paper_advisory_only(tmp_path: Path) -> None:
+    """Paper mode: stale-position block is advisory-with-event; proposal continues."""
+    stale_trade = make_trade(
+        trade_id="t-stale-paper",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": now_utc() - timedelta(hours=100),
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="rsi-paper-stale", composite=2.0
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[stale_trade],
+    )
+    engine.mode = "paper"
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="block_new_entries",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "stale_position_block"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is True
+
+
+async def test_stale_position_block_gate_no_action_configured_is_noop(
+    tmp_path: Path,
+) -> None:
+    """Cap configured but action != block_new_entries → gate is a no-op."""
+    stale_trade = make_trade(
+        trade_id="t-stale-noaction",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": now_utc() - timedelta(hours=100),
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="rsi-stale-alert", composite=2.0
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[stale_trade],
+    )
+    engine.mode = "live"
+    # ``alert_only`` is handled elsewhere; this gate must NOT reject.
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="alert_only",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+async def test_stale_position_block_gate_fresh_trade_passes(tmp_path: Path) -> None:
+    """A fresh open trade (under cap) does not block new entries."""
+    fresh_trade = make_trade(
+        trade_id="t-fresh",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": now_utc() - timedelta(hours=1),
+        }
+    )
+    proposal = make_proposal(proposal_id="rsi-fresh", composite=2.0).model_copy(
+        update={"sub_account_id": "rsi_lab"}
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[fresh_trade],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="block_new_entries",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+async def test_stale_position_block_gate_handles_naive_entry_time_defensively(
+    tmp_path: Path,
+) -> None:
+    """Naive ``entry_time`` is treated as UTC instead of crashing.
+
+    Other call sites in ``engine.py`` (line ~2374) and
+    ``correlation_governor.py`` (lines 76 / 106) defensively wrap
+    ``trade.entry_time`` in ``ensure_utc()`` before doing tz-aware
+    arithmetic. Slice 1 of cross-account-risk-policy missed this site;
+    a naive datetime here would raise
+    ``TypeError: can't subtract offset-naive and offset-aware datetimes``
+    inside the stale-position block gate.
+
+    Pin the defense: with a naive ``entry_time`` 100h in the past and a
+    24h cap, the gate must compute age correctly (treating the naive
+    timestamp as UTC) and reject the proposal in live mode.
+    """
+    # Naive datetime (no tzinfo) — 100 hours before now_utc().
+    naive_entry = (now_utc() - timedelta(hours=100)).replace(tzinfo=None)
+    assert naive_entry.tzinfo is None  # sanity-check the construction
+
+    stale_trade = make_trade(
+        trade_id="t-stale-naive",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": naive_entry,
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="rsi-naive-blocked",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[stale_trade],
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="block_new_entries",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    # Must not raise TypeError on naive-vs-aware datetime subtraction.
+    result = await engine.run_cycle()
+
+    # Naive 100h-ago entry should be treated as UTC and exceed the 24h cap.
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("rsi-naive-blocked")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
+    )
+    assert "stale_position_block" in (record.rejection_reason or "")

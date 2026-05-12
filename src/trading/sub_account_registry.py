@@ -39,6 +39,7 @@ from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
 from src.trading.sub_account import (
     CapitalPolicy,
+    GlobalRiskPolicy,
     StrategyPolicy,
     SubAccount,
     SubAccountError,
@@ -119,6 +120,11 @@ class SubAccountRegistry:
         # Stable insertion order keeps ``list_active`` deterministic
         # for tests and dashboards.
         self._sub_accounts: dict[str, SubAccount] = {}
+        # cross-account-risk-policy: parsed from the top-level
+        # ``global_risk_policy`` YAML block, or defaults when absent.
+        # The default ``GlobalRiskPolicy()`` is "no global gate" — every
+        # cap is ``None`` and ``operator_freeze`` is ``False``.
+        self._global_risk_policy: GlobalRiskPolicy = GlobalRiskPolicy()
         self._load()
 
     # ------------------------------------------------------------------
@@ -143,7 +149,14 @@ class SubAccountRegistry:
 
     def _load_from_yaml(self) -> None:
         """Parse ``config/sub_accounts.yaml`` into validated accounts."""
-        raw_accounts = self._read_config_file()
+        raw_accounts, raw_global_policy = self._read_config_file()
+        if raw_global_policy is not None:
+            try:
+                self._global_risk_policy = GlobalRiskPolicy(**raw_global_policy)
+            except ValidationError as exc:
+                raise SubAccountConfigError(
+                    f"{self.config_path}: invalid global_risk_policy: {exc}"
+                ) from exc
         seen: set[str] = set()
         for index, raw in enumerate(raw_accounts, start=1):
             if not isinstance(raw, dict):
@@ -170,7 +183,14 @@ class SubAccountRegistry:
                 f"{self.config_path}: sub_accounts must contain at least one entry"
             )
 
-    def _read_config_file(self) -> list[Any]:
+    def _read_config_file(self) -> tuple[list[Any], dict[str, Any] | None]:
+        """Parse the YAML; return ``(sub_accounts, global_risk_policy)``.
+
+        ``global_risk_policy`` is optional — absent or ``None`` is a
+        valid config (means "no global gates configured"). Present but
+        non-mapping raises a structured error so a YAML typo never
+        silently bypasses the global gates.
+        """
         try:
             with self.config_path.open("r", encoding="utf-8") as fh:
                 parsed = yaml.safe_load(fh) or {}
@@ -187,7 +207,12 @@ class SubAccountRegistry:
             raise SubAccountConfigError(
                 f"{self.config_path}: sub_accounts must be a list"
             )
-        return accounts
+        raw_global = parsed.get("global_risk_policy")
+        if raw_global is not None and not isinstance(raw_global, dict):
+            raise SubAccountConfigError(
+                f"{self.config_path}: global_risk_policy must be a mapping"
+            )
+        return accounts, raw_global
 
     def _validate_phase_19_3_boundaries(self, sub: SubAccount) -> None:
         if sub.mode == "live":
@@ -332,6 +357,16 @@ class SubAccountRegistry:
             raise SubAccountNotFoundError(
                 f"sub-account {id!r} is not registered"
             ) from exc
+
+    def global_risk_policy(self) -> GlobalRiskPolicy:
+        """Return the parsed top-level :class:`GlobalRiskPolicy`.
+
+        cross-account-risk-policy: callers read this once per cycle to
+        evaluate global symbol/side caps and the operator freeze. The
+        instance is frozen — mutating fields requires reloading the
+        registry.
+        """
+        return self._global_risk_policy
 
     def get_trader(self, id: str) -> Trader:
         """Return the trader bound to a sub-account.

@@ -508,3 +508,170 @@ sub_accounts:
             trader=_make_trader(),
             config_path=config_path,
         )
+
+
+# =============================================================================
+# cross-account-risk-policy: GlobalRiskPolicy block parsing
+# =============================================================================
+
+
+def test_global_risk_policy_defaults_when_block_absent(tmp_path: Path) -> None:
+    """No ``global_risk_policy`` block → defaulted (no global caps, no freeze)."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+    policy = registry.global_risk_policy()
+    assert policy.max_open_positions_per_symbol_side is None
+    assert policy.max_gross_notional_per_symbol_side is None
+    assert policy.max_gross_notional_per_symbol is None
+    assert policy.cap_resolution == "first_come_first_serve"
+    assert policy.account_priority == []
+    assert policy.operator_freeze is False
+
+
+def test_global_risk_policy_parses_all_fields(tmp_path: Path) -> None:
+    """Full block parses every field, including account_priority order."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+global_risk_policy:
+  max_open_positions_per_symbol_side: 3
+  max_gross_notional_per_symbol_side: 5000
+  max_gross_notional_per_symbol: 8000
+  cap_resolution: lowest_priority_loses
+  account_priority: [rsi_universal, bollinger_band_reversion]
+  portfolio_daily_loss_limit_pct: 0.02
+  operator_freeze: true
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+    policy = registry.global_risk_policy()
+    assert policy.max_open_positions_per_symbol_side == 3
+    assert policy.max_gross_notional_per_symbol_side == Decimal("5000")
+    assert policy.max_gross_notional_per_symbol == Decimal("8000")
+    assert policy.cap_resolution == "lowest_priority_loses"
+    assert policy.account_priority == ["rsi_universal", "bollinger_band_reversion"]
+    assert policy.portfolio_daily_loss_limit_pct == Decimal("0.02")
+    assert policy.operator_freeze is True
+
+
+def test_global_risk_policy_non_mapping_raises(tmp_path: Path) -> None:
+    """A typo'd ``global_risk_policy: 0.5`` is a structured config error."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+global_risk_policy: 0.5
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    with pytest.raises(SubAccountConfigError, match="global_risk_policy"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )
+
+
+def test_global_risk_policy_invalid_field_raises(tmp_path: Path) -> None:
+    """Schema violations (e.g. zero/negative caps) surface as config errors."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+global_risk_policy:
+  max_open_positions_per_symbol_side: 0
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    with pytest.raises(SubAccountConfigError, match="global_risk_policy"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )
+
+
+# =============================================================================
+# cross-account-risk-policy: per-account RiskPolicy extensions parse cleanly
+# =============================================================================
+
+
+def test_yaml_parses_extended_risk_policy_fields(tmp_path: Path) -> None:
+    """New RiskPolicy fields land on the parsed sub-account.
+
+    Note: ``sizing_mode: risk_budget`` is currently rejected at parse
+    time (DEBT-068) because Slice 2 has not wired the helper into
+    ``ProposalEngine``. This test covers the *other* extended fields
+    that ARE wired (caps, stale-action, kill-switch pct) under the
+    default ``fixed_notional`` sizing mode.
+    """
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+sub_accounts:
+  - id: rsi_lab
+    name: RSI Lab
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+    risk_policy:
+      sizing_mode: fixed_notional
+      min_notional_per_trade: 50
+      max_notional_per_trade: 2000
+      min_stop_distance_bps: 25
+      max_gross_notional: 6000
+      max_open_stop_risk: 300
+      max_time_in_position_hours: 24
+      stale_position_action: block_new_entries
+      daily_loss_limit_pct: 0.03
+""",
+    )
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+    rp = registry.get("rsi_lab").risk_policy
+    assert rp.sizing_mode == "fixed_notional"
+    assert rp.max_gross_notional == Decimal("6000")
+    assert rp.max_open_stop_risk == Decimal("300")
+    assert rp.max_time_in_position_hours == 24
+    assert rp.stale_position_action == "block_new_entries"
+    assert rp.daily_loss_limit_pct == Decimal("0.03")

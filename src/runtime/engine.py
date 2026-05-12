@@ -1333,6 +1333,41 @@ class TradingEngine:
                     )
                 return
 
+            # cross-account-risk-policy gates: per-account aggregate
+            # cap and stale-position block. Both run after the existing
+            # symbol-cap gate (DEBT-062 owns regime-vs-correlation
+            # ordering). Paper-mode advisories return ``None`` and emit
+            # an event; live-mode rejections short-circuit here.
+            account_agg_rejection = self._account_aggregate_cap_gate(
+                proposal, record, sub_account, trader, cycle_id
+            )
+            if account_agg_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(account_agg_rejection.final_record)
+                for event in events + account_agg_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
+            stale_block_rejection = self._stale_position_block_gate(
+                proposal, record, sub_account, trader, cycle_id
+            )
+            if stale_block_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(stale_block_rejection.final_record)
+                for event in events + stale_block_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
             # proposal-funnel-audit §1 State 5: every gate accepted;
             # the record advances to ``proposal_opened``. ``_execute``
             # promotes to ``trade_opened`` on a successful fill, and
@@ -1506,6 +1541,269 @@ class TradingEngine:
                 "leverage": proposal.leverage,
             },
             cycle_id=cycle_id,
+        )
+
+    def _account_aggregate_cap_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject when the per-account aggregate caps would be breached.
+
+        cross-account-risk-policy §"Per-Account Caps". Sums the open
+        notional and worst-case stop-risk on this sub-account's open
+        trades and compares the post-fill total against
+        ``RiskPolicy.max_gross_notional`` /
+        ``RiskPolicy.max_open_stop_risk``. Returns ``None`` when neither
+        cap is configured or both caps fit; returns a populated
+        :class:`GateOutcome` when either cap would be breached.
+
+        Paper-vs-live (resolved 2026-05-13): caps hard-block in live;
+        in paper they are advisory-with-event. ``self.mode`` selects the
+        branch — paper mode lets the proposal continue (returns
+        ``None``) but appends an activity event so operators see the
+        would-be rejection. Slice 1 reuses
+        :attr:`ActivityEventType.PROPOSAL_REJECTED` for the advisory
+        emission, with ``details.advisory=True`` as the discriminator
+        between hard rejections and paper-mode advisories. A dedicated
+        ``RISK_CAP_ADVISORY`` event type is deferred to Slice 2 along
+        with funnel-side filtering. Live mode produces a rejection
+        record with ``gate_rejected_account_aggregate_cap``.
+        """
+        if sub_account is None:
+            return None
+        policy = sub_account.risk_policy
+        if (
+            policy.max_gross_notional is None
+            and policy.max_open_stop_risk is None
+        ):
+            return None
+
+        open_trades = [
+            trade
+            for trade in trader.get_open_trades()
+            if trade.sub_account_id == sub_account.id
+        ]
+
+        gross_notional = sum(
+            (trade.entry_price * trade.entry_quantity for trade in open_trades),
+            start=Decimal("0"),
+        )
+        open_stop_risk = sum(
+            (
+                abs(trade.entry_price - trade.stop_loss) * trade.entry_quantity
+                for trade in open_trades
+                if trade.stop_loss is not None
+            ),
+            start=Decimal("0"),
+        )
+
+        # The new proposal contributes only when sized. Sizing happens
+        # downstream of this gate so we use the proposal's declared
+        # notional / stop-risk as an estimate; the proposal-runtime
+        # already populates these fields prior to the gate stack.
+        new_notional = proposal.entry_price * Decimal(str(proposal.quantity))
+        new_stop_risk = (
+            abs(proposal.entry_price - proposal.stop_loss)
+            * Decimal(str(proposal.quantity))
+            if proposal.stop_loss is not None
+            else Decimal("0")
+        )
+
+        notional_total = gross_notional + new_notional
+        stop_risk_total = open_stop_risk + new_stop_risk
+
+        breaches: list[str] = []
+        if (
+            policy.max_gross_notional is not None
+            and notional_total > policy.max_gross_notional
+        ):
+            breaches.append(
+                f"gross_notional {notional_total:.2f} > "
+                f"max {policy.max_gross_notional}"
+            )
+        if (
+            policy.max_open_stop_risk is not None
+            and stop_risk_total > policy.max_open_stop_risk
+        ):
+            breaches.append(
+                f"open_stop_risk {stop_risk_total:.2f} > "
+                f"max {policy.max_open_stop_risk}"
+            )
+        if not breaches:
+            return None
+
+        reason = "account_aggregate_cap: " + "; ".join(breaches)
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "account_aggregate_cap",
+            "sub_account_id": sub_account.id,
+            "gross_notional_total": str(notional_total),
+            "open_stop_risk_total": str(stop_risk_total),
+            "max_gross_notional": (
+                str(policy.max_gross_notional)
+                if policy.max_gross_notional is not None
+                else None
+            ),
+            "max_open_stop_risk": (
+                str(policy.max_open_stop_risk)
+                if policy.max_open_stop_risk is not None
+                else None
+            ),
+            "mode": self.mode,
+        }
+
+        if self.mode == "paper":
+            # Advisory-only in paper: emit the event but let the
+            # proposal proceed. The proposal record itself is NOT
+            # downgraded to a rejection so the funnel still counts it
+            # as ``proposal_opened`` — matches the spec's paper-first
+            # "advisory-with-event" resolution.
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Aggregate-cap advisory (paper) for {proposal.symbol}",
+                details={**details, "advisory": True},
+                cycle_id=cycle_id,
+            )
+            return None
+
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+                ),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    (
+                        f"Account aggregate-cap rejected "
+                        f"{proposal.symbol} {proposal.signal}"
+                    ),
+                    details,
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    def _stale_position_block_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Block new entries when a stale position is parked on the account.
+
+        cross-account-risk-policy §"Stale-Position Age Caps" — the
+        ``block_new_entries`` action. When the sub-account has an open
+        trade whose age exceeds ``max_time_in_position_hours``, all
+        new entries on this account are rejected until the stale trade
+        closes. ``auto_close`` and ``alert_only`` actions are handled
+        elsewhere (monitor loop / dashboard) and bypass this gate.
+
+        Returns ``None`` when ``stale_position_action`` is not
+        ``"block_new_entries"`` or when no stale trade exists. In paper
+        mode the gate is advisory-with-event: same path as
+        :meth:`_account_aggregate_cap_gate` — appends an
+        :attr:`ActivityEventType.PROPOSAL_REJECTED` event with
+        ``details.advisory=True`` as the discriminator (a dedicated
+        ``RISK_CAP_ADVISORY`` event type is deferred to Slice 2) but
+        lets the proposal proceed.
+        """
+        if sub_account is None:
+            return None
+        policy = sub_account.risk_policy
+        if (
+            policy.stale_position_action != "block_new_entries"
+            or policy.max_time_in_position_hours is None
+        ):
+            return None
+
+        cap_hours = policy.max_time_in_position_hours
+        now = now_utc()
+        stale_trades = []
+        for trade in trader.get_open_trades():
+            if trade.sub_account_id != sub_account.id:
+                continue
+            # Defensive: other call sites (line ~2374 here, and
+            # ``correlation_governor.py``) normalize ``entry_time`` via
+            # ``ensure_utc`` before doing tz-aware arithmetic. Slice 1
+            # missed this site; a naive datetime would crash with
+            # ``TypeError: can't subtract offset-naive and offset-aware``.
+            age_hours = (
+                (now - ensure_utc(trade.entry_time)).total_seconds() / 3600.0
+            )
+            if age_hours > cap_hours:
+                stale_trades.append((trade, age_hours))
+        if not stale_trades:
+            return None
+
+        oldest_trade, oldest_age = max(stale_trades, key=lambda pair: pair[1])
+        reason = (
+            f"stale_position_block: trade {oldest_trade.id} on "
+            f"{oldest_trade.symbol} is {oldest_age:.2f}h old "
+            f"(> cap {cap_hours}h)"
+        )
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "stale_position_block",
+            "sub_account_id": sub_account.id,
+            "oldest_trade_id": oldest_trade.id,
+            "oldest_trade_symbol": oldest_trade.symbol,
+            "oldest_trade_age_hours": f"{oldest_age:.4f}",
+            "max_time_in_position_hours": cap_hours,
+            "mode": self.mode,
+        }
+
+        if self.mode == "paper":
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Stale-position advisory (paper) for {proposal.symbol}",
+                details={**details, "advisory": True},
+                cycle_id=cycle_id,
+            )
+            return None
+
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": (
+                    ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
+                ),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    (
+                        f"Stale-position-block rejected "
+                        f"{proposal.symbol} {proposal.signal}"
+                    ),
+                    details,
+                    cycle_id,
+                )
+            ],
+            rejected_record,
         )
 
     def _sibling_family_gate(

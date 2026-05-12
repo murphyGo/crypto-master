@@ -41,6 +41,39 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-068: `cross-account-risk-policy` Slice 2 umbrella
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Phase** | cross-account-risk-policy Slice 2 |
+| **Component** | proposal-runtime + runtime-safety-score + dashboard-operator-ui |
+
+**Description:**
+`cross-account-risk-policy` Slice 1 (2026-05-13) shipped the schema extensions + `compute_risk_budget_size` sizing helper + 2 of 5 planned gates (`_account_aggregate_cap_gate` notional + stop-risk, and `_stale_position_block_gate`). Slice 2 wires the remaining surfaces per the functional-design spec:
+
+- **(a) `compute_risk_budget_size` wire-in to `ProposalEngine`** — the pure helper is unit-tested in `src/trading/risk_sizing.py` but has no production caller. Wire at the proposal sizing call site; remove the `_reject_risk_budget_mode_until_wired_in` validator from `RiskPolicy` once landed.
+- **(b) Global symbol/side caps** — `max_open_positions_per_symbol_side`, `max_gross_notional_per_symbol_side`, `max_gross_notional_per_symbol`. Needs cross-sub-account state aggregation in the engine cycle.
+- **(c) Per-account + portfolio kill switches** — `daily_loss_limit_pct`, `open_drawdown_limit_pct`, `portfolio_daily_loss_limit_pct`, `portfolio_open_drawdown_limit_pct`. Needs realized-PnL-since-UTC-midnight aggregation + persisted state surviving restart.
+- **(d) Operator freeze toggle** — `global_risk_policy.operator_freeze` field exists; needs `config/runtime_flags.yaml` (or similar) reload-per-cycle infrastructure.
+- **(e) Stale `auto_close` and `alert_only` actions** — Slice 1 only ships `block_new_entries`. Auto-close needs a monitor-loop hook + interaction matrix with `runtime-reconciliation` state taxonomy.
+- **(f) Dashboard exposure panel** — per-account + global aggregate views, kill-switch state indicator, operator freeze toggle indicator. Match runtime-reconciliation banner color pattern.
+- **(g) `RISK_CAP_ADVISORY` event type** — dedicated `ActivityEventType` enum value + funnel-side filtering. Migrates paper-mode emissions off the current `PROPOSAL_REJECTED + details.advisory=True` reuse.
+- **(h) `runtime-safety-score` integration** — kill-switch triggers should feed the safety-score signal.
+
+**Impact:**
+Slice 1 alone is operator-meaningful for paper-mode per-account aggregate-cap observability, but the live-mode promotion path is incomplete without (a)-(c). Risk-budget sizing mode is currently fail-closed at `RiskPolicy` validation (with an explicit DEBT-068 pointer in the error message) until (a) ships.
+
+**Suggested Resolution:**
+Sequential cycles — first (a) wire-in as a small slice (one cycle), then (b) global caps, (c) kill switches, (e) stale actions, (f) dashboard, (g) event type. (d) and (h) are smaller and can bundle with (f).
+
+**Related:**
+- quant-trader-expert Q1/Q2 review (`docs/sessions/2026-05-13-cross-account-risk-policy-slice-1-shipped.md`)
+- `src/trading/risk_sizing.py`
+- `src/runtime/engine.py::_account_aggregate_cap_gate`
+- `src/trading/sub_account.py::RiskPolicy._reject_risk_budget_mode_until_wired_in`
+
 ### DEBT-066: In-memory mark-price cache for cap-blocker `unrealized_pnl_percent`
 
 | Field | Value |
@@ -727,10 +760,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 7 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 3 |
+| Medium | 4 |
 | Low | 3 |
 | Resolved (All Time) | 57 |
 
@@ -740,6 +773,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-068 `cross-account-risk-policy` Slice 2 umbrella (Medium) — filed at the close of `cross-account-risk-policy` Slice 1 (2026-05-13); Slice 1 shipped schema extensions + `compute_risk_budget_size` pure helper + 2 of 5 planned gates (`_account_aggregate_cap_gate` notional + stop-risk, `_stale_position_block_gate`) under the 1357-LoC scope-split guard (~706 LoC actual); Slice 2 wires the remaining surfaces per the functional-design spec — (a) `compute_risk_budget_size` wire-in to `ProposalEngine` + removal of the `_reject_risk_budget_mode_until_wired_in` validator added in R2 as a footgun-prevention measure; (b) global symbol/side caps with cross-sub-account state aggregation; (c) per-account + portfolio kill switches with realized-PnL-since-UTC-midnight aggregation + persisted state surviving restart; (d) operator freeze toggle reload-per-cycle infrastructure; (e) stale `auto_close` + `alert_only` actions (monitor-loop hook + interaction matrix with `runtime-reconciliation` state taxonomy); (f) dashboard exposure panel matching the runtime-reconciliation banner color pattern; (g) dedicated `RISK_CAP_ADVISORY` `ActivityEventType` migrating paper-mode emissions off the current `PROPOSAL_REJECTED + details.advisory=True` reuse; (h) `runtime-safety-score` integration of kill-switch triggers; suggested sequencing — (a) first as a small slice, then (b)/(c)/(e)/(f)/(g) sequentially, with (d) and (h) bundling into (f); risk-budget sizing mode is currently fail-closed at `RiskPolicy` validation until (a) lands |
 | 2026-05-13 | Added | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — QA observation across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); 3 errors at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance) make `mypy src` not fully clean repo-wide and force reviewers to filter known noise on every diff; resolution is a mechanical 2-line + 2-line fix (explicit `Literal[...]` cast at 285, `list[X]` → `Sequence[X]` covariant-read parameters at 869 + 882) |
 | 2026-05-13 | Added | DEBT-066 In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` (Low) — surfaced from quant-trader-expert (Q1) during proposal-funnel-audit unit close-out review; R1 of `_build_cap_blocker_payload` did per-blocker `await exchange.get_ticker()` on the hot path (10+ sequential ticker fetches per cap rejection, and cap rejections are the dominant rejection path per the 2026-05-13 Fly snapshot); R2 dropped the fetch and set `unrealized_pnl_percent=None` per the spec's documented fallback, but no in-memory mark cache exists anywhere in `src/runtime/engine.py` / `src/trading/portfolio.py` / `src/trading/paper.py` (`PortfolioManager` only sees marks via `record_snapshot(current_prices=...)`); suggested resolution is a `dict[str, Decimal]` cache on `TradingEngine` populated by `_record_asset_snapshot` + the monitor-pass ticker reads (which already happen) with TTL or last-seen-timestamp freshness — zero new exchange calls on the rejection path; not a money-handling defect, first-order signal (`entry_price + age_seconds + monitorable + symbol + record_id`) intact |
 | 2026-05-13 | Added | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — surfaced from QA during runtime-reconciliation final review; `TechniquePerformance.total_trades = len(records)` (`src/strategy/performance.py:244`) includes synthetic reconciliation-close rows, and `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1061-1064`) + `_score.sample_size` (`src/proposal/engine.py:1200`) read it directly, so a strategy with 9 real + 2 synthetic closes can pass `threshold=10` live promotion despite `src/strategy/performance.py:214`'s comment explicitly stating synthetic rows "must not feed CON-003 promotion gating"; smaller-diff resolution is option (b) — switch the two consumer sites to `perf.total_trades - perf.synthetic_count` (or a new `real_trade_count` property) and update `tests/test_strategy_performance.py:2066` to match; narrow blast radius (operator-driven path, conservative threshold) but contract gap grows with every operator reconciliation event |
