@@ -16,7 +16,7 @@ Related Requirements:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -78,9 +78,9 @@ from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
 
 SNAPSHOT_STALE_AFTER_HOURS = 6
-COMMAND_CENTER_DEFAULT_MODE = "paper"
-COMMAND_CENTER_AGGREGATE_SCOPE = "Aggregate"
 DashboardMode = Literal["paper", "live"]
+COMMAND_CENTER_DEFAULT_MODE: DashboardMode = "paper"
+COMMAND_CENTER_AGGREGATE_SCOPE = "Aggregate"
 ACTIONABLE_EVENT_TYPES = {
     ActivityEventType.CYCLE_ERRORED.value,
     ActivityEventType.NOTIFICATION_FAILED.value,
@@ -1016,7 +1016,7 @@ def build_runtime_diagnostic_dataframe(
 
 
 def render_command_center_links(
-    rows: list[
+    rows: Sequence[
         CommandCenterDiagnosticRow
         | CommandCenterIncidentRow
         | CommandCenterCandidateRow

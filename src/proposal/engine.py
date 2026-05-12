@@ -993,7 +993,10 @@ class ProposalEngine:
             )
             ranked.append((strategy, perf))
 
-        any_history = any(perf.total_trades > 0 for _, perf in ranked)
+        # DEBT-070: rank on real trade count so synthetic
+        # reconciliation-close rows can't inflate a technique's
+        # tie-breaker over peers with genuine live closes.
+        any_history = any(perf.real_trade_count > 0 for _, perf in ranked)
         if not any_history:
             # Cold-start: nobody has run yet. Pick deterministically.
             applicable.sort(key=lambda s: s.name)
@@ -1007,11 +1010,19 @@ class ProposalEngine:
             # Negate numeric fields so larger values sort first in an
             # ascending sort; ``strategy.name`` stays positive so the
             # lex-first name wins ties deterministically.
-            return (-edge, -perf.total_trades, strategy.name)
+            # DEBT-070: tie-break on real trade count, not raw
+            # total (which includes synthetic reconciliation closes).
+            return (-edge, -perf.real_trade_count, strategy.name)
 
         ranked.sort(key=key)
         best_strategy, best_perf = ranked[0]
-        return (best_strategy, best_perf if best_perf.total_trades > 0 else None)
+        # DEBT-070: drop perf when the technique has no real closes,
+        # so ``_score`` takes the cold-start branch instead of
+        # leaning on a synthetic-only history.
+        return (
+            best_strategy,
+            best_perf if best_perf.real_trade_count > 0 else None,
+        )
 
     def _cold_start_blocks_live(
         self,
@@ -1129,7 +1140,12 @@ class ProposalEngine:
             # Treat zero-history records as None so ``_score`` takes
             # the cold-start branch — consistent with
             # ``_select_best_technique``.
-            results.append((strategy, perf if perf.total_trades > 0 else None))
+            # DEBT-070: gate on real trade count, mirroring
+            # ``_select_best_technique`` so a synthetic-only history
+            # doesn't push a technique out of the cold-start branch.
+            results.append(
+                (strategy, perf if perf.real_trade_count > 0 else None)
+            )
         return results
 
     def _score(

@@ -131,27 +131,6 @@ Add a `dict[str, Decimal]` mark cache on `TradingEngine` populated by `_record_a
 - quant-trader-expert review Q1 (`docs/sessions/2026-05-13-proposal-funnel-audit-unit-shipped.md`)
 - `src/runtime/engine.py::_build_cap_blocker_payload`
 
-### DEBT-067: Pre-existing `src/dashboard/app.py` mypy errors
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-13 |
-| **Phase** | proposal-funnel-audit QA observation |
-| **Component** | dashboard-operator-ui |
-
-**Description:**
-3 pre-existing mypy errors in `src/dashboard/app.py` at lines 285 (Literal default), 869, 882 (List invariance / Sequence covariance). Surfaced repeatedly during the past 4 unit cycles' QA passes; never filed as TECH-DEBT.
-
-**Impact:**
-`mypy src` is not fully clean repo-wide. Reviewers must manually filter known noise; new mypy regressions in unrelated files become harder to spot.
-
-**Suggested Resolution:**
-line 285 — explicit `Literal[...]` cast on the `mode` default; lines 869 + 882 — change parameter types from `list[X]` to `Sequence[X]` for covariant reads. Mechanical 2-line + 2-line fix.
-
-**Related:**
-- QA observation across DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit cycles
-
 ### DEBT-064: Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows
 
 | Field | Value |
@@ -174,29 +153,6 @@ Per-row warning counter for (a) computed from `last_seen_at` vs `now`. Separate 
 - quant-trader-expert review Q1 (`docs/sessions/2026-05-13-runtime-reconciliation-unit-shipped.md`)
 - `src/runtime/reconciliation.py:286` filter
 
-### DEBT-070: `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-13 |
-| **Phase** | DEBT-065 close-out follow-up |
-| **Component** | proposal-runtime |
-
-**Description:**
-DEBT-065 close-out (2026-05-13) introduced `TechniquePerformance.real_trade_count` (`total_trades - synthetic_count`) and switched the 2 promotion-gating consumer sites (`ProposalEngine._cold_start_blocks_live` + `_score.sample_size`) to read it. QA confirmed dev's flag that 4 additional `perf.total_trades` reads remain in `ProposalEngine._select_best_technique` and `_select_all_techniques` at `src/proposal/engine.py:996, 1010, 1014, 1132` (QA corrected dev's :1128 mis-cite to :1132). These 4 reads affect **strategy-selection ranking** — not promotion gating. With current `total_trades` semantics, a strategy with only synthetic reconciliation-close rows registers as "has history" (line 996), wins tie-breakers over real-history-light strategies (line 1010), and passes through downstream as if it had history (lines 1014, 1132). DEBT-065 scoped its fix to promotion-gating only; the ranking-side reads remain on `total_trades`.
-
-**Impact:**
-Mild strategy-selection distortion — synthetic-heavy strategies can win the "best technique" ranking on a per-(symbol, sub-account) cycle over genuine cold-start strategies, even though composite/edge dominates the actual scoring formula. Blast radius: an operator who has run reconciliation tooling repeatedly may see synthetic-heavy strategies surface in selection before their real-history-light siblings. Not a money-safety defect — promotion gating is correctly fenced by DEBT-065's fix; this is only the ranking-order surface.
-
-**Suggested Resolution:**
-Switch the 4 ranking-side reads (`src/proposal/engine.py:996, 1010, 1014, 1132`) to `perf.real_trade_count`. Same pattern as the DEBT-065 fix. Add regression tests pinning that a synthetic-heavy strategy does NOT win ranking over a real-history strategy at equal composite.
-
-**Related:**
-- QA flagged during DEBT-065 close-out (`docs/sessions/2026-05-13-debt-065-synthetic-row-leak-fix.md`)
-- `src/proposal/engine.py:996`, `:1010`, `:1014`, `:1132`
-- Display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain synthetic-inclusive — those are operator-facing counts and out of scope.
-
 ## Resolved Debt Items
 
 <!--
@@ -211,6 +167,24 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-070: `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Same-day close-out following the DEBT-065 fix pattern. 4 ranking-side `perf.total_trades` reads in `ProposalEngine._select_best_technique` (`src/proposal/engine.py:996, 1010, 1014`) and `_select_all_techniques` (`src/proposal/engine.py:1132`) switched to `perf.real_trade_count` — `any_history` detection (`L996`), tie-breaker sort key (`L1010`), `_select_best_technique` return-perf gate (`L1014`), `_select_all_techniques` return-perf gate (`L1132`). Inline `# DEBT-070:` comments at each site. Display sites at `src/dashboard/pages/strategies.py:118` ("Total Trades" column) and `src/ai/improver.py:667` (improver prompt rendering) intentionally remain on `total_trades` per the DEBT-065 close-out design intent (operator-facing record counts should match what the underlying ledger holds). Pinned by 2 new tests in `tests/test_proposal_engine.py`: `test_select_best_technique_tiebreaks_on_real_trade_count` (canonical defect scenario: equal `avg_pnl`, A=10 synthetic/0 real, B=0 synthetic/5 real → B wins; pre-fix A would have won via `-perf.total_trades` tie-breaker), and `test_select_best_technique_any_history_ignores_synthetic_only` (synthetic-only beta does NOT register as "has history" → falls back to lex-first cold-start, alpha wins). `pytest -q` 2061 passed (was 2059; net +2, zero regressions); `ruff check src tests` clean; `mypy src` **fully clean repo-wide — first time this session — `Success: no issues found in 88 source files`** (DEBT-067 bundled in the same cycle closes the last remaining `src/dashboard/app.py` errors). |
+
+### DEBT-067: Pre-existing `src/dashboard/app.py` mypy errors ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Same-day close-out bundled with DEBT-070. `DashboardMode` type alias reordered before `COMMAND_CENTER_DEFAULT_MODE` at `src/dashboard/app.py:285`; the constant is now annotated `: DashboardMode = "paper"` to carry the literal type. `render_command_center_links` parameter (`src/dashboard/app.py:869, 882`) widened from `list[...]` to `Sequence[...]` — covariant read-only over the parameter (function body never mutates it); `Sequence` added to the existing `collections.abc` import. `mypy src/dashboard/app.py` clean post-fix; **`mypy src` now fully clean repo-wide for the first time this session — `Success: no issues found in 88 source files`, zero issues.** This is a notable milestone: the 3 errors had been a QA-noise filter across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit). Future mypy regressions are now spottable on the next diff. Candidate future-work item: CI gate to lock the repo-wide-clean baseline (queued, not filed as DEBT — see session log future-work bullet). |
 
 ### DEBT-063: Market-regime classifier hysteresis flapping ✅
 
@@ -776,12 +750,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 4 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 4 |
-| Resolved (All Time) | 60 |
+| Low | 2 |
+| Resolved (All Time) | 62 |
 
 ---
 
@@ -789,6 +763,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-070 `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` (Low) — same-day close-out bundled with DEBT-067; 4 ranking-side `perf.total_trades` reads in `ProposalEngine._select_best_technique` (`src/proposal/engine.py:996, 1010, 1014`) and `_select_all_techniques` (`src/proposal/engine.py:1132`) switched to `perf.real_trade_count` with inline `# DEBT-070:` comments at each site (`any_history` detection L996, tie-breaker sort key L1010, `_select_best_technique` return-perf gate L1014, `_select_all_techniques` return-perf gate L1132); display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain on `total_trades` (operator-facing record counts); 2 new tests in `tests/test_proposal_engine.py` — `test_select_best_technique_tiebreaks_on_real_trade_count` (canonical defect: equal `avg_pnl`, A=10 synthetic/0 real, B=0 synthetic/5 real → B wins; pre-fix A would have won via `-perf.total_trades` tie-breaker) and `test_select_best_technique_any_history_ignores_synthetic_only` (synthetic-only beta does NOT register as "has history" → cold-start lex-first picks alpha); pytest 2061 passed (was 2059; net +2, zero regressions); ruff clean; `mypy src` fully clean repo-wide (88 source files, zero issues) |
+| 2026-05-13 | Resolved | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — same-day close-out bundled with DEBT-070; `DashboardMode` type alias reordered before `COMMAND_CENTER_DEFAULT_MODE` at `src/dashboard/app.py:285` with the constant now annotated `: DashboardMode = "paper"` to carry the literal type; `render_command_center_links` parameter (`src/dashboard/app.py:869, 882`) widened from `list[...]` to `Sequence[...]` (covariant read-only over the param), `Sequence` added to the existing `collections.abc` import; `mypy src/dashboard/app.py` clean post-fix; **`mypy src` now fully clean repo-wide for the first time this session — `Success: no issues found in 88 source files`, zero issues** — the 3 errors had been a QA-noise filter across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); candidate future-work item flagged in session log (optional CI gate to lock the repo-wide-clean baseline, NOT filed as DEBT pending explicit user approval) |
 | 2026-05-13 | Resolved | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — `classify_regime_detailed` (`src/runtime/market_regime.py`) now requires the last 2 candles to BOTH sit on the new side of the ±2% band before flipping out of `sideways` per quant Q4's recommendation; threshold unchanged (preserves `RobustnessGate._classify_regimes` parity at `src/backtest/validator.py:929-959` for backtest/live consistency); defensive `len(ohlcv) < 2 → sideways` short-circuit positioned after the existing `insufficient_data` / `stale_data` → `unknown` checks; 8 existing single-bar fixtures across `tests/test_market_regime.py` + `tests/test_runtime_engine.py` updated to 2-bar tails (SMA(200) baseline recomputation `100.015 → 100.03` matches `(198×100 + 2×103)/200`); 4 new tests pin both bull/bear two-bar confirmation + both-confirm-flip behavior; pytest 2059 passed (was 2054; net +5 across both DEBT-062 + DEBT-063, zero regressions); ruff + mypy clean |
 | 2026-05-13 | Resolved | DEBT-062 Market-regime gate sequencing (Medium) — `_market_regime_gate` relocated after `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py`) per quant Q1's recommendation; new gate order `score → correlation → market_regime → strategy_action → trend → ...` ensures when both gates would block, the directly-actionable correlation rejection (with its blocking-trade diagnostic) surfaces on the operator dashboard instead of the non-actionable regime signal; per-cycle regime cache means the relocation has zero OHLCV-fetch cost; pinned by new `tests/test_runtime_engine.py::test_correlation_gate_runs_before_regime_gate` which constructs a both-blocking fixture (correlation conflict + bear regime against `allowed_regimes=["bull"]`) and asserts the correlation event wins; pytest 2059 passed, ruff + mypy clean |
 | 2026-05-13 | Resolved | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — same-day fix per option (b) from the DEBT-065 suggested resolution; new `TechniquePerformance.real_trade_count` property (`total_trades - synthetic_count`) added on `src/strategy/performance.py`; `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1062-1068`, incl. `per_technique_trades` / `max_trades_observed` payload) and `_score.sample_size` derivation (`src/proposal/engine.py:1199-1209`, flowing into `sample_factor`) switched to read it; `total_trades` semantics preserved for operator-facing display (`src/dashboard/pages/strategies.py:118` "Total Trades" column + `src/ai/improver.py:667` prompt rendering); canonical 9+2 defect at threshold 10 now correctly blocks at `_cold_start_blocks_live`; boundary at 10 real + 5 synthetic correctly admits; tests +3 in `tests/test_strategy_performance.py` (property arithmetic) + 4 in `tests/test_proposal_engine.py` (canonical 9+2 defect, 10-real boundary, `_score` 8+3, all-synthetic collapses to cold-start); pytest 2054 passed (was 2047; net +7, zero regressions); ruff + mypy clean; QA-surfaced follow-up filed as DEBT-070 |

@@ -487,6 +487,79 @@ async def test_select_best_technique_filters_by_symbol() -> None:
     assert proposal.technique_name == "btc_only"
 
 
+async def test_select_best_technique_tiebreaks_on_real_trade_count() -> None:
+    """DEBT-070: ranking tie-breaker must read ``real_trade_count``.
+
+    Two strategies on the same symbol with equal composite scores
+    (same ``avg_pnl_percent``) should be tie-broken by the count of
+    *real* (non-synthetic) closes — not raw ``total_trades`` (which
+    includes synthetic reconciliation-close rows).
+
+    Strategy A has 10 synthetic + 0 real closes;
+    Strategy B has 0 synthetic + 5 real closes.
+
+    Pre-fix the sort key ``-perf.total_trades`` made A win
+    (``-10 < -5``). Post-fix the key reads ``-perf.real_trade_count``
+    so B wins (``-5 < 0``).
+    """
+    a = make_strategy(
+        info=make_info("a_synthetic", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    b = make_strategy(
+        info=make_info("b_real", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    perf_a = make_perf("a_synthetic", total_trades=10, avg_pnl_percent=1.0)
+    perf_a.synthetic_count = 10  # real_trade_count == 0
+    perf_b = make_perf("b_real", total_trades=5, avg_pnl_percent=1.0)
+    # synthetic_count defaults to 0 → real_trade_count == 5
+
+    engine, _ = make_engine(
+        strategies={"a_synthetic": a, "b_real": b},
+        perf_records={"a_synthetic": perf_a, "b_real": perf_b},
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.technique_name == "b_real"
+
+
+async def test_select_best_technique_any_history_ignores_synthetic_only() -> None:
+    """DEBT-070: ``any_history`` must gate on ``real_trade_count``.
+
+    A strategy whose only closes are synthetic reconciliation rows
+    should *not* register as having history, so the cold-start branch
+    fires (lex-first by name, ``perf=None``).
+    """
+    a = make_strategy(
+        info=make_info("alpha", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    b = make_strategy(
+        info=make_info("beta", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    # ``beta`` would otherwise win on raw ``total_trades=8`` — but
+    # every row is synthetic, so post-fix it carries zero real history
+    # and the cold-start branch picks ``alpha`` (lex-first).
+    perf_b = make_perf("beta", total_trades=8, avg_pnl_percent=5.0)
+    perf_b.synthetic_count = 8
+
+    engine, _ = make_engine(
+        strategies={"alpha": a, "beta": b},
+        perf_records={"beta": perf_b},
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.technique_name == "alpha"
+    # Cold-start branch: perf=None → confidence × no_history_factor.
+    assert proposal.score.sample_size == 0
+
+
 # =============================================================================
 # Score formula
 # =============================================================================
