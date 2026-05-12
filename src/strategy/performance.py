@@ -104,6 +104,19 @@ class PerformanceRecord(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     # Profile dimension for FR-005 technique+profile combinations
     profile_name: str | None = None
+    # Reconciliation markers (Q2 follow-up — CON-003 promotion gating).
+    # ``synthetic=True`` records are written by
+    # ``src.tools.close_unrecoverable_paper_trades`` to preserve the
+    # audit trail of an unrecoverable open trade that the operator force-
+    # closed; they MUST NOT count toward win-rate / Sharpe / expectancy /
+    # profit-factor aggregations because they encode no real signal
+    # outcome. ``reconciliation_close=True`` is the narrower flag —
+    # currently always paired with ``synthetic=True``, but kept separate
+    # so future reconciliation paths (e.g. half-closed sweep — see
+    # DEBT-064) can mark real-but-tooling-touched rows. Both default to
+    # ``False`` so every pre-existing on-disk record loads as non-synthetic.
+    synthetic: bool = False
+    reconciliation_close: bool = False
 
     model_config = {"use_enum_values": True}
 
@@ -164,6 +177,11 @@ class TechniquePerformance(BaseModel):
     best_trade_pnl: float = 0.0
     worst_trade_pnl: float = 0.0
     last_updated: datetime = Field(default_factory=now_utc)
+    # Q2 follow-up: number of ``synthetic=True`` records excluded from
+    # the money-relevant aggregations above. Reported separately so
+    # analytics can still surface "this many rows were reconciliation-
+    # closed" without polluting win-rate / Sharpe / expectancy.
+    synthetic_count: int = 0
 
     @classmethod
     def from_records(
@@ -188,16 +206,32 @@ class TechniquePerformance(BaseModel):
                 technique_version=technique_version,
             )
 
-        wins = sum(1 for r in records if r.outcome == TradeOutcome.WIN)
-        losses = sum(1 for r in records if r.outcome == TradeOutcome.LOSS)
-        breakevens = sum(1 for r in records if r.outcome == TradeOutcome.BREAKEVEN)
-        pending = sum(1 for r in records if r.outcome == TradeOutcome.PENDING)
+        # Q2 follow-up: exclude synthetic rows from every money-relevant
+        # aggregation (win-rate / Sharpe / expectancy / profit-factor).
+        # Synthetic rows are reconciliation artefacts (close-tool wrote
+        # them so we don't lose the audit trail of a force-closed
+        # unrecoverable trade) — they encode no real signal outcome and
+        # must not feed CON-003 promotion gating. ``total_trades`` still
+        # reflects all records so operator-facing "how many records do
+        # we have" counts stay honest; ``synthetic_count`` surfaces the
+        # excluded count separately.
+        synthetic_count = sum(1 for r in records if r.synthetic)
+        real_records = [r for r in records if not r.synthetic]
+
+        wins = sum(1 for r in real_records if r.outcome == TradeOutcome.WIN)
+        losses = sum(1 for r in real_records if r.outcome == TradeOutcome.LOSS)
+        breakevens = sum(
+            1 for r in real_records if r.outcome == TradeOutcome.BREAKEVEN
+        )
+        pending = sum(1 for r in real_records if r.outcome == TradeOutcome.PENDING)
 
         closed_trades = wins + losses + breakevens
         win_rate = wins / closed_trades if closed_trades > 0 else 0.0
 
-        # Calculate P&L stats from closed trades
-        pnl_values = [r.pnl_percent for r in records if r.pnl_percent is not None]
+        # Calculate P&L stats from closed real trades only.
+        pnl_values = [
+            r.pnl_percent for r in real_records if r.pnl_percent is not None
+        ]
         total_pnl = sum(pnl_values) if pnl_values else 0.0
         avg_pnl = total_pnl / len(pnl_values) if pnl_values else 0.0
         best_pnl = max(pnl_values) if pnl_values else 0.0
@@ -218,6 +252,7 @@ class TechniquePerformance(BaseModel):
             best_trade_pnl=best_pnl,
             worst_trade_pnl=worst_pnl,
             last_updated=now_utc(),
+            synthetic_count=synthetic_count,
         )
 
 

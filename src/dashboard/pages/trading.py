@@ -33,9 +33,15 @@ import streamlit as st
 import yaml
 
 from src.config import get_settings
+from src.dashboard.pages.engine import (
+    build_reconciliation_drilldown_dataframe,
+    build_reconciliation_status_banner,
+    render_reconciliation_banner,
+)
 from src.dashboard.query_params import query_param_first as _query_param_first
 from src.logger import get_logger
 from src.proposal.interaction import ProposalHistory
+from src.runtime.activity_log import ActivityLog
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.portfolio import AssetSnapshot, PortfolioTracker
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
@@ -428,6 +434,7 @@ def render(
     portfolio_tracker: PortfolioTracker | None = None,
     proposal_history: ProposalHistory | None = None,
     sub_account_ids: list[str] | None = None,
+    activity_log: ActivityLog | None = None,
 ) -> None:
     """Render the Trading page.
 
@@ -442,9 +449,27 @@ def render(
         sub_account_ids: Optional active sub-account ids for tests or
             dashboard wiring. When omitted, ids are discovered from
             persisted trade / portfolio directories.
+        activity_log: Optional :class:`ActivityLog` override. Defaults
+            to a fresh ``ActivityLog()`` reading from
+            ``data/runtime/activity.jsonl``. Used to render the
+            runtime-reconciliation banner + drill-through + cash-only
+            suppression rule (runtime-reconciliation §4).
     """
     st.title("💹 Trading")
     st.caption("Active positions, recent trade history, and equity curve.")
+
+    # runtime-reconciliation §4: persistent banner above everything,
+    # sourced from the engine's activity log. Cash-only suppression
+    # rule below uses ``banner.open_trade_count`` so the page never
+    # reports "no open positions" when the ledger has live rows.
+    log = activity_log or ActivityLog()
+    activity_events = log.read_all()
+    banner = build_reconciliation_status_banner(activity_events)
+    render_reconciliation_banner(banner)
+    drilldown_df = build_reconciliation_drilldown_dataframe(activity_events)
+    if not drilldown_df.empty:
+        with st.expander("Reconciliation status — per-trade detail", expanded=False):
+            st.dataframe(drilldown_df, hide_index=True, use_container_width=True)
 
     mode_options: tuple[DashboardMode, DashboardMode] = ("paper", "live")
     requested_mode = _query_param_first("mode")
@@ -553,8 +578,24 @@ def render(
     if requested_symbol and "Symbol" in open_df.columns:
         open_df = open_df[open_df["Symbol"] == requested_symbol]
     with pos_col:
+        # runtime-reconciliation §4 cash-only suppression rule. If the
+        # reconciliation banner reports open trades on the ledger but
+        # the portfolio snapshot disagrees (empty ``open_df``), we
+        # must NOT render the cheery "no open positions" summary —
+        # that's the exact Fly 2026-05-13 failure mode this unit
+        # exists to prevent. The banner + drill-through above already
+        # surface the ledger state; the snapshot block below is
+        # explicitly labeled as potentially stale.
         if open_df.empty:
-            st.info("No open positions.")
+            if banner.open_trade_count > 0:
+                st.warning(
+                    f"Portfolio snapshot reports no open positions, but the "
+                    f"ledger has {banner.open_trade_count} open trade(s). "
+                    "See the reconciliation status banner above and the "
+                    "per-trade detail expander."
+                )
+            else:
+                st.info("No open positions.")
         else:
             st.dataframe(open_df, hide_index=True, use_container_width=True)
     # Phase 15.1: surfaces *why* the table can be empty —

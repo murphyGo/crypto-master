@@ -1944,3 +1944,167 @@ class TestAtomicWriteRegression:
         assert len(data) == 1
         assert data[0]["id"] == first.id
         assert data[0]["symbol"] == "BTC/USDT"
+
+
+class TestSyntheticMarkers:
+    """Q2 follow-up: ``synthetic`` / ``reconciliation_close`` markers.
+
+    The ``close_unrecoverable_paper_trades`` tool writes synthetic
+    ``PerformanceRecord`` rows so we don't lose the audit trail of a
+    force-closed unrecoverable trade. These markers must (a) round-trip
+    through the strict ``PerformanceRecord`` model and (b) keep
+    synthetic rows out of every money-relevant aggregation in
+    ``TechniquePerformance.from_records`` so CON-003 promotion gating
+    isn't fooled by reconciliation artefacts.
+    """
+
+    def _real_win(
+        self, pnl_percent: float = 5.0, exit_price: str = "52500"
+    ) -> PerformanceRecord:
+        return PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            outcome=TradeOutcome.WIN,
+            exit_price=Decimal(exit_price),
+            pnl_percent=pnl_percent,
+        )
+
+    def _real_loss(self) -> PerformanceRecord:
+        return PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            outcome=TradeOutcome.LOSS,
+            exit_price=Decimal("49000"),
+            pnl_percent=-2.0,
+        )
+
+    def _synthetic_breakeven(self) -> PerformanceRecord:
+        return PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.0,
+            outcome=TradeOutcome.BREAKEVEN,
+            exit_price=Decimal("50000"),
+            pnl_percent=0.0,
+            synthetic=True,
+            reconciliation_close=True,
+        )
+
+    def test_default_markers_false(self) -> None:
+        """Both flags default to False so legacy on-disk records load clean."""
+        record = PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+        )
+        assert record.synthetic is False
+        assert record.reconciliation_close is False
+
+    def test_synthetic_flag_round_trips_through_tracker(
+        self, tracker: PerformanceTracker, tmp_path: Path
+    ) -> None:
+        """The markers persist to JSON and are recovered on load.
+
+        Pre-Q2 the model had ``extra="ignore"`` so on-disk markers
+        vanished on load. This is the regression pin.
+        """
+        record = self._synthetic_breakeven()
+        record.technique_name = "synth_test"
+        tracker.save_record(record)
+
+        records_path = tmp_path / "default" / "synth_test" / "records.json"
+        with records_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        assert data[0]["synthetic"] is True
+        assert data[0]["reconciliation_close"] is True
+
+        loaded = tracker.load_records("synth_test")
+        assert len(loaded) == 1
+        assert loaded[0].synthetic is True
+        assert loaded[0].reconciliation_close is True
+
+    def test_from_records_excludes_synthetic_from_win_rate(self) -> None:
+        """Win-rate is computed over real records only.
+
+        Two real wins + one real loss + one synthetic breakeven →
+        win-rate 2/3, not 2/4 (which would happen if synthetic
+        breakeven were counted).
+        """
+        records = [
+            self._real_win(),
+            self._real_win(pnl_percent=3.0, exit_price="51500"),
+            self._real_loss(),
+            self._synthetic_breakeven(),
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        assert perf.total_trades == 4
+        assert perf.synthetic_count == 1
+        assert perf.wins == 2
+        assert perf.losses == 1
+        assert perf.breakevens == 0
+        assert abs(perf.win_rate - (2 / 3)) < 1e-9
+
+    def test_from_records_excludes_synthetic_from_pnl_aggregates(self) -> None:
+        """Synthetic 0% rows don't drag avg / total / best / worst P&L."""
+        records = [
+            self._real_win(pnl_percent=5.0),
+            self._real_loss(),  # -2%
+            self._synthetic_breakeven(),  # 0% — would skew avg if counted
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        # Real avg is (5 + -2) / 2 = 1.5, not (5 + -2 + 0) / 3 = 1.0.
+        assert abs(perf.avg_pnl_percent - 1.5) < 1e-9
+        assert abs(perf.total_pnl_percent - 3.0) < 1e-9
+        assert perf.best_trade_pnl == 5.0
+        assert perf.worst_trade_pnl == -2.0
+
+    def test_from_records_synthetic_count_zero_when_no_synthetic(self) -> None:
+        """``synthetic_count`` is 0 when no synthetic rows are present."""
+        perf = TechniquePerformance.from_records(
+            "test", "1.0.0", [self._real_win(), self._real_loss()]
+        )
+        assert perf.synthetic_count == 0
+        assert perf.total_trades == 2
+
+    def test_from_records_all_synthetic_yields_zero_aggregates(self) -> None:
+        """All-synthetic input produces a zeroed money-aggregate.
+
+        The synthetic_count + total_trades reflect the rows on disk
+        (so analytics can still count them), but win-rate / avg-pnl
+        collapse to the empty-real-records defaults.
+        """
+        perf = TechniquePerformance.from_records(
+            "test", "1.0.0", [self._synthetic_breakeven(), self._synthetic_breakeven()]
+        )
+        assert perf.total_trades == 2
+        assert perf.synthetic_count == 2
+        assert perf.wins == 0
+        assert perf.losses == 0
+        assert perf.win_rate == 0.0
+        assert perf.avg_pnl_percent == 0.0

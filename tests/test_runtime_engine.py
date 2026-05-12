@@ -4245,3 +4245,198 @@ class TestMarketRegimeGate:
         await engine.run_cycle()
 
         assert mocks["exchange"].get_ohlcv.await_count == 1
+
+
+# =============================================================================
+# Startup reconciliation health check (runtime-reconciliation §3)
+# =============================================================================
+
+
+def _seed_paper_trade_row(
+    tmp_path: Path,
+    sub_account_id: str,
+    *,
+    trade_id: str = "trade-1",
+    symbol: str | None = "BTC/USDT",
+    side: str | None = "long",
+    entry_price: str | None = "50000",
+    entry_quantity: str | None = "0.1",
+    stop_loss: str | None = "49500",
+    take_profit: str | None = "51500",
+    leverage: int = 10,
+    performance_record_id: str | None = None,
+    status: str = "open",
+) -> None:
+    """Write a single open paper-trade row into the ledger directly.
+
+    Bypasses ``TradeHistoryTracker.open_trade`` so tests can construct
+    rows with deliberately missing fields (the strict pydantic model
+    rejects ``None`` symbol/price; the on-disk JSON is more
+    permissive and that's exactly the failure mode the reconciliation
+    classifier surfaces).
+    """
+    import json as _json
+
+    path = tmp_path / "trades" / "paper" / sub_account_id / "trades.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows: list[dict] = []
+    if path.exists():
+        rows = _json.loads(path.read_text())
+    rows.append(
+        {
+            "id": trade_id,
+            "sub_account_id": sub_account_id,
+            "symbol": symbol,
+            "side": side,
+            "entry_price": entry_price,
+            "entry_quantity": entry_quantity,
+            "leverage": leverage,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "performance_record_id": performance_record_id,
+            "status": status,
+            "mode": "paper",
+        }
+    )
+    path.write_text(_json.dumps(rows, indent=2))
+
+
+def _drive_run_forever_once(engine: TradingEngine) -> None:
+    """Trip ``run_forever`` so the startup health check fires, then stop.
+
+    The engine is signalled to stop *before* ``run_forever`` is called
+    so the loop guard exits immediately after the STARTUP + health
+    check pass. This keeps the test deterministic — we don't depend
+    on the cycle body or any of its mocks for the health-check
+    coverage.
+    """
+    engine._stop_event.set()
+    asyncio.run(engine.run_forever())
+
+
+def test_startup_emits_reconciliation_health_report(tmp_path: Path) -> None:
+    """One ``RECONCILIATION_HEALTH_REPORT`` event per startup, never blocks."""
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    # Make the trader's tracker data_dir resolve to ``tmp_path/trades``
+    # so the health-check helper picks ``tmp_path`` as the data root
+    # rather than ``Settings().data_dir``.
+    tracker = MagicMock()
+    tracker.data_dir = tmp_path / "trades"
+    mocks["trader"]._trade_tracker = tracker
+
+    _seed_paper_trade_row(
+        tmp_path,
+        "default",
+        trade_id="bad",
+        symbol=None,  # unrecoverable
+        performance_record_id=None,
+    )
+
+    _drive_run_forever_once(engine)
+
+    events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.RECONCILIATION_HEALTH_REPORT
+    )
+    assert len(events) == 1
+    event = events[0]
+    totals = event.details["totals"]
+    assert totals["open_trade_count"] == 1
+    assert totals["state_counts"]["unrecoverable"] == 1
+
+
+def test_startup_emits_locked_inconsistent_event_when_drift_detected(
+    tmp_path: Path,
+) -> None:
+    """A locked-margin drift produces a separate ``RECONCILIATION_LOCKED_INCONSISTENT`` event."""
+    import json as _json
+
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    tracker = MagicMock()
+    tracker.data_dir = tmp_path / "trades"
+    mocks["trader"]._trade_tracker = tracker
+
+    # One open row → locked_sum = 50000 * 0.1 / 10 = 500.
+    _seed_paper_trade_row(tmp_path, "default", trade_id="ok")
+    # Snapshot reports a different locked amount → drift > epsilon.
+    balances_path = (
+        tmp_path / "trades" / "paper" / "default" / "balances.json"
+    )
+    balances_path.write_text(
+        _json.dumps(
+            {
+                "USDT": {
+                    "currency": "USDT",
+                    "free": "9000",
+                    "locked": "999",
+                }
+            }
+        )
+    )
+
+    _drive_run_forever_once(engine)
+
+    inconsistent = mocks["activity_log"].filter(
+        event_type=ActivityEventType.RECONCILIATION_LOCKED_INCONSISTENT
+    )
+    assert len(inconsistent) == 1
+    sub_accounts = inconsistent[0].details["sub_accounts"]
+    assert sub_accounts[0]["sub_account_id"] == "default"
+
+
+def test_startup_health_check_swallows_internal_errors(tmp_path: Path) -> None:
+    """A crash inside ``compute_health_report`` must not block startup.
+
+    Paper-mode resolution 2026-05-13: never fail-startup. Verified by
+    patching the helper to raise; ``run_forever`` must still emit the
+    STARTUP event and reach SHUTDOWN cleanly. The success-event
+    (``RECONCILIATION_HEALTH_REPORT``) must NOT be emitted — Q4
+    follow-up routes the failure through
+    ``RECONCILIATION_HEALTH_CHECK_FAILED`` instead.
+    """
+    engine, mocks = build_engine(tmp_path=tmp_path)
+
+    with patch(
+        "src.runtime.engine.compute_health_report",
+        side_effect=RuntimeError("boom"),
+    ):
+        _drive_run_forever_once(engine)
+
+    events = mocks["activity_log"].read_all()
+    event_types = {e.event_type for e in events}
+    assert ActivityEventType.STARTUP.value in event_types
+    assert ActivityEventType.SHUTDOWN.value in event_types
+    assert (
+        ActivityEventType.RECONCILIATION_HEALTH_REPORT.value not in event_types
+    )
+
+
+def test_startup_emits_health_check_failed_event(tmp_path: Path) -> None:
+    """Q4 follow-up: a ``compute_health_report`` crash emits a meta-event.
+
+    Without this event the dashboard cannot distinguish "fresh deploy
+    that hasn't booted yet" from "health check has been crashing on
+    every boot for 9 days" — the DEBT-061 silent-disable anti-pattern.
+    Payload contract pinned: ``error_type`` / ``message`` /
+    ``sub_account_id`` keys are stable for the dashboard banner.
+    """
+    engine, mocks = build_engine(tmp_path=tmp_path)
+
+    with patch(
+        "src.runtime.engine.compute_health_report",
+        side_effect=RuntimeError("boom"),
+    ):
+        _drive_run_forever_once(engine)
+
+    failed = mocks["activity_log"].filter(
+        event_type=ActivityEventType.RECONCILIATION_HEALTH_CHECK_FAILED
+    )
+    assert len(failed) == 1
+    payload = failed[0].details
+    assert payload["error_type"] == "RuntimeError"
+    assert payload["message"] == "boom"
+    assert payload["sub_account_id"] is None
+    # Startup still proceeded to the cycle loop — STARTUP and SHUTDOWN
+    # bracket the run as in the success path.
+    event_types = {e.event_type for e in mocks["activity_log"].read_all()}
+    assert ActivityEventType.STARTUP.value in event_types
+    assert ActivityEventType.SHUTDOWN.value in event_types

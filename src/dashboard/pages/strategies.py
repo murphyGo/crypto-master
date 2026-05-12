@@ -151,6 +151,11 @@ def build_trend_dataframe(
     """
     rows: list[dict[str, object]] = []
     for r in records:
+        # Q2 follow-up: synthetic / reconciliation-close records carry a
+        # 0% P&L by construction and would flatten the cumulative trend
+        # without representing a real trade outcome — skip them.
+        if r.synthetic:
+            continue
         pnl = r.pnl_percent if r.pnl_percent is not None else r.calculate_pnl()
         if pnl is None:
             continue

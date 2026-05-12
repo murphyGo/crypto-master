@@ -929,3 +929,275 @@ render(activity_log=ActivityLog(path=Path({str(log_path)!r})))
     assert not at.exception, [str(e) for e in at.exception]
     titles = [t.value for t in at.title]
     assert any("Engine" in t for t in titles), titles
+
+
+# =============================================================================
+# Reconciliation banner + drill-through (runtime-reconciliation §4)
+# =============================================================================
+
+
+from src.dashboard.pages.engine import (  # noqa: E402
+    build_reconciliation_drilldown_dataframe,
+    build_reconciliation_status_banner,
+)
+
+
+def _reconciliation_event(
+    *,
+    timestamp: datetime,
+    open_count: int = 0,
+    monitorable: int = 0,
+    degraded: int = 0,
+    unrecoverable: int = 0,
+    legacy: int = 0,
+    any_inconsistent: bool = False,
+    classifications: list[dict] | None = None,
+) -> ActivityEvent:
+    """Build a ``RECONCILIATION_HEALTH_REPORT`` activity event for tests."""
+    return make_event(
+        event_type=ActivityEventType.RECONCILIATION_HEALTH_REPORT,
+        timestamp=timestamp,
+        details={
+            "report": {
+                "default": {
+                    "open_trade_count": open_count,
+                    "state_counts": {
+                        "monitorable": monitorable,
+                        "degraded": degraded,
+                        "unrecoverable": unrecoverable,
+                        "legacy_no_perf_link": legacy,
+                    },
+                    "locked_sum": "0",
+                    "balance_snapshot_present": True,
+                    "balance_locked": "0",
+                    "locked_consistent": not any_inconsistent,
+                    "perf_links_resolved": 0,
+                    "perf_links_missing": 0,
+                    "classifications": classifications or [],
+                }
+            },
+            "totals": {
+                "open_trade_count": open_count,
+                "state_counts": {
+                    "monitorable": monitorable,
+                    "degraded": degraded,
+                    "unrecoverable": unrecoverable,
+                    "legacy_no_perf_link": legacy,
+                },
+                "locked_sum": "0",
+                "perf_links_resolved": 0,
+                "perf_links_missing": 0,
+                "any_locked_inconsistent": any_inconsistent,
+                "classifications": classifications or [],
+            },
+        },
+    )
+
+
+def test_reconciliation_banner_green_when_no_event() -> None:
+    """No event yet → Green with the 'engine not started' message."""
+    banner = build_reconciliation_status_banner([])
+    assert banner.color == "green"
+    assert banner.open_trade_count == 0
+    assert banner.report_timestamp is None
+
+
+def test_reconciliation_banner_green_when_all_monitorable() -> None:
+    """All open trades monitorable + locked-consistent → Green."""
+    events = [
+        _reconciliation_event(
+            timestamp=now_utc(),
+            open_count=3,
+            monitorable=3,
+        )
+    ]
+    banner = build_reconciliation_status_banner(events)
+    assert banner.color == "green"
+    assert banner.open_trade_count == 3
+    assert banner.cta is None
+
+
+def test_reconciliation_banner_yellow_on_degraded() -> None:
+    """Any ``degraded`` row → Yellow with the backfill CTA."""
+    events = [
+        _reconciliation_event(
+            timestamp=now_utc(),
+            open_count=2,
+            monitorable=1,
+            degraded=1,
+        )
+    ]
+    banner = build_reconciliation_status_banner(events)
+    assert banner.color == "yellow"
+    assert banner.cta is not None
+    assert "backfill_paper_sl_tp" in banner.cta
+
+
+def test_reconciliation_banner_yellow_on_locked_inconsistent() -> None:
+    """``any_locked_inconsistent`` alone is enough to trip Yellow."""
+    events = [
+        _reconciliation_event(
+            timestamp=now_utc(),
+            open_count=1,
+            monitorable=1,
+            any_inconsistent=True,
+        )
+    ]
+    banner = build_reconciliation_status_banner(events)
+    assert banner.color == "yellow"
+
+
+def test_reconciliation_banner_red_on_unrecoverable() -> None:
+    """Any ``unrecoverable`` row → Red with the close-tool CTA."""
+    events = [
+        _reconciliation_event(
+            timestamp=now_utc(),
+            open_count=2,
+            monitorable=1,
+            unrecoverable=1,
+        )
+    ]
+    banner = build_reconciliation_status_banner(events)
+    assert banner.color == "red"
+    assert banner.cta is not None
+    assert "close_unrecoverable_paper_trades" in banner.cta
+
+
+def test_reconciliation_banner_uses_most_recent_event() -> None:
+    """Multiple reports → the newest one wins."""
+    older = _reconciliation_event(
+        timestamp=now_utc() - timedelta(hours=1),
+        open_count=5,
+        unrecoverable=5,
+    )
+    newer = _reconciliation_event(
+        timestamp=now_utc(),
+        open_count=5,
+        monitorable=5,
+    )
+    banner = build_reconciliation_status_banner([older, newer])
+    assert banner.color == "green"
+
+
+def test_reconciliation_drilldown_dataframe_shape() -> None:
+    """Per-trade drill-through carries one row per classification."""
+    events = [
+        _reconciliation_event(
+            timestamp=now_utc(),
+            open_count=2,
+            monitorable=1,
+            unrecoverable=1,
+            classifications=[
+                {
+                    "trade_id": "t1",
+                    "sub_account_id": "alpha",
+                    "symbol": "BTC/USDT",
+                    "side": "long",
+                    "state": "monitorable",
+                    "missing_fields": [],
+                },
+                {
+                    "trade_id": "t2",
+                    "sub_account_id": "beta",
+                    "symbol": None,
+                    "side": "short",
+                    "state": "unrecoverable",
+                    "missing_fields": ["symbol"],
+                },
+            ],
+        )
+    ]
+    df = build_reconciliation_drilldown_dataframe(events)
+    assert len(df) == 2
+    assert set(df.columns) == {
+        "Sub-account",
+        "Trade ID",
+        "Symbol",
+        "Side",
+        "State",
+        "Missing Fields",
+    }
+    # The unrecoverable row's missing fields are rendered as a comma-list.
+    row_t2 = df[df["Trade ID"] == "t2"].iloc[0]
+    assert row_t2["State"] == "unrecoverable"
+    assert row_t2["Missing Fields"] == "symbol"
+
+
+def test_reconciliation_drilldown_empty_keeps_columns() -> None:
+    """Empty event list → empty DataFrame, columns preserved."""
+    df = build_reconciliation_drilldown_dataframe([])
+    assert df.empty
+    assert "State" in df.columns
+
+
+# =============================================================================
+# Q4 follow-up: health-check failure visibility
+# =============================================================================
+
+
+def _failed_event(*, timestamp: datetime) -> ActivityEvent:
+    """Build a ``RECONCILIATION_HEALTH_CHECK_FAILED`` event for tests."""
+    return make_event(
+        event_type=ActivityEventType.RECONCILIATION_HEALTH_CHECK_FAILED,
+        timestamp=timestamp,
+        message="Reconciliation health check failed: boom",
+        details={
+            "error_type": "RuntimeError",
+            "message": "boom",
+            "sub_account_id": None,
+        },
+    )
+
+
+def test_reconciliation_banner_yellow_on_health_check_failed() -> None:
+    """``RECONCILIATION_HEALTH_CHECK_FAILED`` as latest event → Yellow + CTA.
+
+    Pre-Q4 the dashboard rendered Green with "engine has not started"
+    in this case — operators could not distinguish a fresh deploy from
+    a chronically-broken health check (DEBT-061 silent-disable
+    anti-pattern). This pin asserts the failure is operator-visible.
+    """
+    events = [_failed_event(timestamp=now_utc())]
+    banner = build_reconciliation_status_banner(events)
+    assert banner.color == "yellow"
+    assert "investigate logs" in banner.message.lower()
+    assert banner.cta is not None
+    assert banner.report_timestamp is not None
+
+
+def test_reconciliation_banner_failed_event_wins_over_older_success() -> None:
+    """A later failure overrides an earlier successful Green report."""
+    older = _reconciliation_event(
+        timestamp=now_utc() - timedelta(hours=1),
+        open_count=3,
+        monitorable=3,
+    )
+    newer = _failed_event(timestamp=now_utc())
+    banner = build_reconciliation_status_banner([older, newer])
+    assert banner.color == "yellow"
+
+
+def test_reconciliation_banner_success_wins_over_older_failure() -> None:
+    """A later successful report overrides an earlier failed meta-event.
+
+    Symmetric pin: once the operator fixes the underlying ledger crash
+    the next startup's success report should win, restoring Green.
+    """
+    older = _failed_event(timestamp=now_utc() - timedelta(hours=1))
+    newer = _reconciliation_event(
+        timestamp=now_utc(),
+        open_count=2,
+        monitorable=2,
+    )
+    banner = build_reconciliation_status_banner([older, newer])
+    assert banner.color == "green"
+
+
+def test_reconciliation_drilldown_empty_on_failed_event() -> None:
+    """The failed meta-event carries no classifications → empty drill-through."""
+    events = [_failed_event(timestamp=now_utc())]
+    df = build_reconciliation_drilldown_dataframe(events)
+    assert df.empty
+    # Columns still preserved so the dashboard renders the empty table
+    # without a KeyError.
+    assert "State" in df.columns

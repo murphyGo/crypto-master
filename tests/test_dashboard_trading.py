@@ -664,3 +664,137 @@ render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph)
     )
     assert "Current Equity" in metric_blob, metric_blob
     assert "10100" in metric_blob, metric_blob
+
+
+# =============================================================================
+# Cash-only suppression rule (runtime-reconciliation §4)
+# =============================================================================
+
+
+def test_cash_only_suppressed_when_ledger_has_open_trades(tmp_path: Path) -> None:
+    """The Trading page must not render "no open positions" when the
+    reconciliation banner reports a non-zero open-trade count.
+
+    This pins the exact Fly 2026-05-13 failure mode: 49 open ledger
+    rows but the portfolio snapshot reports zero positions. The
+    page-level guard is the explicit warning that fires whenever
+    the banner's ``open_trade_count > 0`` *and* the open-positions
+    DataFrame is empty. We exercise both halves via a focused
+    AppTest harness — no real trades or snapshots are seeded so the
+    DataFrame is genuinely empty.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    # Pre-seed an activity log with a RECONCILIATION_HEALTH_REPORT
+    # event that reports a non-zero open-trade count.
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    log = ActivityLog(path=tmp_path / "activity.jsonl")
+    log.append(
+        ActivityEventType.RECONCILIATION_HEALTH_REPORT,
+        "snapshot",
+        details={
+            "report": {
+                "default": {
+                    "open_trade_count": 3,
+                    "state_counts": {
+                        "monitorable": 3,
+                        "degraded": 0,
+                        "unrecoverable": 0,
+                        "legacy_no_perf_link": 0,
+                    },
+                    "locked_sum": "0",
+                    "balance_snapshot_present": True,
+                    "balance_locked": "0",
+                    "locked_consistent": True,
+                    "perf_links_resolved": 3,
+                    "perf_links_missing": 0,
+                    "classifications": [],
+                }
+            },
+            "totals": {
+                "open_trade_count": 3,
+                "state_counts": {
+                    "monitorable": 3,
+                    "degraded": 0,
+                    "unrecoverable": 0,
+                    "legacy_no_perf_link": 0,
+                },
+                "locked_sum": "0",
+                "perf_links_resolved": 3,
+                "perf_links_missing": 0,
+                "any_locked_inconsistent": False,
+                "classifications": [],
+            },
+        },
+    )
+
+    script = f"""
+import sys
+sys.path.insert(0, {str(Path.cwd())!r})
+from pathlib import Path
+from src.dashboard.pages.trading import render
+from src.proposal.interaction import ProposalHistory
+from src.runtime.activity_log import ActivityLog
+from src.strategy.performance import TradeHistoryTracker
+from src.trading.portfolio import PortfolioTracker
+
+tt = TradeHistoryTracker(data_dir=Path({str(tmp_path / "trades")!r}))
+pt = PortfolioTracker(
+    data_dir=Path({str(tmp_path / "portfolio")!r}),
+    trade_tracker=tt,
+)
+ph = ProposalHistory(data_dir=Path({str(tmp_path / "proposals")!r}))
+log = ActivityLog(path=Path({str(tmp_path / "activity.jsonl")!r}))
+
+render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph, activity_log=log)
+"""
+    at = AppTest.from_string(script).run(timeout=15)
+
+    assert not at.exception, [str(e) for e in at.exception]
+    warning_text = " ".join(w.value for w in at.warning)
+    # The cash-only suppression rule replaces "No open positions" with
+    # an explicit ledger-vs-snapshot mismatch warning carrying the
+    # ledger open-trade count.
+    assert "ledger has 3 open trade(s)" in warning_text, warning_text
+    info_text = " ".join(i.value for i in at.info)
+    assert "No open positions" not in info_text
+
+
+def test_no_cash_only_suppression_when_ledger_is_empty(tmp_path: Path) -> None:
+    """Reverse case: zero open trades on the ledger → "No open positions" is fine.
+
+    Pins that the suppression rule is gated specifically on the
+    banner's ``open_trade_count`` and doesn't accidentally fire for
+    every render.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    # No activity log → no reconciliation event → banner reports 0
+    # open trades. The default "No open positions" info message is
+    # the expected render.
+    script = f"""
+import sys
+sys.path.insert(0, {str(Path.cwd())!r})
+from pathlib import Path
+from src.dashboard.pages.trading import render
+from src.proposal.interaction import ProposalHistory
+from src.runtime.activity_log import ActivityLog
+from src.strategy.performance import TradeHistoryTracker
+from src.trading.portfolio import PortfolioTracker
+
+tt = TradeHistoryTracker(data_dir=Path({str(tmp_path / "trades")!r}))
+pt = PortfolioTracker(
+    data_dir=Path({str(tmp_path / "portfolio")!r}),
+    trade_tracker=tt,
+)
+ph = ProposalHistory(data_dir=Path({str(tmp_path / "proposals")!r}))
+log = ActivityLog(path=Path({str(tmp_path / "activity.jsonl")!r}))
+
+render(trade_tracker=tt, portfolio_tracker=pt, proposal_history=ph, activity_log=log)
+"""
+    at = AppTest.from_string(script).run(timeout=15)
+
+    assert not at.exception, [str(e) for e in at.exception]
+    info_text = " ".join(i.value for i in at.info)
+    assert "No open positions" in info_text

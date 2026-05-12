@@ -72,6 +72,7 @@ from src.runtime.market_regime import (
     RegimeClassification,
     classify_regime_detailed,
 )
+from src.runtime.reconciliation import compute_health_report
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
@@ -777,6 +778,13 @@ class TradingEngine:
                 "auto_approve_threshold": self.config.auto_approve_threshold,
             },
         )
+        # runtime-reconciliation §3: one health-check pass per startup,
+        # after rehydration (the trader's constructor already ran by the
+        # time we get here) and before the cycle loop. Resolution
+        # 2026-05-13: async / log+continue — never fail-startup. Any
+        # exception inside the helper is swallowed so a malformed
+        # ledger can't keep the Fly machine from booting.
+        self._run_reconciliation_health_check()
         try:
             while not self._stop_event.is_set():
                 await self._run_one_cycle_with_guard()
@@ -2716,6 +2724,122 @@ class TradingEngine:
             if record.trade_id == trade_id:
                 return record
         return None
+
+    def _run_reconciliation_health_check(self) -> None:
+        """Emit ``RECONCILIATION_HEALTH_REPORT`` once at startup.
+
+        runtime-reconciliation §3. The pass is read-only (the helper
+        only walks the on-disk ledger + perf records + balances
+        snapshot) so it is safe to invoke synchronously from
+        ``run_forever`` before the cycle loop. The taxonomy is
+        recomputed on every startup — state is never persisted —
+        because perf-record presence and ledger contents can drift
+        between restarts.
+
+        Failures are logged and swallowed: a malformed ledger must not
+        keep the engine from booting (Resolution 2026-05-13 paper-mode
+        policy; live-mode tightening is a future concern). The
+        dashboard banner is sourced from this event so even a partial
+        / empty report is preferable to no signal at all.
+        """
+        try:
+            data_dir = self._reconciliation_data_dir()
+            sub_account_ids = [
+                self._sub_account_id(sub_account)
+                for sub_account in self._active_sub_accounts()
+            ]
+            report = compute_health_report(data_dir, sub_account_ids)
+        except Exception as exc:
+            # Q4 follow-up: log-and-continue is still the contract
+            # (paper-mode resolution 2026-05-13 — never fail-startup),
+            # but the failure itself must be operator-visible so a
+            # chronically-broken health check can't masquerade as a
+            # fresh deployment. Emit the meta-event before returning;
+            # the dashboard banner will render Yellow with a CTA when
+            # this is the most recent reconciliation event.
+            logger.warning(
+                "Reconciliation health check failed: %s", exc, exc_info=True
+            )
+            self.activity_log.append(
+                ActivityEventType.RECONCILIATION_HEALTH_CHECK_FAILED,
+                f"Reconciliation health check failed: {exc}",
+                details={
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                    "sub_account_id": None,
+                },
+            )
+            return
+
+        totals = report.get("totals", {})
+        state_counts = totals.get("state_counts", {}) or {}
+        open_count = int(totals.get("open_trade_count", 0))
+        unrecoverable = int(state_counts.get("unrecoverable", 0))
+        degraded = int(state_counts.get("degraded", 0))
+
+        message = (
+            f"Reconciliation: {open_count} open trade(s); "
+            f"degraded={degraded}, unrecoverable={unrecoverable}"
+        )
+        if unrecoverable > 0:
+            logger.warning(message)
+        elif degraded > 0:
+            logger.info(message)
+        else:
+            logger.info(message)
+
+        self.activity_log.append(
+            ActivityEventType.RECONCILIATION_HEALTH_REPORT,
+            message,
+            details=report,
+        )
+
+        # NFR-008: surface locked-vs-snapshot drift as its own event so
+        # the dashboard can filter and the safety score can pick it up
+        # without scanning the full health-report payload.
+        inconsistent: list[dict[str, Any]] = []
+        for sub_account_id, per_account in report.get("report", {}).items():
+            if not per_account.get("locked_consistent", True):
+                inconsistent.append(
+                    {
+                        "sub_account_id": sub_account_id,
+                        "locked_sum": per_account.get("locked_sum"),
+                        "balance_locked": per_account.get("balance_locked"),
+                        "balance_snapshot_present": per_account.get(
+                            "balance_snapshot_present"
+                        ),
+                    }
+                )
+        if inconsistent:
+            self.activity_log.append(
+                ActivityEventType.RECONCILIATION_LOCKED_INCONSISTENT,
+                (
+                    f"Locked margin drift on {len(inconsistent)} sub-account(s); "
+                    "operator review required"
+                ),
+                details={"sub_accounts": inconsistent},
+            )
+
+    def _reconciliation_data_dir(self) -> Any:
+        """Return the engine's effective data-root for reconciliation reads.
+
+        Prefer the trader's ``TradeHistoryTracker.data_dir`` parent (the
+        same root the runtime writes against) so tests with a tmp
+        ``data_dir`` don't have to monkeypatch ``Settings``. Falls back
+        to ``Settings.data_dir`` when the trader doesn't expose a
+        tracker (mock traders in unit tests).
+        """
+        from pathlib import Path
+
+        tracker = getattr(self.trader, "_trade_tracker", None)
+        tracker_dir = getattr(tracker, "data_dir", None)
+        if isinstance(tracker_dir, Path):
+            # ``TradeHistoryTracker.data_dir`` is ``<data_dir>/trades``;
+            # walk up one level to recover the engine data root.
+            return tracker_dir.parent
+        from src.config import get_settings
+
+        return get_settings().data_dir
 
     def _active_sub_accounts(self) -> list[SubAccount | None]:
         if self.sub_account_registry is None:

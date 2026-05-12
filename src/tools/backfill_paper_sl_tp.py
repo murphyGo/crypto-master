@@ -43,6 +43,7 @@ from pathlib import Path
 
 from src.config import get_settings
 from src.logger import get_logger
+from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.utils.io import atomic_write_text
 
 logger = get_logger("crypto_master.tools.backfill_paper_sl_tp")
@@ -274,6 +275,8 @@ def backfill_paper_sl_tp(
     data_dir: Path,
     sub_account: str | None = None,
     dry_run: bool = False,
+    *,
+    activity_log: ActivityLog | None = None,
 ) -> BackfillSummary:
     """Walk every paper sub-account ledger and backfill SL/TP from perf records.
 
@@ -285,6 +288,14 @@ def backfill_paper_sl_tp(
             that sub-account's ledger is touched.
         dry_run: When ``True``, compute the summary counts but write
             nothing back to disk.
+        activity_log: Optional :class:`ActivityLog`. When supplied and
+            ``dry_run`` is ``False``, a single
+            :attr:`ActivityEventType.BACKFILL_PAPER_SL_TP_RAN` event is
+            appended after the walk completes so the dashboard
+            timeline confirms the repair landed (runtime-reconciliation
+            §2). Defaults to a fresh ``ActivityLog()`` instance from
+            ``main`` so CLI invocations always emit; tests can pass
+            their own log or ``None`` to opt out.
 
     Returns:
         Aggregated :class:`BackfillSummary` across every sub-account
@@ -322,6 +333,24 @@ def backfill_paper_sl_tp(
             skipped,
         )
         totals.merge(sub_summary)
+
+    if not dry_run and activity_log is not None:
+        activity_log.append(
+            ActivityEventType.BACKFILL_PAPER_SL_TP_RAN,
+            (
+                f"Backfilled SL/TP on {totals.backfilled} paper trade(s) "
+                f"({totals.examined} examined)"
+            ),
+            details={
+                "sub_account": sub_account,
+                "examined": totals.examined,
+                "backfilled": totals.backfilled,
+                "already_set": totals.already_set,
+                "skipped_no_perf": totals.skipped_no_perf,
+                "skipped_perf_unset": totals.skipped_perf_unset,
+                "skipped_perf_missing": totals.skipped_perf_missing,
+            },
+        )
 
     return totals
 
@@ -368,10 +397,17 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     settings = get_settings()
 
+    # Tools/CLI invocations always emit the activity event on live runs
+    # (the helper itself is dry-run-aware so the event lands only when
+    # writes did). Construction is cheap — ``ActivityLog`` lazily opens
+    # files only on append, so a no-op CLI run never touches disk.
+    activity_log = ActivityLog(data_dir=settings.data_dir)
+
     totals = backfill_paper_sl_tp(
         data_dir=settings.data_dir,
         sub_account=args.sub_account,
         dry_run=args.dry_run,
+        activity_log=activity_log,
     )
 
     prefix = "[dry-run] " if args.dry_run else ""

@@ -415,9 +415,14 @@ def test_main_invokes_backfill_with_settings_data_dir(
         rc = main([])
 
     assert rc == 0
-    mock_backfill.assert_called_once_with(
-        data_dir=tmp_path, sub_account=None, dry_run=False
-    )
+    # ``main`` also threads an ``ActivityLog`` so live runs emit the
+    # ``BACKFILL_PAPER_SL_TP_RAN`` event (runtime-reconciliation §2).
+    mock_backfill.assert_called_once()
+    kwargs = mock_backfill.call_args.kwargs
+    assert kwargs["data_dir"] == tmp_path
+    assert kwargs["sub_account"] is None
+    assert kwargs["dry_run"] is False
+    assert kwargs["activity_log"] is not None
 
 
 def test_main_passes_dry_run_and_sub_account_flags(tmp_path: Path) -> None:
@@ -432,9 +437,12 @@ def test_main_passes_dry_run_and_sub_account_flags(tmp_path: Path) -> None:
         rc = main(["--dry-run", "--sub-account", "rsi_15m"])
 
     assert rc == 0
-    mock_backfill.assert_called_once_with(
-        data_dir=tmp_path, sub_account="rsi_15m", dry_run=True
-    )
+    mock_backfill.assert_called_once()
+    kwargs = mock_backfill.call_args.kwargs
+    assert kwargs["data_dir"] == tmp_path
+    assert kwargs["sub_account"] == "rsi_15m"
+    assert kwargs["dry_run"] is True
+    assert kwargs["activity_log"] is not None
 
 
 def test_main_handles_missing_paper_root(tmp_path: Path) -> None:
@@ -445,3 +453,44 @@ def test_main_handles_missing_paper_root(tmp_path: Path) -> None:
         rc = main([])
 
     assert rc == 0
+
+
+# =============================================================================
+# Activity-event emission (runtime-reconciliation §2)
+# =============================================================================
+
+
+def test_live_run_emits_activity_event(tmp_path: Path) -> None:
+    """A live (non-dry) run appends one ``BACKFILL_PAPER_SL_TP_RAN`` event."""
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    record = _seed_perf_record(tmp_path, "default")
+    _seed_paper_trade(tmp_path, "default", performance_record_id=record.id)
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    summary = backfill_paper_sl_tp(data_dir=tmp_path, activity_log=activity_log)
+
+    events = activity_log.filter(
+        event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN
+    )
+    assert len(events) == 1
+    assert events[0].details["backfilled"] == summary.backfilled == 1
+    assert events[0].details["examined"] == 1
+
+
+def test_dry_run_does_not_emit_activity_event(tmp_path: Path) -> None:
+    """``--dry-run`` must not write any activity events."""
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    record = _seed_perf_record(tmp_path, "default")
+    _seed_paper_trade(tmp_path, "default", performance_record_id=record.id)
+    activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+
+    backfill_paper_sl_tp(
+        data_dir=tmp_path, dry_run=True, activity_log=activity_log
+    )
+
+    events = activity_log.filter(
+        event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN
+    )
+    assert events == []

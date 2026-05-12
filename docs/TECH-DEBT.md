@@ -41,6 +41,52 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-064: Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Phase** | runtime-reconciliation quant-review follow-up |
+| **Component** | runtime-reconciliation |
+
+**Description:**
+The state taxonomy in `src/runtime/reconciliation.py::OpenTradeState` covers ledger-shape (`monitorable`/`degraded`/`unrecoverable`/`legacy_no_perf_link`) but misses two real-world failure modes: (a) stale-but-valid rows whose monitor loop hasn't ticked in >N days (currently classified `monitorable` — operator likely wants attention); (b) half-closed rows (`status="closed"` with no `exit_price`/`exit_time` — `_load_open_trade_rows` filters by `status == "open"` so they're never classified, yet the `close_unrecoverable_paper_trades` tool can write exactly this shape on partial failure).
+
+**Impact:**
+Silent monitor-loop staleness and disk-corruption shapes don't trigger the health-check warning path; operators have no signal that a trade is effectively orphaned.
+
+**Suggested Resolution:**
+Per-row warning counter for (a) computed from `last_seen_at` vs `now`. Separate "closed-but-malformed" sweep pass for (b) iterating `status="closed"` rows with `exit_price IS NULL`. Not new enum states — auxiliary signals on the existing classifier output.
+
+**Related:**
+- quant-trader-expert review Q1 (`docs/sessions/2026-05-13-runtime-reconciliation-unit-shipped.md`)
+- `src/runtime/reconciliation.py:286` filter
+
+### DEBT-065: Synthetic reconciliation-close rows leak into live-promotion gating
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Phase** | runtime-reconciliation QA follow-up |
+| **Component** | runtime-reconciliation + proposal-runtime + strategy-promotion-lab |
+
+**Description:**
+`TechniquePerformance.total_trades = len(records)` (`src/strategy/performance.py:244`) includes synthetic reconciliation-close rows. `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1061-1064`) and `_score`'s `sample_size` (`src/proposal/engine.py:1200`) read `total_trades` directly. So a strategy with 9 real + 2 synthetic closes can pass `threshold=10` live promotion despite the synthetic markers being intended to *exclude* such rows from promotion gating (see `src/strategy/performance.py:214` comment). Test `tests/test_strategy_performance.py:2066` currently locks the synthetic-inclusive behavior in `total_trades`.
+
+**Impact:**
+Synthetic close events from operator reconciliation tooling could artificially inflate a strategy's sample-size signal toward live promotion. Narrow blast radius (operator-driven path, conservative threshold) but the contract gap is real and growing with each operator reconciliation event.
+
+**Suggested Resolution:**
+Either (a) make `total_trades` count real records only and expose `total_trades_all` for operator-facing counting; or (b) update `_cold_start_blocks_live` and `_score.sample_size` to use `perf.total_trades - perf.synthetic_count` (or a new `real_trade_count` property). Option (b) is the smaller diff. Either way: update `tests/test_strategy_performance.py:2066` to assert the new semantics.
+
+**Related:**
+- QA flagged during runtime-reconciliation final review
+- `src/strategy/performance.py:244`
+- `src/proposal/engine.py:1061-1064`, `:1200`
+- comment at `src/strategy/performance.py:214`
+
 ### DEBT-062: Market-regime gate sequencing
 
 | Field | Value |
@@ -638,11 +684,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 4 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 2 |
-| Low | 0 |
+| Medium | 3 |
+| Low | 1 |
 | Resolved (All Time) | 57 |
 
 ---
@@ -651,6 +697,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — surfaced from QA during runtime-reconciliation final review; `TechniquePerformance.total_trades = len(records)` (`src/strategy/performance.py:244`) includes synthetic reconciliation-close rows, and `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1061-1064`) + `_score.sample_size` (`src/proposal/engine.py:1200`) read it directly, so a strategy with 9 real + 2 synthetic closes can pass `threshold=10` live promotion despite `src/strategy/performance.py:214`'s comment explicitly stating synthetic rows "must not feed CON-003 promotion gating"; smaller-diff resolution is option (b) — switch the two consumer sites to `perf.total_trades - perf.synthetic_count` (or a new `real_trade_count` property) and update `tests/test_strategy_performance.py:2066` to match; narrow blast radius (operator-driven path, conservative threshold) but contract gap grows with every operator reconciliation event |
+| 2026-05-13 | Added | DEBT-064 Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows (Low) — surfaced from quant-trader-expert (Q1) during runtime-reconciliation unit close-out review; `OpenTradeState` (`monitorable`/`degraded`/`unrecoverable`/`legacy_no_perf_link`) covers ledger-shape but misses (a) stale-but-valid rows whose monitor loop hasn't ticked in >N days (currently classified `monitorable`) and (b) half-closed rows (`status="closed"` with no `exit_price`/`exit_time` — `_load_open_trade_rows` at `src/runtime/reconciliation.py:286` filters by `status == "open"` so they're never classified, yet `close_unrecoverable_paper_trades` can write exactly this shape on partial failure); suggested resolution is auxiliary signals on the existing classifier (per-row warning counter from `last_seen_at` vs `now` for (a); separate "closed-but-malformed" sweep pass for (b)) rather than new enum states |
 | 2026-05-13 | Added | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — surfaced from quant-trader-expert (Q4) during market-regime unit close-out review; single-candle band crossings flip the regime label every cycle when price chops in the 1.5%-2.5% range around SMA(200), producing correlated entries at the band edges and noise-driven strategy throughput; suggested resolution is two-bar confirmation in `classify_regime_detailed` (`src/runtime/market_regime.py:207-217`) — keep the ±2% threshold (matches `RobustnessGate._classify_regimes` at `src/backtest/validator.py:929-959`), change the rule not the number |
 | 2026-05-13 | Added | DEBT-062 Market-regime gate sequencing (Medium) — surfaced from quant-trader-expert (Q1) during market-regime unit close-out review; `_market_regime_gate` is wired before `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py:1089-1131`), so when both gates would block, the non-actionable regime signal displaces the directly-fixable correlation signal on the operator dashboard; suggested resolution is to move the regime call below the correlation call (per-cycle cache means relocation has zero OHLCV cost) |
 | 2026-05-13 | Resolved | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability — same-day filing-and-close scope-split from DEBT-060; new `src/proposal/fail_closed_metrics.py` (`StrategyFailClosedCounts` Pydantic model with `Field(ge=0)` re-validated via `model_validate(...)` on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`); three increment sites threaded into `ProposalEngine._build_proposal_for_strategy` (emit, `StrategyError` catch, `TradingValidationError` catch) with OSError-tolerant helpers so observability never crashes the hot path; `sub_account_id` plumbed as per-call argument on tracker public methods (second-round 🔴 fix per quant Q3 option (a) after first round had bound it at constructor and would have aggregated all sub-accounts under `default/`); `src/main.py` wires `FailClosedMetricsTracker()` into `_build_engine_config_phase`; `src/dashboard/pages/strategies.py` adds `Emitted` / `Fail-Closed` / `Fail-Closed %` columns scoped under the `fail_closed_tracker is not None` branch (avoids MagicMock-spec test breakage); quant Q1/Q2/Q4 ratified-as-shipped (Q1: pre-emit outage = neither counter; Q2: neutral = emitted only; Q4: per-reason breakdown deferred as non-breaking `Dict[str, int]` extension); `pytest -q` 1843 passed (net +31); `ruff check src tests` clean; targeted `mypy` clean |

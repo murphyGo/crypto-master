@@ -968,7 +968,16 @@ class StrategyImprover:
 
     @staticmethod
     def _format_records(records: list[PerformanceRecord]) -> str:
-        """Render performance records as a compact list."""
+        """Render performance records as a compact list.
+
+        Q2 follow-up: synthetic / reconciliation-close records are
+        excluded — they are operator-driven force-closes of unrecoverable
+        rows, not real signal outcomes, and feeding them to the improver
+        would frame the strategy as worse than it actually was.
+        """
+        # Filter first so an all-synthetic input still falls through to
+        # the "(none)" sentinel rather than rendering an empty list.
+        records = [r for r in records if not r.synthetic]
         if not records:
             return "(none)"
         lines = []

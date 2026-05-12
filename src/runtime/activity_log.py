@@ -221,6 +221,73 @@ class ActivityEventType(str, Enum):
     #     policy_decision (str)    "pass_through_degraded"
     MARKET_REGIME_DEGRADED = "market_regime_degraded"
 
+    # Runtime reconciliation (runtime-reconciliation unit). Emitted once
+    # per engine startup, after open-position rehydration and before
+    # the cycle loop, carrying the per-sub-account taxonomy breakdown
+    # produced by ``src.runtime.reconciliation.compute_health_report``.
+    # The dashboard banner is sourced from the most recent event of
+    # this type. ``details`` payload (structured-fields contract —
+    # pinned by ``test_startup_emits_reconciliation_health_report``):
+    #
+    #     report (dict)        per-sub-account breakdown
+    #     totals (dict)        aggregate counts (open_trade_count,
+    #                          state_counts, perf_links_resolved,
+    #                          perf_links_missing,
+    #                          any_locked_inconsistent,
+    #                          classifications)
+    RECONCILIATION_HEALTH_REPORT = "reconciliation_health_report"
+
+    # Companion event emitted only when at least one sub-account's
+    # ``locked_consistent`` is False. Always paired with a
+    # ``RECONCILIATION_HEALTH_REPORT`` event in the same startup so the
+    # dashboard can both (a) render the discrepancy as a Yellow banner
+    # cause and (b) timeline-filter on the inconsistency itself.
+    # ``details`` carries the inconsistent sub-accounts only:
+    #
+    #     sub_accounts (list[dict])
+    #       sub_account_id, locked_sum (str), balance_locked (str|None)
+    RECONCILIATION_LOCKED_INCONSISTENT = "reconciliation_locked_inconsistent"
+
+    # Emitted once per live run (not dry-run) of
+    # ``src.tools.backfill_paper_sl_tp``. ``details`` carries the
+    # aggregated ``BackfillSummary`` counters plus the optional
+    # ``sub_account`` filter that was applied. This is the operator's
+    # confirmation that Step 3 of the reconciliation playbook landed.
+    BACKFILL_PAPER_SL_TP_RAN = "backfill_paper_sl_tp_ran"
+
+    # Emitted once per row closed by
+    # ``src.tools.close_unrecoverable_paper_trades`` (live run only).
+    # ``details`` payload:
+    #     trade_id (str)
+    #     sub_account_id (str)
+    #     symbol (str | None)
+    #     missing_fields (list[str])
+    #     performance_record_id (str | None)   synthetic record's id
+    RECONCILIATION_CLOSED_UNRECOVERABLE = "reconciliation_closed_unrecoverable"
+
+    # Reconciliation health-check meta-event (Q4 follow-up / DEBT-061
+    # silent-disable anti-pattern). Emitted by
+    # :meth:`~src.runtime.engine.TradingEngine._run_reconciliation_health_check`
+    # when ``compute_health_report`` raises. The engine policy is
+    # log-and-continue (paper-mode resolution 2026-05-13 — a malformed
+    # ledger must not keep the Fly machine from booting), but the
+    # *failure itself* needs to be operator-visible so a chronically-
+    # broken health check can be distinguished from a fresh deployment
+    # that simply hasn't booted yet. The dashboard banner renders
+    # Yellow when this is the most recent reconciliation event.
+    # ``details`` payload (structured-fields contract — pinned by
+    # ``test_startup_emits_health_check_failed_event``):
+    #
+    #     error_type (str)            exception class name, e.g.
+    #                                 "RuntimeError"
+    #     message (str)               ``str(exception)`` — short
+    #     sub_account_id (str | None) optional account hint when the
+    #                                 failure can be attributed to one
+    #                                 sub-account; ``None`` when the
+    #                                 crash happened before per-account
+    #                                 iteration started
+    RECONCILIATION_HEALTH_CHECK_FAILED = "reconciliation_health_check_failed"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.
