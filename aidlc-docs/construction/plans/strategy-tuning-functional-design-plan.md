@@ -21,25 +21,25 @@ quality, and account-level evidence.
 
 ## Steps
 
-- [ ] Specify strategy action states: `pause`, `shadow`, `scout`, `keep`,
+- [x] Specify strategy action states: `pause`, `shadow`, `scout`, `keep`,
       `promote`, `retune`.
-- [ ] Specify evidence thresholds for each action using closed PnL, win rate,
+- [x] Specify evidence thresholds for each action using closed PnL, win rate,
       profit factor, drawdown, sample size, open exposure, and proposal quality.
-- [ ] Specify initial actions for RSI family, mean-reversion family,
+- [x] Specify initial actions for RSI family, mean-reversion family,
       `momentum_pinball_orb`, `vcp_breakout`, `raschke_holy_grail`,
       `ma_crossover`, `session_vwap_pullback`, and default/LLM strategies.
-- [ ] Specify dashboard/operator presentation and config-change workflow.
-- [ ] Create implementation plan covering strategy files, sub-account config,
+- [x] Specify dashboard/operator presentation and config-change workflow.
+- [x] Create implementation plan covering strategy files, sub-account config,
       proposal gates, dashboard recommendations, and tests.
 
 ## Verification
 
-- [ ] Design artifact under `aidlc-docs/construction/strategy-tuning/`.
-- [ ] Target tests identified for strategy behavior, proposal policy, runtime
+- [x] Design artifact under `aidlc-docs/construction/strategy-tuning/`.
+- [x] Target tests identified for strategy behavior, proposal policy, runtime
       account actions, and dashboard strategy evidence.
 
 ## Completion Checklist
 
-- [ ] Functional design complete.
-- [ ] Code-generation plan created.
+- [x] Functional design complete.
+- [x] Code-generation plan created.
 - [ ] Session log and cross-check added when implemented.

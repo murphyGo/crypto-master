@@ -19,23 +19,23 @@ position views stay consistent after restarts and migrations.
 
 ## Steps
 
-- [ ] Specify monitorable vs reconciliation-required open trade states.
-- [ ] Specify operator repair flow for `src.tools.backfill_paper_sl_tp` and any
+- [x] Specify monitorable vs reconciliation-required open trade states.
+- [x] Specify operator repair flow for `src.tools.backfill_paper_sl_tp` and any
       follow-up close/reconcile command.
-- [ ] Specify startup health checks for open trades missing SL/TP, proposal ids,
+- [x] Specify startup health checks for open trades missing SL/TP, proposal ids,
       performance links, or balance snapshots.
-- [ ] Specify dashboard/runtime health signals that block silent cash-only
+- [x] Specify dashboard/runtime health signals that block silent cash-only
       reporting when ledger trades are open.
-- [ ] Create implementation plan covering runtime, tools, dashboard, and tests.
+- [x] Create implementation plan covering runtime, tools, dashboard, and tests.
 
 ## Verification
 
-- [ ] Design artifact under `aidlc-docs/construction/runtime-reconciliation/`.
-- [ ] Target tests identified for paper trading, runtime engine, tools, and
+- [x] Design artifact under `aidlc-docs/construction/runtime-reconciliation/`.
+- [x] Target tests identified for paper trading, runtime engine, tools, and
       dashboard health views.
 
 ## Completion Checklist
 
-- [ ] Functional design complete.
+- [x] Functional design complete.
 - [ ] Code-generation plan created.
 - [ ] Session log and cross-check added when implemented.

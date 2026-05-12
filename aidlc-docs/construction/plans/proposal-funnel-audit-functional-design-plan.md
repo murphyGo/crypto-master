@@ -20,23 +20,23 @@ open, close, and outcome linkage.
 
 ## Steps
 
-- [ ] Specify canonical funnel states and transition semantics.
-- [ ] Specify how post-approval rejections are recorded without making accepted
+- [x] Specify canonical funnel states and transition semantics.
+- [x] Specify how post-approval rejections are recorded without making accepted
       and rejected counters ambiguous.
-- [ ] Specify cap diagnostics: blocking trade id, entry time, age, unrealized
+- [x] Specify cap diagnostics: blocking trade id, entry time, age, unrealized
       PnL, monitorability, cap, and open count.
-- [ ] Specify dashboard summaries by account, strategy, symbol, gate, and time.
-- [ ] Create implementation plan covering proposal records, activity events,
+- [x] Specify dashboard summaries by account, strategy, symbol, gate, and time.
+- [x] Create implementation plan covering proposal records, activity events,
       runtime counters, dashboard views, and tests.
 
 ## Verification
 
-- [ ] Design artifact under `aidlc-docs/construction/proposal-funnel-audit/`.
-- [ ] Target tests identified for proposal interaction, runtime engine, and
+- [x] Design artifact under `aidlc-docs/construction/proposal-funnel-audit/`.
+- [x] Target tests identified for proposal interaction, runtime engine, and
       dashboard funnel rendering.
 
 ## Completion Checklist
 
-- [ ] Functional design complete.
-- [ ] Code-generation plan created.
+- [x] Functional design complete.
+- [x] Code-generation plan created.
 - [ ] Session log and cross-check added when implemented.
