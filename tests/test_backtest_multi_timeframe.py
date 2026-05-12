@@ -2,8 +2,6 @@
 
 Covers:
 - Input validation on ``run_multi_timeframe``
-- Single-TF parity: a multi-TF run with one TF behaves identically to
-  ``run`` on the same series (modulo the strategy contract).
 - Per-step slicing — at primary candle ``i`` no higher-TF candle in
   the slice has timestamp > primary candle's timestamp (no future
   leakage).
@@ -12,6 +10,12 @@ Covers:
 - Dispatcher: ``run_for_strategy`` routes single-TF strategies to
   ``run`` and multi-TF strategies to ``run_multi_timeframe``;
   raises when multi-TF strategy gets no dict.
+
+The single-TF / multi-TF execution parity claim (closed-trade ledger,
+equity curve, breaker/abort behaviour, slippage, liquidation, short
+side, and the higher-TF gate divergence) now lives in
+``tests/test_backtest_engine.py::TestRunMultiTimeframeParity``
+(DEBT-055 / CH-27).
 """
 
 from __future__ import annotations
@@ -28,7 +32,6 @@ from src.backtest.engine import (
     BacktestConfig,
     Backtester,
     BacktestError,
-    BacktestResult,
     slice_multi_tf_by_index,
 )
 from src.models import OHLCV, AnalysisResult
@@ -194,38 +197,6 @@ def make_backtester(tmp_path: Path, *, warmup: int = 5) -> Backtester:
         ),
         data_dir=tmp_path / "backtest",
     )
-
-
-def exit_fixture_candles(count: int = 8) -> list[OHLCV]:
-    start = datetime(2026, 1, 1)
-    return [
-        OHLCV(
-            timestamp=start + timedelta(minutes=5 * i),
-            open=Decimal("50000"),
-            high=Decimal("51200"),
-            low=Decimal("49900"),
-            close=Decimal("50000"),
-            volume=Decimal("100"),
-        )
-        for i in range(count)
-    ]
-
-
-def trade_ledger(result: BacktestResult) -> list[tuple[object, ...]]:
-    return [
-        (
-            trade.symbol,
-            trade.side,
-            trade.entry_time,
-            trade.exit_time,
-            trade.entry_price,
-            trade.exit_price,
-            trade.quantity,
-            trade.pnl,
-            trade.close_reason,
-        )
-        for trade in result.trades
-    ]
 
 
 # =============================================================================
@@ -428,34 +399,6 @@ class TestRunMultiTimeframeSemantics:
 
         assert result.timeframe == "5m"
         assert result.symbol == "BTC/USDT"
-
-    @pytest.mark.asyncio
-    async def test_single_and_multi_tf_modes_share_closed_trade_ledger(
-        self, tmp_path: Path
-    ) -> None:
-        """CH-27: both run modes execute bars through the same helper."""
-        candles = exit_fixture_candles()
-        signal = AnalysisResult(
-            signal="long",
-            confidence=0.8,
-            entry_price=Decimal("50000"),
-            stop_loss=Decimal("49000"),
-            take_profit=Decimal("51000"),
-            reasoning="deterministic ledger parity",
-        )
-        single = StaticStrategy(signal=signal)
-        multi = StaticStrategy(signal=signal, requires_multi_tf=True)
-        bt = make_backtester(tmp_path, warmup=2)
-
-        single_result = await bt.run(single, candles, "BTC/USDT", timeframe="5m")
-        multi_result = await bt.run_multi_timeframe(
-            multi,
-            {"5m": candles},
-            "BTC/USDT",
-            primary_timeframe="5m",
-        )
-
-        assert trade_ledger(single_result) == trade_ledger(multi_result)
 
     @pytest.mark.asyncio
     async def test_current_price_comes_from_primary_close(self, tmp_path: Path) -> None:

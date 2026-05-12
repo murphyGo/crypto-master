@@ -41,37 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-055: CH-27 multi-TF parity test gaps
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-09 |
-| **Phase** | CH-27 follow-up (consistency-hardening) |
-| **Component** | backtesting-validation / consistency-hardening |
-
-**Description:**
-The CH-27 dedup body (`Backtester._execute_bar` extracted from `Backtester.run` and `Backtester.run_multi_timeframe`, shipped in commit `382d3b9`) is now locked down by two parity regression tests in `tests/test_backtest_engine.py::TestRunMultiTimeframeParity` (`test_run_and_run_multi_timeframe_identical_ledger`, `test_run_and_run_multi_timeframe_identical_breaker_abort`). Quant review (🟡) flagged four parity variants that the new tests do not yet cover:
-
-1. **Slippage parity** — both modes should produce byte-identical fills under non-zero `BacktestConfig.slippage_bps` / `entry_slippage_bps` / `exit_slippage_bps` settings, including the exit-bar mark in the equity curve.
-2. **Liquidation parity** — both modes should mark the same trade as liquidated and truncate the equity curve at the same bar when `BacktestConfig.liquidation_threshold` is breached.
-3. **Short-side parity** — current parity fixture exercises long-side entries only; an explicit short-side fixture (entry, TP, SL, end-of-data close, fees, pnl, equity curve) is needed to lock the symmetric branch.
-4. **True multi-TF mismatch test** — the existing parity test routes `run_multi_timeframe` with a degenerate higher-TF mapping that mirrors the single-TF execution path. A non-degenerate higher-TF fixture (e.g. 1h base + 4h higher TF with a higher-TF gate that actually filters bars) is needed to verify the multi-TF dispatch under conditions where `run` and `run_multi_timeframe` are *expected* to diverge — which keeps the parity claim from silently widening to "always identical, including when it shouldn't be".
-
-QA review also flagged the older test `tests/test_backtest_multi_timeframe.py::TestRunMultiTimeframeSemantics::test_single_and_multi_tf_modes_share_closed_trade_ledger` as superseded by the new parity test pair: it is weaker (closed-trade ledger only, no equity curve / breaker / abort coverage) and now redundant. It should be evaluated for removal or rescoping (e.g. retained as a smoke test, or dropped entirely if the parity tests subsume its assertions).
-
-**Impact:**
-The parity claim that `Backtester.run` and `Backtester.run_multi_timeframe` are observationally identical currently covers only the dispatch-mirroring case (long-side, no slippage, no liquidation, degenerate higher TF). Real multi-TF divergence and edge-case parity (slippage / liquidation / short) are not locked down. A future refactor that accidentally diverges `_execute_bar` callers under one of those edge cases would not be caught by the existing regression suite.
-
-**Suggested Resolution:**
-In a follow-up commit, add the four parity variants (slippage, liquidation, short-side, non-degenerate multi-TF) to `tests/test_backtest_engine.py::TestRunMultiTimeframeParity`. In the same follow-up, either delete `test_single_and_multi_tf_modes_share_closed_trade_ledger` from `tests/test_backtest_multi_timeframe.py` or rescope it to a smoke-test docstring noting the parity guarantee now lives in `TestRunMultiTimeframeParity`.
-
-**Related:**
-- CH-27 (consistency-hardening spec): `aidlc-docs/construction/consistency-hardening/functional-design/spec.md`
-- Dedup body commit: `382d3b9 Deduplicate backtest bar execution`
-- Parity tests: `tests/test_backtest_engine.py::TestRunMultiTimeframeParity`
-- Superseded test: `tests/test_backtest_multi_timeframe.py::TestRunMultiTimeframeSemantics::test_single_and_multi_tf_modes_share_closed_trade_ledger`
-
 ### DEBT-056: Pre-existing test flake + ruff I001 import-order hits on clean tree
 
 | Field | Value |
@@ -82,24 +51,30 @@ In a follow-up commit, add the four parity variants (slippage, liquidation, shor
 | **Component** | ai-feedback-loop (test); dashboard-operator-ui + backtesting-validation (lint) |
 
 **Description:**
-Two pre-existing issues observed on a clean tree during the CH-27 parity-test cycle:
+Two pre-existing issues observed on a clean tree, refreshed during the DEBT-055 closeout (2026-05-13):
 
-1. `tests/test_scripts_auto_research_candidates.py::test_run_picks_orchestrates_each_candidate` fails with `GeneratedTechniqueError` raised from `src/ai/improver.py:425`. Failure is unrelated to CH-27 (no `src/` changes this cycle) and was already present at commit `382d3b9`. Owner unit: `ai-feedback-loop`.
+1. All 6 tests in `tests/test_scripts_auto_research_candidates.py` now fail on a clean tree through the same `GeneratedTechniqueError` raise path at `src/ai/improver.py:374` ("Generated technique must include a falsifiable hypothesis."). Failure count widened from 1 → 6 since the 2026-05-09 entry. Failure is unrelated to the DEBT-055 test-only diff (no `src/` changes this cycle) and was independently confirmed by QA via `git stash` on a clean tree. Owner unit: `ai-feedback-loop`. Affected tests:
+   - `test_run_picks_orchestrates_each_candidate`
+   - `test_run_picks_threads_sub_account_id`
+   - `test_dry_run_skips_backtest`
+   - `test_pick_failure_captured_not_raised`
+   - `test_code_type_pick_runs_without_per_bar_claude_calls`
+   - `test_code_type_pick_produces_backtest_trade_without_claude_analyze`
 2. `ruff check` reports two pre-existing `I001` import-order violations on a clean tree:
    - `src/dashboard/pages/engine.py:25`
    - `tests/test_backtest_validator.py:3`
-   Neither is in CH-27's touched-file set; both are mechanical `ruff check --fix` candidates.
+   Neither is in the DEBT-055 touched-file set; both are mechanical `ruff check --fix` candidates.
 
 **Impact:**
-Test count reads "1257 pass / 1 pre-existing fail" instead of clean green on every cycle, costing reviewer attention. Two `I001` hits keep `ruff check` non-clean repo-wide, masking new lint regressions in unrelated files until reviewers manually filter them out.
+Full-suite test count reads "1802 pass / 6 pre-existing fail" instead of clean green on every cycle, costing reviewer attention. Two `I001` hits keep `ruff check` non-clean repo-wide, masking new lint regressions in unrelated files until reviewers manually filter them out.
 
 **Suggested Resolution:**
-- Test: investigate the `improver.py:425` raise path — likely a fixture / mock drift in the orchestration test. Either fix the test or repair the production behaviour it pins.
+- Test: investigate the `improver.py:374` raise path — the `_validate_generated_metadata` hypothesis-empty branch is now firing for all 6 orchestration tests; likely a fixture / mock drift around generated-technique metadata. Either fix the test fixtures to emit a non-empty `hypothesis` field or repair the production behaviour they pin.
 - Lint: run `ruff check --fix` against the two named files in a small lint-only commit.
 
 **Related:**
-- Failing test: `tests/test_scripts_auto_research_candidates.py::test_run_picks_orchestrates_each_candidate`
-- Raise site: `src/ai/improver.py:425`
+- Failing tests (all 6 in file): `tests/test_scripts_auto_research_candidates.py`
+- Raise site: `src/ai/improver.py:374` (corrected from prior `:425`; verified 2026-05-13)
 - Lint sites: `src/dashboard/pages/engine.py:25`, `tests/test_backtest_validator.py:3`
 
 ### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor
@@ -144,6 +119,15 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-055: CH-27 multi-TF parity test gaps ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-09 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Four new parity-variant tests landed in `tests/test_backtest_engine.py::TestRunMultiTimeframeParity` covering the four gaps flagged by quant-trader-expert at CH-27 close-out: `test_run_and_run_multi_timeframe_identical_under_slippage` (non-zero `slippage_bps` / `entry_slippage_bps` / `exit_slippage_bps`), `test_run_and_run_multi_timeframe_identical_on_liquidation` (`BacktestConfig.liquidation_threshold` breach, equity-curve truncation parity), `test_run_and_run_multi_timeframe_identical_short_side` (explicit short-side entry/TP/SL/EOD-close/fees/pnl/equity fixture), and `test_run_and_run_multi_timeframe_diverge_when_higher_tf_gates_bars` — the divergence test pins the multi-TF warmup contract (`all(slice_dict[tf] >= warmup_candles)`) by asserting strict-subset entry-bar indices `[120,150,180,195]` vs `[10,30,60,90,120,150,180,195]`, so the parity claim cannot silently widen to "always identical, including when it shouldn't be". Superseded `tests/test_backtest_multi_timeframe.py::TestRunMultiTimeframeSemantics::test_single_and_multi_tf_modes_share_closed_trade_ledger` deleted outright (new parity pair is a strict superset); orphan helpers `exit_fixture_candles` / `trade_ledger` and the unused `BacktestResult` import removed; module docstring now points readers at `TestRunMultiTimeframeParity` as the canonical parity location. Test-only diff (`tests/test_backtest_engine.py` + `tests/test_backtest_multi_timeframe.py`); no production code touched. Focused suite 61 passed; full suite 1802 passed / 6 failed (all 6 pre-existing DEBT-056, independently confirmed via `git stash`). Reviewers 🟢🟢. |
 
 ### DEBT-059: PaperBalance.locked not reconciled across runtime restart ✅
 
@@ -646,12 +630,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 3 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 2 |
+| Medium | 1 |
 | Low | 1 |
-| Resolved (All Time) | 53 |
+| Resolved (All Time) | 54 |
 
 ---
 
@@ -659,6 +643,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-055 CH-27 multi-TF parity test gaps — landed 4 parity-variant tests (slippage, liquidation, short-side, true non-degenerate multi-TF divergence) in `tests/test_backtest_engine.py::TestRunMultiTimeframeParity`; divergence test pins multi-TF warmup contract via strict-subset entry-bar indices; superseded `test_single_and_multi_tf_modes_share_closed_trade_ledger` deleted outright |
+| 2026-05-13 | Updated | DEBT-056 Pre-existing test flake refreshed — failure count widened from 1 → 6 tests in `tests/test_scripts_auto_research_candidates.py` on clean tree (all 6 fail through the same `GeneratedTechniqueError` path); raise-site line corrected from `src/ai/improver.py:425` to `src/ai/improver.py:374` |
 | 2026-05-12 | Resolved | DEBT-059 PaperBalance.locked not reconciled across runtime restart — added atomic per-sub-account `balances.json` snapshots, snapshot-first startup load, and one-time legacy open-position balance reconciliation |
 | 2026-05-12 | Resolved | DEBT-058 production trades.json backfill for legacy SL/TP-null rows — confirmed and documented the existing `src.tools.backfill_paper_sl_tp` one-shot operator tool and its targeted test coverage |
 | 2026-05-12 | Resolved | DEBT-057 paper-mode entry-fee not persisted to TradeHistory — persisted entry fees at open time and changed close-time fee addition to pass only the exit fee |

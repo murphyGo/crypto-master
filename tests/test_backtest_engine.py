@@ -1698,6 +1698,148 @@ def _build_parity_fixture() -> tuple[list[OHLCV], set[int], set[int]]:
     return candles, long_indices, parse_error_indices
 
 
+def _ledger(result: BacktestResult) -> list[tuple[object, ...]]:
+    """Closed-trade ledger view used by every CH-27 parity assertion.
+
+    ``trade_id`` is excluded because it embeds a fresh uuid4 per run;
+    every other PnL-relevant field is compared so a one-off divergence
+    in slippage / fees / liquidation marker surfaces here.
+    """
+    return [
+        (
+            t.symbol,
+            t.side,
+            t.entry_time,
+            t.exit_time,
+            t.entry_price,
+            t.exit_price,
+            t.quantity,
+            t.leverage,
+            t.stop_loss,
+            t.take_profit,
+            t.entry_fee,
+            t.exit_fee,
+            t.pnl,
+            t.close_reason,
+            t.liquidated,
+        )
+        for t in result.trades
+    ]
+
+
+def _build_short_parity_fixture() -> tuple[list[OHLCV], set[int], set[int]]:
+    """Short-side analogue of :func:`_build_parity_fixture`.
+
+    Returns ``(candles, short_indices, parse_error_indices)``. Same
+    200-candle flat baseline, but exit candles are engineered for the
+    short SL (price spikes up through 51_000) or short TP (price drops
+    through 48_500). Engineered to produce wins, losses, and an
+    end-of-data force-close so the symmetric branch of every
+    fee/slippage/PnL code path runs.
+    """
+    base_close = Decimal("50000")
+    spread = Decimal("100")
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    candles: list[OHLCV] = [
+        make_candle(
+            timestamp=start + timedelta(hours=i),
+            open_price=base_close,
+            high=base_close + spread,
+            low=base_close - spread,
+            close=base_close,
+        )
+        for i in range(200)
+    ]
+
+    short_indices = {10, 30, 60, 90, 120, 150, 180, 195}
+    # Short TP = price falls through 48_500 (signal: stop=50500, take=48500
+    # so the strategy emits R/R = 1.5 with 500 risk per unit).
+    tp_exit_indices = {11, 61, 121, 181}
+    # Short SL = price spikes up through 50_500.
+    sl_exit_indices = {31, 91, 151}
+    # index 195's trade is left flat → end_of_data close.
+
+    for i in tp_exit_indices:
+        candles[i] = make_candle(
+            timestamp=candles[i].timestamp,
+            open_price=base_close,
+            high=base_close + spread,
+            low=Decimal("48000"),  # blows through TP 48_500
+            close=Decimal("48300"),
+        )
+    for i in sl_exit_indices:
+        candles[i] = make_candle(
+            timestamp=candles[i].timestamp,
+            open_price=base_close,
+            high=Decimal("51200"),  # blows through SL 50_500
+            low=base_close - spread,
+            close=Decimal("51000"),
+        )
+
+    parse_error_indices = {25, 50, 75, 100, 130, 170}
+    return candles, short_indices, parse_error_indices
+
+
+class _MultiModeShortStrategy(BaseStrategy):
+    """Short-side analogue of ``_MultiModeStrategy``.
+
+    Emits a short signal at every index in ``short_indices`` with a
+    stop above the entry and TP below it (R/R = 1.5, matches the
+    engine's default ``min_risk_reward_ratio``).
+    """
+
+    def __init__(
+        self,
+        *,
+        short_indices: set[int],
+        parse_error_indices: set[int],
+        requires_multi_tf: bool,
+    ) -> None:
+        super().__init__(
+            info=TechniqueInfo(
+                name="ch27_short_parity_strategy",
+                version="1.0.0",
+                description="deterministic short-side single-/multi-TF parity strategy",
+                technique_type="code",
+                requires_multi_timeframe=requires_multi_tf,
+            )
+        )
+        self._short_indices = short_indices
+        self._parse_error_indices = parse_error_indices
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: "dict[str, list[OHLCV]] | None" = None,
+        current_price: "Decimal | None" = None,
+    ) -> AnalysisResult:
+        index = len(ohlcv) - 1
+        if index in self._parse_error_indices:
+            from src.ai.exceptions import ClaudeParseError
+
+            raise ClaudeParseError(f"deterministic parse failure at candle {index}")
+        if index in self._short_indices:
+            return AnalysisResult(
+                signal="short",
+                confidence=0.8,
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("50500"),
+                take_profit=Decimal("48500"),  # R/R = 1.5
+                reasoning=f"short signal at index {index}",
+            )
+        return AnalysisResult(
+            signal="neutral",
+            confidence=0.0,
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("50500"),
+            take_profit=Decimal("48500"),
+            reasoning="neutral",
+        )
+
+
 class TestRunMultiTimeframeParity:
     """CH-27 — single-TF and multi-TF run loops execute through the same
     per-bar helper, so a multi-TF run whose only timeframe mirrors the
@@ -1750,32 +1892,11 @@ class TestRunMultiTimeframeParity:
         # it must close at end_of_data.
         assert any(t.close_reason == "end_of_data" for t in single_result.trades)
 
-        # Closed-trade ledgers are byte-identical. trade_id is excluded
-        # from the comparison because it embeds a fresh uuid4 per run.
-        def ledger(result: BacktestResult) -> list[tuple[object, ...]]:
-            return [
-                (
-                    t.symbol,
-                    t.side,
-                    t.entry_time,
-                    t.exit_time,
-                    t.entry_price,
-                    t.exit_price,
-                    t.quantity,
-                    t.leverage,
-                    t.stop_loss,
-                    t.take_profit,
-                    t.entry_fee,
-                    t.exit_fee,
-                    t.pnl,
-                    t.close_reason,
-                    t.liquidated,
-                )
-                for t in result.trades
-            ]
-
+        # Closed-trade ledgers are byte-identical. ``_ledger`` excludes
+        # ``trade_id`` (fresh uuid4 per run) but covers every PnL-
+        # relevant field.
         assert len(single_result.trades) == len(multi_result.trades)
-        assert ledger(single_result) == ledger(multi_result)
+        assert _ledger(single_result) == _ledger(multi_result)
 
         # Equity curve is the per-bar mark-to-market series; with
         # identical inputs both modes must emit the same number of
@@ -1853,3 +1974,371 @@ class TestRunMultiTimeframeParity:
         assert single_exc.value.reason == multi_exc.value.reason
         assert single_exc.value.candle_index == multi_exc.value.candle_index
         assert single_exc.value.reason == "consecutive_parse_failures"
+
+    # ------------------------------------------------------------------
+    # DEBT-055: parity variants (slippage, liquidation, short, true MTF)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_identical_under_slippage(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-zero ``slippage_bps`` and ``fee_rate`` produce byte-identical
+        fills, fees, PnL, and equity curves across both run modes. The
+        equity curve element-wise check is the load-bearing assertion:
+        a divergence in the exit-bar mark would surface even if every
+        closed-trade row matched.
+        """
+        candles, long_indices, parse_error_indices = _build_parity_fixture()
+
+        single_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=False,
+        )
+        multi_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=True,
+        )
+
+        # 20 bps slippage + 10 bps fee_rate is large enough that any
+        # one-off rounding asymmetry between the two loop bodies would
+        # show up in entry_price / exit_price / entry_fee / exit_fee /
+        # pnl, all of which are compared in ``_ledger``.
+        single_bt = make_backtester(
+            tmp_path / "single",
+            warmup_candles=5,
+            leverage=1,
+            slippage_bps=20,
+            fee_rate=Decimal("0.001"),
+        )
+        multi_bt = make_backtester(
+            tmp_path / "multi",
+            warmup_candles=5,
+            leverage=1,
+            slippage_bps=20,
+            fee_rate=Decimal("0.001"),
+        )
+
+        single_result = await single_bt.run(
+            single_strategy, candles, "BTC/USDT", timeframe="1h"
+        )
+        multi_result = await multi_bt.run_multi_timeframe(
+            multi_strategy,
+            {"1h": candles},
+            "BTC/USDT",
+            primary_timeframe="1h",
+        )
+
+        # Fixture sanity: slippage actually moves the fill price off the
+        # candle close / SL / TP target. Without this, the parity test
+        # could pass against a no-op slippage path.
+        assert single_result.total_trades >= 5
+        assert single_result.total_fees > Decimal("0")
+        # 20 bps long entry on a 50_000 close = 50_100 fill.
+        assert any(t.entry_price == Decimal("50100") for t in single_result.trades)
+
+        # Byte-identical closed-trade ledger.
+        assert _ledger(single_result) == _ledger(multi_result)
+
+        # Element-wise equity-curve equality — the load-bearing assert
+        # for the slippage-parity invariant. If the exit-bar mark
+        # diverged by even one ulp the two curves would not be equal.
+        assert len(single_result.equity_curve) == len(multi_result.equity_curve)
+        assert single_result.equity_curve == multi_result.equity_curve
+
+        # Headline rollups.
+        assert single_result.final_balance == multi_result.final_balance
+        assert single_result.total_pnl == multi_result.total_pnl
+        assert single_result.total_fees == multi_result.total_fees
+        assert single_result.liquidated == multi_result.liquidated
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_identical_on_liquidation(
+        self, tmp_path: Path
+    ) -> None:
+        """A breach of ``BacktestConfig.liquidation_threshold`` marks the
+        same trade as ``liquidated=True`` in both run modes, the closed-
+        trade ledgers are identical up through that event, and the
+        equity curve is truncated at the same bar (the liquidating
+        trade's ``exit_time``).
+
+        Sizing geometry mirrors
+        :class:`TestBacktesterLiquidationParity` — risk-sized SL hit on
+        a max-risk position with adversarial slippage + fees pushes the
+        balance below zero (literal liquidation, default threshold = 0).
+        """
+
+        # Single-TF + multi-TF variants of the same deterministic long
+        # signal at candle 2. Two strategy instances because the parity
+        # tests instantiate fresh ones to avoid shared mutable state.
+        def _build_strategy(requires_multi_tf: bool) -> ControllableStrategy:
+            return ControllableStrategy(
+                signals={
+                    2: long_analysis(entry="50000", stop="45000", take="60000")
+                },
+                info=TechniqueInfo(
+                    name="liquidation_parity_strategy",
+                    version="1.0.0",
+                    description="deterministic liquidation parity strategy",
+                    technique_type="code",
+                    requires_multi_timeframe=requires_multi_tf,
+                ),
+            )
+
+        config = BacktestConfig(
+            initial_balance=Decimal("100"),
+            fee_rate=Decimal("0.001"),
+            slippage_bps=20,
+            warmup_candles=2,
+            leverage=10,
+            risk_percent=100.0,
+            max_position_size_percent=100.0,
+            min_risk_reward_ratio=1.0,
+        )
+
+        candles = make_flat_candles(5)
+        # SL-breaking candle at index 3.
+        candles[3] = make_candle(
+            timestamp=candles[3].timestamp,
+            open_price=Decimal("50000"),
+            high=Decimal("50100"),
+            low=Decimal("44000"),  # crosses SL 45000
+            close=Decimal("44500"),
+        )
+
+        single_bt = Backtester(config=config, data_dir=tmp_path / "single")
+        multi_bt = Backtester(config=config, data_dir=tmp_path / "multi")
+
+        single_result = await single_bt.run(
+            _build_strategy(requires_multi_tf=False),
+            candles,
+            "BTC/USDT",
+            timeframe="1h",
+        )
+        multi_result = await multi_bt.run_multi_timeframe(
+            _build_strategy(requires_multi_tf=True),
+            {"1h": candles},
+            "BTC/USDT",
+            primary_timeframe="1h",
+        )
+
+        # Fixture sanity: liquidation actually fired and final balance
+        # went under zero (literal liquidation).
+        assert single_result.total_trades == 1
+        assert single_result.liquidated is True
+        assert single_result.final_balance < Decimal("0")
+        assert single_result.trades[0].liquidated is True
+
+        # Both modes mark the same trade as liquidated with identical
+        # PnL / fees / fills.
+        assert _ledger(single_result) == _ledger(multi_result)
+        assert single_result.liquidated == multi_result.liquidated
+
+        # Equity curve is truncated at the liquidating trade's exit bar
+        # — same timestamp, same length, element-wise equal.
+        liq_exit = single_result.trades[0].exit_time
+        assert single_result.equity_curve[-1].timestamp == liq_exit
+        assert multi_result.equity_curve[-1].timestamp == liq_exit
+        assert len(single_result.equity_curve) == len(multi_result.equity_curve)
+        assert single_result.equity_curve == multi_result.equity_curve
+
+        # Headline rollups.
+        assert single_result.final_balance == multi_result.final_balance
+        assert single_result.total_pnl == multi_result.total_pnl
+        assert single_result.total_fees == multi_result.total_fees
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_identical_short_side(
+        self, tmp_path: Path
+    ) -> None:
+        """Short-side fixture exercising entry slippage (against),
+        TP fill, SL fill, end-of-data force-close, fees, PnL, and the
+        per-bar equity curve. Locks the symmetric branch of every
+        long-only assertion in
+        :meth:`test_run_and_run_multi_timeframe_identical_ledger` and
+        :meth:`...identical_under_slippage`.
+        """
+        candles, short_indices, parse_error_indices = _build_short_parity_fixture()
+
+        single_strategy = _MultiModeShortStrategy(
+            short_indices=short_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=False,
+        )
+        multi_strategy = _MultiModeShortStrategy(
+            short_indices=short_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=True,
+        )
+
+        # Non-zero slippage + fee so we also exercise the short-side
+        # _apply_slippage branches (short entry slips *down*, short
+        # exit slips *up* — opposite signs from the long-side path).
+        single_bt = make_backtester(
+            tmp_path / "single",
+            warmup_candles=5,
+            leverage=1,
+            slippage_bps=20,
+            fee_rate=Decimal("0.001"),
+        )
+        multi_bt = make_backtester(
+            tmp_path / "multi",
+            warmup_candles=5,
+            leverage=1,
+            slippage_bps=20,
+            fee_rate=Decimal("0.001"),
+        )
+
+        single_result = await single_bt.run(
+            single_strategy, candles, "BTC/USDT", timeframe="1h"
+        )
+        multi_result = await multi_bt.run_multi_timeframe(
+            multi_strategy,
+            {"1h": candles},
+            "BTC/USDT",
+            primary_timeframe="1h",
+        )
+
+        # Fixture sanity: actually produced shorts with both wins and
+        # losses plus an end-of-data force close (index 195 has no
+        # engineered exit candle).
+        assert single_result.total_trades >= 5
+        assert all(t.side == "short" for t in single_result.trades)
+        assert single_result.wins >= 1
+        assert single_result.losses >= 1
+        assert any(t.close_reason == "end_of_data" for t in single_result.trades)
+        # Short entry on a 50_000 close with 20 bps slips *down* to
+        # 49_900 — opposite of the long-side fill.
+        assert any(t.entry_price == Decimal("49900") for t in single_result.trades)
+
+        # Byte-identical ledger + equity curve.
+        assert _ledger(single_result) == _ledger(multi_result)
+        assert len(single_result.equity_curve) == len(multi_result.equity_curve)
+        assert single_result.equity_curve == multi_result.equity_curve
+
+        # Headline rollups.
+        assert single_result.final_balance == multi_result.final_balance
+        assert single_result.total_pnl == multi_result.total_pnl
+        assert single_result.total_fees == multi_result.total_fees
+        assert single_result.liquidated == multi_result.liquidated
+
+    @pytest.mark.asyncio
+    async def test_run_and_run_multi_timeframe_diverge_when_higher_tf_gates_bars(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-degenerate multi-TF fixture where ``run`` and
+        ``run_multi_timeframe`` are *expected* to diverge.
+
+        The parity claim is "both loops dispatch through the same
+        ``_execute_bar`` helper given equivalent inputs". The
+        ``run_multi_timeframe`` ``can_analyze`` gate (every TF's slice
+        must hold at least ``warmup_candles`` entries) means a sparse
+        higher TF *legitimately* blocks ``strategy.analyze`` calls that
+        single-TF mode would have made. This test pins that exact
+        divergence so a future refactor that accidentally widened the
+        parity claim to "always identical, including when it shouldn't
+        be" — e.g. by dropping the higher-TF warmup contribution to
+        ``can_analyze`` — would be caught.
+
+        Fixture geometry:
+            - Primary "1h": 200 flat candles, long signals at the
+              parity fixture's indices, TP/SL exit candles engineered
+              per ``_build_parity_fixture``.
+            - Higher "4h": only 5 sparse candles whose timestamps land
+              at primary indices 100, 104, 108, 112, 116. The 4h slice
+              reaches the warmup floor of 5 only at primary[116], so
+              ``run_multi_timeframe`` skips ``analyze`` on every primary
+              bar where ``bisect_right(higher_ts, cur_ts) < 5`` —
+              i.e. primary indices 0..115.
+
+        Expected divergence:
+            - Single-TF (gated only by ``i + 1 >= 5``): analyzes from
+              primary index 4 onward → all eight long signals fire
+              (indices 10, 30, 60, 90, 120, 150, 180, 195).
+            - Multi-TF: analyzes only from primary index 116 onward →
+              only the late signals fire (indices 120, 150, 180, 195).
+              Earlier signals (10, 30, 60, 90) are silently skipped.
+
+        Why this is the right invariant: it locks the higher-TF warmup
+        gate as a *first-class behavioural contract*, not an accidental
+        coincidence of dispatch. If a refactor removed the multi-TF
+        ``can_analyze`` contribution (the ``all(... for tf in ...)``
+        clause in ``Backtester.run_multi_timeframe``), this test would
+        fail because multi-TF would suddenly produce the same eight
+        trades as single-TF — which is precisely the silent-widening
+        regression DEBT-055 warns about.
+        """
+        candles, long_indices, parse_error_indices = _build_parity_fixture()
+
+        # Higher-TF series: 5 candles at primary indices 100, 104, 108,
+        # 112, 116. Content is irrelevant — only timestamps matter for
+        # ``bisect_right`` in the multi-TF slicer.
+        higher_tf_indices = [100, 104, 108, 112, 116]
+        higher_tf_candles = [
+            make_candle(
+                timestamp=candles[i].timestamp,
+                open_price=Decimal("50000"),
+                high=Decimal("50100"),
+                low=Decimal("49900"),
+                close=Decimal("50000"),
+            )
+            for i in higher_tf_indices
+        ]
+
+        single_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=False,
+        )
+        multi_strategy = _MultiModeStrategy(
+            long_indices=long_indices,
+            parse_error_indices=parse_error_indices,
+            requires_multi_tf=True,
+        )
+
+        single_bt = make_backtester(tmp_path / "single", warmup_candles=5, leverage=1)
+        multi_bt = make_backtester(tmp_path / "multi", warmup_candles=5, leverage=1)
+
+        single_result = await single_bt.run(
+            single_strategy, candles, "BTC/USDT", timeframe="1h"
+        )
+        multi_result = await multi_bt.run_multi_timeframe(
+            multi_strategy,
+            {"1h": candles, "4h": higher_tf_candles},
+            "BTC/USDT",
+            primary_timeframe="1h",
+        )
+
+        # Index-by-timestamp so we can compare entry-bar positions
+        # without a second linear scan per trade.
+        index_by_ts = {c.timestamp: i for i, c in enumerate(candles)}
+
+        # Single-TF produces the full eight-signal ledger from
+        # ``_build_parity_fixture`` (warmup of 5 admits index 10
+        # onward).
+        single_entry_indices = sorted(
+            index_by_ts[t.entry_time] for t in single_result.trades
+        )
+        assert single_entry_indices == [10, 30, 60, 90, 120, 150, 180, 195]
+
+        # Multi-TF skips primary bars while the 4h slice is below the
+        # warmup floor. The 4h slice hits 5 entries first at
+        # primary[116], so only signals at 120, 150, 180, 195 fire.
+        multi_entry_indices = sorted(
+            index_by_ts[t.entry_time] for t in multi_result.trades
+        )
+        assert multi_entry_indices == [120, 150, 180, 195]
+
+        # Divergence is strict: multi-TF is a strict subset of single-TF
+        # entries (M < N).
+        assert len(multi_result.trades) < len(single_result.trades)
+        assert set(multi_entry_indices).issubset(set(single_entry_indices))
+
+        # Closed-trade ledgers are *not* equal (they would be if the
+        # parity claim silently widened). PnL / final balance also
+        # diverge.
+        assert _ledger(single_result) != _ledger(multi_result)
+        assert single_result.total_trades != multi_result.total_trades
+        assert single_result.total_pnl != multi_result.total_pnl
