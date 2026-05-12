@@ -349,15 +349,22 @@ The team-lead will resolve these before the code-generation cycle begins.
 - Should the startup health check be sync (blocks startup until the operator
   acks a non-green state) or async (logs the event, continues, lets the
   dashboard surface the state)? Spec currently recommends async.
+  - **Resolved 2026-05-13**: async (log + continue). Rationale: paper-first, avoid blocking startup on a degraded ledger that's still safely monitorable.
 - Should `unrecoverable` open trades auto-close at startup, or always wait
   for the operator to invoke the close tool explicitly? Spec currently
   recommends operator-explicit.
+  - **Resolved 2026-05-13**: operator-explicit. Rationale: never auto-close trading positions without an operator decision; safety stance.
 - Should the dashboard reconciliation banner be dismissible per-session, or
   persistent until the underlying state clears? Spec currently recommends
   persistent.
+  - **Resolved 2026-05-13**: persistent. Rationale: the silent zero-positions defect was caused by missing-signal; dismissibility re-introduces the same failure mode.
 - Does live mode tighten the failure-mode contract — for example, always
   fail-startup if any sub-account has `unrecoverable > 0`, regardless of the
   paper-mode policy? Spec currently treats this as live-mode TBD.
+  - **Resolved 2026-05-13**: defer to live-mode work. Rationale: paper-first this cycle; the unit ships paper semantics, live tightening lands when live execution is wired.
 - Should the close tool record a synthetic `PerformanceRecord` for
   `unrecoverable` closures so feedback-loop counters don't silently lose the
   trade, or is the activity event sufficient?
+  - **Resolved 2026-05-13**: write synthetic record. Rationale: preserve feedback-loop counter integrity; synthetic flag on the record lets future analytics distinguish real from reconciliation-generated outcomes.
+
+All decisions above resolved 2026-05-13; code-generation cycle unblocked.

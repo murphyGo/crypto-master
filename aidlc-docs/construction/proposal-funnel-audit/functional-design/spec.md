@@ -314,12 +314,14 @@ is introduced.
   serve the "did the strategy fire at all?" question, which is upstream
   of every state in §1. The funnel counters live on the proposal records
   themselves and are derived, not authoritative.
+  - **Resolved 2026-05-13**: sibling. Rationale: DEBT-061's single-rate counter is the coarsest funnel layer and earned its place; funnel audit consumes/extends it, doesn't replace.
 - **Time-window contract.** DEBT-061 is lifetime cumulative. Dashboards
   for the funnel views want rolling 24h / 7d / lifetime so operators can
   see today's collapse against the long-run baseline. Decision: ship
   rolling windows in the dashboard layer, derived from
   `ProposalRecord.decision_at` timestamps; do not change the on-disk
   persistence contract.
+  - **Resolved 2026-05-13**: derive rolling at dashboard layer; persist lifetime cumulative only. Rationale: persistence stays simple; operator picks the window at query time.
 - **Per-gate counter cardinality.** Should every gate get a persistent
   counter (paralleling `FailClosedMetricsTracker`) or should the
   dashboard derive gate counts on read from `final_state`? Recommendation:
@@ -328,6 +330,7 @@ is introduced.
   derived view avoids a second persistence contract that can drift from
   the records. Promote to persistent counters only if the dashboard read
   cost becomes the bottleneck.
+  - **Resolved 2026-05-13**: derived-on-read for v1. Rationale: counters are computed from activity-event stream; avoids persistence-schema explosion as gates evolve.
 - **Backfill strategy.** Existing proposal files do not carry
   `final_state`. Options: (a) backfill once on first read by inferring
   the terminal state from existing fields (`decision`, `rejection_reason`,
@@ -338,12 +341,16 @@ is introduced.
   at least `trade_opened`); the post-approval gate cases need a fallback
   bucket (`gate_rejected_unknown`) because the original reason isn't on
   the record.
+  - **Resolved 2026-05-13**: forward-only with `gate_rejected_unknown` fallback bucket for legacy. Rationale: don't rewrite history; legacy rows show in their own bucket until natural rollover.
 - **Stale-quote gate position.** Stale-quote rejection fires inside
   `_execute` after every other gate accepts. Operators may want it
   grouped with State 4 gates in the dashboard even though it executes in
   State 5. Recommendation: present it as a State 4 gate for UI purposes;
   the on-disk record's `final_state` is still
   `gate_rejected_stale_quote`.
+  - **Resolved 2026-05-13**: State 4 (gate-rejected, pre-open). Rationale: stale-quote rejection is a pre-open gate, not a post-open execution event.
+
+All decisions above resolved 2026-05-13; code-generation cycle unblocked.
 
 ## Cross-Unit Dependencies
 

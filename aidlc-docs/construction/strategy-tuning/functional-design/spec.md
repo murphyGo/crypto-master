@@ -270,21 +270,29 @@ unit-of-work story map, unit breakdown, and AI-DLC state tracker.
 - Whether action state is per (sub-account, strategy) — the current
   proposal — or globally per strategy. Per-pair is more flexible but more
   config surface.
+  - **Resolved 2026-05-13**: per (sub-account, strategy). Rationale: matches existing per-account isolation; same strategy can be `keep` in one lab and `pause` in another.
 - Whether action-change workflow is an in-dashboard button (requires
   hot-reload of sub-account config) or YAML-edit + restart for v1. The
   v1 default proposed here is YAML-edit + restart, with a clipboard helper
   in the dashboard.
+  - **Resolved 2026-05-13**: YAML-edit + restart for v1, with dashboard clipboard helper showing the diff. Rationale: avoids new write-from-dashboard surface; config remains the single source of truth.
 - Whether `shadow` should persist proposal records to the same JSONL stream
   as live proposals (subsuming DEBT-061 fail-closed semantics) or to a
   separate `shadow_proposals.jsonl`.
+  - **Resolved 2026-05-13**: same JSONL with `shadow=true` field on the record. Rationale: single stream stays simpler; downstream tools filter on the field.
 - Whether `scout_size_factor` should be account-scoped only or also
   per-strategy.
+  - **Resolved 2026-05-13**: per-strategy in YAML, default 0.25. Rationale: per-strategy gives flexibility; default mirrors the spec's example.
 - Promotion target resolution: for a `promote` recommendation, who
   decides the destination sub-account — operator-only, or does the
   marketplace template embed a default promotion target?
+  - **Resolved 2026-05-13**: operator-only for v1. Rationale: marketplace template integration is `sub-account-experiment-marketplace`'s territory — defer cross-unit coupling.
 - Whether `pause` should also stop the evidence window from rolling
   forward (so an unpaused strategy resumes against the same dataset) or
   reset the window on unpause.
+  - **Resolved 2026-05-13**: reset on unpause. Rationale: cleaner trigger semantics — unpause means "fresh start under current config"; preserves operator agency.
+
+All decisions above resolved 2026-05-13; code-generation cycle unblocked.
 
 ## Code-Generation Plan
 

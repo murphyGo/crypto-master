@@ -367,24 +367,33 @@ NFR-008, NFR-012.
 - Risk budget unit: percentage of account equity per trade (proposed
   default) versus a fixed USDT-per-trade budget per sub-account. The spec
   assumes percent-of-equity; confirm before code generation.
+  - **Resolved 2026-05-13**: percent-of-equity (default 0.5% per trade, operator-configurable per sub-account). Rationale: robust to capital changes; scales with account growth/drawdown.
 - Symbol/side cap unit: open-position count, gross notional, or both. The
   spec proposes both, but operators may want to ship only one to start.
+  - **Resolved 2026-05-13**: both — `max_open_positions` (count) as primary control, `max_gross_notional` (notional) as backstop. Rationale: count is intuitive for operators; notional catches outsized fills.
 - Default stale-position cap: a single 48h default versus per-strategy
   defaults baked into baseline strategy frontmatter. The spec leaves it
   per-sub-account-config; strategy-family defaults can come later.
+  - **Resolved 2026-05-13**: per-strategy-family default with operator override (defaults: scalp 4h, intraday 24h, swing 7d, position 30d). Rationale: timeframe-appropriate; operator overrides per-account.
 - Live-mode hardening: which caps are advisory (event-only) in paper mode
   and hard-blocking in live mode. The spec assumes all caps hard-block in
   live mode; confirm.
+  - **Resolved 2026-05-13**: caps hard-block in live, advisory-with-event in paper. Rationale: paper-first behavior preserves throughput for experimentation; live mode treats caps as money safety.
 - Account-tier risk presets ("conservative" / "standard" / "aggressive"):
   ship as named profiles operators select per sub-account, or defer to a
   later iteration once individual fields have field-tested defaults. The
   spec defers presets.
+  - **Resolved 2026-05-13**: defer. Rationale: individual cap config covers v1; tiers are operator convenience to bundle later.
 - Cap-resolution default: `first_come_first_serve` versus
   `lowest_priority_loses`. The spec exposes both but does not pick a
   shipped default.
+  - **Resolved 2026-05-13**: first-come-first-serve. Rationale: simpler; per-account `priority` field can be added later if needed.
 - Whether the operator manual freeze should also auto-cancel open SL/TP
   orders in live mode, or strictly block new entries. The spec assumes the
   latter.
+  - **Resolved 2026-05-13**: block-new-only. Rationale: leave open positions to wind down through their own SL/TP; cancelling them creates unbounded risk.
+
+All decisions above resolved 2026-05-13; code-generation cycle unblocked.
 
 ## Code-Generation Plan
 
