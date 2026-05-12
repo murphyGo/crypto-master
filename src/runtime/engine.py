@@ -1109,25 +1109,13 @@ class TradingEngine:
                 )
             )
 
-            regime_outcome = await self._market_regime_gate(
-                proposal,
-                record,
-                sub_account,
-                exchange or self.exchange,
-                cycle_id,
-            )
-            if regime_outcome is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(regime_outcome.final_record)
-                for event in events + regime_outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
-                return
-
+            # DEBT-062: ``_correlation_gate`` runs BEFORE
+            # ``_market_regime_gate``. When both gates would block, the
+            # correlation rejection (directly actionable — "you already
+            # have exposure here") must displace the regime rejection
+            # (non-actionable — "this market is in the wrong state") on
+            # the operator dashboard. Per-cycle regime cache means the
+            # OHLCV fetch cost is unchanged by ordering.
             correlation_outcome = self._correlation_gate(
                 proposal,
                 record,
@@ -1152,6 +1140,26 @@ class TradingEngine:
                         cycle_id=event.cycle_id,
                     )
                 return
+            record = correlation_outcome.final_record
+
+            regime_outcome = await self._market_regime_gate(
+                proposal,
+                record,
+                sub_account,
+                exchange or self.exchange,
+                cycle_id,
+            )
+            if regime_outcome is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(regime_outcome.final_record)
+                for event in events + regime_outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
             # strategy-tuning §"Runtime Behavior": enforce the applied
             # action for this ``(sub_account, strategy)`` pair. ``keep``
             # / ``promote`` pass through, ``retune`` emits an advisory
@@ -1160,7 +1168,6 @@ class TradingEngine:
             # downstream gates that consume the quantity (account
             # aggregate cap, stale-position block). ``shadow`` and
             # ``pause`` short-circuit with their own terminals.
-            record = correlation_outcome.final_record
             proposal, record, action_outcome = self._strategy_action_gate(
                 proposal,
                 record,

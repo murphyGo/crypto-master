@@ -8,12 +8,17 @@ both consume it, but neither owns the rule.
 
 The classification rule (functional-design spec §1 "Regime Labels"):
 
-- ``close > SMA(sma_period) * (1 + bull_band - 1.0)`` -> ``bull``
-- ``close < SMA(sma_period) * (1 - (1.0 - bear_band))`` -> ``bear``
+- last 2 candles BOTH ``close > SMA(sma_period) * bull_band`` -> ``bull``
+- last 2 candles BOTH ``close < SMA(sma_period) * bear_band`` -> ``bear``
 - otherwise -> ``sideways``
 - insufficient data (< ``sma_period`` candles) -> ``unknown``
 - stale data (last-candle timestamp older than ``2 *
   timeframe_seconds`` from ``now``) -> ``unknown``
+
+The two-bar confirmation (DEBT-063) prevents per-cycle regime flapping
+when price oscillates around the ±2% band. The ±2% threshold itself is
+unchanged so live and backtest regime views stay consistent
+(``RobustnessGate._classify_regimes`` in ``src/backtest/validator.py``).
 
 The defaults (``sma_period=200``, ``bull_band=1.02``, ``bear_band=0.98``)
 match the existing ``RobustnessGate`` regime classifier in
@@ -209,12 +214,30 @@ def classify_regime_detailed(
     bull_threshold = sma * Decimal(str(bull_band))
     bear_threshold = sma * Decimal(str(bear_band))
 
-    if last.close > bull_threshold:
-        regime: MarketRegime = "bull"
-    elif last.close < bear_threshold:
-        regime = "bear"
+    # DEBT-063: require the last 2 candles to both sit on the new side
+    # of the band before flipping out of ``sideways``. A single-candle
+    # band crossing in a chopping market (price oscillating in the
+    # 1.5%-2.5% range around SMA(200)) would flap the regime every
+    # cycle, repeatedly admitting/blocking the same strategy at the
+    # band edges. Two-bar confirmation keeps the ±2% threshold (matches
+    # the backtest-side ``RobustnessGate._classify_regimes`` for live /
+    # backtest consistency) and changes the rule, not the number. The
+    # ``ohlcv[-2]`` access is safe: the ``len(ohlcv) < sma_period``
+    # guard above requires at least ``sma_period`` (>=1) candles, and
+    # the canonical ``sma_period`` is 200 so two trailing candles are
+    # always available. A defensive guard handles the degenerate
+    # ``sma_period == 1`` case by falling back to ``sideways`` rather
+    # than flipping on a single bar.
+    if len(ohlcv) < 2:
+        regime: MarketRegime = "sideways"
     else:
-        regime = "sideways"
+        prev_close = ohlcv[-2].close
+        if last.close > bull_threshold and prev_close > bull_threshold:
+            regime = "bull"
+        elif last.close < bear_threshold and prev_close < bear_threshold:
+            regime = "bear"
+        else:
+            regime = "sideways"
 
     return RegimeClassification(
         regime=regime,

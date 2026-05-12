@@ -3936,8 +3936,9 @@ class TestMarketRegimeGate:
         assert blocked == []
 
     async def test_gate_allowed_regime_passes_through(self, tmp_path: Path) -> None:
-        # 199 candles at 100 + last close 103 → classifier returns
-        # ``bull``; account allows ``bull`` → proposal fills.
+        # 198 candles at 100 + last 2 closes at 103 → classifier returns
+        # ``bull`` (DEBT-063: two-bar confirmation); account allows
+        # ``bull`` → proposal fills.
         proposal = make_proposal(
             proposal_id="gate-bull-ok",
             composite=2.0,
@@ -3950,7 +3951,7 @@ class TestMarketRegimeGate:
             allowed_regimes=["bull"],
         )
         mocks["exchange"].get_ohlcv = AsyncMock(
-            return_value=_make_regime_ohlcv([100.0] * 199 + [103.0]),
+            return_value=_make_regime_ohlcv([100.0] * 198 + [103.0, 103.0]),
         )
 
         result = await engine.run_cycle()
@@ -3964,10 +3965,10 @@ class TestMarketRegimeGate:
     async def test_gate_disallowed_regime_blocks_and_emits_event(
         self, tmp_path: Path
     ) -> None:
-        # 199 candles at 100 + last close 97 → classifier returns
-        # ``bear``; account allows only ``sideways`` → proposal blocked
-        # AND a MARKET_REGIME_BLOCKED event must carry the spec §4
-        # payload shape.
+        # 198 candles at 100 + last 2 closes at 97 → classifier returns
+        # ``bear`` (DEBT-063: two-bar confirmation); account allows only
+        # ``sideways`` → proposal blocked AND a MARKET_REGIME_BLOCKED
+        # event must carry the spec §4 payload shape.
         proposal = make_proposal(
             proposal_id="gate-bear-blocked",
             composite=2.0,
@@ -3980,7 +3981,7 @@ class TestMarketRegimeGate:
             allowed_regimes=["sideways"],
         )
         mocks["exchange"].get_ohlcv = AsyncMock(
-            return_value=_make_regime_ohlcv([100.0] * 199 + [97.0]),
+            return_value=_make_regime_ohlcv([100.0] * 198 + [97.0, 97.0]),
         )
 
         result = await engine.run_cycle()
@@ -4155,10 +4156,11 @@ class TestMarketRegimeGate:
     @pytest.mark.parametrize(
         ("closes_tail", "expected_regime", "expected_blocked"),
         [
-            # bull: 103 close vs 100-anchored SMA exceeds the +2% band.
-            ([100.0] * 199 + [103.0], "bull", False),
-            # bear: 97 close vs 100-anchored SMA crosses the -2% band.
-            ([100.0] * 199 + [97.0], "bear", True),
+            # bull: last 2 bars at 103 (DEBT-063 two-bar confirmation)
+            # vs 100-anchored SMA both exceed the +2% band.
+            ([100.0] * 198 + [103.0, 103.0], "bull", False),
+            # bear: last 2 bars at 97 both cross the -2% band.
+            ([100.0] * 198 + [97.0, 97.0], "bear", True),
             # sideways: 101 sits inside the ±2% neutral band.
             ([100.0] * 199 + [101.0], "sideways", True),
             # unknown: < 200 candles → classifier returns "unknown".
@@ -4245,12 +4247,107 @@ class TestMarketRegimeGate:
             allowed_regimes=["bull"],
         )
         mocks["exchange"].get_ohlcv = AsyncMock(
-            return_value=_make_regime_ohlcv([100.0] * 199 + [103.0]),
+            return_value=_make_regime_ohlcv([100.0] * 198 + [103.0, 103.0]),
         )
 
         await engine.run_cycle()
 
         assert mocks["exchange"].get_ohlcv.await_count == 1
+
+    async def test_correlation_gate_runs_before_regime_gate(
+        self, tmp_path: Path
+    ) -> None:
+        # DEBT-062: when BOTH the correlation gate AND the regime gate
+        # would reject, the directly-actionable correlation rejection
+        # must surface to the operator — not the non-actionable regime
+        # rejection. Pin the new gate order by setting up a proposal
+        # that would fail BOTH gates and asserting the correlation-
+        # rejected terminal state + no MARKET_REGIME_BLOCKED event.
+        existing_trade = make_trade(
+            trade_id="t-btc-existing",
+            symbol="BTC/USDT",
+            side="long",
+        ).model_copy(update={"sub_account_id": "alpha"})
+        proposal = make_proposal(
+            proposal_id="ordering-corr-vs-regime",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "beta"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=None,
+            config=EngineConfig(
+                auto_approve_threshold=1.0,
+                max_open_positions_per_symbol=2,
+                correlation_gate_enabled=True,
+            ),
+        )
+        alpha = SubAccount(
+            id="alpha",
+            name="Alpha",
+            mode="paper",
+            exchange_ref="default",
+            initial_balance={"USDT": Decimal("10000")},
+        )
+        # Beta carries a regime policy that would ALSO block: it requires
+        # ``bull`` but the fixture is bear (two confirming bars at 97).
+        beta = SubAccount(
+            id="beta",
+            name="Beta",
+            mode="paper",
+            exchange_ref="default",
+            initial_balance={"USDT": Decimal("10000")},
+            market_regime=MarketRegimePolicy(
+                enabled=True,
+                reference_symbol="BTC/USDT",
+                timeframe="4h",
+                allowed_regimes=["bull"],
+            ),
+        )
+        alpha_trader = make_mock_trader()
+        beta_trader = make_mock_trader()
+        alpha_trader.get_open_trades.return_value = [existing_trade]
+        engine.sub_account_registry = FakeSubAccountRegistry(
+            [alpha, beta],
+            {"alpha": alpha_trader, "beta": beta_trader},
+        )  # type: ignore[assignment]
+        engine._runtime_policy_cache = {}
+        mocks["proposal_engine"].strategies = {}
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 198 + [97.0, 97.0]),
+        )
+
+        async def propose_bitcoin(**kwargs: object) -> Proposal | None:
+            if kwargs["sub_account_id"] == "alpha":
+                return None
+            return proposal
+
+        mocks["proposal_engine"].propose_bitcoin.side_effect = propose_bitcoin
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 1
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 0
+        beta_trader.open_position.assert_not_called()
+
+        # Correlation rejection wins: the persisted record carries the
+        # correlation final-state, not the regime final-state.
+        record = mocks["history"].load("ordering-corr-vs-regime")
+        assert record.decision == ProposalDecision.REJECTED.value
+        assert (
+            record.final_state
+            == ProposalFinalState.GATE_REJECTED_CORRELATION.value
+        )
+        assert record.rejection_reason == (
+            "correlation gate rejected excessive duplicate exposure"
+        )
+
+        # No MARKET_REGIME_BLOCKED event is emitted — the regime gate
+        # is short-circuited by the earlier correlation rejection.
+        regime_blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert regime_blocked == []
 
 
 # =============================================================================

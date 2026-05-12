@@ -62,9 +62,10 @@ def _fresh_now(last_ts: datetime, offset_seconds: int = 60) -> datetime:
 
 
 def test_classify_regime_bull_when_close_above_bull_band() -> None:
-    # 199 candles at 100, last candle at 103 -> SMA = (100*199 + 103)/200
-    # which is still ≈ 100.015; 103 > 100.015 * 1.02 (= 102.015) -> bull.
-    closes = [100.0] * 199 + [103.0]
+    # 198 candles at 100, last 2 candles at 103 -> SMA = (198*100 + 2*103)/200
+    # = 100.03; 103 > 100.03 * 1.02 (= 102.0306) on BOTH last bars -> bull.
+    # DEBT-063: two-bar confirmation required to flip out of sideways.
+    closes = [100.0] * 198 + [103.0, 103.0]
     candles = _make_candles(closes)
     regime = classify_regime(
         candles,
@@ -75,9 +76,10 @@ def test_classify_regime_bull_when_close_above_bull_band() -> None:
 
 
 def test_classify_regime_bear_when_close_below_bear_band() -> None:
-    # 199 candles at 100, last candle at 97 -> SMA ≈ 99.985; 97 < 99.985
-    # * 0.98 (= 97.985) -> bear.
-    closes = [100.0] * 199 + [97.0]
+    # 198 candles at 100, last 2 candles at 97 -> SMA = (198*100 + 2*97)/200
+    # = 99.97; 97 < 99.97 * 0.98 (= 97.9706) on BOTH last bars -> bear.
+    # DEBT-063: two-bar confirmation required to flip out of sideways.
+    closes = [100.0] * 198 + [97.0, 97.0]
     candles = _make_candles(closes)
     regime = classify_regime(
         candles,
@@ -130,7 +132,10 @@ def test_classify_regime_fresh_within_budget() -> None:
     # Exactly one candle late is still fresh — the budget is 2× the
     # timeframe. This pins the boundary so a single missed close on
     # a slow exchange does not flip the regime to ``unknown``.
-    closes = [100.0] * 199 + [103.0]
+    # DEBT-063: provide 2 confirming bars so the freshness boundary
+    # test still exercises the bull label rather than the new
+    # two-bar-confirmation default of ``sideways``.
+    closes = [100.0] * 198 + [103.0, 103.0]
     candles = _make_candles(closes)
     one_late_now = candles[-1].timestamp + timedelta(hours=4)
     assert (
@@ -139,7 +144,9 @@ def test_classify_regime_fresh_within_budget() -> None:
 
 
 def test_classify_regime_detailed_reports_baseline_and_close() -> None:
-    closes = [100.0] * 199 + [103.0]
+    # DEBT-063: two confirming bars at 103 are required to label
+    # ``bull``; the SMA baseline now averages over 198 × 100 + 2 × 103.
+    closes = [100.0] * 198 + [103.0, 103.0]
     candles = _make_candles(closes)
     result = classify_regime_detailed(
         candles,
@@ -149,8 +156,8 @@ def test_classify_regime_detailed_reports_baseline_and_close() -> None:
     assert result.regime == "bull"
     assert result.close == Decimal("103")
     assert result.baseline is not None
-    # SMA over 199 × 100 + 103 → (19900 + 103) / 200 = 100.015
-    assert result.baseline == Decimal("100.015")
+    # SMA over 198 × 100 + 2 × 103 → (19800 + 206) / 200 = 100.03
+    assert result.baseline == Decimal("100.03")
     assert result.last_candle_timestamp == candles[-1].timestamp
 
 
@@ -203,6 +210,63 @@ def test_classify_regime_rejects_non_positive_sma_period() -> None:
             timeframe="4h",
             now=_fresh_now(candles[-1].timestamp),
         )
+
+
+def test_classify_regime_bull_requires_two_bar_confirmation() -> None:
+    # DEBT-063: last candle crosses the bull band but the penultimate
+    # candle still sits inside the neutral band → must NOT flip to
+    # ``bull``. Pre-fix this returned ``bull`` on the single-bar break;
+    # the new rule keeps the regime at ``sideways`` until 2 consecutive
+    # bars confirm.
+    closes = [100.0] * 199 + [103.0]
+    candles = _make_candles(closes)
+    regime = classify_regime(
+        candles,
+        timeframe="4h",
+        now=_fresh_now(candles[-1].timestamp),
+    )
+    assert regime == "sideways"
+
+
+def test_classify_regime_bear_requires_two_bar_confirmation() -> None:
+    # DEBT-063: symmetric bear case — one bar below the bear band is
+    # NOT enough to flip to ``bear``; the penultimate bar must also
+    # confirm.
+    closes = [100.0] * 199 + [97.0]
+    candles = _make_candles(closes)
+    regime = classify_regime(
+        candles,
+        timeframe="4h",
+        now=_fresh_now(candles[-1].timestamp),
+    )
+    assert regime == "sideways"
+
+
+def test_classify_regime_bull_fires_when_both_bars_confirm() -> None:
+    # DEBT-063: both of the last 2 bars sit above the bull band →
+    # classifier flips to ``bull``. This pins the positive side of the
+    # two-bar confirmation rule.
+    closes = [100.0] * 198 + [103.0, 103.0]
+    candles = _make_candles(closes)
+    regime = classify_regime(
+        candles,
+        timeframe="4h",
+        now=_fresh_now(candles[-1].timestamp),
+    )
+    assert regime == "bull"
+
+
+def test_classify_regime_bear_fires_when_both_bars_confirm() -> None:
+    # DEBT-063: symmetric — both of the last 2 bars sit below the bear
+    # band → classifier flips to ``bear``.
+    closes = [100.0] * 198 + [97.0, 97.0]
+    candles = _make_candles(closes)
+    regime = classify_regime(
+        candles,
+        timeframe="4h",
+        now=_fresh_now(candles[-1].timestamp),
+    )
+    assert regime == "bear"
 
 
 def test_timeframe_to_seconds_known_and_unknown() -> None:

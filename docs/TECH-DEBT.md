@@ -197,51 +197,6 @@ Switch the 4 ranking-side reads (`src/proposal/engine.py:996, 1010, 1014, 1132`)
 - `src/proposal/engine.py:996`, `:1010`, `:1014`, `:1132`
 - Display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain synthetic-inclusive — those are operator-facing counts and out of scope.
 
-### DEBT-062: Market-regime gate sequencing
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-13 |
-| **Phase** | market-regime quant-review follow-up |
-| **Component** | proposal-runtime + consistency-hardening |
-
-**Description:**
-`_market_regime_gate` is called before `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py:1089-1131`). When both gates would block, the regime-block event displaces the more actionable correlation-block signal. Operator effect: "this market is in the wrong state" (regime block — non-actionable) is surfaced instead of "you already have exposure here" (correlation block — directly fixable).
-
-**Impact:**
-Regime-blocked activity events dominate the dashboard for cap-bound accounts, making it harder for operators to spot when the actual constraint is portfolio exposure.
-
-**Suggested Resolution:**
-Move the `_market_regime_gate` call below `_correlation_gate`. Per-cycle cache means relocation has effectively zero cost; first call per cycle still triggers the OHLCV fetch regardless of order.
-
-**Related:**
-- market-regime quant-review Q1
-- `src/runtime/engine.py:1089-1131`
-
-### DEBT-063: Market-regime classifier hysteresis flapping
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-13 |
-| **Phase** | market-regime quant-review follow-up |
-| **Component** | proposal-runtime + strategy-framework |
-
-**Description:**
-Single-candle band crossings flip regime label on every cycle when price chops near the ±2% band. On 4h timeframe with a market oscillating in the 1.5%-2.5% range around SMA(200), the same strategy gets repeatedly admitted and blocked across the regime boundary — producing correlated entries near the band edges (worst-case selection bias).
-
-**Impact:**
-Strategy throughput becomes a function of band-crossing noise rather than persistent market state. Operator activity log fills with flap events.
-
-**Suggested Resolution:**
-Two-bar confirmation in `classify_regime_detailed` (`src/runtime/market_regime.py:207-217`) — require the last 2 candles to both sit on the new side of the band before flipping out of `sideways`. Keep ±2% threshold (matches `RobustnessGate._classify_regimes` for backtest/live consistency); change the rule, not the number.
-
-**Related:**
-- market-regime quant-review Q4
-- `src/runtime/market_regime.py:207-217`
-- `src/backtest/validator.py:929-959` (the borrowed ±2% rule)
-
 ## Resolved Debt Items
 
 <!--
@@ -256,6 +211,24 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-063: Market-regime classifier hysteresis flapping ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | `classify_regime_detailed` (`src/runtime/market_regime.py`) now requires the last 2 candles to BOTH sit on the new side of the ±2% band before flipping out of `sideways` per quant Q4's recommendation. Threshold unchanged (preserves `RobustnessGate._classify_regimes` parity at `src/backtest/validator.py:929-959` for backtest/live consistency — the change is to the rule, not the number). Defensive `len(ohlcv) < 2 → sideways` short-circuit positioned after the existing `insufficient_data` / `stale_data` → `unknown` checks so the data-availability semantics stay above the confirmation rule. 8 existing single-bar fixtures across `tests/test_market_regime.py` + `tests/test_runtime_engine.py` updated to 2-bar tails; SMA(200) baseline recomputation `100.015 → 100.03` matches `(198×100 + 2×103)/200`. 4 new tests pin both bull and bear two-bar confirmation plus the both-confirm-flip behavior. `pytest -q` 2059 passed (was 2054; net +5, zero regressions); `ruff check src tests` clean; `mypy src/runtime/market_regime.py` clean. |
+
+### DEBT-062: Market-regime gate sequencing ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | `_market_regime_gate` relocated after `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py`) per quant Q1's recommendation. New gate order `score → correlation → market_regime → strategy_action → trend → ...` ensures that when both gates would block, the directly-actionable correlation rejection (with its blocking-trade diagnostic) surfaces on the operator dashboard instead of the non-actionable regime signal. Per-cycle regime cache means the relocation has zero OHLCV-fetch cost — the first call per cycle still triggers the underlying fetch regardless of order. Pinned by new `tests/test_runtime_engine.py::test_correlation_gate_runs_before_regime_gate` which constructs a both-blocking fixture (correlation conflict + bear regime against `allowed_regimes=["bull"]`) and asserts the correlation event wins. `pytest -q` 2059 passed (was 2054; net +5, zero regressions); `ruff check src tests` clean; `mypy src/runtime/engine.py` clean. |
 
 ### DEBT-065: Synthetic reconciliation-close rows leak into live-promotion gating ✅
 
@@ -803,12 +776,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 8 |
+| Total Active | 6 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 2 |
 | Low | 4 |
-| Resolved (All Time) | 58 |
+| Resolved (All Time) | 60 |
 
 ---
 
@@ -816,6 +789,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — `classify_regime_detailed` (`src/runtime/market_regime.py`) now requires the last 2 candles to BOTH sit on the new side of the ±2% band before flipping out of `sideways` per quant Q4's recommendation; threshold unchanged (preserves `RobustnessGate._classify_regimes` parity at `src/backtest/validator.py:929-959` for backtest/live consistency); defensive `len(ohlcv) < 2 → sideways` short-circuit positioned after the existing `insufficient_data` / `stale_data` → `unknown` checks; 8 existing single-bar fixtures across `tests/test_market_regime.py` + `tests/test_runtime_engine.py` updated to 2-bar tails (SMA(200) baseline recomputation `100.015 → 100.03` matches `(198×100 + 2×103)/200`); 4 new tests pin both bull/bear two-bar confirmation + both-confirm-flip behavior; pytest 2059 passed (was 2054; net +5 across both DEBT-062 + DEBT-063, zero regressions); ruff + mypy clean |
+| 2026-05-13 | Resolved | DEBT-062 Market-regime gate sequencing (Medium) — `_market_regime_gate` relocated after `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py`) per quant Q1's recommendation; new gate order `score → correlation → market_regime → strategy_action → trend → ...` ensures when both gates would block, the directly-actionable correlation rejection (with its blocking-trade diagnostic) surfaces on the operator dashboard instead of the non-actionable regime signal; per-cycle regime cache means the relocation has zero OHLCV-fetch cost; pinned by new `tests/test_runtime_engine.py::test_correlation_gate_runs_before_regime_gate` which constructs a both-blocking fixture (correlation conflict + bear regime against `allowed_regimes=["bull"]`) and asserts the correlation event wins; pytest 2059 passed, ruff + mypy clean |
 | 2026-05-13 | Resolved | DEBT-065 Synthetic reconciliation-close rows leak into live-promotion gating (Medium) — same-day fix per option (b) from the DEBT-065 suggested resolution; new `TechniquePerformance.real_trade_count` property (`total_trades - synthetic_count`) added on `src/strategy/performance.py`; `ProposalEngine._cold_start_blocks_live` (`src/proposal/engine.py:1062-1068`, incl. `per_technique_trades` / `max_trades_observed` payload) and `_score.sample_size` derivation (`src/proposal/engine.py:1199-1209`, flowing into `sample_factor`) switched to read it; `total_trades` semantics preserved for operator-facing display (`src/dashboard/pages/strategies.py:118` "Total Trades" column + `src/ai/improver.py:667` prompt rendering); canonical 9+2 defect at threshold 10 now correctly blocks at `_cold_start_blocks_live`; boundary at 10 real + 5 synthetic correctly admits; tests +3 in `tests/test_strategy_performance.py` (property arithmetic) + 4 in `tests/test_proposal_engine.py` (canonical 9+2 defect, 10-real boundary, `_score` 8+3, all-synthetic collapses to cold-start); pytest 2054 passed (was 2047; net +7, zero regressions); ruff + mypy clean; QA-surfaced follow-up filed as DEBT-070 |
 | 2026-05-13 | Added | DEBT-070 `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` (Low) — surfaced from QA during DEBT-065 close-out (`docs/sessions/2026-05-13-debt-065-synthetic-row-leak-fix.md`); 4 additional `perf.total_trades` reads in `ProposalEngine._select_best_technique` / `_select_all_techniques` at `src/proposal/engine.py:996, 1010, 1014, 1132` (QA corrected dev's :1128 mis-cite to :1132) affect strategy-selection ranking — not promotion gating — so DEBT-065 correctly stayed in scope (gating-only); with current `total_trades` semantics, a strategy with only synthetic reconciliation-close rows registers as "has history" (line 996), wins tie-breakers over real-history-light strategies (line 1010), and passes through downstream as if it had history (lines 1014, 1132); blast radius is narrow (operator-driven path, composite/edge dominates the actual scoring formula) but synthetic-heavy strategies can win "best technique" ranking on a per-(symbol, sub-account) cycle over genuine cold-start strategies; suggested resolution is the same pattern as the DEBT-065 fix (switch all 4 reads to `perf.real_trade_count`) plus regression tests pinning that a synthetic-heavy strategy does NOT win ranking over a real-history strategy at equal composite; display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain synthetic-inclusive (operator-facing counts) |
 | 2026-05-13 | Added | DEBT-069 `strategy-tuning` Slice 2 umbrella (Medium) — filed at the close of `strategy-tuning` Slice 1 (2026-05-13); Slice 1 shipped the state machine + recommender + runtime gate (`StrategyAction` enum + `StrategyTuningPolicy` frozen-Pydantic config with per-account + per-strategy override fall-through; pure `recommend_action` recommender with priority `pause → shadow → scout → retune → keep → promote`; `_strategy_action_gate` wired after `_correlation_gate` with 6 action behaviors — keep/promote pass-through, retune pass-through + `RETUNE_FLAGGED` advisory, scout scales `proposal.quantity *= scout_size_factor`, shadow persists `shadow=True` record without opening, pause rejects with `gate_rejected_strategy_action_pause`; 2 new `ProposalFinalState` terminals + funnel plumbing) at ~805 LoC well under the 1200-LoC scope-split guard; Slice 2 wires the remaining surfaces per the functional-design spec plus 3 quant-trader-expert follow-ups (Q1 threshold calibration after first 2 weeks of paper evidence, Q2 true profit-factor computation replacing the `_infer_profit_factor` approximation, Q5 pause-reason split between evidence-driven and gate-config-driven causes) and 2 QA follow-ups (funnel `_STATE_TO_FIELD` aggregator coverage gaps for the 2 new states) — (a) dashboard view + YAML clipboard helper (spec Step 4); (b) initial-action seeding for named strategy families per spec §"Initial Actions"; (c) observation store for recommendation history analogous to `PromotionObservationStore`; (d) `STRATEGY_ACTION_APPLIED` emission (enum reserved at `src/runtime/activity_log.py` but never emitted); (e) true profit-factor computation via new `gross_win_pct`/`gross_loss_pct`/`max_drawdown_pct` on `TechniquePerformance.from_records`; (f) split `pause` reason; (g) threshold calibration (widen `scout.sample_size_max` to ~15 to align with `keep.sample_size_min`); (h) shadow-aware filter defensive comment in `src/strategy/performance.py::from_records`; (i) funnel unit-test gaps — append `GATE_REJECTED_STRATEGY_ACTION_PAUSE` to `test_gate_rejected_total_sums_every_gate_bucket` and `GATE_REJECTED_STRATEGY_ACTION_PAUSE` + `SHADOW_RECORDED` to `test_score_accepted_total_sums_every_post_score_state`; suggested sequencing — (a)+(b)+(c) bundle as the dashboard pass, (d) bundles cheaply with (a), (e) is its own cycle (recalibrates thresholds), (f) bundles with (e), (g) is post-evidence calibration, (h) and (i) are mechanical follow-up commits |
