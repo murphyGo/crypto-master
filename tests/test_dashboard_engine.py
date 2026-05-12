@@ -12,6 +12,12 @@ from src.dashboard.pages.engine import (
     aggregate_cycles,
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
+    build_market_regime_account_dataframe,
+    build_market_regime_account_rows,
+    build_market_regime_degraded_events_dataframe,
+    build_market_regime_events_dataframe,
+    build_market_regime_status_dataframe,
+    build_market_regime_status_rows,
     build_runtime_safety_score,
     build_sub_account_metrics_dataframe,
     build_summary_metrics,
@@ -597,6 +603,268 @@ def test_timeline_dataframe_empty_keeps_columns() -> None:
 # =============================================================================
 # AppTest smoke
 # =============================================================================
+
+
+def _make_regime_event(
+    *,
+    sub_account_id: str,
+    symbol: str,
+    timeframe: str,
+    regime: str,
+    timestamp: datetime,
+    baseline: str = "100.0",
+    close: str = "97.0",
+    reason: str | None = None,
+) -> ActivityEvent:
+    details: dict[str, object] = {
+        "sub_account_id": sub_account_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "regime": regime,
+        "baseline": baseline,
+        "close": close,
+        "policy_decision": "block",
+        "reason": reason or f"market_regime_blocked_{regime}",
+    }
+    return make_event(
+        event_type=ActivityEventType.MARKET_REGIME_BLOCKED,
+        timestamp=timestamp,
+        message=f"regime {regime} blocked",
+        details=details,
+    )
+
+
+def test_market_regime_status_rows_keep_latest_per_symbol_timeframe() -> None:
+    """Two reads for the same (symbol, timeframe) keep only the newest;
+    different (symbol, timeframe) pairs each surface their own row.
+    Sort order is newest-first so operators see fresh classifications
+    at the top of the status table."""
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    events = [
+        _make_regime_event(
+            sub_account_id="acct_a",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            regime="bear",
+            timestamp=base,
+            close="97.0",
+        ),
+        _make_regime_event(
+            sub_account_id="acct_a",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            regime="sideways",
+            timestamp=base + timedelta(minutes=30),
+            close="100.5",
+        ),
+        _make_regime_event(
+            sub_account_id="acct_b",
+            symbol="ETH/USDT",
+            timeframe="1d",
+            regime="bull",
+            timestamp=base + timedelta(minutes=10),
+            close="3500.0",
+        ),
+    ]
+
+    rows = build_market_regime_status_rows(events)
+    assert len(rows) == 2
+    # Newest first.
+    assert rows[0].reference_symbol == "BTC/USDT"
+    assert rows[0].regime == "sideways"
+    assert rows[1].reference_symbol == "ETH/USDT"
+    assert rows[1].regime == "bull"
+
+
+def test_market_regime_status_dataframe_empty_keeps_columns() -> None:
+    df = build_market_regime_status_dataframe([])
+    assert list(df.columns) == [
+        "Reference Symbol",
+        "Timeframe",
+        "Regime",
+        "Baseline (SMA)",
+        "Close",
+        "Last Observed",
+    ]
+
+
+def test_market_regime_status_dataframe_renders_rows() -> None:
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    rows = build_market_regime_status_rows(
+        [
+            _make_regime_event(
+                sub_account_id="acct_a",
+                symbol="BTC/USDT",
+                timeframe="4h",
+                regime="bear",
+                timestamp=base,
+                baseline="100.015",
+                close="97.0",
+            )
+        ]
+    )
+    df = build_market_regime_status_dataframe(rows)
+    assert len(df) == 1
+    record = df.iloc[0]
+    assert record["Reference Symbol"] == "BTC/USDT"
+    assert record["Timeframe"] == "4h"
+    assert record["Regime"] == "bear"
+    assert record["Baseline (SMA)"] == "100.015"
+    assert record["Close"] == "97.0"
+
+
+def test_market_regime_account_rows_one_per_sub_account_newest_first() -> None:
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    events = [
+        _make_regime_event(
+            sub_account_id="acct_a",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            regime="bear",
+            timestamp=base,
+        ),
+        _make_regime_event(
+            sub_account_id="acct_a",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            regime="unknown",
+            timestamp=base + timedelta(minutes=5),
+        ),
+        _make_regime_event(
+            sub_account_id="acct_b",
+            symbol="ETH/USDT",
+            timeframe="1d",
+            regime="sideways",
+            timestamp=base + timedelta(minutes=2),
+        ),
+    ]
+
+    rows = build_market_regime_account_rows(events)
+    assert [row.sub_account_id for row in rows] == ["acct_a", "acct_b"]
+    assert rows[0].last_regime == "unknown"
+    assert rows[0].last_decision == "block"
+
+
+def test_market_regime_events_dataframe_orders_newest_first_and_caps() -> None:
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    events = [
+        _make_regime_event(
+            sub_account_id=f"acct_{i}",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            regime="bear",
+            timestamp=base + timedelta(minutes=i),
+        )
+        for i in range(30)
+    ]
+    df = build_market_regime_events_dataframe(events, limit=10)
+    assert len(df) == 10
+    # Newest-first by timestamp.
+    timestamps = list(df["Timestamp"])
+    assert timestamps == sorted(timestamps, reverse=True)
+
+
+def test_market_regime_helpers_ignore_unrelated_events() -> None:
+    """Other ActivityEventType values are not market-regime reads and
+    must not contaminate the regime tables."""
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    unrelated = make_event(
+        event_type=ActivityEventType.PROPOSAL_REJECTED,
+        timestamp=base,
+        details={
+            "symbol": "BTC/USDT",
+            "timeframe": "4h",
+            "regime": "bear",
+            "sub_account_id": "acct_a",
+        },
+    )
+    assert build_market_regime_status_rows([unrelated]) == []
+    assert build_market_regime_account_rows([unrelated]) == []
+    df = build_market_regime_events_dataframe([unrelated])
+    assert df.empty
+    degraded_df = build_market_regime_degraded_events_dataframe([unrelated])
+    assert degraded_df.empty
+
+
+def _make_regime_degraded_event(
+    *,
+    sub_account_id: str,
+    symbol: str,
+    timeframe: str,
+    error_type: str,
+    timestamp: datetime,
+) -> ActivityEvent:
+    return make_event(
+        event_type=ActivityEventType.MARKET_REGIME_DEGRADED,
+        timestamp=timestamp,
+        message=f"regime degraded ({error_type})",
+        details={
+            "sub_account_id": sub_account_id,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "error_type": error_type,
+            "policy_decision": "pass_through_degraded",
+        },
+    )
+
+
+def test_market_regime_degraded_events_dataframe_orders_newest_first_and_caps() -> None:
+    """Degraded events surface newest-first and respect ``limit``.
+
+    Pins the dashboard contract for the fail-open surface introduced
+    by the quant-trader audit follow-up: operators must see recent
+    silent-disable incidents at the top of the table.
+    """
+    base = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    events = [
+        _make_regime_degraded_event(
+            sub_account_id=f"acct_{i}",
+            symbol="BTC/USDT",
+            timeframe="4h",
+            error_type="RuntimeError",
+            timestamp=base + timedelta(minutes=i),
+        )
+        for i in range(15)
+    ]
+    df = build_market_regime_degraded_events_dataframe(events, limit=5)
+    assert len(df) == 5
+    timestamps = list(df["Timestamp"])
+    assert timestamps == sorted(timestamps, reverse=True)
+    # Pinned columns: dashboard contract for the fail-open surface.
+    assert list(df.columns) == [
+        "Timestamp",
+        "Sub-account",
+        "Reference Symbol",
+        "Timeframe",
+        "Error Type",
+        "Decision",
+    ]
+    # Decision column carries the policy_decision string from the
+    # MARKET_REGIME_DEGRADED payload contract.
+    assert all(decision == "pass_through_degraded" for decision in df["Decision"])
+
+
+def test_market_regime_degraded_events_dataframe_empty_keeps_columns() -> None:
+    df = build_market_regime_degraded_events_dataframe([])
+    assert list(df.columns) == [
+        "Timestamp",
+        "Sub-account",
+        "Reference Symbol",
+        "Timeframe",
+        "Error Type",
+        "Decision",
+    ]
+    assert df.empty
+
+
+def test_market_regime_account_dataframe_empty_keeps_columns() -> None:
+    df = build_market_regime_account_dataframe([])
+    assert list(df.columns) == [
+        "Sub-account",
+        "Last Regime",
+        "Last Decision",
+        "Last Observed",
+    ]
 
 
 def test_engine_page_renders_empty_state(tmp_path: Path) -> None:

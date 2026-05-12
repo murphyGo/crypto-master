@@ -186,6 +186,41 @@ class ActivityEventType(str, Enum):
     # concentration signal.
     CORRELATION_WARNING = "correlation_warning"
 
+    # Market-regime gating (market-regime unit). Emitted by
+    # :class:`~src.runtime.engine.TradingEngine._market_regime_gate`
+    # when a sub-account has ``market_regime.enabled: true`` and the
+    # current classifier output for ``reference_symbol`` /
+    # ``timeframe`` is not in ``allowed_regimes``. The proposal is
+    # rejected and not executed. ``details`` payload (structured-fields
+    # contract — pinned by ``test_market_regime_gate_emits_event``):
+    #
+    #     symbol (str)             reference symbol classified
+    #     timeframe (str)          reference timeframe classified
+    #     regime (str)             classifier label
+    #     baseline (str Decimal)   SMA value at classification
+    #     close (str Decimal)      last-candle close at classification
+    #     policy_decision (str)    "block"
+    #     sub_account_id (str)     account whose policy fired the gate
+    MARKET_REGIME_BLOCKED = "market_regime_blocked"
+
+    # Market-regime degraded fail-open (quant-trader audit follow-up).
+    # Emitted by :class:`~src.runtime.engine.TradingEngine._market_regime_gate`
+    # when the OHLCV fetch for the reference symbol raises. The gate
+    # still fails open (returns ``None``) to match the
+    # ``_trend_filter_gate`` precedent — a transient exchange error
+    # must not silently halt trading — but the disablement is now
+    # operator-visible on the dashboard so the silent-gate
+    # anti-pattern (DEBT-061 family) cannot recur. ``details`` payload
+    # (structured-fields contract — pinned by
+    # ``test_ohlcv_fetch_failure_falls_open_and_emits_degraded_event``):
+    #
+    #     symbol (str)             reference symbol the fetch targeted
+    #     timeframe (str)          reference timeframe the fetch targeted
+    #     error_type (str)         exception class name
+    #     sub_account_id (str)     account whose policy attempted the read
+    #     policy_decision (str)    "pass_through_degraded"
+    MARKET_REGIME_DEGRADED = "market_regime_degraded"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

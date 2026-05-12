@@ -65,6 +65,13 @@ from src.runtime.correlation_governor import (
     CorrelationWarningPolicy,
     evaluate_correlation_gate,
 )
+from src.runtime.market_regime import (
+    DEFAULT_BEAR_BAND,
+    DEFAULT_BULL_BAND,
+    DEFAULT_SMA_PERIOD,
+    RegimeClassification,
+    classify_regime_detailed,
+)
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
@@ -662,6 +669,15 @@ class TradingEngine:
         # orphan branch fired forever without ever closing).
         self._orphan_strike_counts: dict[str, int] = {}
 
+        # market-regime classifier cache. Keyed by ``(reference_symbol,
+        # timeframe)`` so two accounts pointing at the same BTC/USDT 4h
+        # baseline share the OHLCV fetch; reset at the top of every
+        # ``run_cycle`` alongside the HTF trend-filter cache so a long-
+        # running process never serves a stale classification.
+        self._market_regime_cache: dict[
+            tuple[str, str], RegimeClassification
+        ] = {}
+
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
 
@@ -795,6 +811,7 @@ class TradingEngine:
         self._runtime_safety_score_cache = None
         self._htf_trend_cache = {}
         self._accepted_family_signals = {}
+        self._market_regime_cache = {}
         self.activity_log.append(
             ActivityEventType.CYCLE_STARTED,
             f"Cycle {self._cycle_index} begin",
@@ -1068,6 +1085,25 @@ class TradingEngine:
                     cycle_id,
                 )
             )
+
+            regime_outcome = await self._market_regime_gate(
+                proposal,
+                record,
+                sub_account,
+                exchange or self.exchange,
+                cycle_id,
+            )
+            if regime_outcome is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(regime_outcome.final_record)
+                for event in events + regime_outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
 
             correlation_outcome = self._correlation_gate(
                 proposal,
@@ -1590,6 +1626,157 @@ class TradingEngine:
                         "htf_sma200": str(sma200),
                         "htf_direction": direction,
                     },
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    async def _market_regime_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        exchange: BaseExchange | None,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject proposals whose market regime is not allowed.
+
+        Returns ``None`` when the gate should not block the proposal:
+
+        * the sub-account has no ``market_regime`` policy or
+          ``market_regime.enabled`` is ``False`` (back-compat default),
+        * no exchange is available for the OHLCV fetch, or
+        * the OHLCV fetch raises (transient errors must not silently
+          disable trading; a WARN is logged for the operator).
+
+        For enabled accounts with a successful classifier read:
+
+        * if ``classification.regime`` is in ``allowed_regimes``, return
+          ``None`` (pass-through).
+        * otherwise build a ``GateOutcome`` whose event carries the
+          spec §4 payload — ``symbol``, ``timeframe``, ``regime``,
+          ``baseline``, ``close``, ``policy_decision``, ``sub_account_id``.
+
+        ``unknown`` BLOCKS by default per spec §3 — the policy must
+        explicitly list ``unknown`` in ``allowed_regimes`` to allow
+        pass-through when the classifier cannot answer.
+
+        Per-cycle caching is keyed on ``(reference_symbol, timeframe)``
+        so two accounts pointing at the same baseline share a single
+        OHLCV fetch.
+        """
+        if sub_account is None:
+            return None
+        policy = sub_account.market_regime
+        if not policy.enabled:
+            return None
+        if exchange is None:
+            return None
+
+        cache_key = (policy.reference_symbol, policy.timeframe)
+        classification = self._market_regime_cache.get(cache_key)
+        if classification is None:
+            try:
+                # +5 candles of headroom over ``DEFAULT_SMA_PERIOD`` so
+                # the classifier always sees the full lookback even if
+                # an exchange shaves one or two candles off the limit.
+                ohlcv = await exchange.get_ohlcv(
+                    policy.reference_symbol,
+                    # ``BaseExchange.get_ohlcv`` types ``timeframe`` as
+                    # a narrow Literal, but the sub-account policy is
+                    # a free-form ``str`` (operator-configured YAML).
+                    # The same shape exists in
+                    # ``ProposalEngine._get_ohlcv``; follow the same
+                    # ``type: ignore`` precedent.
+                    timeframe=policy.timeframe,  # type: ignore[arg-type]
+                    limit=DEFAULT_SMA_PERIOD + 5,
+                )
+            except Exception as e:
+                logger.warning(
+                    "market_regime_fetch_failed: symbol=%s timeframe=%s "
+                    "proposal_id=%s error_type=%s error=%s",
+                    policy.reference_symbol,
+                    policy.timeframe,
+                    proposal.proposal_id,
+                    type(e).__name__,
+                    e,
+                )
+                # Quant-trader audit follow-up: fail-open is the right
+                # default for transient fetch errors (matches
+                # ``_trend_filter_gate`` precedent), but the silent
+                # disablement must still surface on the operator
+                # dashboard. The event payload is pinned by
+                # ``test_ohlcv_fetch_failure_falls_open_and_emits_degraded_event``.
+                self.activity_log.append(
+                    ActivityEventType.MARKET_REGIME_DEGRADED,
+                    (
+                        f"Market-regime gate degraded for "
+                        f"{policy.reference_symbol} {policy.timeframe} "
+                        f"({type(e).__name__}); passing proposal through"
+                    ),
+                    details={
+                        "symbol": policy.reference_symbol,
+                        "timeframe": policy.timeframe,
+                        "error_type": type(e).__name__,
+                        "sub_account_id": sub_account.id,
+                        "policy_decision": "pass_through_degraded",
+                    },
+                    cycle_id=cycle_id,
+                )
+                return None
+            classification = classify_regime_detailed(
+                ohlcv,
+                sma_period=DEFAULT_SMA_PERIOD,
+                bull_band=DEFAULT_BULL_BAND,
+                bear_band=DEFAULT_BEAR_BAND,
+                timeframe=policy.timeframe,
+            )
+            self._market_regime_cache[cache_key] = classification
+
+        regime = classification.regime
+        if regime in policy.allowed_regimes:
+            return None
+
+        reason = f"market_regime_blocked_{regime}"
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "symbol": policy.reference_symbol,
+            "timeframe": policy.timeframe,
+            "regime": regime,
+            "baseline": (
+                str(classification.baseline)
+                if classification.baseline is not None
+                else None
+            ),
+            "close": (
+                str(classification.close)
+                if classification.close is not None
+                else None
+            ),
+            "policy_decision": "block",
+            "sub_account_id": sub_account.id,
+            "reason": reason,
+            "allowed_regimes": list(policy.allowed_regimes),
+        }
+        if classification.reason is not None:
+            details["classifier_reason"] = classification.reason
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.MARKET_REGIME_BLOCKED,
+                    f"Market-regime gate blocked {proposal.symbol} "
+                    f"({regime} not in {list(policy.allowed_regimes)})",
+                    details,
                     cycle_id,
                 )
             ],

@@ -20,22 +20,22 @@ proposal decisions, activity evidence, and dashboard visibility.
 
 ## Steps
 
-- [ ] Implement deterministic regime classifier and tests.
-- [ ] Add sub-account policy fields for allowed/blocked regimes and defaults.
-- [ ] Wire runtime proposal gating with structured rejection/activity records.
-- [ ] Surface current regime and account gating state in dashboard views.
-- [ ] Add fixtures/tests for bull, bear, sideways, unknown, and policy override
+- [x] Implement deterministic regime classifier and tests.
+- [x] Add sub-account policy fields for allowed/blocked regimes and defaults.
+- [x] Wire runtime proposal gating with structured rejection/activity records.
+- [x] Surface current regime and account gating state in dashboard views.
+- [x] Add fixtures/tests for bull, bear, sideways, unknown, and policy override
       behavior.
 
 ## Verification
 
-- [ ] `uv run pytest tests/test_runtime_engine.py tests/test_trading_sub_account.py -q`
-- [ ] Targeted dashboard tests for regime visibility.
-- [ ] Targeted strategy/proposal tests for regime-gated rejection records.
+- [x] `uv run pytest tests/test_runtime_engine.py tests/test_trading_sub_account.py -q`
+- [x] Targeted dashboard tests for regime visibility.
+- [x] Targeted strategy/proposal tests for regime-gated rejection records.
 
 ## Completion Checklist
 
-- [ ] Code implemented.
-- [ ] Tests pass.
-- [ ] Session log and cross-check added.
-- [ ] `aidlc-docs/aidlc-state.md` updated.
+- [x] Code implemented.
+- [x] Tests pass.
+- [x] Session log and cross-check added.
+- [x] `aidlc-docs/aidlc-state.md` updated.

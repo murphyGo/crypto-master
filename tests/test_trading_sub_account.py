@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
+    MarketRegimePolicy,
     ProposalPolicy,
     RiskOverrides,
     RiskPolicy,
@@ -220,6 +221,63 @@ def test_legacy_root_fields_match_policy_block_runtime() -> None:
 
     assert legacy.effective_initial_balance() == policy.effective_initial_balance()
     assert legacy.effective_strategy_filter() == policy.effective_strategy_filter()
+
+
+def test_market_regime_policy_defaults_are_no_op() -> None:
+    """Absent / default ``market_regime`` block leaves the account
+    unchanged from pre-feature behaviour: gating disabled,
+    BTC/USDT 4h reference, all three classifier labels allowed."""
+    sub = SubAccount(id="m", name="x", mode="paper")
+    assert sub.market_regime.enabled is False
+    assert sub.market_regime.reference_symbol == "BTC/USDT"
+    assert sub.market_regime.timeframe == "4h"
+    assert sub.market_regime.allowed_regimes == ["bull", "bear", "sideways"]
+
+
+def test_market_regime_policy_parses_valid_block() -> None:
+    """An explicit block with a custom subset of regimes round-trips
+    through the model unchanged. ``unknown`` is a legal label so
+    accounts can opt-in to advisory pass-through on no-data."""
+    policy = MarketRegimePolicy(
+        enabled=True,
+        reference_symbol="ETH/USDT",
+        timeframe="1d",
+        allowed_regimes=["sideways", "unknown"],
+    )
+    assert policy.enabled is True
+    assert policy.reference_symbol == "ETH/USDT"
+    assert policy.timeframe == "1d"
+    assert policy.allowed_regimes == ["sideways", "unknown"]
+
+    sub = SubAccount(
+        id="mean_rev",
+        name="Mean Reversion",
+        mode="paper",
+        market_regime=policy,
+    )
+    assert sub.market_regime is policy
+
+
+def test_market_regime_policy_is_frozen() -> None:
+    policy = MarketRegimePolicy(enabled=True, allowed_regimes=["bull"])
+    with pytest.raises(ValidationError):
+        policy.enabled = False  # type: ignore[misc]
+
+
+def test_market_regime_policy_rejects_empty_allowed_regimes() -> None:
+    """Spec §3: empty ``allowed_regimes`` is INVALID — gating with
+    no allowed regime would silently block every proposal, which is
+    almost certainly a config error rather than an operator intent."""
+    with pytest.raises(ValidationError, match="at least one regime label"):
+        MarketRegimePolicy(enabled=True, allowed_regimes=[])
+
+
+def test_market_regime_policy_rejects_unknown_regime_values() -> None:
+    """Typos in YAML must not be silently accepted — an unknown label
+    would always fail-block at runtime which presents as a mysterious
+    100% rejection rate. Reject at the config boundary instead."""
+    with pytest.raises(ValidationError, match="invalid label"):
+        MarketRegimePolicy(enabled=True, allowed_regimes=["bull", "trending"])
 
 
 def test_dual_source_root_and_policy_fields_raise_clear_conflict() -> None:

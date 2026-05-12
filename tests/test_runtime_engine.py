@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,6 +38,7 @@ from src.strategy.performance import PerformanceTracker, TradeHistory
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
+    MarketRegimePolicy,
     ProposalPolicy,
     RiskPolicy,
     StrategyPolicy,
@@ -3821,3 +3822,426 @@ class TestSiblingFamilyGate:
         assert details["symbol"] == "AVAX/USDT"
         assert details["signal"] == "short"
         assert details["first_winner_technique"] == "rsi_4h"
+
+
+# =============================================================================
+# _market_regime_gate (per-sub-account regime gating)
+# =============================================================================
+
+
+def _attach_regime_account(
+    engine: TradingEngine,
+    trader: MagicMock,
+    *,
+    enabled: bool,
+    allowed_regimes: list[str],
+    reference_symbol: str = "BTC/USDT",
+    timeframe: str = "4h",
+    sub_account_id: str = "regime_acct",
+) -> SubAccount:
+    """Attach a single-account registry with a configured regime policy.
+
+    The default ``build_engine`` path runs without a registry so
+    ``_handle_proposal`` sees ``sub_account=None`` — the regime gate
+    intentionally treats that as a back-compat no-op. These tests
+    swap in a registry whose single account carries the configured
+    ``MarketRegimePolicy`` so the gate has a policy to evaluate.
+    """
+    sub_account = SubAccount(
+        id=sub_account_id,
+        name="Regime Test",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        market_regime=MarketRegimePolicy(
+            enabled=enabled,
+            reference_symbol=reference_symbol,
+            timeframe=timeframe,
+            allowed_regimes=allowed_regimes,
+        ),
+    )
+    registry = FakeSubAccountRegistry([sub_account], {sub_account_id: trader})
+    engine.sub_account_registry = registry  # type: ignore[assignment]
+    engine._runtime_policy_cache = {}
+    return sub_account
+
+
+def _make_regime_ohlcv(
+    closes: list[float],
+    *,
+    timeframe_seconds: int = 4 * 60 * 60,
+) -> list[OHLCV]:
+    """OHLCV series ending just before ``now_utc()``.
+
+    Matches the runtime classifier's freshness rule (last candle within
+    ``2 × timeframe`` of wall clock) so the classifier returns the
+    intended label rather than ``unknown`` for staleness.
+    """
+    last_ts = now_utc()
+    candles: list[OHLCV] = []
+    n = len(closes)
+    for index, close in enumerate(closes):
+        ts = last_ts.replace(microsecond=0) - timedelta(
+            seconds=timeframe_seconds * (n - 1 - index)
+        )
+        price = Decimal(str(close))
+        candles.append(
+            OHLCV(
+                timestamp=ts,
+                open=price,
+                high=price,
+                low=price,
+                close=price,
+                volume=Decimal("1"),
+            )
+        )
+    return candles
+
+
+class TestMarketRegimeGate:
+    """Per-sub-account regime gating wired into the proposal pipeline."""
+
+    async def test_gate_disabled_passes_through(self, tmp_path: Path) -> None:
+        # ``enabled=False`` is the back-compat default: even with a
+        # deeply bearish reference series, the proposal must fill and
+        # no MARKET_REGIME_BLOCKED event may be emitted.
+        proposal = make_proposal(
+            proposal_id="gate-off",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=False,
+            allowed_regimes=["bull"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([200.0] * 199 + [100.0]),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        mocks["exchange"].get_ohlcv.assert_not_called()
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert blocked == []
+
+    async def test_gate_allowed_regime_passes_through(self, tmp_path: Path) -> None:
+        # 199 candles at 100 + last close 103 → classifier returns
+        # ``bull``; account allows ``bull`` → proposal fills.
+        proposal = make_proposal(
+            proposal_id="gate-bull-ok",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 199 + [103.0]),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert blocked == []
+
+    async def test_gate_disallowed_regime_blocks_and_emits_event(
+        self, tmp_path: Path
+    ) -> None:
+        # 199 candles at 100 + last close 97 → classifier returns
+        # ``bear``; account allows only ``sideways`` → proposal blocked
+        # AND a MARKET_REGIME_BLOCKED event must carry the spec §4
+        # payload shape.
+        proposal = make_proposal(
+            proposal_id="gate-bear-blocked",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["sideways"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 199 + [97.0]),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_accepted == 1
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 0
+        mocks["trader"].open_position.assert_not_called()
+        record = mocks["history"].load("gate-bear-blocked")
+        assert record.decision == ProposalDecision.REJECTED.value
+        assert record.rejection_reason == "market_regime_blocked_bear"
+
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert len(blocked) == 1
+        details = blocked[0].details
+        # Spec §4 payload contract.
+        assert details["symbol"] == "BTC/USDT"
+        assert details["timeframe"] == "4h"
+        assert details["regime"] == "bear"
+        assert details["baseline"] is not None
+        assert Decimal(details["close"]) == Decimal("97")
+        assert details["policy_decision"] == "block"
+        assert details["sub_account_id"] == "regime_acct"
+        assert details["reason"] == "market_regime_blocked_bear"
+
+    async def test_unknown_regime_blocks_by_default(self, tmp_path: Path) -> None:
+        # < 200 candles → classifier returns ``unknown``; account does
+        # NOT list ``unknown`` in allowed_regimes → proposal blocked.
+        # Spec §3 third bullet: "unknown should block by default when
+        # gating is enabled unless the account explicitly allows it".
+        proposal = make_proposal(
+            proposal_id="gate-unknown-blocked",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull", "bear", "sideways"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 50),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.proposals_rejected == 1
+        assert result.positions_opened == 0
+        record = mocks["history"].load("gate-unknown-blocked")
+        assert record.rejection_reason == "market_regime_blocked_unknown"
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert len(blocked) == 1
+        assert blocked[0].details["regime"] == "unknown"
+        # Insufficient-data classifications carry the classifier reason
+        # so post-mortems can distinguish "no data yet" from "feed went
+        # quiet" without re-running the classifier.
+        assert blocked[0].details["classifier_reason"] == "insufficient_data"
+
+    async def test_unknown_regime_passes_when_explicitly_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        # Same insufficient-data scenario, but the account explicitly
+        # lists ``unknown`` → proposal must pass.
+        proposal = make_proposal(
+            proposal_id="gate-unknown-ok",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull", "bear", "sideways", "unknown"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 50),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert blocked == []
+
+    async def test_ohlcv_fetch_failure_falls_open(self, tmp_path: Path) -> None:
+        # Transient OHLCV fetch failures must not silently disable
+        # trading — same fail-open contract as ``_trend_filter_gate``.
+        # The fail-open path must NOT emit a MARKET_REGIME_BLOCKED
+        # event (the proposal is not blocked); the dedicated degraded
+        # event is asserted by
+        # ``test_ohlcv_fetch_failure_falls_open_and_emits_degraded_event``.
+        proposal = make_proposal(
+            proposal_id="gate-fetch-fail",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            side_effect=RuntimeError("exchange down"),
+        )
+
+        result = await engine.run_cycle()
+
+        assert result.positions_opened == 1
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert blocked == []
+
+    async def test_ohlcv_fetch_failure_falls_open_and_emits_degraded_event(
+        self, tmp_path: Path
+    ) -> None:
+        # Quant-trader audit follow-up: fail-open is still the right
+        # default for transient fetch errors, but the silent gate
+        # disablement must surface to the operator. Pin the payload
+        # contract here so a future refactor cannot regress to the
+        # silent-disable shape (DEBT-061 anti-pattern).
+        proposal = make_proposal(
+            proposal_id="gate-fetch-degraded",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull"],
+            reference_symbol="BTC/USDT",
+            timeframe="4h",
+            sub_account_id="regime_acct",
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            side_effect=RuntimeError("exchange down"),
+        )
+
+        result = await engine.run_cycle()
+
+        # Fail-open semantics: proposal still fills.
+        assert result.positions_opened == 1
+        # No MARKET_REGIME_BLOCKED event on the fail-open path.
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        assert blocked == []
+        # Exactly one MARKET_REGIME_DEGRADED event with the pinned
+        # payload contract.
+        degraded = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_DEGRADED
+        )
+        assert len(degraded) == 1
+        event = degraded[0]
+        assert event.cycle_id is not None
+        details = event.details
+        assert details["symbol"] == "BTC/USDT"
+        assert details["timeframe"] == "4h"
+        assert details["error_type"] == "RuntimeError"
+        assert details["sub_account_id"] == "regime_acct"
+        assert details["policy_decision"] == "pass_through_degraded"
+
+    @pytest.mark.parametrize(
+        ("closes_tail", "expected_regime", "expected_blocked"),
+        [
+            # bull: 103 close vs 100-anchored SMA exceeds the +2% band.
+            ([100.0] * 199 + [103.0], "bull", False),
+            # bear: 97 close vs 100-anchored SMA crosses the -2% band.
+            ([100.0] * 199 + [97.0], "bear", True),
+            # sideways: 101 sits inside the ±2% neutral band.
+            ([100.0] * 199 + [101.0], "sideways", True),
+            # unknown: < 200 candles → classifier returns "unknown".
+            # The policy lists only "bull", so unknown blocks per spec
+            # §3 — third bullet on `unknown`.
+            ([100.0] * 50, "unknown", True),
+        ],
+    )
+    async def test_end_to_end_bull_bear_sideways_unknown_policy_override(
+        self,
+        tmp_path: Path,
+        closes_tail: list[float],
+        expected_regime: str,
+        expected_blocked: bool,
+    ) -> None:
+        """End-to-end integration: configure a sub-account with
+        ``allowed_regimes=["bull"]``, feed each classifier scenario,
+        and assert exactly the expected accept/block outcome + the
+        right MARKET_REGIME_BLOCKED event for every non-bull regime.
+        Covers Step 5 of the market-regime code-generation plan."""
+        proposal = make_proposal(
+            proposal_id=f"e2e-{expected_regime}",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv(closes_tail),
+        )
+
+        result = await engine.run_cycle()
+
+        blocked = mocks["activity_log"].filter(
+            event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+        )
+        if expected_blocked:
+            assert result.proposals_rejected == 1
+            assert result.positions_opened == 0
+            mocks["trader"].open_position.assert_not_called()
+            assert len(blocked) == 1
+            assert blocked[0].details["regime"] == expected_regime
+            assert blocked[0].details["policy_decision"] == "block"
+            assert blocked[0].details["sub_account_id"] == "regime_acct"
+            record = mocks["history"].load(f"e2e-{expected_regime}")
+            assert (
+                record.rejection_reason
+                == f"market_regime_blocked_{expected_regime}"
+            )
+        else:
+            assert result.positions_opened == 1
+            assert blocked == []
+
+    async def test_regime_classification_cached_per_cycle(
+        self, tmp_path: Path
+    ) -> None:
+        # Two proposals in one cycle, same reference symbol/timeframe →
+        # the OHLCV fetch should happen exactly once. This pins the
+        # cache invariant the runtime relies on so a fan-out scan does
+        # not multiply the exchange round-trip count by proposal count.
+        proposal_btc = make_proposal(
+            proposal_id="cache-btc",
+            symbol="BTC/USDT",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        proposal_eth = make_proposal(
+            proposal_id="cache-eth",
+            symbol="ETH/USDT",
+            composite=2.0,
+        ).model_copy(update={"sub_account_id": "regime_acct"})
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            btc_proposal=proposal_btc,
+            altcoin_proposals=[proposal_eth],
+        )
+        _attach_regime_account(
+            engine,
+            mocks["trader"],
+            enabled=True,
+            allowed_regimes=["bull"],
+        )
+        mocks["exchange"].get_ohlcv = AsyncMock(
+            return_value=_make_regime_ohlcv([100.0] * 199 + [103.0]),
+        )
+
+        await engine.run_cycle()
+
+        assert mocks["exchange"].get_ohlcv.await_count == 1

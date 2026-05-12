@@ -41,7 +41,50 @@ Template for new items:
 - Related DEBT items
 -->
 
-_No active debt items._
+### DEBT-062: Market-regime gate sequencing
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Phase** | market-regime quant-review follow-up |
+| **Component** | proposal-runtime + consistency-hardening |
+
+**Description:**
+`_market_regime_gate` is called before `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py:1089-1131`). When both gates would block, the regime-block event displaces the more actionable correlation-block signal. Operator effect: "this market is in the wrong state" (regime block — non-actionable) is surfaced instead of "you already have exposure here" (correlation block — directly fixable).
+
+**Impact:**
+Regime-blocked activity events dominate the dashboard for cap-bound accounts, making it harder for operators to spot when the actual constraint is portfolio exposure.
+
+**Suggested Resolution:**
+Move the `_market_regime_gate` call below `_correlation_gate`. Per-cycle cache means relocation has effectively zero cost; first call per cycle still triggers the OHLCV fetch regardless of order.
+
+**Related:**
+- market-regime quant-review Q1
+- `src/runtime/engine.py:1089-1131`
+
+### DEBT-063: Market-regime classifier hysteresis flapping
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-13 |
+| **Phase** | market-regime quant-review follow-up |
+| **Component** | proposal-runtime + strategy-framework |
+
+**Description:**
+Single-candle band crossings flip regime label on every cycle when price chops near the ±2% band. On 4h timeframe with a market oscillating in the 1.5%-2.5% range around SMA(200), the same strategy gets repeatedly admitted and blocked across the regime boundary — producing correlated entries near the band edges (worst-case selection bias).
+
+**Impact:**
+Strategy throughput becomes a function of band-crossing noise rather than persistent market state. Operator activity log fills with flap events.
+
+**Suggested Resolution:**
+Two-bar confirmation in `classify_regime_detailed` (`src/runtime/market_regime.py:207-217`) — require the last 2 candles to both sit on the new side of the band before flipping out of `sideways`. Keep ±2% threshold (matches `RobustnessGate._classify_regimes` for backtest/live consistency); change the rule, not the number.
+
+**Related:**
+- market-regime quant-review Q4
+- `src/runtime/market_regime.py:207-217`
+- `src/backtest/validator.py:929-959` (the borrowed ±2% rule)
 
 ## Resolved Debt Items
 
@@ -595,10 +638,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 0 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 0 |
+| Medium | 2 |
 | Low | 0 |
 | Resolved (All Time) | 57 |
 
@@ -608,6 +651,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Added | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — surfaced from quant-trader-expert (Q4) during market-regime unit close-out review; single-candle band crossings flip the regime label every cycle when price chops in the 1.5%-2.5% range around SMA(200), producing correlated entries at the band edges and noise-driven strategy throughput; suggested resolution is two-bar confirmation in `classify_regime_detailed` (`src/runtime/market_regime.py:207-217`) — keep the ±2% threshold (matches `RobustnessGate._classify_regimes` at `src/backtest/validator.py:929-959`), change the rule not the number |
+| 2026-05-13 | Added | DEBT-062 Market-regime gate sequencing (Medium) — surfaced from quant-trader-expert (Q1) during market-regime unit close-out review; `_market_regime_gate` is wired before `_correlation_gate` in `_handle_proposal` (`src/runtime/engine.py:1089-1131`), so when both gates would block, the non-actionable regime signal displaces the directly-fixable correlation signal on the operator dashboard; suggested resolution is to move the regime call below the correlation call (per-cycle cache means relocation has zero OHLCV cost) |
 | 2026-05-13 | Resolved | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability — same-day filing-and-close scope-split from DEBT-060; new `src/proposal/fail_closed_metrics.py` (`StrategyFailClosedCounts` Pydantic model with `Field(ge=0)` re-validated via `model_validate(...)` on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`); three increment sites threaded into `ProposalEngine._build_proposal_for_strategy` (emit, `StrategyError` catch, `TradingValidationError` catch) with OSError-tolerant helpers so observability never crashes the hot path; `sub_account_id` plumbed as per-call argument on tracker public methods (second-round 🔴 fix per quant Q3 option (a) after first round had bound it at constructor and would have aggregated all sub-accounts under `default/`); `src/main.py` wires `FailClosedMetricsTracker()` into `_build_engine_config_phase`; `src/dashboard/pages/strategies.py` adds `Emitted` / `Fail-Closed` / `Fail-Closed %` columns scoped under the `fail_closed_tracker is not None` branch (avoids MagicMock-spec test breakage); quant Q1/Q2/Q4 ratified-as-shipped (Q1: pre-emit outage = neither counter; Q2: neutral = emitted only; Q4: per-reason breakdown deferred as non-breaking `Dict[str, int]` extension); `pytest -q` 1843 passed (net +31); `ruff check src tests` clean; targeted `mypy` clean |
 | 2026-05-13 | Added | DEBT-061 Per-strategy proposal-engine fail-closed-rate metric for dashboard observability (Low) — surfaced from quant-trader-expert during DEBT-060 close-out review; observability scope-split from DEBT-060 (silent ~50% RSI throughput collapse went undetected for ~12 days because per-strategy fail-closed rates are not aggregated on the dashboard); resolution shape is `proposals_emitted` / `proposals_fail_closed` counter pair persisted alongside performance data + Strategies-page "fail-closed rate" column, optionally with per-reason breakdown (R/R floor, ATR-data-insufficient, sizing-failed, correlation-rejected); explicitly *not* a regression of `14ca04c` |
 | 2026-05-13 | Resolved | DEBT-060 RSI baseline family TP-distance redesign for 2.0 R/R floor — `TAKE_PROFIT_PCT` raised from 0.04 → 0.05 across `strategies/rsi.py`, `strategies/rsi_4h.py`, `strategies/rsi_15m.py` in commit `14ca04c` (path (a) from the DEBT-060 options list); quant-ratified math gives post-widen R/R floor = 2.22 on the binding 4h-alt case (worst-case widened SL ~2.25% vs TP 5%), safely above the 2.0 gate; regression coverage added today via `tests/test_rsi_variants.py::test_all_rsi_variants_pin_take_profit_pct_at_0_05` (TP constant pin + no-shadow assertions on sibling files) and parametrized `tests/test_proposal_engine.py::test_rsi_variants_clear_rr_floor_under_worst_case_widening` (3-row positive R/R floor mirror under per-TF worst-case widening); pytest 1812 passed (net +4); dashboard fail-closed-rate metric scope-split to DEBT-061 |

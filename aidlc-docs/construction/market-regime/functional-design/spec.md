@@ -79,6 +79,12 @@ The proposal runtime should:
 4. Persist enough context for dashboards and post-mortems: symbol, timeframe,
    regime, baseline, close, policy decision, and sub-account id.
 
+A gate earns its own dedicated `ActivityEventType` iff it represents a
+persistent market or portfolio condition the dashboard will chart over time
+(regime, correlation, runtime-safety). Otherwise emit `PROPOSAL_REJECTED` with
+`details.reason` (score threshold, sibling family, transient validation
+failure).
+
 ## Dashboard Behavior
 
 The dashboard should show:

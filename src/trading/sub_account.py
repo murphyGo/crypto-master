@@ -157,6 +157,62 @@ class NotificationPolicy(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+# Allowed market-regime label values. Mirrors ``MarketRegime`` literals
+# in ``src/runtime/market_regime.py``; redefined here as a frozenset so
+# the policy model validates strings without taking a runtime dependency
+# on the runtime layer (sub-account models are imported far up the
+# import graph).
+_ALLOWED_MARKET_REGIMES: frozenset[str] = frozenset(
+    ("bull", "bear", "sideways", "unknown")
+)
+
+
+class MarketRegimePolicy(BaseModel):
+    """Per-sub-account market-regime gating policy.
+
+    When ``enabled`` is ``True`` the proposal runtime classifies the
+    current market regime for ``reference_symbol`` on ``timeframe`` and
+    rejects proposals whose regime is not in ``allowed_regimes``. The
+    spec's ``unknown`` semantics live in the proposal-gating site, not
+    here: ``unknown`` BLOCKS by default unless the account explicitly
+    lists it in ``allowed_regimes``.
+
+    Defaults mirror the spec example:
+    ``reference_symbol="BTC/USDT"``, ``timeframe="4h"``,
+    ``allowed_regimes=("bull","bear","sideways")``. The default
+    ``enabled=False`` preserves the back-compat no-op for accounts that
+    do not opt in.
+    """
+
+    enabled: bool = False
+    reference_symbol: str = "BTC/USDT"
+    timeframe: str = "4h"
+    allowed_regimes: list[str] = Field(
+        default_factory=lambda: ["bull", "bear", "sideways"],
+    )
+
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("allowed_regimes")
+    @classmethod
+    def _validate_allowed_regimes(cls, value: list[str]) -> list[str]:
+        # Spec §3: an empty list is invalid — gating with no allowed
+        # regime would silently block every proposal, which is almost
+        # certainly a config error rather than an operator intent.
+        if not value:
+            raise ValueError(
+                "allowed_regimes must contain at least one regime label"
+            )
+        unknown_values = [regime for regime in value if regime not in _ALLOWED_MARKET_REGIMES]
+        if unknown_values:
+            raise ValueError(
+                "allowed_regimes contains invalid label(s) "
+                f"{unknown_values!r}; must be a subset of "
+                f"{sorted(_ALLOWED_MARKET_REGIMES)!r}"
+            )
+        return value
+
+
 class RiskOverrides(BaseModel):
     """Per-sub-account overrides on engine-wide risk knobs.
 
@@ -229,6 +285,7 @@ class SubAccount(BaseModel):
     risk_policy: RiskPolicy = Field(default_factory=RiskPolicy)
     execution_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     notification_policy: NotificationPolicy = Field(default_factory=NotificationPolicy)
+    market_regime: MarketRegimePolicy = Field(default_factory=MarketRegimePolicy)
     notification_route: str | None = None
     enabled: bool = True
 
@@ -351,6 +408,7 @@ class SubAccount(BaseModel):
 __all__ = [
     "CapitalPolicy",
     "ExecutionPolicy",
+    "MarketRegimePolicy",
     "NotificationPolicy",
     "ProposalPolicy",
     "RiskOverrides",
