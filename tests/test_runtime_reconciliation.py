@@ -9,15 +9,18 @@ density at the same level as ``test_tools_backfill_paper_sl_tp.py``.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from src.runtime.reconciliation import (
+    DEFAULT_STALE_THRESHOLD_SECONDS,
     LOCKED_CONSISTENCY_EPSILON,
     LOCKED_CONSISTENCY_RELATIVE_RATIO,
     OpenTradeState,
     _locked_consistency_tolerance,
     classify_open_trade,
+    compute_closed_but_malformed_count,
     compute_health_report,
 )
 
@@ -39,6 +42,9 @@ def _row(
     take_profit: str | None = "51500",
     performance_record_id: str | None = "perf-1",
     status: str = "open",
+    entry_time: str | None = None,
+    exit_price: str | None = None,
+    exit_time: str | None = None,
 ) -> dict:
     """Build an on-disk open-trade row matching ``TradeHistory._trade_to_dict``."""
     return {
@@ -48,9 +54,12 @@ def _row(
         "side": side,
         "entry_price": entry_price,
         "entry_quantity": entry_quantity,
+        "entry_time": entry_time,
         "leverage": leverage,
         "stop_loss": stop_loss,
         "take_profit": take_profit,
+        "exit_price": exit_price,
+        "exit_time": exit_time,
         "performance_record_id": performance_record_id,
         "status": status,
         "mode": "paper",
@@ -427,3 +436,216 @@ def test_locked_consistency_relative_slope_scales_with_account(
     )
     report = compute_health_report(tmp_path, ["default"])
     assert report["report"]["default"]["locked_consistent"] is True
+
+
+# =============================================================================
+# DEBT-064: stale-but-valid auxiliary signal
+# =============================================================================
+
+
+def test_classify_open_trade_marks_stale_when_last_seen_exceeds_threshold() -> None:
+    """A row whose ``entry_time`` is 8 days old → ``is_stale=True``.
+
+    DEBT-064 v1 fallback: ``TradeHistory`` has no ``last_seen_at`` today
+    so the classifier uses ``entry_time`` as the most-recent timestamp.
+    With the default 7-day threshold, an 8-day-old entry trips the flag.
+    """
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    eight_days_ago = (now - timedelta(days=8)).isoformat()
+    row = _row(entry_time=eight_days_ago)
+    classification = classify_open_trade(row, perf_record_ids={"perf-1"}, now=now)
+    assert classification.is_stale is True
+    # Auxiliary signal is independent of the state classification —
+    # the row is still ``monitorable``.
+    assert classification.state == OpenTradeState.MONITORABLE.value
+
+
+def test_classify_open_trade_marks_not_stale_when_within_threshold() -> None:
+    """A row whose ``entry_time`` is 1 day old → ``is_stale=False``."""
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    one_day_ago = (now - timedelta(days=1)).isoformat()
+    row = _row(entry_time=one_day_ago)
+    classification = classify_open_trade(row, perf_record_ids={"perf-1"}, now=now)
+    assert classification.is_stale is False
+
+
+def test_classify_open_trade_is_stale_defaults_false_when_entry_time_missing() -> None:
+    """A row with no ``entry_time`` falls through as ``is_stale=False``.
+
+    The classifier's read-only contract is "log and continue"; a missing
+    or malformed timestamp must not break the report. The row is still
+    accounted for in the per-state counts.
+    """
+    row = _row(entry_time=None)
+    classification = classify_open_trade(row, perf_record_ids={"perf-1"})
+    assert classification.is_stale is False
+
+
+def test_classify_open_trade_respects_custom_stale_threshold() -> None:
+    """An explicit ``stale_threshold_seconds`` overrides the default."""
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    two_hours_ago = (now - timedelta(hours=2)).isoformat()
+    row = _row(entry_time=two_hours_ago)
+    # Custom 1h threshold flips the stale flag for a 2h-old entry.
+    classification = classify_open_trade(
+        row,
+        perf_record_ids={"perf-1"},
+        now=now,
+        stale_threshold_seconds=3600,
+    )
+    assert classification.is_stale is True
+    # ...but the default 7d threshold leaves it fresh.
+    classification_default = classify_open_trade(
+        row, perf_record_ids={"perf-1"}, now=now
+    )
+    assert classification_default.is_stale is False
+
+
+def test_classify_stale_flag_set_alongside_unrecoverable_state() -> None:
+    """A row can be both ``unrecoverable`` *and* stale.
+
+    Auxiliary signal is computed independently of the state classifier
+    path; the operator gets both signals on the same row.
+    """
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    eight_days_ago = (now - timedelta(days=8)).isoformat()
+    row = _row(entry_price=None, entry_time=eight_days_ago)
+    classification = classify_open_trade(row, perf_record_ids=set(), now=now)
+    assert classification.state == OpenTradeState.UNRECOVERABLE.value
+    assert classification.is_stale is True
+
+
+# =============================================================================
+# DEBT-064: closed-but-malformed sweep
+# =============================================================================
+
+
+def test_compute_closed_but_malformed_count_finds_rows_with_null_exit_fields(
+    tmp_path: Path,
+) -> None:
+    """A ``status="closed"`` row missing ``exit_price`` or ``exit_time`` is counted.
+
+    Mirrors the half-closed shape that ``close_unrecoverable_paper_trades``
+    can write on partial failure (per the DEBT-064 description).
+    """
+    rows = [
+        # Open row — never counted by the malformed-closed sweep.
+        _row(trade_id="open-1"),
+        # Closed with both exit fields missing — the canonical half-closed.
+        _row(
+            trade_id="half-closed-a",
+            status="closed",
+            exit_price=None,
+            exit_time=None,
+        ),
+        # Closed with only exit_time missing — also counted.
+        _row(
+            trade_id="half-closed-b",
+            status="closed",
+            exit_price="51000",
+            exit_time=None,
+        ),
+        # Closed with only exit_price missing — also counted.
+        _row(
+            trade_id="half-closed-c",
+            status="closed",
+            exit_price=None,
+            exit_time="2026-05-12T12:00:00+00:00",
+        ),
+    ]
+    _seed_paper_ledger(tmp_path, "default", rows)
+    assert compute_closed_but_malformed_count(tmp_path, "default") == 3
+
+
+def test_compute_closed_but_malformed_count_ignores_well_formed_closed_rows(
+    tmp_path: Path,
+) -> None:
+    """A properly-closed row (both exit fields present) is NOT counted."""
+    rows = [
+        _row(
+            trade_id="good-close",
+            status="closed",
+            exit_price="51000",
+            exit_time="2026-05-12T12:00:00+00:00",
+        ),
+        # Also: an open row with no exit fields is not malformed-closed.
+        _row(trade_id="open-1"),
+    ]
+    _seed_paper_ledger(tmp_path, "default", rows)
+    assert compute_closed_but_malformed_count(tmp_path, "default") == 0
+
+
+def test_compute_closed_but_malformed_count_handles_missing_ledger(
+    tmp_path: Path,
+) -> None:
+    """No ledger on disk → 0, no exception (read-only log-and-continue)."""
+    assert compute_closed_but_malformed_count(tmp_path, "ghost") == 0
+
+
+# =============================================================================
+# DEBT-064: end-to-end — health report surfaces both auxiliary signals
+# =============================================================================
+
+
+def test_health_report_surfaces_stale_and_malformed_counts(tmp_path: Path) -> None:
+    """``compute_health_report`` exposes both DEBT-064 aux signals.
+
+    Per-account ``stale_count`` and ``closed_but_malformed_count`` plus
+    matching totals — independent of the 4-state ``state_counts`` block.
+    """
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    fresh = (now - timedelta(days=1)).isoformat()
+    stale = (now - timedelta(days=10)).isoformat()
+    rows = [
+        # Fresh + monitorable.
+        _row(trade_id="fresh-mon", entry_time=fresh),
+        # Stale-but-valid (still monitorable).
+        _row(trade_id="stale-mon", entry_time=stale),
+        # Stale + unrecoverable (both signals fire on same row).
+        _row(trade_id="stale-unr", entry_price=None, entry_time=stale),
+        # Half-closed row counted by the separate sweep.
+        _row(
+            trade_id="half-closed",
+            status="closed",
+            exit_price=None,
+            exit_time=None,
+        ),
+    ]
+    _seed_paper_ledger(tmp_path, "default", rows)
+
+    report = compute_health_report(tmp_path, ["default"], now=now)
+    per_account = report["report"]["default"]
+    # 3 open rows + 1 closed-malformed (closed rows are filtered out of
+    # the open-trade walker, so open_trade_count counts the 3 open rows).
+    assert per_account["open_trade_count"] == 3
+    # Two of the three open rows have stale entry_time.
+    assert per_account["stale_count"] == 2
+    # One closed row with null exit fields.
+    assert per_account["closed_but_malformed_count"] == 1
+
+    # Totals mirror per-account at a single-sub-account fixture.
+    totals = report["totals"]
+    assert totals["stale_count"] == 2
+    assert totals["closed_but_malformed_count"] == 1
+
+
+def test_health_report_stale_count_zero_when_all_rows_fresh(tmp_path: Path) -> None:
+    """A ledger of fresh rows reports ``stale_count == 0``.
+
+    Pins the negative case — the aux signal must not false-positive on
+    healthy ledgers (which would defeat its triage value).
+    """
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    fresh = (now - timedelta(hours=12)).isoformat()
+    rows = [
+        _row(trade_id=f"fresh-{i}", entry_time=fresh) for i in range(3)
+    ]
+    _seed_paper_ledger(tmp_path, "default", rows)
+    report = compute_health_report(tmp_path, ["default"], now=now)
+    assert report["report"]["default"]["stale_count"] == 0
+    assert report["totals"]["stale_count"] == 0
+
+
+def test_default_stale_threshold_constant_is_seven_days() -> None:
+    """DEBT-064: pin the 7-day default so dashboards / docs can reference it."""
+    assert DEFAULT_STALE_THRESHOLD_SECONDS == 7 * 24 * 3600

@@ -109,50 +109,6 @@ Sequential cycles — first (a) wire-in as a small slice (one cycle), then (b) g
 - `src/runtime/engine.py::_account_aggregate_cap_gate`
 - `src/trading/sub_account.py::RiskPolicy._reject_risk_budget_mode_until_wired_in`
 
-### DEBT-066: In-memory mark-price cache for cap-blocker `unrealized_pnl_percent`
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-13 |
-| **Phase** | proposal-funnel-audit quant-review follow-up |
-| **Component** | proposal-runtime + runtime-reconciliation |
-
-**Description:**
-`_build_cap_blocker_payload` (`src/runtime/engine.py`) currently sets `unrealized_pnl_percent = None` for every blocking trade in a cap-rejection event because the R1 implementation's per-blocker `await exchange.get_ticker()` was a hot-path latency tax (10+ sequential ticker fetches per cap rejection, and cap rejections are the dominant rejection path per the 2026-05-13 Fly snapshot). Quant Q1 verdict: drop the fetch. But there's no in-memory mark-price cache anywhere in `src/runtime/engine.py`, `src/trading/portfolio.py`, or `src/trading/paper.py` — `PortfolioManager` only sees marks when callers hand them in via `record_snapshot(current_prices=...)`. Operators have lost a second-order diagnostic field.
-
-**Impact:**
-Cap-rejection events show `unrealized_pnl_percent=None` for every blocking trade. Operators triaging "is the blocking position underwater?" must look elsewhere. Not a money-handling defect (`entry_price + age_seconds + monitorable + symbol + record_id` give the first-order signal); a diagnostic-quality gap.
-
-**Suggested Resolution:**
-Add a `dict[str, Decimal]` mark cache on `TradingEngine` populated by `_record_asset_snapshot` and the monitor-pass ticker reads (which already happen). TTL or last-seen-timestamp keeps it fresh. `_build_cap_blocker_payload` consumes from the cache; falls back to `None` if symbol is uncached. Zero new exchange calls on the rejection path.
-
-**Related:**
-- quant-trader-expert review Q1 (`docs/sessions/2026-05-13-proposal-funnel-audit-unit-shipped.md`)
-- `src/runtime/engine.py::_build_cap_blocker_payload`
-
-### DEBT-064: Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-05-13 |
-| **Phase** | runtime-reconciliation quant-review follow-up |
-| **Component** | runtime-reconciliation |
-
-**Description:**
-The state taxonomy in `src/runtime/reconciliation.py::OpenTradeState` covers ledger-shape (`monitorable`/`degraded`/`unrecoverable`/`legacy_no_perf_link`) but misses two real-world failure modes: (a) stale-but-valid rows whose monitor loop hasn't ticked in >N days (currently classified `monitorable` — operator likely wants attention); (b) half-closed rows (`status="closed"` with no `exit_price`/`exit_time` — `_load_open_trade_rows` filters by `status == "open"` so they're never classified, yet the `close_unrecoverable_paper_trades` tool can write exactly this shape on partial failure).
-
-**Impact:**
-Silent monitor-loop staleness and disk-corruption shapes don't trigger the health-check warning path; operators have no signal that a trade is effectively orphaned.
-
-**Suggested Resolution:**
-Per-row warning counter for (a) computed from `last_seen_at` vs `now`. Separate "closed-but-malformed" sweep pass for (b) iterating `status="closed"` rows with `exit_price IS NULL`. Not new enum states — auxiliary signals on the existing classifier output.
-
-**Related:**
-- quant-trader-expert review Q1 (`docs/sessions/2026-05-13-runtime-reconciliation-unit-shipped.md`)
-- `src/runtime/reconciliation.py:286` filter
-
 ## Resolved Debt Items
 
 <!--
@@ -167,6 +123,24 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-066: In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Added `_mark_price_cache: dict[str, MarkPriceEntry]` to `TradingEngine` (instance attr alongside `_market_regime_cache`). `MarkPriceEntry` is a frozen dataclass carrying `price: Decimal` + `observed_at: datetime`. Populated at 3 existing ticker-fetch sites (`_monitor` SL/TP path, `_monitor` orphan force-close path, `_record_portfolio_snapshot`) — zero new exchange calls. `_get_cached_mark_price(symbol, *, max_age_seconds=300.0)` returns the cached price if fresh, else `None`. `_build_cap_blocker_payload` now consumes from the cache: long `(mark - entry)/entry × 100`, short `(entry - mark)/entry × 100` (matches `pnl_for_trade` sign convention). Cache-miss `None` fallback preserved as regression-safe behavior for the prior DEBT-066-pre-fix contract. Pinned by 6 new tests in `tests/test_runtime_engine.py` covering cache population, fresh/stale read, cache consumption in cap-blocker, short-side sign convention, and cache-miss fallback. Stale entries intentionally retained (next write overwrites); memory bound by traded-symbol universe. `pytest -q` 2078 passed (was 2061; net +17 across bundled DEBT-064 + DEBT-066, zero regressions); `ruff check src tests` clean; **`mypy src` repo-wide clean milestone preserved — `Success: no issues found in 88 source files`**. |
+
+### DEBT-064: Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-05-13 |
+| **Resolved** | 2026-05-13 |
+| **Resolution** | Added `is_stale` auxiliary signal to `OpenTradeClassification` (independent of `state` — an `unrecoverable` row can also be stale) with 7-day default threshold via `DEFAULT_STALE_THRESHOLD_SECONDS`; threshold configurable per-call via new `now` + `stale_threshold_seconds` kwargs on `classify_open_trade`. Uses `entry_time` as the conservative lower-bound proxy for `last_seen_at` (TradeHistory has no `last_seen_at` field today). New `compute_closed_but_malformed_count(data_dir, sub_account_id) -> int` sweep counts `status="closed"` rows where `exit_price IS NULL` or `exit_time IS NULL` — the `close_unrecoverable_paper_trades` partial-failure shape now surfaces in the health report. Both aux signals reported per-sub-account and at totals level by `compute_health_report` (`stale_count` + `closed_but_malformed_count`). Existing `_load_open_trade_rows` open-row filter intentionally untouched. Pinned by 10 new tests in `tests/test_runtime_reconciliation.py` (positive/negative stale cases, custom threshold, missing entry_time fallback to `is_stale=False`, both null-branch closed-malformed cases, end-to-end health-report aux signals). `pytest -q` 2078 passed (was 2061; net +17 across bundled DEBT-064 + DEBT-066, zero regressions); `ruff check src tests` clean; **`mypy src` repo-wide clean milestone preserved — `Success: no issues found in 88 source files`**. |
 
 ### DEBT-070: `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` ✅
 
@@ -750,12 +724,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 4 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 2 |
-| Resolved (All Time) | 62 |
+| Low | 0 |
+| Resolved (All Time) | 64 |
 
 ---
 
@@ -763,6 +737,8 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-13 | Resolved | DEBT-066 In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` (Low) — same-day close-out bundled with DEBT-064; `_mark_price_cache: dict[str, MarkPriceEntry]` added to `TradingEngine` (instance attr alongside `_market_regime_cache`); `MarkPriceEntry` is a frozen dataclass carrying `price: Decimal` + `observed_at: datetime`; populated at 3 existing ticker-fetch sites (`_monitor` SL/TP at L3243, orphan force-close at L3147, `_record_portfolio_snapshot` at L3431) — zero new exchange calls; `_get_cached_mark_price(symbol, *, max_age_seconds=300.0)` returns the cached price if fresh, else `None`; `_build_cap_blocker_payload` consumes from the cache (long `(mark - entry)/entry × 100`, short `(entry - mark)/entry × 100`, matching `pnl_for_trade` sign convention); cache-miss `None` fallback preserved as regression-safe behavior for the prior DEBT-066-pre-fix contract; 6 new tests in `tests/test_runtime_engine.py` (cache population, fresh/stale read, cap-blocker consumption, short-side sign convention, cache-miss fallback); stale entries intentionally retained (next write overwrites); memory bound by traded-symbol universe; pytest 2078 passed (was 2061; net +17 across bundled DEBT-064 + DEBT-066, zero regressions); ruff clean; `mypy src` repo-wide clean milestone preserved (88 source files, zero issues) |
+| 2026-05-13 | Resolved | DEBT-064 Runtime-reconciliation taxonomy gaps — stale-but-valid + half-closed rows (Low) — same-day close-out bundled with DEBT-066; added `is_stale` auxiliary signal to `OpenTradeClassification` (independent of `state` — an `unrecoverable` row can also be stale) with 7-day default threshold via `DEFAULT_STALE_THRESHOLD_SECONDS`; threshold configurable per-call via new `now` + `stale_threshold_seconds` kwargs on `classify_open_trade`; uses `entry_time` as the conservative lower-bound proxy for `last_seen_at` (TradeHistory has no `last_seen_at` field today); new `compute_closed_but_malformed_count(data_dir, sub_account_id) -> int` sweep counts `status="closed"` rows where `exit_price IS NULL` or `exit_time IS NULL` — the `close_unrecoverable_paper_trades` partial-failure shape now surfaces in the health report; both aux signals reported per-sub-account and at totals level by `compute_health_report` (`stale_count` + `closed_but_malformed_count`); existing `_load_open_trade_rows` open-row filter intentionally untouched; 10 new tests in `tests/test_runtime_reconciliation.py` (positive/negative stale cases, custom threshold, missing entry_time fallback to `is_stale=False`, both null-branch closed-malformed cases, end-to-end health-report aux signals); pytest 2078 passed (was 2061; net +17 across bundled DEBT-064 + DEBT-066, zero regressions); ruff clean; `mypy src` repo-wide clean milestone preserved (88 source files, zero issues) |
 | 2026-05-13 | Resolved | DEBT-070 `proposal-runtime` strategy-selection ranking reads `total_trades` instead of `real_trade_count` (Low) — same-day close-out bundled with DEBT-067; 4 ranking-side `perf.total_trades` reads in `ProposalEngine._select_best_technique` (`src/proposal/engine.py:996, 1010, 1014`) and `_select_all_techniques` (`src/proposal/engine.py:1132`) switched to `perf.real_trade_count` with inline `# DEBT-070:` comments at each site (`any_history` detection L996, tie-breaker sort key L1010, `_select_best_technique` return-perf gate L1014, `_select_all_techniques` return-perf gate L1132); display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally remain on `total_trades` (operator-facing record counts); 2 new tests in `tests/test_proposal_engine.py` — `test_select_best_technique_tiebreaks_on_real_trade_count` (canonical defect: equal `avg_pnl`, A=10 synthetic/0 real, B=0 synthetic/5 real → B wins; pre-fix A would have won via `-perf.total_trades` tie-breaker) and `test_select_best_technique_any_history_ignores_synthetic_only` (synthetic-only beta does NOT register as "has history" → cold-start lex-first picks alpha); pytest 2061 passed (was 2059; net +2, zero regressions); ruff clean; `mypy src` fully clean repo-wide (88 source files, zero issues) |
 | 2026-05-13 | Resolved | DEBT-067 Pre-existing `src/dashboard/app.py` mypy errors (Low) — same-day close-out bundled with DEBT-070; `DashboardMode` type alias reordered before `COMMAND_CENTER_DEFAULT_MODE` at `src/dashboard/app.py:285` with the constant now annotated `: DashboardMode = "paper"` to carry the literal type; `render_command_center_links` parameter (`src/dashboard/app.py:869, 882`) widened from `list[...]` to `Sequence[...]` (covariant read-only over the param), `Sequence` added to the existing `collections.abc` import; `mypy src/dashboard/app.py` clean post-fix; **`mypy src` now fully clean repo-wide for the first time this session — `Success: no issues found in 88 source files`, zero issues** — the 3 errors had been a QA-noise filter across the past 4 unit cycles (DEBT-061, market-regime, runtime-reconciliation, proposal-funnel-audit); candidate future-work item flagged in session log (optional CI gate to lock the repo-wide-clean baseline, NOT filed as DEBT pending explicit user approval) |
 | 2026-05-13 | Resolved | DEBT-063 Market-regime classifier hysteresis flapping (Medium) — `classify_regime_detailed` (`src/runtime/market_regime.py`) now requires the last 2 candles to BOTH sit on the new side of the ±2% band before flipping out of `sideways` per quant Q4's recommendation; threshold unchanged (preserves `RobustnessGate._classify_regimes` parity at `src/backtest/validator.py:929-959` for backtest/live consistency); defensive `len(ohlcv) < 2 → sideways` short-circuit positioned after the existing `insufficient_data` / `stale_data` → `unknown` checks; 8 existing single-bar fixtures across `tests/test_market_regime.py` + `tests/test_runtime_engine.py` updated to 2-bar tails (SMA(200) baseline recomputation `100.015 → 100.03` matches `(198×100 + 2×103)/200`); 4 new tests pin both bull/bear two-bar confirmation + both-confirm-flip behavior; pytest 2059 passed (was 2054; net +5 across both DEBT-062 + DEBT-063, zero regressions); ruff + mypy clean |

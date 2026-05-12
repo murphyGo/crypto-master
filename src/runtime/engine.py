@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Any, cast
@@ -147,6 +148,30 @@ def _timeframe_to_seconds(timeframe: str) -> int:
 # stuck trade (the Fly 260h BNB short) is force-closed within a
 # handful of monitor passes rather than drifting indefinitely.
 ORPHAN_AUTO_CLOSE_THRESHOLD = 5
+
+
+# DEBT-066: default freshness window on the in-memory mark-price cache
+# consumed by ``_build_cap_blocker_payload``. 300s (5 minutes) is calibrated
+# against the default ``cycle_interval_seconds=300`` (``EngineConfig`` field
+# above) — within one cycle window the cache is fresh by construction; a
+# mark older than 5 minutes is allowed to fall back to ``None`` rather than
+# masquerade as a current quote on a cap-rejection event.
+MARK_PRICE_CACHE_DEFAULT_MAX_AGE_SECONDS: float = 300.0
+
+
+@dataclass(frozen=True)
+class MarkPriceEntry:
+    """One sample in the DEBT-066 in-memory mark-price cache.
+
+    Populated by the per-cycle ticker reads in ``_monitor`` and
+    ``_record_portfolio_snapshot`` (which already happen for SL/TP
+    checks and AssetSnapshot marks respectively — no new exchange
+    calls). Consumed by ``_build_cap_blocker_payload`` via
+    ``_get_cached_mark_price``.
+    """
+
+    price: Decimal
+    observed_at: datetime
 
 
 # =============================================================================
@@ -683,6 +708,23 @@ class TradingEngine:
         self._market_regime_cache: dict[
             tuple[str, str], RegimeClassification
         ] = {}
+
+        # DEBT-066: in-memory mark-price cache. Populated by the
+        # per-cycle ticker reads that already happen in
+        # ``_monitor`` (SL/TP check) and ``_record_portfolio_snapshot``
+        # (per-trade mark for the AssetSnapshot). Consumed by
+        # ``_build_cap_blocker_payload`` so cap-rejection events can
+        # surface ``unrealized_pnl_percent`` for blocking trades
+        # without re-introducing the per-blocker
+        # ``await exchange.get_ticker(...)`` hot-path tax. Freshness
+        # is enforced at read time via ``_get_cached_mark_price`` —
+        # the cache itself is allowed to keep stale entries (the
+        # write path on the next cycle overwrites them, and a stale
+        # symbol simply returns ``None`` instead of a stale mark).
+        # Keyed by ``symbol``; we intentionally do *not* key by
+        # sub_account_id because the mark for a symbol is the same
+        # regardless of which account holds the position.
+        self._mark_price_cache: dict[str, MarkPriceEntry] = {}
 
     def _dispatchers_for_callback_wiring(self) -> list[NotificationDispatcher]:
         """Return every dispatcher that should surface per-notifier failures.
@@ -2520,6 +2562,45 @@ class TradingEngine:
         self._strategy_lookup_cache = dict(lookup)
         return lookup
 
+    def _remember_mark_price(self, symbol: str, price: Decimal) -> None:
+        """DEBT-066: write-through helper for the in-memory mark cache.
+
+        Called from the existing per-cycle ticker fetch sites (``_monitor``
+        and ``_record_portfolio_snapshot``) so cap-rejection events can
+        consume a fresh mark for the blocking trade's symbol without a
+        new ``await exchange.get_ticker(...)`` on the hot path. Always
+        overwrites — the freshness check is on the read side.
+        """
+        self._mark_price_cache[symbol] = MarkPriceEntry(
+            price=price,
+            observed_at=now_utc(),
+        )
+
+    def _get_cached_mark_price(
+        self,
+        symbol: str,
+        *,
+        max_age_seconds: float = MARK_PRICE_CACHE_DEFAULT_MAX_AGE_SECONDS,
+    ) -> Decimal | None:
+        """DEBT-066: return the cached mark for ``symbol`` if it is fresh.
+
+        Returns ``None`` when the symbol has never been observed in the
+        cache, or when the cached observation is older than
+        ``max_age_seconds`` relative to ``now_utc()``. A stale entry is
+        intentionally left in place — the next ticker fetch overwrites
+        it via :meth:`_remember_mark_price`. The cap-rejection consumer
+        treats ``None`` as "no live cross-check available" and falls
+        back to ``unrealized_pnl_percent=None``, matching the pre-cache
+        behaviour for un-observed symbols.
+        """
+        entry = self._mark_price_cache.get(symbol)
+        if entry is None:
+            return None
+        age = (now_utc() - entry.observed_at).total_seconds()
+        if age > max_age_seconds:
+            return None
+        return entry.price
+
     async def _build_cap_blocker_payload(
         self,
         *,
@@ -2541,18 +2622,20 @@ class TradingEngine:
         * ``age_seconds`` — ``now_utc() - entry_time`` at decision
           time (UTC-aware subtraction; on-disk rows are coerced to
           UTC by the ``TradeHistory`` validator).
-        * ``unrealized_pnl_percent`` — always ``None`` in the current
-          build. Cap rejection is the dominant rejection path (Fly
-          snapshot: concentrated ETH longs / BNB shorts hit
-          ``symbol_cap`` / ``total_cap`` on most cycles), and a fresh
-          ``await exchange.get_ticker(...)`` per blocker was a hot-path
-          latency tax we cannot afford. No in-memory mark-price cache
-          exists today (``PortfolioManager`` only persists marks on
-          ``AssetSnapshot``), so we omit the metric rather than read
-          from disk. Operator value is in ``entry_price`` +
-          ``age_seconds`` + ``monitorable`` + ``symbol`` + ``record_id``;
-          ``unrealized_pnl_percent`` is second-order and can be added
-          back once an in-memory mark-price cache lands.
+        * ``unrealized_pnl_percent`` — DEBT-066: now sourced from the
+          in-memory mark-price cache populated by the existing
+          per-cycle ticker reads in ``_monitor`` and
+          ``_record_portfolio_snapshot``. Zero new exchange calls on
+          the cap-rejection hot path. When the cache has a fresh entry
+          for the blocking trade's symbol, the field is computed as
+          ``(mark - entry)/entry * 100`` (long) or ``(entry - mark)/entry
+          * 100`` (short) — the same price-move metric the autopsy /
+          backtest engines use, mirroring ``pnl_for_trade``. When the
+          cache has no fresh entry (uncached or older than
+          ``MARK_PRICE_CACHE_DEFAULT_MAX_AGE_SECONDS``), the field
+          falls back to ``None`` to match the pre-cache contract —
+          operators still get the first-order signal (``entry_price``
+          + ``age_seconds`` + ``monitorable`` + ``symbol``).
         * ``monitorable`` — coordinate from
           :func:`src.runtime.reconciliation.classify_open_trade`;
           ``True`` iff the row's classified state is ``MONITORABLE``.
@@ -2582,11 +2665,21 @@ class TradingEngine:
             entry_time = ensure_utc(trade.entry_time)
             age_seconds = int((now - entry_time).total_seconds())
 
-            # ``unrealized_pnl_percent`` is intentionally always ``None``
-            # — see the docstring. No in-memory mark-price cache exists
-            # to look up here; reading from the persisted snapshot would
-            # re-introduce the I/O tax we just removed.
+            # DEBT-066: consume the in-memory mark-price cache populated
+            # upstream by the per-cycle ticker reads. ``_get_cached_mark_
+            # price`` enforces the freshness window — a stale or missing
+            # symbol falls back to ``None`` so the cap-rejection event
+            # never reports a misleading mark.
             unrealized_pnl_percent: float | None = None
+            mark = self._get_cached_mark_price(trade.symbol)
+            if mark is not None and trade.entry_price > 0:
+                if trade.side == "long":
+                    price_move = mark - trade.entry_price
+                else:  # short
+                    price_move = trade.entry_price - mark
+                unrealized_pnl_percent = float(
+                    (price_move / trade.entry_price) * Decimal("100")
+                )
 
             # Classify the row via the runtime-reconciliation taxonomy
             # so we can surface the "blocked by an unmonitorable open"
@@ -3048,6 +3141,11 @@ class TradingEngine:
                     )
                     continue
 
+                # DEBT-066: write-through to the mark cache even on the
+                # orphan-force-close path. The ticker is the same shape
+                # as the SL/TP monitor's.
+                self._remember_mark_price(trade.symbol, ticker.price)
+
                 force_close = getattr(trader, "force_close_orphan", None)
                 if not callable(force_close):
                     # Defensive: a Trader implementation without the
@@ -3138,6 +3236,12 @@ class TradingEngine:
                     )
                 )
                 continue
+
+            # DEBT-066: write-through the freshly-fetched mark so
+            # ``_build_cap_blocker_payload`` can compute
+            # ``unrealized_pnl_percent`` for cap-rejection events
+            # without re-fetching on the hot path.
+            self._remember_mark_price(trade.symbol, ticker.price)
 
             should_exit, reason = trader.check_exit_conditions(trade.id, ticker.price)
             if should_exit and reason is not None:
@@ -3324,6 +3428,10 @@ class TradingEngine:
             except Exception:
                 continue
             current_prices[trade.symbol] = ticker.price
+            # DEBT-066: write-through to the in-memory mark cache so
+            # cap-rejection events can compute ``unrealized_pnl_percent``
+            # for blocking trades from this same ticker read.
+            self._remember_mark_price(trade.symbol, ticker.price)
 
         try:
             sub_account_id = self._sub_account_id(sub_account)

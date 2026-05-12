@@ -4573,6 +4573,12 @@ async def test_build_cap_blocker_payload_shape(tmp_path: Path) -> None:
     ``monitorable``, ``cap_value``, ``current_open_count`` and the
     optional ``unrealized_pnl_percent`` / ``technique_name`` /
     ``proposal_record_id`` fields.
+
+    DEBT-066 update: cap-rejection is a hot path; the helper must never
+    fetch a ticker (``get_ticker.assert_not_awaited()``) and the
+    ``unrealized_pnl_percent`` field is now sourced from the in-memory
+    mark-price cache when available. Pre-seed the cache here so the
+    cache-based pricing path is exercised end-to-end.
     """
     proposal = make_proposal(proposal_id="ff_cap_helper", composite=2.0)
     engine, mocks = build_engine(
@@ -4586,6 +4592,10 @@ async def test_build_cap_blocker_payload_shape(tmp_path: Path) -> None:
         side="short",
         performance_record_id="perf-1",
     )
+    # DEBT-066: prime the cache so cache-based pricing is consulted.
+    # The default entry is at 50000; a mark of 49000 on the SHORT side
+    # is +2% in the position's favor (entry - mark)/entry × 100.
+    engine._remember_mark_price("BNB/USDT", Decimal("49000"))
     payload = await engine._build_cap_blocker_payload(
         open_trades=[open_trade],
         cap=5,
@@ -4615,19 +4625,22 @@ async def test_build_cap_blocker_payload_shape(tmp_path: Path) -> None:
     # Cap rejection is a hot-path; the helper must not call the
     # exchange (no ticker fetch per blocker).
     mocks["exchange"].get_ticker.assert_not_awaited()
+    # DEBT-066: cache-based pricing path is exercised — the seeded
+    # mark feeds a populated ``unrealized_pnl_percent``.
+    assert entry["unrealized_pnl_percent"] is not None
+    assert entry["unrealized_pnl_percent"] == pytest.approx(2.0, rel=1e-9)
 
 
-async def test_build_cap_blocker_payload_falls_back_to_none_when_mark_unknown(
+async def test_build_cap_blocker_payload_falls_back_to_none_when_cache_miss(
     tmp_path: Path,
 ) -> None:
-    """``unrealized_pnl_percent`` is ``None`` — no in-memory mark cache exists.
+    """DEBT-066: ``unrealized_pnl_percent`` falls back to ``None`` on cache miss.
 
-    Pins the current-build contract: the cap-blocker payload never
-    fetches a fresh ticker (would re-introduce the hot-path latency
-    tax) and no other in-memory mark source exists today, so the
-    diagnostic field always carries ``None``. If a mark-price cache
-    lands later, this test should be updated alongside the new field
-    population.
+    Pins the regression contract for the pre-DEBT-066 behaviour: when
+    the in-memory mark cache has no entry for the blocker's symbol, the
+    diagnostic field carries ``None`` rather than triggering a fresh
+    ticker fetch (which would re-introduce the hot-path latency tax the
+    DEBT entry exists to prevent).
     """
     proposal = make_proposal(proposal_id="ff_cap_none_pnl", composite=2.0)
     engine, mocks = build_engine(
@@ -4641,6 +4654,9 @@ async def test_build_cap_blocker_payload_falls_back_to_none_when_mark_unknown(
         side="long",
         performance_record_id="perf-no-mark",
     )
+    # Cache deliberately empty for this symbol — the helper must not
+    # spin up a ticker fetch to fill the gap.
+    assert engine._get_cached_mark_price("ETH/USDT") is None
     payload = await engine._build_cap_blocker_payload(
         open_trades=[open_trade],
         cap=3,
@@ -4649,6 +4665,191 @@ async def test_build_cap_blocker_payload_falls_back_to_none_when_mark_unknown(
     assert len(payload) == 1
     assert payload[0]["unrealized_pnl_percent"] is None
     mocks["exchange"].get_ticker.assert_not_awaited()
+
+
+# =============================================================================
+# DEBT-066: in-memory mark-price cache
+# =============================================================================
+
+
+async def test_mark_price_cache_populated_from_asset_snapshot(tmp_path: Path) -> None:
+    """``_record_portfolio_snapshot`` writes every per-trade mark into the cache.
+
+    The snapshot path already fetches a ticker per open trade for the
+    AssetSnapshot's ``current_prices`` map. DEBT-066 piggybacks on the
+    same fetch — no new exchange calls — to populate the in-memory
+    cache the cap-blocker helper consumes.
+    """
+    from src.trading.portfolio import PortfolioTracker
+
+    proposal = make_proposal(proposal_id="ff_mark_snapshot", composite=2.0)
+    open_trade_a = make_trade(
+        trade_id="t-eth", symbol="ETH/USDT", side="long"
+    )
+    open_trade_b = make_trade(
+        trade_id="t-bnb", symbol="BNB/USDT", side="short"
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[open_trade_a, open_trade_b],
+    )
+    # Wire a portfolio tracker so the snapshot path is exercised
+    # end-to-end.
+    engine.portfolio_tracker = PortfolioTracker(data_dir=tmp_path / "portfolio")
+    # Per-symbol ticker prices via ``side_effect`` — the default mock
+    # returns the same 50000 ticker for every call.
+    async def _ticker_by_symbol(symbol: str) -> Ticker:
+        prices = {"ETH/USDT": Decimal("2500"), "BNB/USDT": Decimal("700")}
+        return Ticker(symbol=symbol, price=prices[symbol], timestamp=now_utc())
+
+    mocks["exchange"].get_ticker.side_effect = _ticker_by_symbol
+    mocks["trader"].get_balances = AsyncMock(return_value={})
+
+    await engine._record_portfolio_snapshot(
+        cycle_id="cycle-mark",
+        sub_account=None,
+        trader=mocks["trader"],
+    )
+
+    assert engine._get_cached_mark_price("ETH/USDT") == Decimal("2500")
+    assert engine._get_cached_mark_price("BNB/USDT") == Decimal("700")
+
+
+async def test_get_cached_mark_price_returns_value_when_fresh(
+    tmp_path: Path,
+) -> None:
+    """A cache entry within ``max_age_seconds`` is returned verbatim."""
+    proposal = make_proposal(proposal_id="ff_mark_fresh", composite=2.0)
+    engine, _ = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine._remember_mark_price("ETH/USDT", Decimal("2500"))
+    # Default max_age_seconds = 300; the entry is microseconds old.
+    assert engine._get_cached_mark_price("ETH/USDT") == Decimal("2500")
+
+
+async def test_get_cached_mark_price_returns_none_when_stale(
+    tmp_path: Path,
+) -> None:
+    """An entry older than ``max_age_seconds`` is rejected as stale.
+
+    The cache itself keeps the stale entry; the read-side helper is the
+    freshness gate. A subsequent write overwrites the timestamp on the
+    next monitor pass.
+    """
+    from src.runtime.engine import MarkPriceEntry
+
+    proposal = make_proposal(proposal_id="ff_mark_stale", composite=2.0)
+    engine, _ = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    # Inject an entry observed 10 minutes ago — older than the 300s
+    # default freshness window.
+    stale_observed_at = now_utc() - timedelta(minutes=10)
+    engine._mark_price_cache["ETH/USDT"] = MarkPriceEntry(
+        price=Decimal("2500"),
+        observed_at=stale_observed_at,
+    )
+    assert engine._get_cached_mark_price("ETH/USDT") is None
+    # Pin the cache entry is still there — only the read enforces freshness.
+    assert "ETH/USDT" in engine._mark_price_cache
+
+
+async def test_get_cached_mark_price_respects_custom_max_age(
+    tmp_path: Path,
+) -> None:
+    """An explicit ``max_age_seconds`` overrides the 300s default.
+
+    Pins the API contract so the consumer at ``_build_cap_blocker_payload``
+    can dial freshness independently of the cycle interval.
+    """
+    from src.runtime.engine import MarkPriceEntry
+
+    proposal = make_proposal(proposal_id="ff_mark_custom_age", composite=2.0)
+    engine, _ = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    # Inject an entry 60 seconds old.
+    engine._mark_price_cache["ETH/USDT"] = MarkPriceEntry(
+        price=Decimal("2500"),
+        observed_at=now_utc() - timedelta(seconds=60),
+    )
+    # Permissive window — entry passes.
+    assert engine._get_cached_mark_price("ETH/USDT", max_age_seconds=120) == Decimal(
+        "2500"
+    )
+    # Restrictive window — entry fails.
+    assert engine._get_cached_mark_price("ETH/USDT", max_age_seconds=30) is None
+
+
+async def test_build_cap_blocker_payload_consumes_mark_cache(
+    tmp_path: Path,
+) -> None:
+    """A primed mark cache feeds the cap-blocker ``unrealized_pnl_percent``.
+
+    Long-side math: ``(mark - entry)/entry × 100``. Entry 50000, mark
+    52500 → +5.0% unrealized.
+    """
+    proposal = make_proposal(proposal_id="ff_cap_consumes_cache", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    open_trade = make_trade(
+        trade_id="t-cache",
+        symbol="ETH/USDT",
+        side="long",
+        entry="50000",
+    )
+    engine._remember_mark_price("ETH/USDT", Decimal("52500"))
+    payload = await engine._build_cap_blocker_payload(
+        open_trades=[open_trade],
+        cap=2,
+        reason="total_cap",
+    )
+    assert len(payload) == 1
+    assert payload[0]["unrealized_pnl_percent"] == pytest.approx(5.0, rel=1e-9)
+    # Still zero exchange calls — the cache is the source.
+    mocks["exchange"].get_ticker.assert_not_awaited()
+
+
+async def test_build_cap_blocker_payload_short_side_uses_inverse_pnl_sign(
+    tmp_path: Path,
+) -> None:
+    """Short-side math: ``(entry - mark)/entry × 100`` (mirrors ``pnl_for_trade``).
+
+    Entry 50000, mark 49000 → +2.0% for a short. The sign convention
+    must match the autopsy / backtest engines so dashboards rendering
+    blocker PnL line up with closed-trade PnL.
+    """
+    proposal = make_proposal(proposal_id="ff_cap_short_sign", composite=2.0)
+    engine, _ = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    open_trade = make_trade(
+        trade_id="t-short",
+        symbol="BNB/USDT",
+        side="short",
+        entry="50000",
+    )
+    engine._remember_mark_price("BNB/USDT", Decimal("49000"))
+    payload = await engine._build_cap_blocker_payload(
+        open_trades=[open_trade],
+        cap=2,
+        reason="symbol_cap",
+    )
+    assert payload[0]["unrealized_pnl_percent"] == pytest.approx(2.0, rel=1e-9)
 
 
 async def test_symbol_cap_rejection_carries_symbol_cap_final_state(
