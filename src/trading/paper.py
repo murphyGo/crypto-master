@@ -10,6 +10,7 @@ Related Requirements:
 - NFR-008: Asset/PnL History (mode separation)
 """
 
+import json
 import uuid
 from decimal import Decimal
 from pathlib import Path
@@ -23,6 +24,7 @@ from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.base import exit_condition_for_position
 from src.trading.strategy import TradingError
+from src.utils.io import atomic_write_text
 from src.utils.trading_math import pnl_for_trade
 from src.utils.trading_types import OrderSide
 
@@ -330,9 +332,14 @@ class PaperTrader:
         self._fee_config = self._resolve_fee_config(fee_config, exchange)
         self._activity_log = activity_log
         self._auto_deposit_on_liquidation = auto_deposit_on_liquidation
+        self._loaded_balance_snapshot = False
 
-        # Initialize balances
-        if initial_balance:
+        # Initialize balances. A persisted snapshot wins over the
+        # configured seed so process restarts preserve realised PnL,
+        # locked margin, and paid entry fees instead of re-crediting
+        # the full starting balance.
+        self._loaded_balance_snapshot = self._load_balances()
+        if initial_balance and not self._loaded_balance_snapshot:
             for currency, amount in initial_balance.items():
                 self._balances[currency] = PaperBalance(
                     currency=currency,
@@ -373,12 +380,14 @@ class PaperTrader:
         ``PerformanceRecord`` is intentionally out of scope for this
         commit (TECH-DEBT follow-up in the engine layer).
 
-        Crucially, rehydrated positions do **not** re-lock balance or
-        re-deduct entry fees — those side effects already fired on the
-        original ``open_position`` call. This method only restores the
-        in-memory ``OpenPosition`` stash; ``PaperBalance`` is left as
-        whatever the caller seeded it with.
+        DEBT-059: when a persisted balance snapshot exists, this method
+        only restores the in-memory ``OpenPosition`` stash because
+        ``PaperBalance`` was loaded with the original locked/free shape.
+        On legacy ledgers with no snapshot, the runtime seed is the full
+        configured initial balance, so rehydration reconciles margin and
+        recorded entry fees once and then writes the first snapshot.
         """
+        rehydrated: list[OpenPosition] = []
         for trade in self._trade_tracker.get_open_trades(mode="paper"):
             if trade.stop_loss is None and trade.take_profit is None:
                 logger.warning(
@@ -407,13 +416,15 @@ class PaperTrader:
             # the paid entry fee than double-deduct it on close.
             entry_fee = trade.fees if trade.exit_price is None else Decimal("0")
 
-            self._open_positions[trade.id] = OpenPosition(
+            open_position = OpenPosition(
                 trade_id=trade.id,
                 position=position,
                 margin=margin,
                 quote_currency=quote_currency,
                 entry_fee=entry_fee,
             )
+            self._open_positions[trade.id] = open_position
+            rehydrated.append(open_position)
 
             logger.info(
                 "Rehydrated open paper position %s: %s %s @ %s qty=%s",
@@ -423,6 +434,107 @@ class PaperTrader:
                 trade.entry_price,
                 trade.entry_quantity,
             )
+
+        if rehydrated and not self._loaded_balance_snapshot:
+            self._reconcile_legacy_rehydrated_balances(rehydrated)
+
+    def _get_balances_path(self) -> Path:
+        """Return the per-sub-account paper balance snapshot path."""
+        balances_dir = (
+            self._trade_tracker.data_dir / "paper" / self._trade_tracker.sub_account_id
+        )
+        balances_dir.mkdir(parents=True, exist_ok=True)
+        return balances_dir / "balances.json"
+
+    def _load_balances(self) -> bool:
+        """Load persisted paper balances, returning ``True`` when present."""
+        balances_path = self._get_balances_path()
+        if not balances_path.exists():
+            return False
+
+        try:
+            with open(balances_path, encoding="utf-8") as f:
+                rows = json.load(f)
+            if not isinstance(rows, dict):
+                raise ValueError("expected object keyed by currency")
+
+            loaded: dict[str, PaperBalance] = {}
+            for currency, row in rows.items():
+                if not isinstance(row, dict):
+                    raise ValueError(f"expected object for {currency}")
+                loaded[currency] = PaperBalance(
+                    currency=str(row.get("currency", currency)),
+                    free=Decimal(str(row["free"])),
+                    locked=Decimal(str(row["locked"])),
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to load paper balances from %s: %s", balances_path, exc
+            )
+            return False
+
+        self._balances = loaded
+        logger.info("Loaded paper balances from %s", balances_path)
+        return True
+
+    def _save_balances(self) -> None:
+        """Persist paper balances atomically for restart-safe accounting."""
+        balances_path = self._get_balances_path()
+        payload = {
+            currency: {
+                "currency": balance.currency,
+                "free": str(balance.free),
+                "locked": str(balance.locked),
+            }
+            for currency, balance in sorted(self._balances.items())
+        }
+        atomic_write_text(
+            balances_path,
+            json.dumps(payload, indent=2, default=str),
+        )
+
+    def _reconcile_legacy_rehydrated_balances(
+        self,
+        open_positions: list[OpenPosition],
+    ) -> None:
+        """Apply one-time balance reconciliation for ledgers predating snapshots."""
+        changed = False
+        for open_pos in open_positions:
+            balance = self.get_balance(open_pos.quote_currency)
+            if balance is None:
+                logger.warning(
+                    "Cannot reconcile rehydrated paper position %s: "
+                    "no %s balance configured",
+                    open_pos.trade_id,
+                    open_pos.quote_currency,
+                )
+                continue
+
+            try:
+                balance.lock(open_pos.margin)
+                changed = True
+            except InsufficientPaperBalanceError as exc:
+                logger.warning(
+                    "Cannot re-lock margin for rehydrated paper position %s: %s",
+                    open_pos.trade_id,
+                    exc,
+                )
+                continue
+
+            if open_pos.entry_fee > 0:
+                try:
+                    balance.deduct(open_pos.entry_fee)
+                    changed = True
+                except InsufficientPaperBalanceError as exc:
+                    logger.warning(
+                        "Cannot re-apply entry fee for rehydrated paper position "
+                        "%s: %s",
+                        open_pos.trade_id,
+                        exc,
+                    )
+
+        if changed:
+            self._save_balances()
 
     @staticmethod
     def _resolve_fee_config(
@@ -534,6 +646,7 @@ class PaperTrader:
                 currency=currency,
                 free=amount,
             )
+        self._save_balances()
 
     def _get_quote_currency(self, symbol: str) -> str:
         """Extract quote currency from symbol.
@@ -667,6 +780,7 @@ class PaperTrader:
             leverage=position.leverage,
             entry_order_id=order_id,
             performance_record_id=performance_record_id,
+            fees=entry_fee,
             stop_loss=position.stop_loss,
             take_profit=position.take_profit,
         )
@@ -685,6 +799,7 @@ class PaperTrader:
             f"@ {position.entry_price}, qty={position.quantity}, "
             f"margin={margin} {quote_currency}, entry_fee={entry_fee}"
         )
+        self._save_balances()
 
         return trade
 
@@ -787,7 +902,7 @@ class PaperTrader:
             trade_id=trade_id,
             exit_price=exit_price,
             close_reason=reason,
-            fees=total_fees,
+            fees=exit_fee,
         )
 
         # Remove from open positions
@@ -819,6 +934,9 @@ class PaperTrader:
                     "balance_after": str(balance_after),
                 },
             )
+
+        if closed_trade is not None and balance is not None:
+            self._save_balances()
 
         return closed_trade
 
@@ -865,11 +983,13 @@ class PaperTrader:
         # in-memory map doesn't outlive the persisted "closed" row.
         # Best-effort margin unlock if we still have it.
         open_pos = self._open_positions.pop(trade_id, None)
+        balance_changed = False
         if open_pos is not None:
             balance = self.get_balance(open_pos.quote_currency)
             if balance is not None:
                 try:
                     balance.unlock(open_pos.margin)
+                    balance_changed = True
                 except PaperTradingError as e:
                     logger.warning(
                         "force_close_orphan: best-effort margin unlock "
@@ -894,6 +1014,9 @@ class PaperTrader:
                 closed.entry_price,
                 closed.pnl,
             )
+
+        if closed is not None and balance_changed:
+            self._save_balances()
 
         return closed
 
@@ -1044,6 +1167,7 @@ class PaperTrader:
                     free=balance.free,
                     locked=balance.locked,
                 )
+            self._save_balances()
 
             logger.info(
                 f"Synced {len(balances)} balance(s) from {self._exchange.name} testnet"
@@ -1143,6 +1267,7 @@ class PaperTrader:
                 f"entry_fee={entry_fee} {order.fee_currency or ''}, "
                 f"order_id={order.id}"
             )
+            self._save_balances()
 
             return trade
 

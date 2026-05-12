@@ -38,6 +38,7 @@ of unfinished historical tasks.
 - [x] Wire trading engine runtime, environment overrides, and position cap behavior.
 - [x] Add portfolio snapshots, closed-trade performance records, and stale-quote safety interactions.
 - [x] Align leverage/PnL math across backtest, portfolio, and liquidation visibility paths.
+- [x] Resolve paper persistence follow-ups DEBT-059, DEBT-058, and DEBT-057: restart-safe paper balance snapshots, legacy SL/TP backfill tooling confirmation, and entry-fee persistence.
 
 ## Evidence
 
@@ -45,6 +46,7 @@ of unfinished historical tasks.
 - Primary paths: `src/trading/`, `src/utils/trading_math.py`, `trading_profiles/`, `tests/test_trading_*`, `tests/test_portfolio.py`.
 - Cross-checks: phase 4, phase 8, phase 10, phase 12, phase 17, phase 18, phase 19, phase 20, phase 22, and phase 26 reports.
 - Session logs: related Phase 4, 8, 10, 12, 13, 17, 18, 19, 20, 22, and 26 entries under `docs/sessions/`.
+- Follow-up evidence: `docs/sessions/2026-05-12-trading-core-paper-persistence-followups.md`, `docs/cross-checks/2026-05-12-trading-core-paper-persistence.md`.
 
 ## Future Work
 

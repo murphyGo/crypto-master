@@ -1711,10 +1711,12 @@ class TestPaperRehydration:
     async def test_open_position_persists_sl_tp(
         self, tmp_path: Path, position: Position
     ) -> None:
-        """``open_position`` must record stop_loss and take_profit on disk."""
+        """``open_position`` must record SL/TP and entry fees on disk."""
+        fee_config = FeeConfig(taker_fee_rate=Decimal("0.001"))
         trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
             data_dir=tmp_path,
+            fee_config=fee_config,
         )
         trade = await trader.open_position(position)
 
@@ -1723,6 +1725,7 @@ class TestPaperRehydration:
         assert persisted is not None
         assert persisted.stop_loss == Decimal("49000")
         assert persisted.take_profit == Decimal("52000")
+        assert persisted.fees == Decimal("5.0000")
 
         # And from a fresh tracker reading the JSON ledger directly,
         # to prove the values survive serialization.
@@ -1731,6 +1734,7 @@ class TestPaperRehydration:
         assert ledger_trade is not None
         assert ledger_trade.stop_loss == Decimal("49000")
         assert ledger_trade.take_profit == Decimal("52000")
+        assert ledger_trade.fees == Decimal("5.0000")
 
     async def test_rehydrate_restores_open_positions(
         self, tmp_path: Path, position: Position
@@ -1804,10 +1808,10 @@ class TestPaperRehydration:
             for rec in caplog.records
         )
 
-    async def test_rehydrate_does_not_relock_balance(
+    async def test_rehydrate_loads_balance_snapshot_without_double_locking(
         self, tmp_path: Path, position: Position
     ) -> None:
-        """Rehydration must not double-lock margin or re-deduct fees."""
+        """A persisted balance snapshot prevents restart-time double-locking."""
         seed_trader = PaperTrader(
             initial_balance={"USDT": Decimal("10000")},
             data_dir=tmp_path,
@@ -1820,20 +1824,54 @@ class TestPaperRehydration:
         assert seed_balance.locked == Decimal("500")
         assert seed_balance.free == Decimal("9500")
 
-        # Fresh trader — caller seeds the same balance shape that was
-        # observable on disk at restart time. ``free`` reflects the
-        # post-open state; ``locked`` is intentionally not re-applied
-        # by rehydration. (In production the engine reseeds initial
-        # balance from config; the assertion here is that rehydration
-        # itself does NOT mutate ``free`` or ``locked``.)
+        # Fresh trader with the production-style full initial seed must
+        # load the snapshot and avoid applying the open margin again.
         revived = PaperTrader(
-            initial_balance={"USDT": Decimal("9500")},
+            initial_balance={"USDT": Decimal("10000")},
             data_dir=tmp_path,
         )
         revived_balance = revived.get_balance("USDT")
         assert revived_balance is not None
         assert revived_balance.free == Decimal("9500")
-        assert revived_balance.locked == Decimal("0")
+        assert revived_balance.locked == Decimal("500")
+
+    async def test_rehydrate_reconciles_balance_when_snapshot_missing(
+        self, tmp_path: Path, position: Position
+    ) -> None:
+        """Legacy ledgers without ``balances.json`` re-lock open margin once."""
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+        trade = tracker.open_trade(
+            symbol=position.symbol,
+            side=position.side,
+            entry_price=position.entry_price,
+            entry_quantity=position.quantity,
+            mode="paper",
+            leverage=position.leverage,
+            stop_loss=position.stop_loss,
+            take_profit=position.take_profit,
+        )
+
+        revived = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+
+        assert revived.get_open_position(trade.id) is not None
+        revived_balance = revived.get_balance("USDT")
+        assert revived_balance is not None
+        assert revived_balance.free == Decimal("9500")
+        assert revived_balance.locked == Decimal("500")
+
+        # The first reconciliation writes the snapshot so the next
+        # restart loads the same balance instead of locking again.
+        restarted = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path,
+        )
+        restarted_balance = restarted.get_balance("USDT")
+        assert restarted_balance is not None
+        assert restarted_balance.free == Decimal("9500")
+        assert restarted_balance.locked == Decimal("500")
 
     async def test_rehydrate_position_can_close_normally(
         self, tmp_path: Path, position: Position
@@ -1845,21 +1883,16 @@ class TestPaperRehydration:
         )
         seed_trade = await seed_trader.open_position(position)
 
-        # Restart: seed reflects what's on disk after open.
+        # Restart: production passes the configured initial balance;
+        # PaperTrader loads the persisted balance snapshot.
         revived = PaperTrader(
-            initial_balance={"USDT": Decimal("9500")},
+            initial_balance={"USDT": Decimal("10000")},
             data_dir=tmp_path,
         )
-        # Margin must be re-locked to mirror the real "free reflects
-        # post-open" snapshot. Use the public balance API rather than
-        # poking at internals.
         revived_balance = revived.get_balance("USDT")
         assert revived_balance is not None
-        # Manually rebuild the locked-margin accounting so
-        # ``close_position`` can ``unlock`` cleanly. (In production the
-        # engine's bootstrap will own this; rehydration just rebuilds
-        # the in-memory position stash.)
-        revived_balance.locked = Decimal("500")
+        assert revived_balance.free == Decimal("9500")
+        assert revived_balance.locked == Decimal("500")
 
         # SL hit at 49000 → loss = (49000 - 50000) * 0.1 = -100
         closed = await revived.close_position(

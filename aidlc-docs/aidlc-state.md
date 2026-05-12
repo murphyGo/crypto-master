@@ -61,7 +61,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 |------|-------------------------|--------------|-------------|
 | `exchange-integration` | Complete | Brownfield-complete; construction-ready | Track future exchange changes in construction plans |
 | `strategy-framework` | Complete | Brownfield-complete; construction-ready; 2026-05-08 deterministic market/swing strategy expansions logged | Track future strategy loader/indicator changes in construction plans |
-| `trading-core` | Complete | Brownfield-complete; construction-ready | Track future paper/live/risk math changes in construction plans |
+| `trading-core` | Complete | Brownfield-complete; construction-ready; 2026-05-12 paper persistence follow-ups shipped for DEBT-059/058/057 (restart-safe balance snapshots, legacy SL/TP backfill tooling confirmation, entry-fee persistence) | Track future paper/live/risk math changes in construction plans |
 | `backtesting-validation` | Complete | Brownfield-complete; construction-ready | Track future robustness/baseline changes in construction plans |
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready | Track future Claude/improver loop changes in construction plans |
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready | Track future proposal/runtime cycle changes in construction plans |

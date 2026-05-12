@@ -102,75 +102,6 @@ Test count reads "1257 pass / 1 pre-existing fail" instead of clean green on eve
 - Raise site: `src/ai/improver.py:425`
 - Lint sites: `src/dashboard/pages/engine.py:25`, `tests/test_backtest_validator.py:3`
 
-### DEBT-057: paper-mode entry-fee not persisted to TradeHistory
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-05-10 |
-| **Phase** | Review follow-up |
-| **Component** | trading-core / paper |
-
-**Description:**
-`PaperTrader.open_position` deducts an entry fee from `PaperBalance` (paper.py around line 570) but never passes `fees=entry_fee` to `_trade_tracker.open_trade`. Result: `TradeHistory.fees` on open paper trades is always `0`, and at close the trade row only reflects `exit_fee`, understating total fees by exactly the entry fee. `LiveTrader` solved this with a `_entry_fees: dict[str, Decimal]` stash that's folded in at close (`live.py:200`). Surfaced by senior-developer during DEBT-053 paper-rehydration work — the rehydration path's `entry_fee` mapping already accommodates the fix.
-
-**Impact:**
-Paper PnL accounting is rosy by 1× entry-fee per closed trade; backtest-vs-paper drift; rehydration after restart can't reconstruct true entry fees.
-
-**Suggested Resolution:**
-Mirror live's `_entry_fees` stash pattern in `PaperTrader.open_position` and fold at close. Update `TestPaperRehydration::test_open_position_persists_sl_tp` to also assert `trade.fees == entry_fee` after `open_position`.
-
-**Related:**
-- DEBT-053
-- commit `36eb2f3`
-- `src/trading/paper.py:579`
-
-### DEBT-058: production trades.json backfill for legacy SL/TP-null rows
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-05-10 |
-| **Phase** | Review follow-up |
-| **Component** | trading-core / persistence-data-integrity |
-
-**Description:**
-Production Fly `data/trades/paper/*/trades.json` files written before commit `36eb2f3` lack `stop_loss` / `take_profit` columns entirely. `PaperTrader._rehydrate_open_positions` (added in `36eb2f3`) skip-and-warns these legacy rows, leaving them as orphan-monitor errors instead of recovering them. The matching `PerformanceRecord` in `data/performance/<sub_account>/<technique>/records.json` does carry SL/TP and is linked via `performance_record_id` — but PaperTrader does not currently have a perf-tracker handle, so backfill must happen at the engine layer.
-
-**Impact:**
-~44 open paper trades on Fly as of 2026-05-09 (incl. one default-sub-account BNB short open 260h) cannot be monitored or auto-closed until backfilled or operator-reconciled. Time-stop (commit `4428035`) helps prospectively but cannot reach trades hidden from `_open_positions`.
-
-**Suggested Resolution:**
-Add an engine-bootstrap migration (or one-shot `src/tools/backfill_paper_sl_tp.py` operator script) that walks each open `TradeHistory` with `performance_record_id is not None and stop_loss is None`, fetches the matching `PerformanceRecord`, and rewrites the trade row with the perf record's SL/TP via atomic write. Operator runs once after deploy; subsequent open trades persist correctly.
-
-**Related:**
-- DEBT-053
-- commit `36eb2f3`
-- `src/trading/paper.py:_rehydrate_open_positions`
-
-### DEBT-059: PaperBalance.locked not reconciled across runtime restart
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-05-10 |
-| **Phase** | Review follow-up |
-| **Component** | trading-core / paper / persistence-data-integrity |
-
-**Description:**
-After commit `36eb2f3` the rehydration path correctly rebuilds `PaperTrader._open_positions` but never re-locks margin on `PaperBalance`. The engine's PaperTrader bootstrap reseeds `PaperBalance.free` from `EngineConfig.paper_initial_balance` on every restart — silently re-crediting the margin that was locked by open positions before restart. Net effect: equity drifts UP by the sum of open-position margins on each restart.
-
-**Impact:**
-Paper equity reporting is overstated by Σ(open margins) per restart cycle. Position sizing on the next cycle uses the inflated free balance, opening larger positions than intended. Compounds with restart frequency (Fly auto-bounces machines).
-
-**Suggested Resolution:**
-Either (a) persist `PaperBalance` snapshot to disk and reload on init (preferred — simpler, also fixes realized-PnL drift across restarts), or (b) have rehydration call `PaperBalance.lock(margin)` per rehydrated position so locked + free = pre-restart total. Option (a) is the cleaner fix because realized PnL is also currently lost on restart.
-
-**Related:**
-- DEBT-053
-- commit `36eb2f3`
-- `src/trading/paper.py:_rehydrate_open_positions`
-
 ### DEBT-060: RSI baseline family TP-distance redesign for 2.0 R/R floor
 
 | Field | Value |
@@ -213,6 +144,33 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-059: PaperBalance.locked not reconciled across runtime restart ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-10 |
+| **Resolved** | 2026-05-12 |
+| **Resolution** | `PaperTrader` now persists per-sub-account paper balances to `data/trades/paper/<sub_account>/balances.json` via atomic writes. Startup loads the snapshot before rehydrating open positions, so `free`, `locked`, realised PnL, and paid fees survive process restarts instead of reseeding from `paper_initial_balance`. For legacy ledgers that have open trades but no snapshot yet, rehydration performs a one-time margin/entry-fee reconciliation and writes the first snapshot. Regression tests cover snapshot loading without double-locking, legacy one-time reconciliation, and restart close behaviour. |
+
+### DEBT-058: production trades.json backfill for legacy SL/TP-null rows ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-05-10 |
+| **Resolved** | 2026-05-12 |
+| **Resolution** | The one-shot operator CLI `src/tools/backfill_paper_sl_tp.py` is present and covered by `tests/test_tools_backfill_paper_sl_tp.py`. It walks `data/trades/paper/<sub_account>/trades.json`, finds open rows with missing SL/TP and a linked `performance_record_id`, reads the matching performance record under `data/performance/<sub_account>/`, and rewrites the ledger atomically. Tests cover successful backfill, dry-run, sub-account filtering, idempotency, missing perf IDs, null perf bounds, missing perf records, malformed/missing roots, and CLI argument wiring. |
+
+### DEBT-057: paper-mode entry-fee not persisted to TradeHistory ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-05-10 |
+| **Resolved** | 2026-05-12 |
+| **Resolution** | `PaperTrader.open_position` now passes the calculated entry fee into `TradeHistoryTracker.open_trade`, so open paper rows persist the entry-side fee and rehydration can restore `OpenPosition.entry_fee`. `close_position` now passes only the exit fee to `close_trade`, relying on `TradeHistoryTracker.close_trade` to add it to the already-persisted entry fee. Regression coverage extends `TestPaperRehydration::test_open_position_persists_sl_tp` to assert entry-fee persistence in both tracker memory and the serialized JSON ledger, while the existing fee tests pin final total-fee and PnL math. |
 
 ### DEBT-053: Persisted open-position hydration after runtime restart ✅
 
@@ -688,12 +646,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 3 |
 | Critical | 0 |
-| High | 2 |
-| Medium | 3 |
+| High | 0 |
+| Medium | 2 |
 | Low | 1 |
-| Resolved (All Time) | 50 |
+| Resolved (All Time) | 53 |
 
 ---
 
@@ -701,6 +659,9 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-05-12 | Resolved | DEBT-059 PaperBalance.locked not reconciled across runtime restart — added atomic per-sub-account `balances.json` snapshots, snapshot-first startup load, and one-time legacy open-position balance reconciliation |
+| 2026-05-12 | Resolved | DEBT-058 production trades.json backfill for legacy SL/TP-null rows — confirmed and documented the existing `src.tools.backfill_paper_sl_tp` one-shot operator tool and its targeted test coverage |
+| 2026-05-12 | Resolved | DEBT-057 paper-mode entry-fee not persisted to TradeHistory — persisted entry fees at open time and changed close-time fee addition to pass only the exit fee |
 | 2026-05-10 | Added | DEBT-060 RSI baseline family TP-distance redesign for 2.0 R/R floor (Medium) — Flagged by senior-developer during P1 (I) (commit 7e9162e); RSI rr_med=2.00 in 12-day Fly data, ~50% throughput drop expected after R/R floor + SL widening interact |
 | 2026-05-10 | Added | DEBT-057 paper-mode entry-fee not persisted to TradeHistory (Medium) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
 | 2026-05-10 | Added | DEBT-058 production trades.json backfill for legacy SL/TP-null rows (High) — Surfaced by P0 trading-correctness work (commits 36eb2f3 / 4428035 / 9f57708) |
