@@ -339,7 +339,8 @@ def build_summary_metrics(
 
     Returns:
         Dict with keys: ``open_positions``, ``closed_trades``,
-        ``win_rate`` (float in [0, 1]), ``realized_pnl``,
+        ``win_rate`` (float in [0, 1]; win == take-profit close, to
+        match PerformanceSummary), ``realized_pnl``,
         ``unrealized_pnl``, ``latest_equity``, ``latest_snapshot_at``,
         ``proposals_rejected_threshold_count``. Numeric values are
         floats so the dashboard can format them with `:.2f` etc;
@@ -349,7 +350,12 @@ def build_summary_metrics(
     closed = [t for t in trades if t.status == "closed"]
     closed_count = len(closed)
 
-    wins = sum(1 for t in closed if t.pnl_percent is not None and t.pnl_percent > 0)
+    # "Win" matches the strict outcome definition used by
+    # PerformanceSummary (a trade that hit take-profit), so this card
+    # agrees with the per-technique win rate that feeds promotion /
+    # tuning gating. A positive-P&L exit via stop-out or manual close is
+    # not counted as a win — see engine._classify_close_reason.
+    wins = sum(1 for t in closed if t.close_reason == "take_profit")
     win_rate = wins / closed_count if closed_count else 0.0
 
     realized_pnl = sum(

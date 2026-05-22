@@ -424,7 +424,11 @@ def test_summary_metrics_counts_open_and_closed() -> None:
 
 
 def test_summary_metrics_win_rate() -> None:
-    """Two wins out of four closed → 0.5; opens are excluded."""
+    """Win == take-profit close (matches PerformanceSummary).
+
+    Two of four closed trades hit take-profit → 0.5. A positive-P&L
+    manual close is *not* a win, and opens are excluded.
+    """
     trades = [
         make_trade(
             trade_id=f"c{i}",
@@ -434,8 +438,16 @@ def test_summary_metrics_win_rate() -> None:
             exit_time=datetime(2026, 1, 2),
             pnl="0",
             pnl_percent=pnl,
+            close_reason=reason,
         )
-        for i, pnl in enumerate([3.0, -1.0, 2.0, -0.5])
+        for i, (pnl, reason) in enumerate(
+            [
+                (3.0, "take_profit"),
+                (-1.0, "stop_loss"),
+                (2.0, "take_profit"),
+                (1.5, "manual"),
+            ]
+        )
     ]
     trades.append(make_trade(trade_id="open-x", status="open"))
 
