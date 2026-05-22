@@ -88,7 +88,7 @@ Sequential or bundled — (a)+(b)+(c) ship together as the dashboard pass; (d) b
 **Description:**
 `cross-account-risk-policy` Slice 1 (2026-05-13) shipped the schema extensions + `compute_risk_budget_size` sizing helper + 2 of 5 planned gates (`_account_aggregate_cap_gate` notional + stop-risk, and `_stale_position_block_gate`). Slice 2 wires the remaining surfaces per the functional-design spec:
 
-- **(a) `compute_risk_budget_size` wire-in to `ProposalEngine`** — the pure helper is unit-tested in `src/trading/risk_sizing.py` but has no production caller. Wire at the proposal sizing call site; remove the `_reject_risk_budget_mode_until_wired_in` validator from `RiskPolicy` once landed.
+- **(a) `compute_risk_budget_size` wire-in to proposal runtime — SHIPPED 2026-05-15.** `TradingEngine._risk_budget_sizing_gate` now calls the pure helper for `sizing_mode='risk_budget'`, rewrites `proposal.quantity` before downstream gates, rejects helper failures with `gate_rejected_risk_sizing`, uses live/paper account balances with explicit `CapitalPolicy.sizing_balance` fallback, and removed the temporary `_reject_risk_budget_mode_until_wired_in` validator from `RiskPolicy`.
 - **(b) Global symbol/side caps** — `max_open_positions_per_symbol_side`, `max_gross_notional_per_symbol_side`, `max_gross_notional_per_symbol`. Needs cross-sub-account state aggregation in the engine cycle.
 - **(c) Per-account + portfolio kill switches** — `daily_loss_limit_pct`, `open_drawdown_limit_pct`, `portfolio_daily_loss_limit_pct`, `portfolio_open_drawdown_limit_pct`. Needs realized-PnL-since-UTC-midnight aggregation + persisted state surviving restart.
 - **(d) Operator freeze toggle** — `global_risk_policy.operator_freeze` field exists; needs `config/runtime_flags.yaml` (or similar) reload-per-cycle infrastructure.
@@ -98,10 +98,10 @@ Sequential or bundled — (a)+(b)+(c) ship together as the dashboard pass; (d) b
 - **(h) `runtime-safety-score` integration** — kill-switch triggers should feed the safety-score signal.
 
 **Impact:**
-Slice 1 alone is operator-meaningful for paper-mode per-account aggregate-cap observability, but the live-mode promotion path is incomplete without (a)-(c). Risk-budget sizing mode is currently fail-closed at `RiskPolicy` validation (with an explicit DEBT-068 pointer in the error message) until (a) ships.
+Slice 1 plus the 2026-05-15 DEBT-068(a) wire-in is operator-meaningful for paper-mode per-account aggregate-cap observability and opt-in risk-budget sizing. The live-mode promotion path is still incomplete without global symbol/side caps and kill switches.
 
 **Suggested Resolution:**
-Sequential cycles — first (a) wire-in as a small slice (one cycle), then (b) global caps, (c) kill switches, (e) stale actions, (f) dashboard, (g) event type. (d) and (h) are smaller and can bundle with (f).
+Sequential cycles — next (b) global caps, then (c) kill switches, (e) stale actions, (f) dashboard, and (g) event type. (d) operator freeze reload and (h) runtime-safety-score integration are smaller and can bundle with (f).
 
 **Related:**
 - quant-trader-expert Q1/Q2 review (`docs/sessions/2026-05-13-cross-account-risk-policy-slice-1-shipped.md`)

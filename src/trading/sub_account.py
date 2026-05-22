@@ -186,28 +186,6 @@ class RiskPolicy(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _reject_risk_budget_mode_until_wired_in(self) -> RiskPolicy:
-        """``sizing_mode=risk_budget`` is not yet wired into ``ProposalEngine``.
-
-        Slice 1 of cross-account-risk-policy landed the
-        :func:`compute_risk_budget_size` helper and unit-tested it in
-        isolation, but ``ProposalEngine`` still sizes through the
-        legacy fixed-notional path. Accepting ``sizing_mode=risk_budget``
-        in config silently does nothing at runtime — a textbook
-        operator footgun. Reject the mode at parse time until Slice 2
-        (tracked as DEBT-068) wires the helper through the sizing call
-        site.
-        """
-        if self.sizing_mode == "risk_budget":
-            raise ValueError(
-                "sizing_mode='risk_budget' is configured but not yet wired "
-                "into the proposal engine (tracked as DEBT-068). Use "
-                "sizing_mode='fixed_notional' until that lands, or remove "
-                "the field."
-            )
-        return self
-
-    @model_validator(mode="after")
     def _stale_position_action_requires_max_hours(self) -> RiskPolicy:
         """``stale_position_action`` requires ``max_time_in_position_hours``.
 
@@ -313,10 +291,10 @@ class MarketRegimePolicy(BaseModel):
         # regime would silently block every proposal, which is almost
         # certainly a config error rather than an operator intent.
         if not value:
-            raise ValueError(
-                "allowed_regimes must contain at least one regime label"
-            )
-        unknown_values = [regime for regime in value if regime not in _ALLOWED_MARKET_REGIMES]
+            raise ValueError("allowed_regimes must contain at least one regime label")
+        unknown_values = [
+            regime for regime in value if regime not in _ALLOWED_MARKET_REGIMES
+        ]
         if unknown_values:
             raise ValueError(
                 "allowed_regimes contains invalid label(s) "
@@ -354,9 +332,9 @@ class GlobalRiskPolicy(BaseModel):
     # first-come-first-serve — cycle order wins. ``account_priority`` is
     # still parseable so operators can flip to ``lowest_priority_loses``
     # without a schema migration.
-    cap_resolution: Literal[
-        "first_come_first_serve", "lowest_priority_loses"
-    ] = "first_come_first_serve"
+    cap_resolution: Literal["first_come_first_serve", "lowest_priority_loses"] = (
+        "first_come_first_serve"
+    )
     account_priority: list[str] = Field(default_factory=list)
 
     # Portfolio-level kill switches. Computed over the sum of all

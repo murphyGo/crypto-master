@@ -91,6 +91,7 @@ from src.strategy.performance import (
     TradeOutcome,
 )
 from src.strategy.tuning import StrategyAction
+from src.trading.risk_sizing import RiskSizingRejection, compute_risk_budget_size
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
 
@@ -705,9 +706,7 @@ class TradingEngine:
         # baseline share the OHLCV fetch; reset at the top of every
         # ``run_cycle`` alongside the HTF trend-filter cache so a long-
         # running process never serves a stale classification.
-        self._market_regime_cache: dict[
-            tuple[str, str], RegimeClassification
-        ] = {}
+        self._market_regime_cache: dict[tuple[str, str], RegimeClassification] = {}
 
         # DEBT-066: in-memory mark-price cache. Populated by the
         # per-cycle ticker reads that already happen in
@@ -1202,6 +1201,24 @@ class TradingEngine:
                         cycle_id=event.cycle_id,
                     )
                 return
+            proposal, risk_sizing_outcome = await self._risk_budget_sizing_gate(
+                proposal,
+                record,
+                sub_account,
+                trader,
+                cycle_id,
+            )
+            if risk_sizing_outcome is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(risk_sizing_outcome.final_record)
+                for event in events + risk_sizing_outcome.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
             # strategy-tuning §"Runtime Behavior": enforce the applied
             # action for this ``(sub_account, strategy)`` pair. ``keep``
             # / ``promote`` pass through, ``retune`` emits an advisory
@@ -1495,6 +1512,88 @@ class TradingEngine:
                     cycle_id=event.cycle_id,
                 )
 
+    async def _risk_budget_sizing_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> tuple[Proposal, GateOutcome | None]:
+        """Apply per-account risk-budget sizing or reject malformed sizing.
+
+        DEBT-068(a): ``RiskPolicy.sizing_mode='risk_budget'`` replaces the
+        strategy-produced fixed-notional quantity with
+        ``equity * risk_budget_pct / stop_distance`` before downstream gates
+        that consume ``proposal.quantity``. Account equity comes from the
+        trader balance snapshot for the account quote currency, falling back
+        only to an explicit ``CapitalPolicy.sizing_balance``.
+        """
+        if sub_account is None or sub_account.risk_policy.sizing_mode != "risk_budget":
+            return proposal, None
+
+        quote_currency = sub_account.capital_policy.quote_currency
+        balances: dict[str, Decimal] = {}
+        try:
+            balances = await trader.get_balances()
+        except Exception as exc:  # pragma: no cover - defensive runtime guard
+            logger.warning(
+                "Risk-budget balance lookup failed for %s: %s",
+                sub_account.id,
+                exc,
+            )
+
+        account_equity = balances.get(quote_currency)
+        if account_equity is None:
+            account_equity = sub_account.capital_policy.sizing_balance
+
+        sized = compute_risk_budget_size(
+            account_equity=account_equity,
+            entry_price=proposal.entry_price,
+            stop_loss_price=proposal.stop_loss,
+            side=proposal.signal,
+            policy=sub_account.risk_policy,
+        )
+        if isinstance(sized, RiskSizingRejection):
+            reason = f"risk_sizing: {sized.message}"
+            details: dict[str, Any] = {
+                **_proposal_summary(proposal),
+                "reason": reason,
+                "gate_reason": "risk_sizing",
+                "risk_sizing_reason": sized.reason,
+                "sub_account_id": sub_account.id,
+                "quote_currency": quote_currency,
+                "account_equity": (
+                    str(account_equity) if account_equity is not None else None
+                ),
+                "sizing_mode": sub_account.risk_policy.sizing_mode,
+            }
+            if sized.details is not None:
+                details.update(sized.details)
+            rejected_record = record.model_copy(
+                update={
+                    "decision": ProposalDecision.REJECTED.value,
+                    "rejection_reason": reason,
+                    "decision_at": now_utc(),
+                    "final_state": ProposalFinalState.GATE_REJECTED_RISK_SIZING.value,
+                }
+            )
+            return proposal, GateOutcome(
+                GateDecision.REJECTED,
+                reason,
+                [
+                    GateActivityEvent(
+                        ActivityEventType.PROPOSAL_REJECTED,
+                        f"Risk-sizing rejected {proposal.symbol} {proposal.signal}",
+                        details,
+                        cycle_id,
+                    )
+                ],
+                rejected_record,
+            )
+
+        return proposal.model_copy(update={"quantity": sized}), None
+
     async def _execute(
         self,
         proposal: Proposal,
@@ -1652,10 +1751,7 @@ class TradingEngine:
         if sub_account is None:
             return None
         policy = sub_account.risk_policy
-        if (
-            policy.max_gross_notional is None
-            and policy.max_open_stop_risk is None
-        ):
+        if policy.max_gross_notional is None and policy.max_open_stop_risk is None:
             return None
 
         open_trades = [
@@ -1820,9 +1916,7 @@ class TradingEngine:
             # ``ensure_utc`` before doing tz-aware arithmetic. Slice 1
             # missed this site; a naive datetime would crash with
             # ``TypeError: can't subtract offset-naive and offset-aware``.
-            age_hours = (
-                (now - ensure_utc(trade.entry_time)).total_seconds() / 3600.0
-            )
+            age_hours = (now - ensure_utc(trade.entry_time)).total_seconds() / 3600.0
             if age_hours > cap_hours:
                 stale_trades.append((trade, age_hours))
         if not stale_trades:
@@ -1940,9 +2034,7 @@ class TradingEngine:
                 "decision_at": now_utc(),
                 # proposal-funnel-audit §1 State 4: sibling-family
                 # dedup rejection.
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY.value
-                ),
+                "final_state": (ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY.value),
             }
         )
         return GateOutcome(
@@ -2104,9 +2196,7 @@ class TradingEngine:
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
                 # proposal-funnel-audit §1 State 4: trend-filter rejection.
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_TREND_FILTER.value
-                ),
+                "final_state": (ProposalFinalState.GATE_REJECTED_TREND_FILTER.value),
             }
         )
         return GateOutcome(
@@ -2249,9 +2339,7 @@ class TradingEngine:
                 else None
             ),
             "close": (
-                str(classification.close)
-                if classification.close is not None
-                else None
+                str(classification.close) if classification.close is not None else None
             ),
             "policy_decision": "block",
             "sub_account_id": sub_account.id,
@@ -2266,9 +2354,7 @@ class TradingEngine:
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
                 # proposal-funnel-audit §1 State 4: market-regime rejection.
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_MARKET_REGIME.value
-                ),
+                "final_state": (ProposalFinalState.GATE_REJECTED_MARKET_REGIME.value),
             }
         )
         # ``details`` already carries ``proposal_id`` / ``record_id`` /
@@ -2505,9 +2591,7 @@ class TradingEngine:
                 "rejection_reason": reason,
                 "decision_at": now_utc(),
                 # proposal-funnel-audit §1 State 4: correlation rejection.
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_CORRELATION.value
-                ),
+                "final_state": (ProposalFinalState.GATE_REJECTED_CORRELATION.value),
             }
         )
         events.append(
@@ -2701,9 +2785,7 @@ class TradingEngine:
                     str(trade.stop_loss) if trade.stop_loss is not None else None
                 ),
                 "take_profit": (
-                    str(trade.take_profit)
-                    if trade.take_profit is not None
-                    else None
+                    str(trade.take_profit) if trade.take_profit is not None else None
                 ),
                 "performance_record_id": trade.performance_record_id,
                 "sub_account_id": trade.sub_account_id,
@@ -2939,9 +3021,7 @@ class TradingEngine:
                     # State 4 in the UI even though it fires inside
                     # ``_execute`` — open-decision §6 stale-quote
                     # resolution, 2026-05-13).
-                    "final_state": (
-                        ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value
-                    ),
+                    "final_state": (ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value),
                 }
             )
             self.proposal_history.save(updated)
@@ -3005,9 +3085,7 @@ class TradingEngine:
                     # proposal-funnel-audit §1 State 4: presented at
                     # State 4 in the UI per open-decision §6 stale-
                     # quote resolution (2026-05-13).
-                    "final_state": (
-                        ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value
-                    ),
+                    "final_state": (ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value),
                 }
             )
             self.proposal_history.save(updated)
@@ -3630,9 +3708,7 @@ class TradingEngine:
             # fresh deployment. Emit the meta-event before returning;
             # the dashboard banner will render Yellow with a CTA when
             # this is the most recent reconciliation event.
-            logger.warning(
-                "Reconciliation health check failed: %s", exc, exc_info=True
-            )
+            logger.warning("Reconciliation health check failed: %s", exc, exc_info=True)
             self.activity_log.append(
                 ActivityEventType.RECONCILIATION_HEALTH_CHECK_FAILED,
                 f"Reconciliation health check failed: {exc}",

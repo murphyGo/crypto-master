@@ -197,47 +197,19 @@ def test_decimal_arithmetic_no_float_contamination() -> None:
 
 
 def test_risk_policy_validator_rejects_risk_budget_without_pct() -> None:
-    """Model-level invariant: risk-budget mode is rejected outright.
-
-    Two cases are pinned here:
-
-    * ``sizing_mode='risk_budget'`` without ``risk_budget_pct`` —
-      historically the only failure mode.
-    * ``sizing_mode='risk_budget'`` *with* ``risk_budget_pct`` —
-      currently also rejected, because Slice 2 of
-      cross-account-risk-policy (DEBT-068) has not yet wired the
-      sizing helper into ``ProposalEngine``. Until it does, operators
-      configuring this mode would silently get the legacy
-      fixed-notional sizing.
-    """
+    """Model-level invariant: risk-budget mode requires a risk budget."""
     with pytest.raises(ValueError):
         RiskPolicy(sizing_mode="risk_budget")
-    with pytest.raises(ValueError, match="DEBT-068"):
-        RiskPolicy(
-            sizing_mode="risk_budget",
-            risk_budget_pct=Decimal("0.005"),
-        )
 
 
-def test_risk_policy_rejects_risk_budget_mode_until_wired_in() -> None:
-    """Slice 1 footgun guard: ``risk_budget`` mode is config-time rejected.
-
-    ``compute_risk_budget_size`` is unit-tested above, but the
-    ``ProposalEngine`` sizing call site still uses the legacy
-    fixed-notional path. Until Slice 2 (DEBT-068) wires the helper
-    through, configuring ``sizing_mode='risk_budget'`` is rejected
-    at parse time with a message pointing at the follow-up debt
-    entry so operators don't get silent-no-op behavior.
-    """
-    with pytest.raises(ValueError) as excinfo:
-        RiskPolicy(
-            sizing_mode="risk_budget",
-            risk_budget_pct=Decimal("0.005"),
-        )
-    message = str(excinfo.value)
-    assert "risk_budget" in message
-    assert "DEBT-068" in message
-    assert "fixed_notional" in message
+def test_risk_policy_accepts_risk_budget_mode_when_pct_is_configured() -> None:
+    """DEBT-068(a): runtime now wires the helper, so config can opt in."""
+    policy = RiskPolicy(
+        sizing_mode="risk_budget",
+        risk_budget_pct=Decimal("0.005"),
+    )
+    assert policy.sizing_mode == "risk_budget"
+    assert policy.risk_budget_pct == Decimal("0.005")
 
 
 def test_risk_policy_validator_rejects_inverted_notional_bounds() -> None:

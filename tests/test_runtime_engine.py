@@ -193,6 +193,7 @@ def build_engine(
     trader.close_position = AsyncMock(return_value=None)
     # Default: no SL/TP exits.
     trader.check_exit_conditions.return_value = (False, None)
+    trader.get_balances = AsyncMock(return_value={"USDT": Decimal("10000")})
 
     notification_dispatcher = MagicMock(spec=NotificationDispatcher)
     notification_dispatcher.notify_proposal = AsyncMock(return_value=None)
@@ -4210,17 +4211,12 @@ class TestMarketRegimeGate:
             assert blocked[0].details["policy_decision"] == "block"
             assert blocked[0].details["sub_account_id"] == "regime_acct"
             record = mocks["history"].load(f"e2e-{expected_regime}")
-            assert (
-                record.rejection_reason
-                == f"market_regime_blocked_{expected_regime}"
-            )
+            assert record.rejection_reason == f"market_regime_blocked_{expected_regime}"
         else:
             assert result.positions_opened == 1
             assert blocked == []
 
-    async def test_regime_classification_cached_per_cycle(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_regime_classification_cached_per_cycle(self, tmp_path: Path) -> None:
         # Two proposals in one cycle, same reference symbol/timeframe →
         # the OHLCV fetch should happen exactly once. This pins the
         # cache invariant the runtime relies on so a fan-out scan does
@@ -4334,10 +4330,7 @@ class TestMarketRegimeGate:
         # correlation final-state, not the regime final-state.
         record = mocks["history"].load("ordering-corr-vs-regime")
         assert record.decision == ProposalDecision.REJECTED.value
-        assert (
-            record.final_state
-            == ProposalFinalState.GATE_REJECTED_CORRELATION.value
-        )
+        assert record.final_state == ProposalFinalState.GATE_REJECTED_CORRELATION.value
         assert record.rejection_reason == (
             "correlation gate rejected excessive duplicate exposure"
         )
@@ -4461,9 +4454,7 @@ def test_startup_emits_locked_inconsistent_event_when_drift_detected(
     # One open row → locked_sum = 50000 * 0.1 / 10 = 500.
     _seed_paper_trade_row(tmp_path, "default", trade_id="ok")
     # Snapshot reports a different locked amount → drift > epsilon.
-    balances_path = (
-        tmp_path / "trades" / "paper" / "default" / "balances.json"
-    )
+    balances_path = tmp_path / "trades" / "paper" / "default" / "balances.json"
     balances_path.write_text(
         _json.dumps(
             {
@@ -4508,9 +4499,7 @@ def test_startup_health_check_swallows_internal_errors(tmp_path: Path) -> None:
     event_types = {e.event_type for e in events}
     assert ActivityEventType.STARTUP.value in event_types
     assert ActivityEventType.SHUTDOWN.value in event_types
-    assert (
-        ActivityEventType.RECONCILIATION_HEALTH_REPORT.value not in event_types
-    )
+    assert ActivityEventType.RECONCILIATION_HEALTH_REPORT.value not in event_types
 
 
 def test_startup_emits_health_check_failed_event(tmp_path: Path) -> None:
@@ -4683,12 +4672,8 @@ async def test_mark_price_cache_populated_from_asset_snapshot(tmp_path: Path) ->
     from src.trading.portfolio import PortfolioTracker
 
     proposal = make_proposal(proposal_id="ff_mark_snapshot", composite=2.0)
-    open_trade_a = make_trade(
-        trade_id="t-eth", symbol="ETH/USDT", side="long"
-    )
-    open_trade_b = make_trade(
-        trade_id="t-bnb", symbol="BNB/USDT", side="short"
-    )
+    open_trade_a = make_trade(trade_id="t-eth", symbol="ETH/USDT", side="long")
+    open_trade_b = make_trade(trade_id="t-bnb", symbol="BNB/USDT", side="short")
     engine, mocks = build_engine(
         tmp_path=tmp_path,
         btc_proposal=proposal,
@@ -4698,6 +4683,7 @@ async def test_mark_price_cache_populated_from_asset_snapshot(tmp_path: Path) ->
     # Wire a portfolio tracker so the snapshot path is exercised
     # end-to-end.
     engine.portfolio_tracker = PortfolioTracker(data_dir=tmp_path / "portfolio")
+
     # Per-symbol ticker prices via ``side_effect`` — the default mock
     # returns the same 50000 ticker for every call.
     async def _ticker_by_symbol(symbol: str) -> Ticker:
@@ -4979,7 +4965,13 @@ async def test_position_closed_event_carries_record_id(tmp_path: Path) -> None:
 def _make_risk_sub(
     *,
     id: str = "rsi_lab",
+    sizing_mode: str = "fixed_notional",
+    risk_budget_pct: Decimal | None = None,
+    sizing_balance: Decimal | None = None,
+    min_notional_per_trade: Decimal | None = None,
     max_gross_notional: Decimal | None = None,
+    max_notional_per_trade: Decimal | None = None,
+    min_stop_distance_bps: int | None = None,
     max_open_stop_risk: Decimal | None = None,
     max_time_in_position_hours: int | None = None,
     stale_position_action: str | None = None,
@@ -4990,14 +4982,144 @@ def _make_risk_sub(
         name=id,
         mode="paper",
         exchange_ref="default",
-        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        capital_policy=CapitalPolicy(
+            initial_balance={"USDT": Decimal("10000")},
+            sizing_balance=sizing_balance,
+        ),
         risk_policy=RiskPolicy(
+            sizing_mode=sizing_mode,  # type: ignore[arg-type]
+            risk_budget_pct=risk_budget_pct,
+            min_notional_per_trade=min_notional_per_trade,
             max_gross_notional=max_gross_notional,
+            max_notional_per_trade=max_notional_per_trade,
+            min_stop_distance_bps=min_stop_distance_bps,
             max_open_stop_risk=max_open_stop_risk,
             max_time_in_position_hours=max_time_in_position_hours,
             stale_position_action=stale_position_action,  # type: ignore[arg-type]
         ),
     )
+
+
+async def test_risk_budget_sizing_resizes_before_account_aggregate_cap(
+    tmp_path: Path,
+) -> None:
+    """DEBT-068(a): risk-budget mode replaces the strategy's raw quantity.
+
+    The raw strategy quantity would breach the account aggregate notional cap,
+    but the risk-budget-sized quantity fits and proceeds to execution.
+    """
+    proposal = make_proposal(
+        proposal_id="risk-sized",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        sl="49000",
+        quantity="0.2",  # raw notional = 10,000; risk-budget qty = 0.05.
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        sizing_mode="risk_budget",
+        risk_budget_pct=Decimal("0.005"),
+        max_gross_notional=Decimal("3000"),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    opened_position = mocks["trader"].open_position.await_args.args[0]
+    assert opened_position.quantity == Decimal("0.05")
+    record = mocks["history"].load("risk-sized")
+    assert record.final_state == ProposalFinalState.TRADE_OPENED.value
+
+
+async def test_risk_budget_sizing_rejects_stop_too_tight(
+    tmp_path: Path,
+) -> None:
+    """Risk-budget sizing rejects proposals below the stop-distance floor."""
+    proposal = make_proposal(
+        proposal_id="risk-tight-stop",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        sl="49999",
+        quantity="0.2",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        sizing_mode="risk_budget",
+        risk_budget_pct=Decimal("0.005"),
+        min_stop_distance_bps=25,
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("risk-tight-stop")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_RISK_SIZING.value
+    assert "stop distance" in (record.rejection_reason or "")
+    event = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "risk_sizing"
+    ][0]
+    assert event.details["risk_sizing_reason"] == "stop_too_tight"
+
+
+async def test_risk_budget_sizing_falls_back_to_explicit_sizing_balance(
+    tmp_path: Path,
+) -> None:
+    """Missing live balance uses explicit ``CapitalPolicy.sizing_balance``."""
+    proposal = make_proposal(
+        proposal_id="risk-sized-fallback",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        sl="49000",
+        quantity="0.2",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    mocks["trader"].get_balances = AsyncMock(return_value={})
+    sub = _make_risk_sub(
+        sizing_mode="risk_budget",
+        risk_budget_pct=Decimal("0.005"),
+        sizing_balance=Decimal("8000"),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    opened_position = mocks["trader"].open_position.await_args.args[0]
+    assert opened_position.quantity == Decimal("0.04")
 
 
 async def test_account_aggregate_cap_gate_live_rejects_over_notional(
@@ -5038,7 +5160,10 @@ async def test_account_aggregate_cap_gate_live_rejects_over_notional(
     mocks["trader"].open_position.assert_not_called()
 
     record = mocks["history"].load("rsi-1")
-    assert record.final_state == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    )
     assert "gross_notional" in (record.rejection_reason or "")
 
 
@@ -5144,7 +5269,10 @@ async def test_account_aggregate_cap_gate_open_stop_risk_breach_live(
     result = await engine.run_cycle()
     assert result.proposals_rejected == 1
     record = mocks["history"].load("rsi-stop")
-    assert record.final_state == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
+    )
     assert "open_stop_risk" in (record.rejection_reason or "")
 
 
@@ -5226,9 +5354,9 @@ async def test_stale_position_block_gate_live_rejects_when_stale_trade_open(
             "entry_time": now_utc() - timedelta(hours=100),
         }
     )
-    proposal = make_proposal(
-        proposal_id="rsi-blocked", composite=2.0
-    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(proposal_id="rsi-blocked", composite=2.0).model_copy(
+        update={"sub_account_id": "rsi_lab"}
+    )
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -5252,7 +5380,8 @@ async def test_stale_position_block_gate_live_rejects_when_stale_trade_open(
 
     record = mocks["history"].load("rsi-blocked")
     assert (
-        record.final_state == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
     )
     assert "stale_position_block" in (record.rejection_reason or "")
 
@@ -5269,9 +5398,9 @@ async def test_stale_position_block_gate_paper_advisory_only(tmp_path: Path) -> 
             "entry_time": now_utc() - timedelta(hours=100),
         }
     )
-    proposal = make_proposal(
-        proposal_id="rsi-paper-stale", composite=2.0
-    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(proposal_id="rsi-paper-stale", composite=2.0).model_copy(
+        update={"sub_account_id": "rsi_lab"}
+    )
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -5317,9 +5446,9 @@ async def test_stale_position_block_gate_no_action_configured_is_noop(
             "entry_time": now_utc() - timedelta(hours=100),
         }
     )
-    proposal = make_proposal(
-        proposal_id="rsi-stale-alert", composite=2.0
-    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(proposal_id="rsi-stale-alert", composite=2.0).model_copy(
+        update={"sub_account_id": "rsi_lab"}
+    )
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -5524,9 +5653,7 @@ def test_strategy_action_gate_retune_passes_through_and_emits_advisory(
 
     assert outcome is None
     assert new_proposal is proposal
-    flagged = mocks["activity_log"].filter(
-        event_type=ActivityEventType.RETUNE_FLAGGED
-    )
+    flagged = mocks["activity_log"].filter(event_type=ActivityEventType.RETUNE_FLAGGED)
     assert len(flagged) == 1
     assert flagged[0].details["technique_name"] == proposal.technique_name
 
@@ -5567,9 +5694,7 @@ def test_strategy_action_gate_shadow_persists_with_shadow_marker(
 
     assert outcome is not None
     assert new_record.shadow is True
-    assert (
-        new_record.final_state == ProposalFinalState.SHADOW_RECORDED.value
-    )
+    assert new_record.final_state == ProposalFinalState.SHADOW_RECORDED.value
     assert outcome.final_record is new_record
     # Event payload carries the shadow marker for dashboards.
     assert outcome.events[0].details["shadow"] is True
