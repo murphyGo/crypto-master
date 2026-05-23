@@ -94,6 +94,7 @@ from src.strategy.tuning import StrategyAction
 from src.trading.risk_sizing import RiskSizingRejection, compute_risk_budget_size
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
+from src.utils.trading_math import pnl_for_trade
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -1201,6 +1202,55 @@ class TradingEngine:
                         cycle_id=event.cycle_id,
                     )
                 return
+
+            # cross-account-risk-policy §"Runtime Behavior" / DEBT-068(c-1):
+            # the STATELESS kill switches run BEFORE sizing and BEFORE the
+            # cap gates, so a tripped account/portfolio drawdown or
+            # stop-risk limit short-circuits before any sizing or
+            # aggregate-cap event fires. Order: per-account first
+            # (open-drawdown then open-stop-risk, combined in one gate),
+            # then the global portfolio gate.
+            #
+            # Two earlier slots will precede these once shipped:
+            #   - DEBT-068(d): operator manual freeze (earliest reject).
+            #   - DEBT-068(c-2): per-account + global daily-loss kill switch.
+            # Both are out of scope for this slice.
+            account_kill_switch = await self._account_kill_switch_gate(
+                proposal,
+                record,
+                sub_account,
+                trader,
+                cycle_id,
+            )
+            if account_kill_switch is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(account_kill_switch.final_record)
+                for event in events + account_kill_switch.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
+            global_kill_switch = await self._global_kill_switch_gate(
+                proposal,
+                record,
+                cycle_id,
+            )
+            if global_kill_switch is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(global_kill_switch.final_record)
+                for event in events + global_kill_switch.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
             proposal, risk_sizing_outcome = await self._risk_budget_sizing_gate(
                 proposal,
                 record,
@@ -1742,6 +1792,345 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
 
+    @staticmethod
+    def _open_stop_risk_sum(trades: list[TradeHistory]) -> Decimal:
+        """Sum worst-case open stop-risk across trades.
+
+        cross-account-risk-policy: ``sum(abs(entry - stop) * qty)`` over
+        open positions — the total loss if every open stop fired at once.
+        Factored out so :meth:`_account_aggregate_cap_gate` (per-account
+        ``max_open_stop_risk`` cap) and :meth:`_account_kill_switch_gate`
+        (per-account ``open_stop_risk_limit_pct`` kill switch) compute the
+        identical numerator and cannot drift. Trades with no ``stop_loss``
+        contribute zero.
+        """
+        return sum(
+            (
+                abs(trade.entry_price - trade.stop_loss) * trade.entry_quantity
+                for trade in trades
+                if trade.stop_loss is not None
+            ),
+            start=Decimal("0"),
+        )
+
+    async def _account_equity(
+        self,
+        sub_account: SubAccount,
+        trader: Trader,
+    ) -> Decimal | None:
+        """Resolve current quote-currency equity for a sub-account.
+
+        cross-account-risk-policy kill switches and risk-budget sizing
+        denominate their limits in account equity. Sourced exactly like
+        :meth:`_risk_budget_sizing_gate`: live ``trader.get_balances()``
+        for the account quote currency, falling back to an explicit
+        ``CapitalPolicy.sizing_balance`` only when the live balance is
+        unavailable. Returns ``None`` when neither is available — callers
+        treat that as "skip the gate" (fail-open: these are safety
+        throttles, not preconditions).
+        """
+        quote_currency = sub_account.capital_policy.quote_currency
+        balances: dict[str, Decimal] = {}
+        try:
+            balances = await trader.get_balances()
+        except Exception as exc:  # pragma: no cover - defensive runtime guard
+            logger.warning(
+                "Kill-switch balance lookup failed for %s: %s",
+                sub_account.id,
+                exc,
+            )
+        equity = balances.get(quote_currency)
+        if equity is None:
+            equity = sub_account.capital_policy.sizing_balance
+        return equity
+
+    def _open_unrealized_pnl(self, trades: list[TradeHistory]) -> Decimal:
+        """Sum open unrealized PnL using the cached mark price per symbol.
+
+        cross-account-risk-policy: mirrors
+        :meth:`PortfolioTracker.calculate_unrealized_pnl` — reuses
+        :func:`pnl_for_trade` against ``entry_quantity`` (already levered).
+        Marks come from the SYNCHRONOUS mark-price cache
+        (:meth:`_get_cached_mark_price`); no ``await exchange.get_ticker``
+        on the gate hot path. A position whose symbol has no fresh mark is
+        EXCLUDED from the sum (treated as zero contribution), matching
+        ``calculate_unrealized_pnl``'s defensive choice. This makes the
+        open-drawdown kill switch conservative-toward-not-blocking on stale
+        data.
+        """
+        total = Decimal("0")
+        for trade in trades:
+            mark = self._get_cached_mark_price(trade.symbol)
+            if mark is None:
+                continue
+            total += pnl_for_trade(
+                entry=trade.entry_price,
+                exit=mark,
+                qty=trade.entry_quantity,
+                side=trade.side,
+            )
+        return total
+
+    async def _account_kill_switch_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Per-account stateless kill switches — open-drawdown then stop-risk.
+
+        cross-account-risk-policy §"Kill Switches" / DEBT-068(c-1). Two
+        stateless (per-cycle) per-account checks, evaluated in order; the
+        FIRST breach wins so the rejection event names a single cause:
+
+        1. **Open-drawdown** (``open_unrealized_drawdown_limit_pct``): trip
+           when current open unrealized PnL is worse than
+           ``-pct * equity``. Unrealized PnL is summed via
+           :meth:`_open_unrealized_pnl` (cached marks; stale-symbol
+           positions excluded).
+        2. **Open-stop-risk** (``open_stop_risk_limit_pct``): trip when the
+           summed ``abs(entry - stop) * qty`` over open positions exceeds
+           ``pct * equity`` (shared numerator via
+           :meth:`_open_stop_risk_sum`).
+
+        Each ``_pct`` field set to ``None`` makes its check inert. When
+        BOTH are ``None`` the gate is a no-op. Equity comes from
+        :meth:`_account_equity`; if unavailable the gate is skipped
+        (returns ``None``, emits no event) — fail-open per the lead
+        decision, since these are safety throttles rather than
+        preconditions.
+
+        Paper-vs-live mirrors :meth:`_account_aggregate_cap_gate`: live
+        mode hard-blocks into the matching kill-switch terminal; paper mode
+        is advisory-with-event (``PROPOSAL_REJECTED`` with
+        ``details.advisory=True``) and lets the proposal proceed. The
+        dedicated ``RISK_KILL_SWITCH_TRIPPED`` event type is deferred to
+        DEBT-068(g).
+        """
+        if sub_account is None:
+            return None
+        policy = sub_account.risk_policy
+        drawdown_limit = policy.open_unrealized_drawdown_limit_pct
+        stop_risk_limit = policy.open_stop_risk_limit_pct
+        if drawdown_limit is None and stop_risk_limit is None:
+            return None
+
+        equity = await self._account_equity(sub_account, trader)
+        if equity is None:
+            # Fail-open: no equity reference means we cannot evaluate a
+            # relative limit. Safety throttles must not block on a stale
+            # balance snapshot.
+            return None
+
+        open_trades = [
+            trade
+            for trade in trader.get_open_trades()
+            if trade.sub_account_id == sub_account.id
+        ]
+
+        # Check 1: open unrealized drawdown.
+        if drawdown_limit is not None:
+            unrealized = self._open_unrealized_pnl(open_trades)
+            threshold = -(drawdown_limit * equity)
+            if unrealized < threshold:
+                reason = (
+                    f"open_drawdown_kill_switch: unrealized {unrealized:.2f} "
+                    f"< -({drawdown_limit} * {equity}) = {threshold:.2f}"
+                )
+                details: dict[str, Any] = {
+                    **_proposal_summary(proposal),
+                    "reason": reason,
+                    "gate_reason": "open_drawdown_kill_switch",
+                    "sub_account_id": sub_account.id,
+                    "unrealized_pnl_open": str(unrealized),
+                    "equity": str(equity),
+                    "open_unrealized_drawdown_limit_pct": str(drawdown_limit),
+                    "drawdown_threshold": str(threshold),
+                    "mode": self.mode,
+                }
+                return self._kill_switch_outcome(
+                    proposal=proposal,
+                    record=record,
+                    cycle_id=cycle_id,
+                    reason=reason,
+                    details=details,
+                    final_state=(
+                        ProposalFinalState.GATE_REJECTED_OPEN_DRAWDOWN_KILL_SWITCH
+                    ),
+                    advisory_label="Open-drawdown kill-switch",
+                )
+
+        # Check 2: open stop-risk.
+        if stop_risk_limit is not None:
+            open_stop_risk = self._open_stop_risk_sum(open_trades)
+            threshold = stop_risk_limit * equity
+            if open_stop_risk > threshold:
+                reason = (
+                    f"open_stop_risk_kill_switch: open_stop_risk "
+                    f"{open_stop_risk:.2f} > ({stop_risk_limit} * {equity}) "
+                    f"= {threshold:.2f}"
+                )
+                details = {
+                    **_proposal_summary(proposal),
+                    "reason": reason,
+                    "gate_reason": "open_stop_risk_kill_switch",
+                    "sub_account_id": sub_account.id,
+                    "open_stop_risk": str(open_stop_risk),
+                    "equity": str(equity),
+                    "open_stop_risk_limit_pct": str(stop_risk_limit),
+                    "stop_risk_threshold": str(threshold),
+                    "mode": self.mode,
+                }
+                return self._kill_switch_outcome(
+                    proposal=proposal,
+                    record=record,
+                    cycle_id=cycle_id,
+                    reason=reason,
+                    details=details,
+                    final_state=(
+                        ProposalFinalState.GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH
+                    ),
+                    advisory_label="Open-stop-risk kill-switch",
+                )
+
+        return None
+
+    async def _global_kill_switch_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Global (portfolio) open-drawdown kill switch.
+
+        cross-account-risk-policy §"Global Kill Switches" / DEBT-068(c-1).
+        Trips when the cross-account open unrealized PnL is worse than
+        ``-portfolio_unrealized_drawdown_limit_pct * portfolio_equity``,
+        summed across all enabled sub-accounts in the common quote
+        currency. A trip blocks new entries on every sub-account.
+
+        Inert paths return ``None``: no registry, ``GlobalRiskPolicy``
+        not ``enabled``, or ``portfolio_unrealized_drawdown_limit_pct``
+        unset (mirrors :meth:`_global_aggregate_cap_gate`'s
+        ``policy.enabled`` short-circuit). Portfolio equity is summed via
+        :meth:`_account_equity` per enabled sub-account; if NO sub-account
+        contributes a usable equity figure the gate is skipped (fail-open),
+        matching the per-account gate. Open trades come from
+        :meth:`_open_trades_for_correlation` (deduped cross-account) and
+        the unrealized sum reuses :meth:`_open_unrealized_pnl` (cached
+        marks; stale-symbol positions excluded).
+
+        Paper-vs-live mirrors :meth:`_global_aggregate_cap_gate`: live
+        hard-blocks into
+        :attr:`ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH`;
+        paper is advisory-with-event and continues.
+        """
+        if self.sub_account_registry is None:
+            return None
+        policy = self.sub_account_registry.global_risk_policy()
+        if not policy.enabled:
+            return None
+        drawdown_limit = policy.portfolio_unrealized_drawdown_limit_pct
+        if drawdown_limit is None:
+            return None
+
+        portfolio_equity = Decimal("0")
+        any_equity = False
+        for sub in self.sub_account_registry.list_active():
+            equity = await self._account_equity(
+                sub, self.sub_account_registry.get_trader(sub.id)
+            )
+            if equity is not None:
+                portfolio_equity += equity
+                any_equity = True
+        if not any_equity:
+            # Fail-open: no usable portfolio equity reference.
+            return None
+
+        open_trades = self._open_trades_for_correlation()
+        portfolio_unrealized = self._open_unrealized_pnl(open_trades)
+        threshold = -(drawdown_limit * portfolio_equity)
+        if portfolio_unrealized >= threshold:
+            return None
+
+        reason = (
+            f"portfolio_kill_switch: portfolio_unrealized "
+            f"{portfolio_unrealized:.2f} < -({drawdown_limit} * "
+            f"{portfolio_equity}) = {threshold:.2f}"
+        )
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "portfolio_kill_switch",
+            "portfolio_unrealized_pnl": str(portfolio_unrealized),
+            "portfolio_equity": str(portfolio_equity),
+            "portfolio_unrealized_drawdown_limit_pct": str(drawdown_limit),
+            "portfolio_drawdown_threshold": str(threshold),
+            "mode": self.mode,
+        }
+        return self._kill_switch_outcome(
+            proposal=proposal,
+            record=record,
+            cycle_id=cycle_id,
+            reason=reason,
+            details=details,
+            final_state=ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH,
+            advisory_label="Portfolio kill-switch",
+        )
+
+    def _kill_switch_outcome(
+        self,
+        *,
+        proposal: Proposal,
+        record: ProposalRecord,
+        cycle_id: str,
+        reason: str,
+        details: dict[str, Any],
+        final_state: ProposalFinalState,
+        advisory_label: str,
+    ) -> GateOutcome | None:
+        """Build the paper-advisory / live-hard-block outcome for a kill switch.
+
+        Shared tail for :meth:`_account_kill_switch_gate` /
+        :meth:`_global_kill_switch_gate`. Paper mode emits a
+        ``PROPOSAL_REJECTED`` advisory (``details.advisory=True``) and
+        returns ``None`` so the proposal proceeds; live mode returns a
+        rejecting :class:`GateOutcome` carrying ``final_state``. Mirrors
+        the exact paper/live branch of :meth:`_account_aggregate_cap_gate`.
+        """
+        if self.mode == "paper":
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"{advisory_label} advisory (paper) for {proposal.symbol}",
+                details={**details, "advisory": True},
+                cycle_id=cycle_id,
+            )
+            return None
+
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": final_state.value,
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"{advisory_label} rejected {proposal.symbol} {proposal.signal}",
+                    details,
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
     def _account_aggregate_cap_gate(
         self,
         proposal: Proposal,
@@ -1788,14 +2177,7 @@ class TradingEngine:
             (trade.entry_price * trade.entry_quantity for trade in open_trades),
             start=Decimal("0"),
         )
-        open_stop_risk = sum(
-            (
-                abs(trade.entry_price - trade.stop_loss) * trade.entry_quantity
-                for trade in open_trades
-                if trade.stop_loss is not None
-            ),
-            start=Decimal("0"),
-        )
+        open_stop_risk = self._open_stop_risk_sum(open_trades)
 
         # The new proposal contributes only when sized. Sizing happens
         # downstream of this gate so we use the proposal's declared

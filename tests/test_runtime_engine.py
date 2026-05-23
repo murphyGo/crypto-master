@@ -31,6 +31,7 @@ from src.runtime.engine import (
     EngineConfig,
     EngineError,
     ErrorCategory,
+    GateDecision,
     PolicyResolver,
     TradingEngine,
 )
@@ -4985,6 +4986,8 @@ def _make_risk_sub(
     max_open_stop_risk: Decimal | None = None,
     max_time_in_position_hours: int | None = None,
     stale_position_action: str | None = None,
+    open_unrealized_drawdown_limit_pct: Decimal | None = None,
+    open_stop_risk_limit_pct: Decimal | None = None,
 ) -> SubAccount:
     """SubAccount factory for the risk-policy gate tests."""
     return SubAccount(
@@ -5006,6 +5009,8 @@ def _make_risk_sub(
             max_open_stop_risk=max_open_stop_risk,
             max_time_in_position_hours=max_time_in_position_hours,
             stale_position_action=stale_position_action,  # type: ignore[arg-type]
+            open_unrealized_drawdown_limit_pct=open_unrealized_drawdown_limit_pct,
+            open_stop_risk_limit_pct=open_stop_risk_limit_pct,
         ),
     )
 
@@ -5991,6 +5996,516 @@ async def test_global_cap_gate_enabled_with_all_caps_unset_is_noop(
     result = await engine.run_cycle()
     assert result.positions_opened == 1
     mocks["trader"].open_position.assert_awaited_once()
+
+
+# =============================================================================
+# cross-account-risk-policy: stateless kill-switch gates (DEBT-068(c-1))
+# =============================================================================
+
+
+async def test_open_drawdown_kill_switch_not_tripped_under_limit(
+    tmp_path: Path,
+) -> None:
+    """Open unrealized loss within the drawdown limit → proposal proceeds."""
+    existing = make_trade(
+        trade_id="t-dd",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",  # notional 2000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="dd-ok",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    # equity 10000, limit 5% → threshold -500. Mark 1950 → -50 loss.
+    engine._remember_mark_price("ETH/USDT", Decimal("1950"))
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+
+async def test_open_drawdown_kill_switch_tripped_live_hard_blocks(
+    tmp_path: Path,
+) -> None:
+    """Open unrealized loss worse than ``-pct * equity`` hard-blocks in live."""
+    existing = make_trade(
+        trade_id="t-dd-big",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",  # notional 2000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="dd-trip",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    # equity 10000, limit 5% → threshold -500. Mark 1400 → -600 loss < -500.
+    engine._remember_mark_price("ETH/USDT", Decimal("1400"))
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("dd-trip")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_OPEN_DRAWDOWN_KILL_SWITCH.value
+    )
+    assert "open_drawdown_kill_switch" in (record.rejection_reason or "")
+
+
+async def test_open_drawdown_kill_switch_paper_advisory_proceeds(
+    tmp_path: Path,
+) -> None:
+    """Paper mode: drawdown trip is advisory-with-event; proposal executes."""
+    existing = make_trade(
+        trade_id="t-dd-paper",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="dd-paper",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "paper"
+    engine._remember_mark_price("ETH/USDT", Decimal("1400"))  # -600 < -500
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "open_drawdown_kill_switch"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is True
+    assert advisories[0].details["mode"] == "paper"
+
+
+async def test_open_drawdown_kill_switch_stale_mark_excluded_no_false_trip(
+    tmp_path: Path,
+) -> None:
+    """A position with no fresh mark is excluded → no false drawdown trip."""
+    # Big notional that WOULD breach if marked at a large loss, but no
+    # cached mark exists → excluded → unrealized 0 → no trip.
+    existing = make_trade(
+        trade_id="t-dd-stale",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="dd-stale",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    # No _remember_mark_price for ETH/USDT → stale/missing → excluded.
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+
+async def test_open_stop_risk_kill_switch_tripped_live_distinct_from_cap_gate(
+    tmp_path: Path,
+) -> None:
+    """Open-stop-risk kill switch trips FIRST, with a gate_reason distinct
+    from the aggregate-cap gate, short-circuiting before the cap gate runs.
+    """
+    existing = make_trade(
+        trade_id="t-sr",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "stop_loss": Decimal("1000"),  # stop_risk = 1000 * 1 = 1000
+        }
+    )
+    proposal = make_proposal(
+        proposal_id="sr-trip",
+        symbol="BTC/USDT",
+        composite=2.0,
+        entry="50000",
+        sl="49000",
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    # equity 10000, limit 5% → threshold 500. Existing stop-risk 1000 > 500.
+    # ALSO configure max_open_stop_risk so the aggregate-cap gate WOULD fire
+    # if reached — proving the kill switch short-circuits before it.
+    sub = _make_risk_sub(
+        open_stop_risk_limit_pct=Decimal("0.05"),
+        max_open_stop_risk=Decimal("1"),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("sr-trip")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH.value
+    )
+
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    gate_reasons = {e.details.get("gate_reason") for e in rejections}
+    # Kill switch fired; the aggregate-cap gate never ran (no double event).
+    assert "open_stop_risk_kill_switch" in gate_reasons
+    assert "account_aggregate_cap" not in gate_reasons
+
+
+async def test_account_kill_switch_inert_when_pct_fields_none(
+    tmp_path: Path,
+) -> None:
+    """Both ``_pct`` kill-switch fields None → gate is a no-op."""
+    existing = make_trade(
+        trade_id="t-inert",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(
+        update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")}
+    )
+    proposal = make_proposal(
+        proposal_id="inert",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    engine._remember_mark_price("ETH/USDT", Decimal("100"))  # huge loss, but inert
+    sub = _make_risk_sub()  # no kill-switch pct fields
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+async def test_account_kill_switch_equity_unavailable_returns_none_no_event(
+    tmp_path: Path,
+) -> None:
+    """No live balance and no sizing_balance → gate skipped, no event."""
+    existing = make_trade(
+        trade_id="t-noeq",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="noeq",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    mocks["trader"].get_balances = AsyncMock(return_value={})
+    engine._remember_mark_price("ETH/USDT", Decimal("1000"))  # large loss
+    # sizing_balance left None → no equity reference at all.
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    # Fail-open: proposal proceeds, no kill-switch event.
+    assert result.positions_opened == 1
+    kill_events = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason")
+        in {"open_drawdown_kill_switch", "open_stop_risk_kill_switch"}
+    ]
+    assert kill_events == []
+
+
+async def test_global_kill_switch_summed_portfolio_drawdown_blocks_live(
+    tmp_path: Path,
+) -> None:
+    """Portfolio open-drawdown summed over all open trades hard-blocks in live.
+
+    Uses the single-active-account fixture (mirrors the global-cap gate
+    tests) so the proposal is generated once and the cross-account open
+    trades come through ``_open_trades_for_correlation``. The portfolio
+    equity sum and the unrealized-PnL sum are still exercised end-to-end.
+    """
+    # Two losing ETH longs on the active account; mark 1900 → -1000 total.
+    open_trades = [
+        make_trade(
+            trade_id="t-eth-1",
+            symbol="ETH/USDT",
+            side="long",
+            entry="2000",
+            quantity="5",
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+        make_trade(
+            trade_id="t-eth-2",
+            symbol="ETH/USDT",
+            side="long",
+            entry="2000",
+            quantity="5",
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+    ]
+    proposal = make_proposal(
+        proposal_id="global-dd",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=open_trades,
+    )
+    engine.mode = "live"
+    engine._remember_mark_price("ETH/USDT", Decimal("1900"))  # total -1000
+
+    sub = _make_risk_sub()
+    # Portfolio equity 10000; limit 2% → threshold -200. -1000 < -200 → trip.
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            portfolio_unrealized_drawdown_limit_pct=Decimal("0.02"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("global-dd")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH.value
+    )
+    assert "portfolio_kill_switch" in (record.rejection_reason or "")
+    # Event details prove the portfolio equity is the SUM across the
+    # registry's enabled accounts (here one account → 10000).
+    event = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "portfolio_kill_switch"
+    ][0]
+    assert event.details["portfolio_equity"] == "10000"
+    assert event.details["portfolio_unrealized_pnl"] == "-1000"
+
+
+async def test_global_kill_switch_equity_sums_multiple_accounts(
+    tmp_path: Path,
+) -> None:
+    """Portfolio equity is the sum of equity across all enabled sub-accounts.
+
+    Direct gate call (avoids the test proposal-engine mock re-emitting the
+    same proposal once per active account in ``run_cycle``). Verifies the
+    cross-account equity summation that the live-path test cannot isolate.
+    """
+    a_trade = make_trade(
+        trade_id="t-a",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(update={"sub_account_id": "lab_a"})
+    b_trade = make_trade(
+        trade_id="t-b",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(update={"sub_account_id": "lab_b"})
+    proposal = make_proposal(
+        proposal_id="global-eq",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "lab_c"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    shared = mocks["trader"]
+    shared.get_open_trades.return_value = [a_trade, b_trade]
+    shared.get_balances = AsyncMock(return_value={"USDT": Decimal("10000")})
+    engine._remember_mark_price("ETH/USDT", Decimal("1900"))  # total -1000
+
+    sub_a = _make_risk_sub(id="lab_a")
+    sub_b = _make_risk_sub(id="lab_b")
+    sub_c = _make_risk_sub(id="lab_c")
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub_a, sub_b, sub_c],
+        {"lab_a": shared, "lab_b": shared, "lab_c": shared},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            # 3 * 10000 = 30000; limit 2% → threshold -600. -1000 < -600.
+            portfolio_unrealized_drawdown_limit_pct=Decimal("0.02"),
+        ),
+    )  # type: ignore[assignment]
+
+    record = await engine.proposal_interaction.decide(proposal, actor="test")
+    outcome = await engine._global_kill_switch_gate(proposal, record, "cyc")
+
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert (
+        outcome.final_record.final_state
+        == ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH.value
+    )
+    assert outcome.events[0].details["portfolio_equity"] == "30000"
+
+
+async def test_global_kill_switch_inert_when_policy_disabled(
+    tmp_path: Path,
+) -> None:
+    """``GlobalRiskPolicy.enabled=False`` → portfolio kill switch is inert."""
+    a_trade = make_trade(
+        trade_id="t-a",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(update={"sub_account_id": "lab_a"})
+    proposal = make_proposal(
+        proposal_id="global-off",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "lab_a"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[a_trade],
+    )
+    engine.mode = "live"
+    engine._remember_mark_price("ETH/USDT", Decimal("1000"))  # huge loss
+    sub_a = _make_risk_sub(id="lab_a")
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub_a],
+        {"lab_a": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=False,
+            portfolio_unrealized_drawdown_limit_pct=Decimal("0.02"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
 
 
 # =============================================================================

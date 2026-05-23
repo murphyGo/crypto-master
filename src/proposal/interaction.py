@@ -119,6 +119,19 @@ class ProposalFinalState(str, Enum):
     # caps. Only live mode hard-blocks into this terminal; paper mode is
     # advisory-only and leaves the record in ``proposal_opened``.
     GATE_REJECTED_GLOBAL_CAP = "gate_rejected_global_cap"
+    # cross-account-risk-policy DEBT-068(c-1): stateless kill-switch
+    # terminals. ``open_drawdown`` / ``open_stop_risk`` are per-account
+    # (combined ``_account_kill_switch_gate``); ``portfolio`` is the
+    # cross-account global drawdown gate. Kill switches run BEFORE the
+    # sizing / cap gates, so a tripped kill switch short-circuits before
+    # the aggregate-cap terminals can fire. Live mode hard-blocks into
+    # these terminals; paper mode is advisory-only and leaves the record
+    # in ``proposal_opened`` (same convention as the aggregate-cap gate).
+    GATE_REJECTED_OPEN_DRAWDOWN_KILL_SWITCH = "gate_rejected_open_drawdown_kill_switch"
+    GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH = (
+        "gate_rejected_open_stop_risk_kill_switch"
+    )
+    GATE_REJECTED_PORTFOLIO_KILL_SWITCH = "gate_rejected_portfolio_kill_switch"
     # strategy-tuning (2026-05-13): the ``pause`` applied-action
     # rejection rides on its own terminal so the funnel separates
     # action-driven blocks from gate-driven ones.
