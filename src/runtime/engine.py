@@ -2794,10 +2794,16 @@ class TradingEngine:
         - ``max_gross_notional_per_symbol``: same but across BOTH sides
           on ``proposal.symbol``.
 
-        v1 uses ``first_come_first_serve`` semantics: the proposing
-        account loses if its new position pushes the cross-account total
-        over a cap. ``cap_resolution=lowest_priority_loses`` arbitration
-        is deferred (DEBT-068(c)).
+        ``cap_resolution`` arbitrates a breach (DEBT-068(c)):
+        ``first_come_first_serve`` always blocks the proposing account
+        (v1 behaviour). ``lowest_priority_loses`` admits the proposal iff,
+        for EVERY breached cap, the proposing account strictly outranks at
+        least one OTHER existing holder on that cap's key (lower
+        ``account_priority`` index == higher priority; unlisted == lowest).
+        An admit overrides the raw breach (soft ceiling); the AND across
+        caps is conservative (any cap that arbitrates to block blocks all).
+        Empty ``account_priority`` or an unlisted proposer collapses to
+        FCFS-equivalent (always block on breach).
 
         Inert paths return ``None``: no registry, ``enabled=False``, or
         all three cap fields unset. Paper mode is advisory-with-event
@@ -2856,7 +2862,12 @@ class TradingEngine:
             + new_notional
         )
 
+        # Each breached cap carries the trade list whose distinct
+        # sub-account holders arbitrate it (DEBT-068(c)): the per-symbol-side
+        # caps look at ``symbol_side_trades``; the per-symbol cap looks at
+        # ``symbol_trades`` (both long and short on the symbol).
         breaches: list[str] = []
+        breached_caps: list[tuple[str, list[TradeHistory], Decimal]] = []
         if (
             policy.max_open_positions_per_symbol_side is not None
             and open_positions_total > policy.max_open_positions_per_symbol_side
@@ -2864,6 +2875,14 @@ class TradingEngine:
             breaches.append(
                 f"open_positions_per_symbol_side {open_positions_total} > "
                 f"max {policy.max_open_positions_per_symbol_side}"
+            )
+            breached_caps.append(
+                (
+                    "open_positions_per_symbol_side",
+                    symbol_side_trades,
+                    Decimal(open_positions_total)
+                    - Decimal(policy.max_open_positions_per_symbol_side),
+                )
             )
         if (
             policy.max_gross_notional_per_symbol_side is not None
@@ -2873,6 +2892,14 @@ class TradingEngine:
                 f"gross_notional_per_symbol_side {symbol_side_notional_total:.2f} > "
                 f"max {policy.max_gross_notional_per_symbol_side}"
             )
+            breached_caps.append(
+                (
+                    "gross_notional_per_symbol_side",
+                    symbol_side_trades,
+                    symbol_side_notional_total
+                    - policy.max_gross_notional_per_symbol_side,
+                )
+            )
         if (
             policy.max_gross_notional_per_symbol is not None
             and symbol_notional_total > policy.max_gross_notional_per_symbol
@@ -2881,8 +2908,76 @@ class TradingEngine:
                 f"gross_notional_per_symbol {symbol_notional_total:.2f} > "
                 f"max {policy.max_gross_notional_per_symbol}"
             )
+            breached_caps.append(
+                (
+                    "gross_notional_per_symbol",
+                    symbol_trades,
+                    symbol_notional_total - policy.max_gross_notional_per_symbol,
+                )
+            )
         if not breaches:
             return None
+
+        # Arbitration (DEBT-068(c)): decide whether a raw breach actually
+        # blocks. ``first_come_first_serve`` keeps the v1 hard-block; under
+        # ``lowest_priority_loses`` the proposing account is admitted iff, for
+        # EVERY breached cap, it strictly outranks at least one OTHER existing
+        # holder on that cap's key (AND-conservative across caps).
+        proposer_id = self._sub_account_id(sub_account)
+        priority = policy.account_priority
+
+        def _rank(account: str) -> float:
+            # Earlier in account_priority == higher priority (lower rank).
+            # Unlisted accounts sink to the lowest possible rank.
+            try:
+                return float(priority.index(account))
+            except ValueError:
+                return float("inf")
+
+        proposer_rank = _rank(proposer_id)
+        proposer_listed = proposer_id in priority
+
+        arbitration_by_cap: dict[str, dict[str, Any]] = {}
+        admit_overall = True
+        for cap_name, cap_trades, overshoot in breached_caps:
+            # Distinct OTHER holders on this cap's key (self-excluded).
+            holder_ids = {
+                trade.sub_account_id
+                for trade in cap_trades
+                if trade.sub_account_id != proposer_id
+            }
+            # Admit this cap iff the proposer STRICTLY outranks some other
+            # holder (ties do not count; empty holders => block).
+            admit_for_cap = any(
+                proposer_rank < _rank(holder) for holder in holder_ids
+            )
+            if not admit_for_cap:
+                admit_overall = False
+            arbitration_by_cap[cap_name] = {
+                "holders": [
+                    {
+                        "account": holder,
+                        "rank": (None if _rank(holder) == float("inf") else int(_rank(holder))),
+                    }
+                    for holder in sorted(holder_ids, key=_rank)
+                ],
+                "overshoot": str(overshoot),
+                "admitted": admit_for_cap,
+            }
+
+        if policy.cap_resolution == "first_come_first_serve":
+            block_overall = True
+            arbitration_outcome = "n/a"
+        else:
+            block_overall = not admit_overall
+            arbitration_outcome = "blocked" if block_overall else "admitted"
+
+        # Per-cap overshoot summary for the details payload.
+        overshoots = [overshoot for _, _, overshoot in breached_caps]
+        cap_overshoot = {
+            "total": str(sum(overshoots, start=Decimal("0"))),
+            "max": str(max(overshoots)),
+        }
 
         reason = "global_cap: " + "; ".join(breaches)
         details: dict[str, Any] = {
@@ -2908,7 +3003,41 @@ class TradingEngine:
                 else None
             ),
             "mode": self.mode,
+            # DEBT-068(c) arbitration trail.
+            "cap_resolution": policy.cap_resolution,
+            "arbitration_outcome": arbitration_outcome,
+            "proposer_account": proposer_id,
+            "proposer_rank": (None if not proposer_listed else int(proposer_rank)),
+            "proposer_listed": proposer_listed,
+            "existing_holders": sorted(
+                {
+                    trade.sub_account_id
+                    for _, cap_trades, _ in breached_caps
+                    for trade in cap_trades
+                    if trade.sub_account_id != proposer_id
+                }
+            ),
+            "arbitration_by_cap": arbitration_by_cap,
+            "cap_overshoot": cap_overshoot,
         }
+
+        # DEBT-068(c): under ``lowest_priority_loses`` an arbitration that
+        # admits overrides the raw breach. The proposal is ADMITTED even
+        # though a cap was technically exceeded — a priority-driven soft
+        # ceiling. In live mode this overshoot must NOT be silent, so emit an
+        # informational RISK_CAP_ADVISORY (advisory=False) before proceeding.
+        if not block_overall:
+            if self.mode != "paper":
+                self.activity_log.append(
+                    ActivityEventType.RISK_CAP_ADVISORY,
+                    (
+                        f"Global-cap admitted by priority (live) for "
+                        f"{proposal.symbol} {proposal.signal}"
+                    ),
+                    details={**details, "advisory": False},
+                    cycle_id=cycle_id,
+                )
+            return None
 
         if self.mode == "paper":
             # Advisory-only in paper (policy.paper_mode == "advisory"):

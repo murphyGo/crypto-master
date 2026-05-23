@@ -57,6 +57,7 @@ from src.trading.sub_account import (
     StrategyPolicy,
     SubAccount,
 )
+from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import now_utc
 
 # =============================================================================
@@ -6430,6 +6431,493 @@ async def test_global_cap_gate_enabled_with_all_caps_unset_is_noop(
     result = await engine.run_cycle()
     assert result.positions_opened == 1
     mocks["trader"].open_position.assert_awaited_once()
+
+
+# =============================================================================
+# cross-account-risk-policy: DEBT-068(c) lowest_priority_loses arbitration
+# =============================================================================
+
+
+def _arb_holder_trade(
+    *, trade_id: str, sub_account_id: str, side: str = "long", quantity: str
+) -> TradeHistory:
+    """ETH/USDT open trade attributed to ``sub_account_id`` for arbitration."""
+    return make_trade(
+        trade_id=trade_id,
+        symbol="ETH/USDT",
+        side=side,
+        entry="2000",
+        quantity=quantity,
+    ).model_copy(update={"sub_account_id": sub_account_id})
+
+
+def _build_arb_engine(
+    *,
+    tmp_path: Path,
+    proposer_id: str,
+    open_trades: list[TradeHistory],
+    policy: GlobalRiskPolicy,
+    mode: str = "live",
+    proposal_quantity: str = "2",
+) -> tuple[TradingEngine, dict[str, MagicMock], Proposal, SubAccount | None]:
+    """Wire an engine for a direct ``_global_aggregate_cap_gate`` arb call.
+
+    Returns the proposal and proposer ``SubAccount`` (or ``None`` when
+    ``proposer_id`` is empty) so the test can call the gate directly.
+    """
+    proposal = make_proposal(
+        proposal_id="arb-prop",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity=proposal_quantity,
+    ).model_copy(update={"sub_account_id": proposer_id or DEFAULT_SUB_ACCOUNT_ID})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=open_trades,
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = mode
+
+    holder_ids = {t.sub_account_id for t in open_trades}
+    all_ids = holder_ids | ({proposer_id} if proposer_id else set())
+    subs = [_make_risk_sub(id=acct) for acct in sorted(all_ids)]
+    shared = mocks["trader"]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        subs,
+        dict.fromkeys(sorted(all_ids), shared),
+        global_policy=policy,
+    )  # type: ignore[assignment]
+
+    proposer_sub: SubAccount | None = None
+    if proposer_id:
+        for sub in subs:
+            if sub.id == proposer_id:
+                proposer_sub = sub
+                break
+    return engine, mocks, proposal, proposer_sub
+
+
+async def _run_arb_gate(
+    engine: TradingEngine, proposal: Proposal, sub_account: SubAccount | None
+) -> object:
+    record = await engine.proposal_interaction.decide(proposal, actor="test")
+    return engine._global_aggregate_cap_gate(proposal, record, sub_account, "cyc")
+
+
+async def test_arb_fcfs_regression_blocks_breach(tmp_path: Path) -> None:
+    """1. FCFS (default): a breach hard-blocks live with arbitration n/a."""
+    holder = _arb_holder_trade(
+        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
+    )
+    # proposer outranks lab_c, but FCFS ignores priority.
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="first_come_first_serve",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert outcome.events[0].details["arbitration_outcome"] == "n/a"
+    assert outcome.events[0].details["cap_resolution"] == "first_come_first_serve"
+
+
+async def test_arb_high_priority_proposer_admitted(tmp_path: Path) -> None:
+    """2. Proposer rank 0, key held only by rank-2 holder → ADMIT (live)."""
+    holder = _arb_holder_trade(
+        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
+    )
+    engine, mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",  # rank 0
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is None  # admitted
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.RISK_CAP_ADVISORY
+        )
+        if e.details.get("gate_reason") == "global_cap"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is False
+    assert advisories[0].details["arbitration_outcome"] == "admitted"
+    assert "cap_overshoot" in advisories[0].details
+
+
+async def test_arb_lowest_priority_proposer_blocked(tmp_path: Path) -> None:
+    """3. Proposer rank 2 (lowest listed), key held only by rank-0 → BLOCK."""
+    holder = _arb_holder_trade(
+        trade_id="h-rank0", sub_account_id="lab_a", quantity="2"
+    )
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_c",  # rank 2
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert outcome.events[0].details["arbitration_outcome"] == "blocked"
+
+
+async def test_arb_middle_priority_outranks_lower_holder_admitted(
+    tmp_path: Path,
+) -> None:
+    """4. Proposer rank 1, holders at ranks 0 and 2 → ADMIT (outranks 2)."""
+    holders = [
+        _arb_holder_trade(trade_id="h0", sub_account_id="lab_a", quantity="1"),
+        _arb_holder_trade(trade_id="h2", sub_account_id="lab_c", quantity="1"),
+    ]
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_b",  # rank 1
+        open_trades=holders,
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is None  # admitted: outranks lab_c (rank 2)
+
+
+async def test_arb_no_holders_alone_exceeds_cap_blocks(tmp_path: Path) -> None:
+    """5. No existing holders; proposal alone exceeds cap → BLOCK."""
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",  # rank 0, but no other holders to outrank
+        open_trades=[],
+        proposal_quantity="3",  # 6000 > 5000
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert outcome.events[0].details["arbitration_outcome"] == "blocked"
+
+
+async def test_arb_unlisted_proposer_blocks(tmp_path: Path) -> None:
+    """6. Proposer not in account_priority, listed holders → BLOCK (rank inf)."""
+    holder = _arb_holder_trade(
+        trade_id="h-rank0", sub_account_id="lab_a", quantity="2"
+    )
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_x",  # not in account_priority
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    details = outcome.events[0].details
+    assert details["proposer_listed"] is False
+    assert details["proposer_rank"] is None
+
+
+async def test_arb_empty_priority_blocks_both_modes(tmp_path: Path) -> None:
+    """7. Empty account_priority → block every breach (FCFS-equivalent)."""
+    for resolution in ("first_come_first_serve", "lowest_priority_loses"):
+        holder = _arb_holder_trade(
+            trade_id="h", sub_account_id="lab_a", quantity="2"
+        )
+        engine, _mocks, proposal, sub = _build_arb_engine(
+            tmp_path=tmp_path,
+            proposer_id="lab_b",
+            open_trades=[holder],
+            policy=GlobalRiskPolicy(
+                enabled=True,
+                max_gross_notional_per_symbol_side=Decimal("5000"),
+                cap_resolution=resolution,  # type: ignore[arg-type]
+                account_priority=[],
+            ),
+        )
+        outcome = await _run_arb_gate(engine, proposal, sub)
+        assert outcome is not None, resolution
+        assert outcome.decision == GateDecision.REJECTED
+
+
+async def test_arb_self_only_holder_excluded_blocks(tmp_path: Path) -> None:
+    """8. Proposer already holds AND is sole holder → self-excluded → BLOCK."""
+    holder = _arb_holder_trade(
+        trade_id="h-self", sub_account_id="lab_a", quantity="2"
+    )
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",  # rank 0 but only holder is itself
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert outcome.events[0].details["existing_holders"] == []
+
+
+async def test_arb_self_plus_lower_other_holder_admitted(tmp_path: Path) -> None:
+    """9. Proposer holds, but a lower-priority OTHER account also holds → ADMIT."""
+    holders = [
+        _arb_holder_trade(trade_id="h-self", sub_account_id="lab_a", quantity="1"),
+        _arb_holder_trade(trade_id="h-other", sub_account_id="lab_c", quantity="1"),
+    ]
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",  # rank 0, outranks lab_c (rank 2)
+        open_trades=holders,
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is None  # admitted
+
+
+async def test_arb_two_caps_one_blocks_blocks_overall(tmp_path: Path) -> None:
+    """10. Two caps breach; admits one, blocks other → BLOCK (AND-conservative).
+
+    The per-symbol cap key (both sides) includes a lower-priority short
+    holder the proposer outranks → that cap admits. The per-symbol-SIDE
+    (long) cap key holds ONLY a higher-priority long holder the proposer
+    cannot outrank → that cap blocks → overall block.
+    """
+    holders = [
+        # long side: higher-priority holder (only on the per-symbol-side key)
+        _arb_holder_trade(
+            trade_id="h-long", sub_account_id="lab_a", side="long", quantity="1"
+        ),
+        # short side: lower-priority holder (only on the per-symbol key)
+        _arb_holder_trade(
+            trade_id="h-short", sub_account_id="lab_c", side="short", quantity="2"
+        ),
+    ]
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_b",  # rank 1
+        open_trades=holders,
+        proposal_quantity="2",  # +4000 long
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            # long side total: 2000 (lab_a) + 4000 = 6000 > 5000. Holders {lab_a}
+            # rank 0 — proposer (rank 1) does NOT outrank → this cap BLOCKS.
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            # symbol total: 2000 + 4000 (long) + 4000 (short lab_c) = 10000 > 7000.
+            # Holders {lab_a, lab_c}; proposer outranks lab_c → this cap ADMITS.
+            max_gross_notional_per_symbol=Decimal("7000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    by_cap = outcome.events[0].details["arbitration_by_cap"]
+    assert by_cap["gross_notional_per_symbol_side"]["admitted"] is False
+    assert by_cap["gross_notional_per_symbol"]["admitted"] is True
+
+
+async def test_arb_two_caps_both_admit_admits_overall(tmp_path: Path) -> None:
+    """11. Two caps breach; arbitration admits both → ADMIT."""
+    holders = [
+        _arb_holder_trade(
+            trade_id="h-long", sub_account_id="lab_c", side="long", quantity="2"
+        ),
+        _arb_holder_trade(
+            trade_id="h-short", sub_account_id="lab_c", side="short", quantity="1"
+        ),
+    ]
+    engine, _mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",  # rank 0, outranks lab_c (rank 2) on both keys
+        open_trades=holders,
+        proposal_quantity="2",  # +4000
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            # long side: 4000 + 4000 = 8000 > 5000
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            # symbol: 4000 + 2000 + 4000 = 10000 > 7000
+            max_gross_notional_per_symbol=Decimal("7000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is None  # admitted on both caps
+
+
+async def test_arb_block_details_populated_paper_and_live(tmp_path: Path) -> None:
+    """12. Block outcome: details fields populated in both paper and live."""
+    for mode in ("live", "paper"):
+        holder = _arb_holder_trade(
+            trade_id="h-rank0", sub_account_id="lab_a", quantity="2"
+        )
+        engine, mocks, proposal, sub = _build_arb_engine(
+            tmp_path=tmp_path,
+            proposer_id="lab_c",  # rank 2 → blocked
+            open_trades=[holder],
+            mode=mode,
+            policy=GlobalRiskPolicy(
+                enabled=True,
+                max_gross_notional_per_symbol_side=Decimal("5000"),
+                cap_resolution="lowest_priority_loses",
+                account_priority=["lab_a", "lab_b", "lab_c"],
+            ),
+        )
+        outcome = await _run_arb_gate(engine, proposal, sub)
+        if mode == "live":
+            assert outcome is not None
+            details = outcome.events[0].details
+        else:
+            # paper: block_overall True falls into advisory branch, returns None
+            assert outcome is None
+            advisories = [
+                e
+                for e in mocks["activity_log"].filter(
+                    event_type=ActivityEventType.RISK_CAP_ADVISORY
+                )
+                if e.details.get("gate_reason") == "global_cap"
+            ]
+            assert len(advisories) == 1
+            details = advisories[0].details
+            assert details["advisory"] is True
+        assert details["cap_resolution"] == "lowest_priority_loses"
+        assert details["arbitration_outcome"] == "blocked"
+        assert details["proposer_rank"] == 2
+        assert details["existing_holders"] == ["lab_a"]
+
+
+async def test_arb_admitted_live_breach_emits_informational_event(
+    tmp_path: Path,
+) -> None:
+    """13. Admitted live breach → informational RISK_CAP_ADVISORY (advisory=False)."""
+    holder = _arb_holder_trade(
+        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
+    )
+    engine, mocks, proposal, sub = _build_arb_engine(
+        tmp_path=tmp_path,
+        proposer_id="lab_a",
+        open_trades=[holder],
+        policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b", "lab_c"],
+        ),
+    )
+    outcome = await _run_arb_gate(engine, proposal, sub)
+    assert outcome is None
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.RISK_CAP_ADVISORY
+        )
+        if e.details.get("gate_reason") == "global_cap"
+    ]
+    assert len(advisories) == 1
+    details = advisories[0].details
+    assert details["advisory"] is False
+    assert details["arbitration_outcome"] == "admitted"
+    assert details["cap_overshoot"]["max"] == "3000"
+
+
+async def test_arb_sub_account_none_is_fcfs_equivalent(tmp_path: Path) -> None:
+    """14. sub_account None → proposer DEFAULT, FCFS-equivalent (block on breach).
+
+    With a single default account, holders self-exclude to empty, so even
+    ``lowest_priority_loses`` blocks any breach.
+    """
+    holder = make_trade(
+        trade_id="h-default",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="2",
+    )  # default sub_account_id
+    proposal = make_proposal(
+        proposal_id="arb-none",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="2",
+    )
+
+    engine, _mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0, max_open_positions_per_symbol=10),
+        open_trades=[holder],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [_make_risk_sub(id=DEFAULT_SUB_ACCOUNT_ID)],
+        {DEFAULT_SUB_ACCOUNT_ID: _mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+            cap_resolution="lowest_priority_loses",
+            account_priority=["lab_a", "lab_b"],
+        ),
+    )  # type: ignore[assignment]
+
+    outcome = await _run_arb_gate(engine, proposal, None)
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
 
 
 # =============================================================================

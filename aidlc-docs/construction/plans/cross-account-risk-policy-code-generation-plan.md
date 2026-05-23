@@ -159,19 +159,39 @@ freeze, and the dashboard exposure panel.
         global portfolio-drawdown live block + cross-account equity sum
         + inert-when-disabled. Daily-loss trip / UTC-rollover /
         restart-preservation tests deferred to DEBT-068(c-2).)
-- [ ] **DEBT-068(c-arb) — `cap_resolution=lowest_priority_loses` arbitration
-      for global `(symbol, side)` caps.** Separate slice from the kill switches.
-      DEBT-068(b) shipped `_global_aggregate_cap_gate` with
-      `first_come_first_serve` v1 only (spec §"Symbol/Side Caps", gate step 7);
-      `lowest_priority_loses` arbitration (allow the proposal only if the
-      proposing sub-account out-ranks the lowest-priority account currently
-      holding the breaching `(symbol, side)` exposure) is still deferred. The
-      DEBT-068(b) plan step attributes this deferral to "DEBT-068(c)", but the
-      TECH-DEBT DEBT-068 umbrella (c) bullet covers kill switches only — this
-      arbitration work is NOT part of the kill-switch slice and must not be
-      bundled into it. Recorded as its own sub-bullet so the deferral is not
-      lost; sequencing (own cycle vs. bundled with the dashboard pass) is the
-      lead's call.
+- [x] **DEBT-068(c-arb) — `cap_resolution=lowest_priority_loses` arbitration
+      for global `(symbol, side)` caps. SHIPPED 2026-05-24 (uncommitted on
+      `main` at plan-update time; committed immediately after). COMPLETES the
+      last open-cap v1-arbitration gap left by (b).** DEBT-068(b) shipped
+      `_global_aggregate_cap_gate` with `first_come_first_serve` (FCFS) v1 only
+      (spec §"Symbol/Side Caps", gate step 7); this slice adds the reserved
+      `lowest_priority_loses` mode. Breach detection (the cross-sub-account
+      exposure aggregation) is UNCHANGED — an arbitration step now decides
+      `block_overall`. SOFT-ceiling semantics (per quant design): a breaching
+      proposal is ADMITTED iff, for EVERY breached cap, the proposing account
+      strictly outranks at least one OTHER (self-excluded) holder on that cap's
+      key (`account_priority`: earlier = higher priority, unlisted = lowest);
+      AND-conservative across multiple breached caps (any cap that arbitrates to
+      block ⇒ block — a more-permissive broad cap can never override a stricter
+      narrow-cap block). FCFS preserved bit-for-bit. FCFS-equivalent fallbacks:
+      empty `account_priority`, unlisted proposer, `sub_account` None /
+      single-account, no existing holders on the key. Admitted LIVE overshoot
+      emits an informational `RISK_CAP_ADVISORY` (`advisory=False`) with
+      `cap_overshoot` — soft-ceiling admission is not silent. Additive `details`
+      fields only (`cap_resolution`, `arbitration_outcome`, `proposer_account`,
+      `proposer_rank`, `proposer_listed`, `existing_holders`,
+      `arbitration_by_cap`, `cap_overshoot`); no `final_state` / funnel change.
+      +14 tests; full suite 2156 passed (+14), 0 failed; ruff + mypy clean;
+      quant-trader-expert 🟢 "sound — ship" (design conformance confirmed; the
+      superset relationship between the per-`(symbol, side)` and per-`symbol`
+      keys verified strictly safe under AND-conservative composition), qa-reviewer
+      🟢 (FCFS bit-for-bit preserved, all 7 pre-existing global-cap tests pass
+      unchanged, funnel / `final_state` unchanged). One MINOR non-blocking
+      follow-up filed as (c-arb-note-overshoot-units) — `cap_overshoot`
+      mixes units when a COUNT cap and a NOTIONAL cap breach together; harmless
+      (advisory DISPLAY-only, never read by any decision path), tied to (f).
+      Session log
+      `docs/sessions/2026-05-24-cross-account-risk-policy-cap-arbitration-c-arb.md`.
 - [ ] Wire the new gates into `_handle_proposal` in the order documented in
       the spec. (Slice 1 partial — 2 of 5 planned gates shipped:
       `_account_aggregate_cap_gate` (notional + stop-risk) and
