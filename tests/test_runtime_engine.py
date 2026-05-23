@@ -35,6 +35,7 @@ from src.runtime.engine import (
     PolicyResolver,
     TradingEngine,
 )
+from src.runtime.reconciliation import OpenTradeState
 from src.strategy.base import BaseStrategy, TechniqueInfo
 from src.strategy.performance import (
     PerformanceTracker,
@@ -5627,6 +5628,398 @@ async def test_stale_position_block_gate_handles_naive_entry_time_defensively(
         == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
     )
     assert "stale_position_block" in (record.rejection_reason or "")
+
+
+# =============================================================================
+# cross-account-risk-policy: stale-position MONITOR actions (DEBT-068(e))
+# =============================================================================
+
+
+def _make_recoverable_stale_trade(
+    *,
+    trade_id: str,
+    hours_old: float,
+    sub_account_id: str = "rsi_lab",
+) -> TradeHistory:
+    """An open trade old enough to be stale with a CLEAN reconciliation row.
+
+    Both SL and TP plus a ``performance_record_id`` are set so
+    ``classify_open_trade`` returns ``MONITORABLE`` — the only state that
+    reaches the ``auto_close`` enforcement path. ``entry_time`` is
+    ``hours_old`` in the past so the monitor's age computation trips
+    against ``now_utc()`` without monkeypatching the clock.
+    """
+    return make_trade(
+        trade_id=trade_id,
+        symbol="ETH/USDT",
+        side="long",
+        performance_record_id="perf-1",
+    ).model_copy(
+        update={
+            "sub_account_id": sub_account_id,
+            "entry_time": now_utc() - timedelta(hours=hours_old),
+            "stop_loss": Decimal("48000"),
+            "take_profit": Decimal("55000"),
+        }
+    )
+
+
+async def test_stale_auto_close_closes_recon_ok_position(tmp_path: Path) -> None:
+    """auto_close + stale + reconciliation OK → close at market with
+    ``reason="stale_age_cap"`` and emit STALE_POSITION_AUTO_CLOSED."""
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-ac", hours_old=30)
+    closed = stale_trade.model_copy(
+        update={
+            "status": "closed",
+            "exit_price": Decimal("50000"),
+            "exit_quantity": Decimal("0.1"),
+            "close_reason": "stale_age_cap",
+            "pnl_percent": 0.0,
+        }
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    mocks["trader"].close_position.return_value = closed
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 1
+    mocks["trader"].close_position.assert_awaited_once_with(
+        "t-stale-ac", Decimal("50000"), reason="stale_age_cap"
+    )
+
+    auto_closed = mocks["activity_log"].filter(
+        event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+    )
+    assert len(auto_closed) == 1
+    details = auto_closed[0].details
+    assert details["trade_id"] == "t-stale-ac"
+    assert details["reconciliation_state"] == OpenTradeState.MONITORABLE.value
+    assert details["exit_price"] == "50000"
+
+    # The canonical POSITION_CLOSED carries reason=stale_age_cap.
+    closes = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_CLOSED
+        )
+        if e.details.get("trade_id") == "t-stale-ac"
+    ]
+    assert len(closes) == 1
+    assert closes[0].details["reason"] == "stale_age_cap"
+
+
+async def test_stale_auto_close_leaves_fresh_position_open(tmp_path: Path) -> None:
+    """auto_close + fresh position (age < cap) → not closed, no events."""
+    fresh_trade = _make_recoverable_stale_trade(trade_id="t-fresh-ac", hours_old=1)
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[fresh_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+        )
+        == []
+    )
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_DETECTED
+        )
+        == []
+    )
+
+
+async def test_stale_auto_close_degraded_downgrades_to_block(tmp_path: Path) -> None:
+    """auto_close + stale + reconciliation ``degraded`` → NOT closed,
+    downgrade-to-block operator event emitted."""
+    # No SL/TP on the row → classify_open_trade returns DEGRADED.
+    stale_trade = make_trade(
+        trade_id="t-stale-degraded",
+        symbol="ETH/USDT",
+        side="long",
+        performance_record_id="perf-1",
+    ).model_copy(
+        update={
+            "sub_account_id": "rsi_lab",
+            "entry_time": now_utc() - timedelta(hours=30),
+        }
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+        )
+        == []
+    )
+
+    detected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.STALE_POSITION_DETECTED
+    )
+    assert len(detected) == 1
+    details = detected[0].details
+    assert details["reconciliation_state"] == OpenTradeState.DEGRADED.value
+    assert details["resolution"] == "degraded_block_new_entries"
+    assert details["priority"] == "high"
+
+
+async def test_stale_auto_close_unrecoverable_alerts_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """auto_close + stale + reconciliation ``unrecoverable`` → NEVER closed,
+    high-priority alert emitted."""
+    stale_trade = _make_recoverable_stale_trade(
+        trade_id="t-stale-unrec", hours_old=30
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    # A valid TradeHistory cannot omit its core fields (entry_price/size/
+    # symbol/side are all required by the model), so the unrecoverable
+    # state is forced at the classifier boundary.
+    monkeypatch.setattr(
+        engine,
+        "_classify_trade_reconciliation",
+        lambda trade: OpenTradeState.UNRECOVERABLE,
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+        )
+        == []
+    )
+
+    detected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.STALE_POSITION_DETECTED
+    )
+    assert len(detected) == 1
+    details = detected[0].details
+    assert details["reconciliation_state"] == OpenTradeState.UNRECOVERABLE.value
+    assert details["resolution"] == "unrecoverable_operator_only"
+    assert details["priority"] == "high"
+
+
+async def test_stale_alert_only_emits_event_without_closing(tmp_path: Path) -> None:
+    """alert_only + stale → STALE_POSITION_DETECTED, position NOT closed."""
+    stale_trade = _make_recoverable_stale_trade(
+        trade_id="t-stale-alert", hours_old=30
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="alert_only",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+
+    detected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.STALE_POSITION_DETECTED
+    )
+    assert len(detected) == 1
+    assert detected[0].details["resolution"] == "alert_only"
+    # No high-priority flag and no auto-close event on the alert-only path.
+    assert "priority" not in detected[0].details
+
+
+async def test_stale_block_new_entries_emits_detected_event_from_monitor(
+    tmp_path: Path,
+) -> None:
+    """block_new_entries + stale → monitor emits STALE_POSITION_DETECTED
+    (operator visibility) without closing; enforcement stays in the gate."""
+    stale_trade = _make_recoverable_stale_trade(
+        trade_id="t-stale-block", hours_old=30
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="block_new_entries",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+
+    detected = mocks["activity_log"].filter(
+        event_type=ActivityEventType.STALE_POSITION_DETECTED
+    )
+    # Exactly one per monitor pass — no double-emit.
+    assert len(detected) == 1
+    assert detected[0].details["resolution"] == "block_new_entries"
+
+
+async def test_stale_no_action_configured_is_monitor_noop(tmp_path: Path) -> None:
+    """No ``stale_position_action`` → monitor does nothing stale-related."""
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-none", hours_old=30)
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    # Cap set but no action → existing behavior unchanged (no enforcement).
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action=None,
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 0
+    mocks["trader"].close_position.assert_not_called()
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_DETECTED
+        )
+        == []
+    )
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+        )
+        == []
+    )
+
+
+async def test_stale_auto_close_does_not_double_close_after_sl(
+    tmp_path: Path,
+) -> None:
+    """SL/TP precedence: a stale auto_close trade that ALSO hits SL this
+    pass is closed via SL, not double-closed by the stale path."""
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-sl", hours_old=30)
+    sl_closed = stale_trade.model_copy(
+        update={
+            "status": "closed",
+            "exit_price": Decimal("48000"),
+            "exit_quantity": Decimal("0.1"),
+            "close_reason": "stop_loss",
+            "pnl_percent": -4.0,
+        }
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[stale_trade],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    mocks["trader"].check_exit_conditions.return_value = (True, "stop_loss")
+    mocks["trader"].close_position.return_value = sl_closed
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    # Closed exactly once, by SL — not double-counted by the stale path.
+    assert result.positions_closed == 1
+    mocks["trader"].close_position.assert_awaited_once_with(
+        "t-stale-sl", Decimal("50000"), reason="stop_loss"
+    )
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED
+        )
+        == []
+    )
+    assert (
+        mocks["activity_log"].filter(
+            event_type=ActivityEventType.STALE_POSITION_DETECTED
+        )
+        == []
+    )
 
 
 # =============================================================================

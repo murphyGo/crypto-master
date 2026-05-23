@@ -332,6 +332,57 @@ class ActivityEventType(str, Enum):
     #     reason ("operator_freeze")
     OPERATOR_FREEZE_ENGAGED = "operator_freeze_engaged"
 
+    # cross-account-risk-policy DEBT-068(e): stale-position age-cap
+    # detection. Emitted from the MONITOR loop (not the proposal gate)
+    # when an open trade's age exceeds the sub-account's
+    # ``RiskPolicy.max_time_in_position_hours``. Covers every
+    # ``stale_position_action`` where enforcement is informational or
+    # blocked by the reconciliation resolution table:
+    #   - ``alert_only``: emitted with ``resolution="alert_only"`` and no
+    #     enforcement (position stays open).
+    #   - ``block_new_entries``: emitted with ``resolution="block_new_entries"``
+    #     so the operator sees the parked stale trade alongside the
+    #     proposal-gate blocks (the gate itself rejects new entries).
+    #   - ``auto_close`` downgraded by reconciliation ``degraded``: emitted
+    #     with ``resolution="degraded_block_new_entries"`` — the configured
+    #     auto-close is suppressed (exchange/ledger drift risk) and downgraded
+    #     to block-new-entries behavior; operator action required.
+    #   - ``auto_close`` blocked by reconciliation ``unrecoverable``: emitted
+    #     with ``resolution="unrecoverable_operator_only"`` and
+    #     ``priority="high"`` — never auto-closed; high-priority operator
+    #     alert. ``details`` payload (structured-fields contract):
+    #
+    #     trade_id (str)
+    #     sub_account_id (str)
+    #     symbol (str)
+    #     side ("long" | "short")
+    #     age_hours (str)              wall-clock age at detection
+    #     max_time_in_position_hours (int|float)
+    #     stale_position_action (str)  configured action
+    #     reconciliation_state (str)   classify_open_trade state
+    #     resolution (str)             see above
+    #     priority ("high")            only on the unrecoverable path
+    STALE_POSITION_DETECTED = "stale_position_detected"
+
+    # cross-account-risk-policy DEBT-068(e): stale-position auto-close.
+    # Emitted from the MONITOR loop immediately after an ``auto_close``-
+    # configured stale position (reconciliation OK) is closed at market.
+    # The actual close is recorded as a ``POSITION_CLOSED`` event with
+    # ``details.reason="stale_age_cap"`` via ``_record_closed_trade``; this
+    # companion event carries the stale-specific context for the timeline.
+    # ``details`` payload (structured-fields contract):
+    #
+    #     trade_id (str)
+    #     sub_account_id (str)
+    #     symbol (str)
+    #     side ("long" | "short")
+    #     age_hours (str)              wall-clock age at close
+    #     max_time_in_position_hours (int|float)
+    #     exit_price (str Decimal)
+    #     reconciliation_state (str)   "monitorable" (the only state that
+    #                                  reaches the auto-close path)
+    STALE_POSITION_AUTO_CLOSED = "stale_position_auto_closed"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.

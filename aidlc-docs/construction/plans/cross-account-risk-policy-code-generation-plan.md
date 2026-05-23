@@ -197,13 +197,41 @@ freeze, and the dashboard exposure panel.
       breach `max_open_positions_per_symbol_side`,
       `max_gross_notional_per_symbol_side`, or
       `max_gross_notional_per_symbol`.
-- [ ] Add new `ActivityEventType` values and surface them on the dashboard
-      command center and through runtime-safety-score inputs.
-      (Deferred to Slice 2. Paper-mode advisories currently reuse
-      `PROPOSAL_REJECTED + details.advisory=True` per Q2 docstring-honesty
-      fix; dedicated `RISK_CAP_ADVISORY` event type tracked under
-      DEBT-068(g). `runtime-safety-score` kill-switch integration
-      tracked under DEBT-068(h).)
+- [x] **DEBT-068(e) — stale-position `auto_close` / `alert_only` actions.
+      SHIPPED 2026-05-24.** (Split out so the runtime stale-action
+      implementation is unambiguously marked shipped — the dashboard-surfacing
+      and safety-score halves stay open under the two checkboxes below and
+      under (f)/(h).) Two new methods in `src/runtime/engine.py`:
+      `_classify_trade_reconciliation` (resolves the open trade's
+      `runtime-reconciliation` state) and `_maybe_stale_age_action` (dispatches
+      per `stale_position_action`), slotted into `_monitor` as a fallback AFTER
+      the SL/TP check and the per-strategy time-stop — no double-close.
+      `auto_close` closes at market with a `POSITION_CLOSED` event
+      (`reason="stale_age_cap"`) plus a new `STALE_POSITION_AUTO_CLOSED` event,
+      in BOTH paper and live; `alert_only` emits `STALE_POSITION_DETECTED`
+      only; `block_new_entries` emits a visibility `STALE_POSITION_DETECTED`
+      while enforcement stays in the unchanged `_stale_position_block_gate`.
+      Reconciliation resolution table: `MONITORABLE` / `LEGACY_NO_PERF_LINK` ⇒
+      close; `DEGRADED` ⇒ no-close + downgrade-to-block event
+      (`resolution=degraded_block_new_entries`, priority high); `UNRECOVERABLE`
+      ⇒ no-close + high-priority alert (`resolution=unrecoverable_operator_only`)
+      — NO path auto-closes a degraded/unrecoverable position. Two new
+      `ActivityEventType` values (`STALE_POSITION_DETECTED`,
+      `STALE_POSITION_AUTO_CLOSED` in `src/runtime/activity_log.py`). +8 tests;
+      full suite 2142 passed (+8); ruff + mypy clean; quant-trader-expert
+      "sound — ship", qa-reviewer 🟢. Session log
+      `docs/sessions/2026-05-24-cross-account-risk-policy-stale-actions.md`.
+- [ ] Surface the new `ActivityEventType` values on the dashboard command
+      center and through runtime-safety-score inputs.
+      (Deferred to Slice 2. The DEBT-068(e) stale event types
+      `STALE_POSITION_DETECTED` / `STALE_POSITION_AUTO_CLOSED` are EMITTED to
+      the activity log as of 2026-05-24, but their dashboard surfacing +
+      safety-score feed are NOT built — tracked here and under (f)/(h). Paper-
+      mode cap advisories currently reuse `PROPOSAL_REJECTED +
+      details.advisory=True` per Q2 docstring-honesty fix; dedicated
+      `RISK_CAP_ADVISORY` event type tracked under DEBT-068(g).
+      `runtime-safety-score` kill-switch + stale-event integration tracked
+      under DEBT-068(h).)
 - [x] **DEBT-068(d) — operator-freeze RUNTIME READ side. SHIPPED 2026-05-24.**
       (Split out from the originally-bundled dashboard-panel checkbox below so
       the runtime-shipped half and the dashboard-pending half are unambiguous.)
@@ -244,7 +272,12 @@ freeze, and the dashboard exposure panel.
       2007). Kill-switch lifecycle, global-cap gating, and dashboard
       rendering deferred to Slice 2. DEBT-068(b) must add regressions for
       default-disabled behavior, paper advisory/pass-through behavior, and live
-      hard-block behavior.)
+      hard-block behavior. 2026-05-24 DEBT-068(e) shipped the stale-position
+      ACTION tests — all 8 scenarios for `_maybe_stale_age_action` (auto_close
+      paper, auto_close live, alert_only, block_new_entries visibility event,
+      degraded downgrade, unrecoverable operator-only, no-double-close after
+      SL/TP and time-stop, block-gate-unchanged), +8 tests (2134 → 2142).
+      Dashboard RENDERING tests remain deferred to (f).)
 
 ## Verification
 

@@ -76,6 +76,7 @@ from src.runtime.market_regime import (
     classify_regime_detailed,
 )
 from src.runtime.reconciliation import (
+    OpenTradeState,
     classify_open_trade,
     compute_health_report,
 )
@@ -4075,6 +4076,222 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
 
+    @staticmethod
+    def _classify_trade_reconciliation(trade: TradeHistory) -> OpenTradeState:
+        """Return the runtime-reconciliation state for an open trade.
+
+        cross-account-risk-policy §"Coordination with runtime-reconciliation".
+        Builds the on-disk row shape that
+        :func:`src.runtime.reconciliation.classify_open_trade` expects from
+        the in-memory :class:`TradeHistory` (mirrors the row build in
+        :meth:`_build_cap_blocker_payload`) and returns the classified
+        state. ``perf_record_ids`` is passed empty: the perf-link
+        cross-check never *downgrades* the state (a perf-link miss stays
+        ``monitorable`` / ``legacy_no_perf_link``), and the stale-age
+        resolution table only cares about the ``degraded`` /
+        ``unrecoverable`` distinction.
+        """
+        row = {
+            "id": trade.id,
+            "symbol": trade.symbol,
+            "side": trade.side,
+            "entry_price": (
+                str(trade.entry_price) if trade.entry_price is not None else None
+            ),
+            "entry_quantity": (
+                str(trade.entry_quantity)
+                if trade.entry_quantity is not None
+                else None
+            ),
+            "stop_loss": (str(trade.stop_loss) if trade.stop_loss is not None else None),
+            "take_profit": (
+                str(trade.take_profit) if trade.take_profit is not None else None
+            ),
+            "performance_record_id": trade.performance_record_id,
+            "sub_account_id": trade.sub_account_id,
+        }
+        classification = classify_open_trade(row, set())
+        return OpenTradeState(classification.state)
+
+    async def _maybe_stale_age_action(
+        self,
+        trade: TradeHistory,
+        current_price: Decimal,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> bool:
+        """Enforce the stale-position age cap for one open trade.
+
+        cross-account-risk-policy §"Stale-Position Age Caps" (DEBT-068(e)).
+        Slots into :meth:`_monitor` as a *further* fallback after SL/TP and
+        the per-strategy time-stop: if the trade has already been closed
+        this pass it never reaches here, so there is no double-close.
+
+        A position is STALE when its age exceeds the sub-account's
+        ``RiskPolicy.max_time_in_position_hours`` (same comparison as
+        :meth:`_stale_position_block_gate`). Behavior per
+        ``stale_position_action``:
+
+        - ``auto_close``: consult the reconciliation state first
+          (resolution table below). On ``monitorable`` /
+          ``legacy_no_perf_link`` (reconciliation OK) close at market with
+          ``reason="stale_age_cap"`` and emit ``STALE_POSITION_AUTO_CLOSED``.
+          On ``degraded`` do NOT close — downgrade to block-new-entries and
+          emit ``STALE_POSITION_DETECTED`` with
+          ``resolution="degraded_block_new_entries"``. On ``unrecoverable``
+          never close — emit a high-priority ``STALE_POSITION_DETECTED``
+          with ``resolution="unrecoverable_operator_only"``.
+        - ``block_new_entries``: the proposal gate already rejects new
+          entries; here we only emit a ``STALE_POSITION_DETECTED`` event
+          (``resolution="block_new_entries"``) so the parked stale trade is
+          operator-visible from the monitor timeline.
+        - ``alert_only``: emit ``STALE_POSITION_DETECTED``
+          (``resolution="alert_only"``); no enforcement.
+
+        The auto-close fires in BOTH paper and live: it is the strategy's
+        own configured risk policy (an enforcement action), not a
+        lab-measurement proposal advisory.
+
+        Returns ``True`` iff the trade was closed (so ``_monitor`` can bump
+        ``closed_count``); ``False`` for the detect-only / blocked paths.
+        """
+        if sub_account is None:
+            return False
+        policy = sub_account.risk_policy
+        action = policy.stale_position_action
+        cap_hours = policy.max_time_in_position_hours
+        if action is None or cap_hours is None:
+            return False
+
+        now = now_utc()
+        age_hours = (now - ensure_utc(trade.entry_time)).total_seconds() / 3600.0
+        if age_hours <= cap_hours:
+            return False
+
+        sub_account_id = sub_account.id
+        base_details: dict[str, Any] = {
+            "trade_id": trade.id,
+            "sub_account_id": sub_account_id,
+            "symbol": trade.symbol,
+            "side": trade.side,
+            "age_hours": f"{age_hours:.4f}",
+            "max_time_in_position_hours": cap_hours,
+            "stale_position_action": action,
+        }
+
+        if action == "alert_only":
+            self.activity_log.append(
+                ActivityEventType.STALE_POSITION_DETECTED,
+                (
+                    f"Stale position {trade.symbol} {trade.side} is "
+                    f"{age_hours:.2f}h old (> cap {cap_hours}h); alert_only"
+                ),
+                details={
+                    **base_details,
+                    "reconciliation_state": self._classify_trade_reconciliation(
+                        trade
+                    ).value,
+                    "resolution": "alert_only",
+                },
+                cycle_id=cycle_id,
+            )
+            return False
+
+        if action == "block_new_entries":
+            # Enforcement lives in ``_stale_position_block_gate`` (proposal
+            # gate). The monitor only surfaces the parked stale trade so the
+            # operator sees it on the timeline alongside the gate blocks.
+            self.activity_log.append(
+                ActivityEventType.STALE_POSITION_DETECTED,
+                (
+                    f"Stale position {trade.symbol} {trade.side} is "
+                    f"{age_hours:.2f}h old (> cap {cap_hours}h); "
+                    f"new entries blocked"
+                ),
+                details={
+                    **base_details,
+                    "reconciliation_state": self._classify_trade_reconciliation(
+                        trade
+                    ).value,
+                    "resolution": "block_new_entries",
+                },
+                cycle_id=cycle_id,
+            )
+            return False
+
+        # action == "auto_close": consult the reconciliation resolution
+        # table BEFORE closing.
+        recon_state = self._classify_trade_reconciliation(trade)
+
+        if recon_state == OpenTradeState.UNRECOVERABLE:
+            # NEVER auto-close. High-priority operator-only alert.
+            self.activity_log.append(
+                ActivityEventType.STALE_POSITION_DETECTED,
+                (
+                    f"Stale position {trade.symbol} {trade.side} is "
+                    f"{age_hours:.2f}h old (> cap {cap_hours}h) but "
+                    f"reconciliation is UNRECOVERABLE; auto-close suppressed, "
+                    f"operator resolution required"
+                ),
+                details={
+                    **base_details,
+                    "reconciliation_state": recon_state.value,
+                    "resolution": "unrecoverable_operator_only",
+                    "priority": "high",
+                },
+                cycle_id=cycle_id,
+            )
+            return False
+
+        if recon_state == OpenTradeState.DEGRADED:
+            # Do NOT auto-close (exchange/ledger drift risk). Downgrade to
+            # block-new-entries behavior and emit an operator-action event.
+            self.activity_log.append(
+                ActivityEventType.STALE_POSITION_DETECTED,
+                (
+                    f"Stale position {trade.symbol} {trade.side} is "
+                    f"{age_hours:.2f}h old (> cap {cap_hours}h) but "
+                    f"reconciliation is DEGRADED; auto-close downgraded to "
+                    f"block-new-entries"
+                ),
+                details={
+                    **base_details,
+                    "reconciliation_state": recon_state.value,
+                    "resolution": "degraded_block_new_entries",
+                    "priority": "high",
+                },
+                cycle_id=cycle_id,
+            )
+            return False
+
+        # Reconciliation OK (monitorable / legacy_no_perf_link) — proceed
+        # with the auto-close at market.
+        closed_trade = await trader.close_position(
+            trade.id, current_price, reason="stale_age_cap"
+        )
+        if closed_trade is None:
+            return False
+
+        self.activity_log.append(
+            ActivityEventType.STALE_POSITION_AUTO_CLOSED,
+            (
+                f"Auto-closed stale position {trade.symbol} {trade.side} "
+                f"after {age_hours:.2f}h (> cap {cap_hours}h) at {current_price}"
+            ),
+            details={
+                **base_details,
+                "reconciliation_state": recon_state.value,
+                "exit_price": str(current_price),
+            },
+            cycle_id=cycle_id,
+        )
+        # ``_record_closed_trade`` emits the canonical ``POSITION_CLOSED``
+        # event with ``details.reason="stale_age_cap"`` and writes the
+        # realized P&L back to the proposal + performance record.
+        self._record_closed_trade(closed_trade, "stale_age_cap", cycle_id)
+        return True
+
     async def _monitor(
         self,
         cycle_id: str,
@@ -4302,6 +4519,24 @@ class TradingEngine:
                 time_stop_lookup_cache,
             )
             if time_stopped:
+                closed_count += 1
+                continue
+
+            # cross-account-risk-policy DEBT-068(e): stale-position age
+            # cap. Strictly a further fallback after SL/TP and the
+            # per-strategy time-stop — a trade closed by either of those
+            # this pass hit a ``continue`` above and never reaches here, so
+            # there is no double-close. Only the ``auto_close`` action (with
+            # reconciliation OK) actually closes; the other actions emit a
+            # detect/operator event and leave the trade open.
+            stale_closed = await self._maybe_stale_age_action(
+                trade,
+                ticker.price,
+                sub_account,
+                trader,
+                cycle_id,
+            )
+            if stale_closed:
                 closed_count += 1
 
         result.positions_closed = closed_count
