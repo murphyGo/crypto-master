@@ -3,9 +3,9 @@
 ## Task
 
 Implement the existing `cross-account-risk-policy` functional design:
-risk-based sizing, per-account and global exposure caps, stale-position age
-caps, account/global kill switches, an operator manual freeze, and the
-dashboard exposure panel.
+risk-based sizing, per-account exposure caps, opt-in global exposure caps,
+stale-position age caps, account/global kill switches, an operator manual
+freeze, and the dashboard exposure panel.
 
 ## Related Context
 
@@ -51,9 +51,17 @@ dashboard exposure panel.
       `gate_rejected_stale_position_block`,
       `gate_rejected_risk_sizing`); R2 wrapped `trade.entry_time` in
       `ensure_utc()` at the stale-block gate per Q5 UTC defense.
-      Global symbol/side caps, per-account + portfolio kill switches,
+      Opt-in global symbol/side caps, per-account + portfolio kill switches,
       and operator freeze toggle deferred under DEBT-068(b)/(c)/(d).
       Risk-sizing gate shipped 2026-05-15 under DEBT-068(a).)
+- [ ] Implement DEBT-068(b) as an opt-in global exposure cap gate.
+      `GlobalRiskPolicy.enabled` defaults false; unset caps are inert. In paper
+      mode, enabled global caps emit advisory / would-block evidence only and
+      never block execution, preserving per-account strategy lab measurements.
+      In live mode, explicitly enabled global caps hard-block proposals that
+      breach `max_open_positions_per_symbol_side`,
+      `max_gross_notional_per_symbol_side`, or
+      `max_gross_notional_per_symbol`.
 - [ ] Add new `ActivityEventType` values and surface them on the dashboard
       command center and through runtime-safety-score inputs.
       (Deferred to Slice 2. Paper-mode advisories currently reuse
@@ -74,12 +82,16 @@ dashboard exposure panel.
       `_reject_risk_budget_mode_until_wired_in` validator regression,
       and naive-tz stale-block defense shipped (+29 tests, 1978 →
       2007). Kill-switch lifecycle, global-cap gating, and dashboard
-      rendering deferred to Slice 2.)
+      rendering deferred to Slice 2. DEBT-068(b) must add regressions for
+      default-disabled behavior, paper advisory/pass-through behavior, and live
+      hard-block behavior.)
 
 ## Verification
 
 - [x] `uv run pytest tests/test_trading_risk_sizing.py tests/test_trading_sub_account.py tests/test_runtime_engine.py -q`
 - [x] `uv run pytest tests/test_trading_sub_account_registry.py -q`
+- [ ] `uv run pytest tests/test_trading_sub_account.py tests/test_trading_sub_account_registry.py tests/test_runtime_engine.py -q`
+      for DEBT-068(b) opt-in global cap behavior.
 - [ ] Targeted dashboard tests for the cross-account risk panel and operator
       freeze toggle.
 - [ ] Targeted runtime-safety-score tests for kill-switch event propagation.

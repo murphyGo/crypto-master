@@ -42,8 +42,11 @@ The unit introduces three policy surfaces:
    account-level drawdown / open-stop-risk pauses, a portfolio-level
    daily-loss kill switch, and an operator manual freeze toggle.
 
-Each surface emits operator-visible activity events. Each surface is advisory
-by default in paper mode (rejections only) and enforced in live mode.
+Each surface emits operator-visible activity events. Global exposure caps are
+opt-in and default disabled so paper-lab accounts remain useful for independent
+strategy measurement. When global caps are enabled, paper mode is observation /
+advisory only and must not block proposal execution; live mode may hard-block
+only when the operator explicitly enables the global policy.
 
 ## Risk-Based Sizing
 
@@ -132,6 +135,9 @@ all enabled sub-accounts:
 
 ```yaml
 global_risk_policy:
+  enabled: false
+  paper_mode: advisory       # paper never hard-blocks in v1
+  live_mode: hard_block
   max_open_positions_per_symbol_side: 3
   max_gross_notional_per_symbol_side: 5000
   max_gross_notional_per_symbol: 8000
@@ -144,6 +150,14 @@ global_risk_policy:
 
 Policy semantics:
 
+- `enabled`: default `false`. When false, all global cap fields are inert and
+  existing paper/live proposal behavior is unchanged.
+- `paper_mode`: v1 supports `advisory` only when `enabled=true`; the runtime may
+  emit a "would have blocked" activity signal but must allow the proposal to
+  continue so strategy-isolated paper measurements are not contaminated by
+  portfolio-level throttling.
+- `live_mode`: v1 supports `hard_block` for explicitly enabled global caps.
+  This preserves live-money safety without changing paper-lab throughput.
 - `max_open_positions_per_symbol_side`: total open positions across all
   sub-accounts on a given `(symbol, side)` tuple. Reached when, for example,
   three accounts each hold one ETH long.
@@ -162,6 +176,8 @@ Policy semantics:
 - The global caps are checked **after** per-account caps and **after** the
   correlation governor in the gate stack, so an already-correlated portfolio
   does not become a global-cap problem.
+- A cap field set to `None` is ignored even when `enabled=true`. The policy only
+  evaluates configured bounds.
 
 ### Relationship to Existing Surfaces
 
@@ -379,6 +395,14 @@ NFR-008, NFR-012.
   and hard-blocking in live mode. The spec assumes all caps hard-block in
   live mode; confirm.
   - **Resolved 2026-05-13**: caps hard-block in live, advisory-with-event in paper. Rationale: paper-first behavior preserves throughput for experimentation; live mode treats caps as money safety.
+- Global cap opt-in boundary: whether global symbol/side caps should affect
+  paper-lab accounts by default.
+  - **Resolved 2026-05-24**: global caps default disabled. If explicitly
+    enabled, paper mode remains advisory-only and never hard-blocks in v1;
+    live mode may hard-block when the operator enables the policy. Rationale:
+    paper accounts are used for per-account strategy measurement, so
+    portfolio-level throttling must not bias paper performance evidence by
+    default.
 - Account-tier risk presets ("conservative" / "standard" / "aggressive"):
   ship as named profiles operators select per sub-account, or defer to a
   later iteration once individual fields have field-tested defaults. The
