@@ -36,7 +36,11 @@ from src.runtime.engine import (
     TradingEngine,
 )
 from src.strategy.base import BaseStrategy, TechniqueInfo
-from src.strategy.performance import PerformanceTracker, TradeHistory
+from src.strategy.performance import (
+    PerformanceTracker,
+    TradeHistory,
+    TradeHistoryTracker,
+)
 from src.strategy.tuning import (
     StrategyAction,
     StrategyOverride,
@@ -113,17 +117,22 @@ def make_trade(
     pnl_percent: float | None = None,
     status: str = "open",
     performance_record_id: str | None = None,
+    mode: str = "paper",
+    exit_time: datetime | None = None,
+    pnl: str | None = None,
 ) -> TradeHistory:
     return TradeHistory(
         id=trade_id,
         symbol=symbol,
         side=side,  # type: ignore[arg-type]
-        mode="paper",
+        mode=mode,  # type: ignore[arg-type]
         entry_price=Decimal(entry),
         entry_quantity=Decimal(quantity),
         entry_time=datetime(2026, 4, 27, 12, 0, 0),
         exit_price=Decimal(exit_price) if exit_price is not None else None,
         exit_quantity=Decimal(quantity) if exit_price is not None else None,
+        exit_time=exit_time,
+        pnl=Decimal(pnl) if pnl is not None else None,
         pnl_percent=pnl_percent,
         status=status,  # type: ignore[arg-type]
         performance_record_id=performance_record_id,
@@ -262,6 +271,33 @@ class FakeSubAccountRegistry:
             for s in available
             if getattr(getattr(s, "info", None), "name", None) in allowed
         ]
+
+
+class _FakeTradeTracker:
+    """Minimal stand-in for ``TradeHistoryTracker`` used by the daily-loss
+
+    kill-switch tests. The engine accesses closed trades via
+    ``trader._trade_tracker.load_trades(self.mode)``; this fake returns the
+    configured records regardless of mode, mirroring the per-account /
+    mode-scoped tracker's list API without touching disk.
+    """
+
+    def __init__(self, trades: list[TradeHistory]):
+        self._trades = trades
+
+    def load_trades(self, mode: str | None = None) -> list[TradeHistory]:
+        return list(self._trades)
+
+
+def _attach_closed_trades(trader: MagicMock, trades: list[TradeHistory]) -> None:
+    """Wire a fake trade tracker onto a mock trader for daily-loss tests.
+
+    Without this, ``getattr(trader, "_trade_tracker", None)`` on a bare
+    ``MagicMock`` returns an auto-child mock whose ``load_trades`` is not
+    iterable. Setting an explicit tracker makes ``_realized_pnl_today``
+    see the configured closed trades.
+    """
+    trader._trade_tracker = _FakeTradeTracker(trades)
 
 
 def make_mock_trader() -> MagicMock:
@@ -4988,6 +5024,8 @@ def _make_risk_sub(
     stale_position_action: str | None = None,
     open_unrealized_drawdown_limit_pct: Decimal | None = None,
     open_stop_risk_limit_pct: Decimal | None = None,
+    daily_loss_limit_pct: Decimal | None = None,
+    quote_currency: str = "USDT",
 ) -> SubAccount:
     """SubAccount factory for the risk-policy gate tests."""
     return SubAccount(
@@ -4996,8 +5034,9 @@ def _make_risk_sub(
         mode="paper",
         exchange_ref="default",
         capital_policy=CapitalPolicy(
-            initial_balance={"USDT": Decimal("10000")},
+            initial_balance={quote_currency: Decimal("10000")},
             sizing_balance=sizing_balance,
+            quote_currency=quote_currency,
         ),
         risk_policy=RiskPolicy(
             sizing_mode=sizing_mode,  # type: ignore[arg-type]
@@ -5011,6 +5050,7 @@ def _make_risk_sub(
             stale_position_action=stale_position_action,  # type: ignore[arg-type]
             open_unrealized_drawdown_limit_pct=open_unrealized_drawdown_limit_pct,
             open_stop_risk_limit_pct=open_stop_risk_limit_pct,
+            daily_loss_limit_pct=daily_loss_limit_pct,
         ),
     )
 
@@ -6501,6 +6541,533 @@ async def test_global_kill_switch_inert_when_policy_disabled(
         global_policy=GlobalRiskPolicy(
             enabled=False,
             portfolio_unrealized_drawdown_limit_pct=Decimal("0.02"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+# =============================================================================
+# cross-account-risk-policy: stateful daily-loss kill switches (DEBT-068(c-2))
+# =============================================================================
+
+
+def _closed_loss_trade(
+    *,
+    trade_id: str,
+    sub_account_id: str = "rsi_lab",
+    pnl: str,
+    exit_time: datetime,
+    symbol: str = "ETH/USDT",
+) -> TradeHistory:
+    """A CLOSED trade with a realized (signed, net) ``pnl`` and ``exit_time``."""
+    return make_trade(
+        trade_id=trade_id,
+        symbol=symbol,
+        side="long",
+        entry="2000",
+        quantity="1",
+        exit_price="1900",
+        status="closed",
+        pnl=pnl,
+        exit_time=exit_time,
+    ).model_copy(update={"sub_account_id": sub_account_id})
+
+
+async def test_daily_loss_kill_switch_not_tripped_within_limit(
+    tmp_path: Path,
+) -> None:
+    """Today's realized loss within the limit → proposal proceeds."""
+    # equity 10000, realized today -100 → starting_equity 10100,
+    # limit 3% → threshold -303. -100 >= -303 → no trip.
+    closed = _closed_loss_trade(
+        trade_id="dl-ok",
+        pnl="-100",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="dl-within",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    _attach_closed_trades(mocks["trader"], [closed])
+    sub = _make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+
+async def test_daily_loss_kill_switch_tripped_live_hard_blocks(
+    tmp_path: Path,
+) -> None:
+    """Realized loss worse than the limit hard-blocks in live mode."""
+    # equity 10000, realized today -500 → starting_equity 10500,
+    # limit 3% → threshold -315. -500 < -315 → trip.
+    closed = _closed_loss_trade(
+        trade_id="dl-big",
+        pnl="-500",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="dl-trip",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    _attach_closed_trades(mocks["trader"], [closed])
+    sub = _make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("dl-trip")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH.value
+    )
+    assert "daily_loss_kill_switch" in (record.rejection_reason or "")
+    event = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "daily_loss_kill_switch"
+    ][0]
+    assert event.details["realized_pnl_today"] == "-500"
+    assert event.details["starting_equity_today"] == "10500"
+
+
+async def test_daily_loss_kill_switch_paper_advisory_proceeds(
+    tmp_path: Path,
+) -> None:
+    """Paper mode: daily-loss trip is advisory-with-event; proposal executes."""
+    closed = _closed_loss_trade(
+        trade_id="dl-paper",
+        pnl="-500",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="dl-paper",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "paper"
+    _attach_closed_trades(mocks["trader"], [closed])
+    sub = _make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "daily_loss_kill_switch"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is True
+    assert advisories[0].details["mode"] == "paper"
+
+
+async def test_daily_loss_kill_switch_utc_midnight_window_boundary(
+    tmp_path: Path,
+) -> None:
+    """Trades exiting BEFORE UTC midnight are excluded; one AFTER trips.
+
+    Proves the daily-loss window is bounded at today's UTC midnight on the
+    EXIT timestamp. A large loss closed just before midnight is in the
+    prior day (excluded → no trip); the same loss closed just after
+    midnight is in today's window (included → trip).
+    """
+    midnight = now_utc().replace(hour=0, minute=0, second=0, microsecond=0)
+    before = midnight - timedelta(seconds=1)  # prior UTC day
+    after = midnight + timedelta(seconds=1)  # today
+
+    # --- BEFORE midnight: excluded → realized today 0 → no trip. ---
+    closed_before = _closed_loss_trade(
+        trade_id="dl-before",
+        pnl="-500",
+        exit_time=before,
+    )
+    proposal_b = make_proposal(
+        proposal_id="dl-boundary-before",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    engine_b, mocks_b = build_engine(
+        tmp_path=tmp_path / "before",
+        btc_proposal=proposal_b,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine_b.mode = "live"
+    _attach_closed_trades(mocks_b["trader"], [closed_before])
+    engine_b.sub_account_registry = FakeSubAccountRegistry(
+        [_make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))],
+        {"rsi_lab": mocks_b["trader"]},
+    )  # type: ignore[assignment]
+    result_b = await engine_b.run_cycle()
+    assert result_b.positions_opened == 1
+
+    # --- AFTER midnight: included → realized today -500 → trip. ---
+    closed_after = _closed_loss_trade(
+        trade_id="dl-after",
+        pnl="-500",
+        exit_time=after,
+    )
+    proposal_a = make_proposal(
+        proposal_id="dl-boundary-after",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    engine_a, mocks_a = build_engine(
+        tmp_path=tmp_path / "after",
+        btc_proposal=proposal_a,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine_a.mode = "live"
+    _attach_closed_trades(mocks_a["trader"], [closed_after])
+    engine_a.sub_account_registry = FakeSubAccountRegistry(
+        [_make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))],
+        {"rsi_lab": mocks_a["trader"]},
+    )  # type: ignore[assignment]
+    result_a = await engine_a.run_cycle()
+    assert result_a.proposals_rejected == 1
+    mocks_a["trader"].open_position.assert_not_called()
+
+
+async def test_daily_loss_kill_switch_survives_restart_no_state_file(
+    tmp_path: Path,
+) -> None:
+    """Realized-today is recomputed from disk → restart cannot escape the limit.
+
+    Persist a losing closed trade to a real ``TradeHistoryTracker`` on
+    disk, then build a FRESH tracker from the same ``data_dir`` (simulating
+    a process restart with no separate state file) and confirm the engine
+    recomputes the same realized_today and still trips.
+    """
+    data_dir = tmp_path / "trades"
+    # Persist a losing closed trade for today via the production tracker.
+    writer = TradeHistoryTracker(data_dir=data_dir, sub_account_id="rsi_lab")
+    losing = _closed_loss_trade(
+        trade_id="dl-persist",
+        pnl="-500",
+        exit_time=now_utc(),
+    ).model_copy(update={"mode": "live"})
+    writer.save_trade(losing)
+
+    # Simulate restart: a brand-new tracker reading the same files.
+    reloaded = TradeHistoryTracker(data_dir=data_dir, sub_account_id="rsi_lab")
+
+    proposal = make_proposal(
+        proposal_id="dl-restart",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    # Wire the reloaded on-disk tracker onto the trader.
+    mocks["trader"]._trade_tracker = reloaded
+    sub = _make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    # Sanity: the helper recomputes the persisted realized loss from disk.
+    assert engine._realized_pnl_today(mocks["trader"], "rsi_lab") == Decimal("-500")
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    record = mocks["history"].load("dl-restart")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH.value
+    )
+
+
+async def test_daily_loss_kill_switch_equity_unavailable_skips_no_event(
+    tmp_path: Path,
+) -> None:
+    """No equity reference → daily-loss gate skipped, no event (fail-open)."""
+    closed = _closed_loss_trade(
+        trade_id="dl-noeq",
+        pnl="-500",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="dl-noeq",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    mocks["trader"].get_balances = AsyncMock(return_value={})
+    _attach_closed_trades(mocks["trader"], [closed])
+    # sizing_balance left None → no equity reference at all.
+    sub = _make_risk_sub(daily_loss_limit_pct=Decimal("0.03"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    kill_events = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "daily_loss_kill_switch"
+    ]
+    assert kill_events == []
+
+
+async def test_daily_loss_runs_before_open_drawdown_kill_switch(
+    tmp_path: Path,
+) -> None:
+    """A proposal breaching BOTH daily-loss and open-drawdown rejects with
+    the DAILY-LOSS reason (spec §"Runtime Behavior": daily-loss runs first).
+    """
+    # Daily-loss trip: realized today -500 → threshold ~-315 → trip.
+    closed = _closed_loss_trade(
+        trade_id="dl-both",
+        pnl="-500",
+        exit_time=now_utc(),
+    )
+    # Open-drawdown trip: open ETH long marked at a big loss.
+    open_trade = make_trade(
+        trade_id="dd-both-open",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="1",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="dl-and-dd",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+        open_trades=[open_trade],
+    )
+    engine.mode = "live"
+    _attach_closed_trades(mocks["trader"], [closed])
+    engine._remember_mark_price("ETH/USDT", Decimal("1400"))  # -600 < -500
+    sub = _make_risk_sub(
+        daily_loss_limit_pct=Decimal("0.03"),
+        open_unrealized_drawdown_limit_pct=Decimal("0.05"),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    record = mocks["history"].load("dl-and-dd")
+    assert (
+        record.final_state
+        == ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH.value
+    )
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    gate_reasons = {e.details.get("gate_reason") for e in rejections}
+    assert "daily_loss_kill_switch" in gate_reasons
+    # Daily-loss short-circuited before the drawdown check fired.
+    assert "open_drawdown_kill_switch" not in gate_reasons
+
+
+async def test_daily_loss_kill_switch_inert_when_pct_none(
+    tmp_path: Path,
+) -> None:
+    """``daily_loss_limit_pct=None`` → daily-loss check is inert."""
+    closed = _closed_loss_trade(
+        trade_id="dl-inert",
+        pnl="-9000",  # catastrophic, but no limit configured
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="dl-inert",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    _attach_closed_trades(mocks["trader"], [closed])
+    sub = _make_risk_sub()  # no daily_loss_limit_pct
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+
+
+async def test_portfolio_daily_loss_kill_switch_summed_blocks_live(
+    tmp_path: Path,
+) -> None:
+    """Portfolio daily-loss summed across two accounts blocks a third's
+
+    proposal. Direct gate call (the multi-account ``run_cycle`` mock
+    re-emits one proposal per active account, so cross-account assertions
+    use the gate method directly, as the c-1 global tests do).
+    """
+    # Two accounts each realized -400 today → portfolio_realized -800.
+    # lab_a / lab_b: equity 10000, realized -400 → starting 10400 each.
+    # lab_c: equity 10000, realized 0 → starting 10000.
+    # portfolio_starting_equity 30800; limit 2% → threshold -616.
+    # -800 < -616 → trip.
+    closed_a = _closed_loss_trade(
+        trade_id="pdl-a",
+        sub_account_id="lab_a",
+        pnl="-400",
+        exit_time=now_utc(),
+    )
+    closed_b = _closed_loss_trade(
+        trade_id="pdl-b",
+        sub_account_id="lab_b",
+        pnl="-400",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="pdl-trip",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "lab_c"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    trader_a = make_mock_trader()
+    trader_b = make_mock_trader()
+    trader_c = make_mock_trader()
+    _attach_closed_trades(trader_a, [closed_a])
+    _attach_closed_trades(trader_b, [closed_b])
+    _attach_closed_trades(trader_c, [])  # lab_c has no realized loss today
+
+    sub_a = _make_risk_sub(id="lab_a")
+    sub_b = _make_risk_sub(id="lab_b")
+    sub_c = _make_risk_sub(id="lab_c")
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub_a, sub_b, sub_c],
+        {"lab_a": trader_a, "lab_b": trader_b, "lab_c": trader_c},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            portfolio_daily_loss_limit_pct=Decimal("0.02"),
+        ),
+    )  # type: ignore[assignment]
+
+    record = await engine.proposal_interaction.decide(proposal, actor="test")
+    outcome = await engine._global_kill_switch_gate(proposal, record, "cyc")
+
+    assert outcome is not None
+    assert outcome.decision == GateDecision.REJECTED
+    assert (
+        outcome.final_record.final_state
+        == ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value
+    )
+    details = outcome.events[0].details
+    assert details["gate_reason"] == "portfolio_daily_loss_kill_switch"
+    assert details["portfolio_realized_pnl_today"] == "-800"
+    assert details["portfolio_starting_equity_today"] == "30800"
+
+
+async def test_portfolio_daily_loss_kill_switch_inert_when_disabled(
+    tmp_path: Path,
+) -> None:
+    """``GlobalRiskPolicy.enabled=False`` → portfolio daily-loss is inert."""
+    closed_a = _closed_loss_trade(
+        trade_id="pdl-off",
+        sub_account_id="lab_a",
+        pnl="-9000",
+        exit_time=now_utc(),
+    )
+    proposal = make_proposal(
+        proposal_id="pdl-off",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "lab_a"})
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    engine.mode = "live"
+    _attach_closed_trades(mocks["trader"], [closed_a])
+    sub_a = _make_risk_sub(id="lab_a")
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub_a],
+        {"lab_a": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=False,
+            portfolio_daily_loss_limit_pct=Decimal("0.02"),
         ),
     )  # type: ignore[assignment]
 

@@ -98,6 +98,12 @@ class FunnelCounts(BaseModel):
     gate_rejected_open_drawdown_kill_switch: int = 0
     gate_rejected_open_stop_risk_kill_switch: int = 0
     gate_rejected_portfolio_kill_switch: int = 0
+    # cross-account-risk-policy DEBT-068(c-2): stateful daily-loss kill
+    # switch buckets. Per-account realized-PnL-since-UTC-midnight and the
+    # cross-account portfolio sum. Only live-mode hard-blocks land here;
+    # paper mode is advisory-only.
+    gate_rejected_daily_loss_kill_switch: int = 0
+    gate_rejected_portfolio_daily_loss_kill_switch: int = 0
     # strategy-tuning (2026-05-13): action-driven terminals. Pause
     # rides on a dedicated ``gate_rejected_*`` bucket; shadow is a
     # *non-rejection* terminal that records the proposal without
@@ -131,6 +137,8 @@ class FunnelCounts(BaseModel):
             + self.gate_rejected_open_drawdown_kill_switch
             + self.gate_rejected_open_stop_risk_kill_switch
             + self.gate_rejected_portfolio_kill_switch
+            + self.gate_rejected_daily_loss_kill_switch
+            + self.gate_rejected_portfolio_daily_loss_kill_switch
             + self.gate_rejected_strategy_action_pause
             + self.gate_rejected_unknown
         )
@@ -192,6 +200,12 @@ _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
     ),
     ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH: (
         "gate_rejected_portfolio_kill_switch"
+    ),
+    ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH: (
+        "gate_rejected_daily_loss_kill_switch"
+    ),
+    ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH: (
+        "gate_rejected_portfolio_daily_loss_kill_switch"
     ),
     ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE: (
         "gate_rejected_strategy_action_pause"

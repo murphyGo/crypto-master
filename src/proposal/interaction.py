@@ -132,6 +132,18 @@ class ProposalFinalState(str, Enum):
         "gate_rejected_open_stop_risk_kill_switch"
     )
     GATE_REJECTED_PORTFOLIO_KILL_SWITCH = "gate_rejected_portfolio_kill_switch"
+    # cross-account-risk-policy DEBT-068(c-2): stateful daily-loss kill
+    # switches. Realized PnL since UTC midnight is recomputed from
+    # persisted trade history each cycle (no state file), so a restart
+    # cannot escape the limit; the gate auto-releases at the next UTC
+    # midnight rollover. ``daily_loss`` is per-account; ``portfolio_daily_loss``
+    # is the cross-account sum. Both run AHEAD of the c-1 drawdown /
+    # stop-risk checks (spec §"Runtime Behavior" order). Live mode
+    # hard-blocks into these terminals; paper mode is advisory-only.
+    GATE_REJECTED_DAILY_LOSS_KILL_SWITCH = "gate_rejected_daily_loss_kill_switch"
+    GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH = (
+        "gate_rejected_portfolio_daily_loss_kill_switch"
+    )
     # strategy-tuning (2026-05-13): the ``pause`` applied-action
     # rejection rides on its own terminal so the funnel separates
     # action-driven blocks from gate-driven ones.

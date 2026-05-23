@@ -49,13 +49,23 @@ freeze, and the dashboard exposure panel.
       restart (recomputed from persisted trade history at startup); drawdown /
       stop-risk gates are stateless per cycle. Operator manual freeze is
       explicitly OUT of scope here — tracked under DEBT-068(d). Items:
-  - [ ] Per-account daily-loss kill switch — block new entries when realized
+  - [x] Per-account daily-loss kill switch — block new entries when realized
         PnL since UTC midnight on the sub-account is worse than
         `-daily_loss_limit_pct * starting_equity_today`. State recomputed from
         persisted trade history at startup so a restart cannot escape the
         limit; auto-releases at next UTC-midnight rollover. New gate in
         `src/runtime/engine.py::_handle_proposal` between operator-freeze (d)
         and the per-account open-risk gates, per spec Runtime-Behavior order.
+        (DEBT-068(c-2) — 2026-05-24: `_account_daily_loss_check` runs at the
+        TOP of the existing combined `_account_kill_switch_gate` (ahead of the
+        c-1 drawdown / stop-risk checks), so the `_handle_proposal` wiring is
+        untouched. `starting_equity_today` reconstructed as
+        `current_quote_balance - realized_pnl_today` — NO state file (lead
+        decision); equity via the c-1 `_account_equity` (unavailable ⇒
+        fail-open). `realized_pnl_today` from `_realized_pnl_today` summing
+        signed net `TradeHistory.pnl` over closed trades with
+        `exit_time >= utc_midnight_today` (coerced via `ensure_utc`). Live
+        hard-block / paper advisory via shared `_kill_switch_outcome`.)
   - [x] Per-account open-drawdown / open-stop-risk kill switches — stateless
         per cycle: block when open unrealized PnL is worse than
         `-open_unrealized_drawdown_limit_pct * equity`, or when summed
@@ -72,7 +82,7 @@ freeze, and the dashboard exposure panel.
         numerator factored into shared `_open_stop_risk_sum` (also used
         by `_account_aggregate_cap_gate`). Paper = advisory-with-event;
         live = hard-block.)
-  - [ ] Global (portfolio) daily-loss / open-drawdown kill switches —
+  - [x] Global (portfolio) daily-loss / open-drawdown kill switches —
         `portfolio_daily_loss_limit_pct` / `portfolio_unrealized_drawdown_limit_pct`
         computed over the sum of all enabled sub-account equity + PnL in the
         common quote currency; a trip blocks new entries on all sub-accounts.
@@ -82,8 +92,16 @@ freeze, and the dashboard exposure panel.
         `portfolio_unrealized_drawdown_limit_pct` set; equity summed via
         `_account_equity` per enabled sub, no usable equity ⇒ fail-open;
         unrealized via `_open_unrealized_pnl` over
-        `_open_trades_for_correlation`). `portfolio_daily_loss_limit_pct`
-        is the daily-loss half — deferred to DEBT-068(c-2).)
+        `_open_trades_for_correlation`).
+        DEBT-068(c-2) — 2026-05-24: `portfolio_daily_loss_limit_pct` half
+        shipped as `_portfolio_daily_loss_check`, run at the TOP of
+        `_global_kill_switch_gate` (ahead of the portfolio drawdown check).
+        `portfolio_realized_pnl_today` = Σ `_realized_pnl_today` and
+        `portfolio_starting_equity_today` = Σ
+        `(current_quote_balance - realized_pnl_today)`, accumulated in the
+        single existing `list_active()` pass. v1 single-quote-currency: a
+        sub-account whose quote currency differs from the first active
+        account's is skipped with a one-line warning.)
   - [ ] New `ProposalFinalState` terminals for each kill-switch reject
         (mirroring the Slice 1 `gate_rejected_account_aggregate_cap` /
         `gate_rejected_stale_position_block` pattern) + funnel label/count
@@ -96,16 +114,38 @@ freeze, and the dashboard exposure panel.
         `GATE_REJECTED_PORTFOLIO_KILL_SWITCH` — with matching
         `FunnelCounts` fields, `_STATE_TO_FIELD` entries, and inclusion
         in the `gate_rejected_total` sum. Daily-loss terminal pending
-        under DEBT-068(c-2).)
-  - [ ] Add the daily-loss restart-recompute helper (realized PnL aggregated
+        under DEBT-068(c-2).
+        DEBT-068(c-2) — 2026-05-24: two daily-loss terminals added —
+        `GATE_REJECTED_DAILY_LOSS_KILL_SWITCH` (gate_reason
+        `daily_loss_kill_switch`) and
+        `GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH` (gate_reason
+        `portfolio_daily_loss_kill_switch`) — with matching `FunnelCounts`
+        fields, `_STATE_TO_FIELD` entries, and inclusion in
+        `gate_rejected_total`.)
+  - [x] Add the daily-loss restart-recompute helper (realized PnL aggregated
         since UTC midnight from persisted trade history) under `src/trading/`
         and wire it into engine startup.
-  - [ ] Write unit tests — daily-loss trip + UTC-rollover auto-release +
+        (DEBT-068(c-2) — 2026-05-24: DEVIATION from the "`src/trading/` helper
+        + engine-startup wiring" wording. Per the lead's reconstruction
+        decision there is NO startup step and NO separate helper module:
+        `TradingEngine._realized_pnl_today` recomputes the figure from the
+        per-account on-disk trade tracker EVERY cycle inside the gate, so the
+        limit is enforced continuously and survives restart with no state
+        file. Adding a startup pre-warm would be redundant and is intentionally
+        omitted.)
+  - [x] Write unit tests — daily-loss trip + UTC-rollover auto-release +
         restart-preservation; open-drawdown and open-stop-risk trip /
         auto-release; global daily-loss + open-drawdown trip blocking all
         accounts; gate-evaluation order relative to existing gates;
         paper-advisory-vs-live-hard-block for each. (`tests/test_runtime_engine.py`,
         `tests/test_trading_sub_account.py`.)
+        (DEBT-068(c-2) — 2026-05-24: +10 daily-loss tests in
+        `tests/test_runtime_engine.py` — per-account not-tripped / tripped-live
+        / paper-advisory / UTC-midnight window boundary (before-excluded vs
+        after-trips) / restart-survival (real on-disk tracker rebuilt) /
+        equity-unavailable fail-open / daily-loss-before-open-drawdown ordering
+        / inert-when-pct-None; portfolio daily-loss summed-across-accounts live
+        block + inert-when-disabled.)
         (DEBT-068(c-1) — 2026-05-24: +13 tests in
         `tests/test_runtime_engine.py` — open-drawdown not-tripped /
         tripped-live / paper-advisory / stale-mark-excluded;

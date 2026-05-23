@@ -1203,18 +1203,20 @@ class TradingEngine:
                     )
                 return
 
-            # cross-account-risk-policy §"Runtime Behavior" / DEBT-068(c-1):
-            # the STATELESS kill switches run BEFORE sizing and BEFORE the
-            # cap gates, so a tripped account/portfolio drawdown or
-            # stop-risk limit short-circuits before any sizing or
-            # aggregate-cap event fires. Order: per-account first
-            # (open-drawdown then open-stop-risk, combined in one gate),
-            # then the global portfolio gate.
+            # cross-account-risk-policy §"Runtime Behavior" / DEBT-068(c):
+            # the kill switches run BEFORE sizing and BEFORE the cap gates,
+            # so a tripped account/portfolio limit short-circuits before any
+            # sizing or aggregate-cap event fires. Order within each gate
+            # (spec §"Runtime Behavior"): per-account daily-loss (c-2) →
+            # per-account open-drawdown → per-account open-stop-risk (c-1),
+            # then the global gate (portfolio daily-loss (c-2) → portfolio
+            # open-drawdown (c-1)). The daily-loss checks live at the TOP of
+            # their respective combined gates so the wiring here is
+            # unchanged; both gates simply gained a higher-priority check.
             #
-            # Two earlier slots will precede these once shipped:
+            # One earlier slot will precede these once shipped:
             #   - DEBT-068(d): operator manual freeze (earliest reject).
-            #   - DEBT-068(c-2): per-account + global daily-loss kill switch.
-            # Both are out of scope for this slice.
+            # Still out of scope for this slice.
             account_kill_switch = await self._account_kill_switch_gate(
                 proposal,
                 record,
@@ -1871,6 +1873,141 @@ class TradingEngine:
             )
         return total
 
+    @staticmethod
+    def _utc_midnight_today() -> datetime:
+        """UTC midnight (00:00:00) of the current day.
+
+        cross-account-risk-policy §"Hysteresis and Reset Semantics" /
+        DEBT-068(c-2). The daily-loss window opens at UTC midnight and
+        auto-releases at the next rollover. Computed fresh from
+        :func:`now_utc` on EVERY gate invocation (never cached across
+        cycles) so the window advances with wall-clock time and the
+        limit releases automatically once ``exit_time`` falls into the
+        prior day.
+        """
+        now = now_utc()
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _realized_pnl_today(self, trader: Trader, sub_account_id: str) -> Decimal:
+        """Sum realized PnL on this sub-account since UTC midnight today.
+
+        cross-account-risk-policy §"Kill Switches" / DEBT-068(c-2). The
+        daily-loss state is RECONSTRUCTED from persisted trade history
+        every cycle — there is no separate state file. Because today's
+        closed losing trades remain on disk, an engine restart recomputes
+        the identical figure and cannot be used to escape the limit
+        (spec §"Hysteresis and Reset Semantics": "Engine restart does
+        NOT clear daily-loss state").
+
+        Aggregates the signed, net-of-fees :attr:`TradeHistory.pnl` field
+        over the account's CLOSED trades whose ``exit_time`` is at or
+        after :meth:`_utc_midnight_today`. Trades still open
+        (``exit_time is None``) are excluded. The persisted ``exit_time``
+        is coerced with :func:`ensure_utc` before the boundary comparison
+        (same tz-defense as :meth:`_stale_position_block_gate`), so a
+        legacy naive timestamp does not crash the gate.
+
+        We deliberately do NOT use
+        :meth:`TradeHistoryTracker.get_trades_by_date_range` — it filters
+        on ``entry_time``, whereas the daily-loss window is defined on the
+        EXIT (realization) timestamp. Closed trades are sourced via
+        ``trader._trade_tracker.load_trades(self.mode)`` (the per-account,
+        mode-scoped tracker the engine already owns) and filtered to this
+        ``sub_account_id`` defensively, mirroring the per-account
+        ``get_open_trades`` filter in :meth:`_account_kill_switch_gate`.
+        """
+        tracker = getattr(trader, "_trade_tracker", None)
+        if tracker is None:
+            return Decimal("0")
+        midnight = self._utc_midnight_today()
+        total = Decimal("0")
+        for trade in tracker.load_trades(self.mode):
+            if trade.sub_account_id != sub_account_id:
+                continue
+            if trade.status != "closed" or trade.exit_time is None:
+                continue
+            if ensure_utc(trade.exit_time) < midnight:
+                continue
+            if trade.pnl is not None:
+                total += trade.pnl
+        return total
+
+    async def _account_daily_loss_check(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount,
+        trader: Trader,
+        equity: Decimal,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Per-account realized daily-loss kill switch.
+
+        cross-account-risk-policy §"Kill Switches" / DEBT-068(c-2). Trips
+        when realized PnL since UTC midnight is worse than
+        ``-daily_loss_limit_pct * starting_equity_today``. Inert when
+        ``daily_loss_limit_pct is None``.
+
+        ``starting_equity_today`` is RECONSTRUCTED (lead decision, no
+        state file): ``current_quote_balance - realized_pnl_today``, where
+        ``current_quote_balance`` is the ``equity`` already resolved via
+        :meth:`_account_equity` by the caller. Because both the balance
+        and ``realized_pnl_today`` survive a restart on disk, the
+        baseline — and therefore the trip decision — is identical after a
+        restart.
+
+        Returns the :meth:`_kill_switch_outcome` for a breach (live
+        hard-block / paper advisory) or ``None`` when not configured or
+        within the limit. The caller invokes this BEFORE the c-1
+        drawdown / stop-risk checks so the daily-loss reason wins when a
+        proposal would breach both (spec §"Runtime Behavior" order).
+        """
+        daily_loss_limit = sub_account.risk_policy.daily_loss_limit_pct
+        if daily_loss_limit is None:
+            return None
+
+        realized_today = self._realized_pnl_today(trader, sub_account.id)
+        # Reconstruct start-of-day equity from realized flows alone — no
+        # state file, so it survives restart (a restart can't escape the
+        # limit). Exact when a trade opens and closes the same UTC day.
+        # A trade straddling midnight mis-attributes a single fee (entry
+        # or exit) to the wrong day: sub-1-USDT per cross-midnight trade
+        # at the project's notional scale, and Case B (opened yesterday,
+        # closed today) leans the switch to trip slightly *earlier* — the
+        # safe direction for a loss-limit control. Accepted approximation.
+        starting_equity_today = equity - realized_today
+        threshold = -(daily_loss_limit * starting_equity_today)
+        if realized_today >= threshold:
+            return None
+
+        reason = (
+            f"daily_loss_kill_switch: realized_today {realized_today:.2f} "
+            f"< -({daily_loss_limit} * {starting_equity_today}) = {threshold:.2f}"
+        )
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "daily_loss_kill_switch",
+            "sub_account_id": sub_account.id,
+            "realized_pnl_today": str(realized_today),
+            "current_quote_balance": str(equity),
+            "starting_equity_today": str(starting_equity_today),
+            "daily_loss_limit_pct": str(daily_loss_limit),
+            "daily_loss_threshold": str(threshold),
+            "mode": self.mode,
+        }
+        return self._kill_switch_outcome(
+            proposal=proposal,
+            record=record,
+            cycle_id=cycle_id,
+            reason=reason,
+            details=details,
+            final_state=(
+                ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH
+            ),
+            advisory_label="Daily-loss kill-switch",
+        )
+
     async def _account_kill_switch_gate(
         self,
         proposal: Proposal,
@@ -1879,24 +2016,32 @@ class TradingEngine:
         trader: Trader,
         cycle_id: str,
     ) -> GateOutcome | None:
-        """Per-account stateless kill switches — open-drawdown then stop-risk.
+        """Per-account kill switches — daily-loss, then open-drawdown, then stop-risk.
 
-        cross-account-risk-policy §"Kill Switches" / DEBT-068(c-1). Two
-        stateless (per-cycle) per-account checks, evaluated in order; the
-        FIRST breach wins so the rejection event names a single cause:
+        cross-account-risk-policy §"Kill Switches". Three per-account
+        checks, evaluated in spec §"Runtime Behavior" order; the FIRST
+        breach wins so the rejection event names a single cause:
 
-        1. **Open-drawdown** (``open_unrealized_drawdown_limit_pct``): trip
-           when current open unrealized PnL is worse than
-           ``-pct * equity``. Unrealized PnL is summed via
-           :meth:`_open_unrealized_pnl` (cached marks; stale-symbol
+        0. **Realized daily-loss** (``daily_loss_limit_pct``, STATEFUL,
+           DEBT-068(c-2)): trip when realized PnL since UTC midnight is
+           worse than ``-pct * starting_equity_today``, where
+           ``starting_equity_today`` is reconstructed as
+           ``current_quote_balance - realized_pnl_today`` (no state file;
+           survives restart). Delegated to :meth:`_account_daily_loss_check`.
+           Runs AHEAD of the c-1 drawdown / stop-risk checks so a proposal
+           breaching both is rejected with the daily-loss reason.
+        1. **Open-drawdown** (``open_unrealized_drawdown_limit_pct``,
+           stateless, DEBT-068(c-1)): trip when current open unrealized
+           PnL is worse than ``-pct * equity``. Unrealized PnL is summed
+           via :meth:`_open_unrealized_pnl` (cached marks; stale-symbol
            positions excluded).
-        2. **Open-stop-risk** (``open_stop_risk_limit_pct``): trip when the
-           summed ``abs(entry - stop) * qty`` over open positions exceeds
-           ``pct * equity`` (shared numerator via
-           :meth:`_open_stop_risk_sum`).
+        2. **Open-stop-risk** (``open_stop_risk_limit_pct``, stateless,
+           DEBT-068(c-1)): trip when the summed ``abs(entry - stop) * qty``
+           over open positions exceeds ``pct * equity`` (shared numerator
+           via :meth:`_open_stop_risk_sum`).
 
         Each ``_pct`` field set to ``None`` makes its check inert. When
-        BOTH are ``None`` the gate is a no-op. Equity comes from
+        ALL three are ``None`` the gate is a no-op. Equity comes from
         :meth:`_account_equity`; if unavailable the gate is skipped
         (returns ``None``, emits no event) — fail-open per the lead
         decision, since these are safety throttles rather than
@@ -1912,9 +2057,14 @@ class TradingEngine:
         if sub_account is None:
             return None
         policy = sub_account.risk_policy
+        daily_loss_limit = policy.daily_loss_limit_pct
         drawdown_limit = policy.open_unrealized_drawdown_limit_pct
         stop_risk_limit = policy.open_stop_risk_limit_pct
-        if drawdown_limit is None and stop_risk_limit is None:
+        if (
+            daily_loss_limit is None
+            and drawdown_limit is None
+            and stop_risk_limit is None
+        ):
             return None
 
         equity = await self._account_equity(sub_account, trader)
@@ -1923,6 +2073,20 @@ class TradingEngine:
             # relative limit. Safety throttles must not block on a stale
             # balance snapshot.
             return None
+
+        # Check 0: realized daily-loss (DEBT-068(c-2)) — runs first per
+        # spec §"Runtime Behavior" so the daily-loss reason wins over a
+        # simultaneous open-drawdown / stop-risk breach.
+        daily_loss_outcome = await self._account_daily_loss_check(
+            proposal,
+            record,
+            sub_account,
+            trader,
+            equity,
+            cycle_id,
+        )
+        if daily_loss_outcome is not None:
+            return daily_loss_outcome
 
         open_trades = [
             trade
@@ -2003,18 +2167,30 @@ class TradingEngine:
         record: ProposalRecord,
         cycle_id: str,
     ) -> GateOutcome | None:
-        """Global (portfolio) open-drawdown kill switch.
+        """Global (portfolio) kill switches — daily-loss, then open-drawdown.
 
-        cross-account-risk-policy §"Global Kill Switches" / DEBT-068(c-1).
-        Trips when the cross-account open unrealized PnL is worse than
-        ``-portfolio_unrealized_drawdown_limit_pct * portfolio_equity``,
-        summed across all enabled sub-accounts in the common quote
-        currency. A trip blocks new entries on every sub-account.
+        cross-account-risk-policy §"Global Kill Switches". Two
+        cross-account checks, evaluated in spec §"Runtime Behavior" order;
+        the daily-loss check runs FIRST so its reason wins over a
+        simultaneous portfolio-drawdown breach:
+
+        0. **Portfolio realized daily-loss** (``portfolio_daily_loss_limit_pct``,
+           STATEFUL, DEBT-068(c-2)): trip when
+           ``portfolio_realized_pnl_today`` is worse than
+           ``-pct * portfolio_starting_equity_today``, where both terms are
+           summed per-account — ``portfolio_realized_pnl_today`` = Σ
+           :meth:`_realized_pnl_today` and
+           ``portfolio_starting_equity_today`` = Σ
+           ``(current_quote_balance - realized_pnl_today)``. Delegated to
+           :meth:`_portfolio_daily_loss_check`.
+        1. **Portfolio open-drawdown** (``portfolio_unrealized_drawdown_limit_pct``,
+           stateless, DEBT-068(c-1)): trip when cross-account open
+           unrealized PnL is worse than ``-pct * portfolio_equity``.
 
         Inert paths return ``None``: no registry, ``GlobalRiskPolicy``
-        not ``enabled``, or ``portfolio_unrealized_drawdown_limit_pct``
-        unset (mirrors :meth:`_global_aggregate_cap_gate`'s
-        ``policy.enabled`` short-circuit). Portfolio equity is summed via
+        not ``enabled``, or BOTH limit fields unset (mirrors
+        :meth:`_global_aggregate_cap_gate`'s ``policy.enabled``
+        short-circuit). Portfolio equity is summed via
         :meth:`_account_equity` per enabled sub-account; if NO sub-account
         contributes a usable equity figure the gate is skipped (fail-open),
         matching the per-account gate. Open trades come from
@@ -2022,31 +2198,78 @@ class TradingEngine:
         the unrealized sum reuses :meth:`_open_unrealized_pnl` (cached
         marks; stale-symbol positions excluded).
 
+        v1 assumes a SINGLE common quote currency (USDT). The first active
+        sub-account's quote currency is taken as the reference; any
+        sub-account whose quote currency differs is skipped from the
+        portfolio sums with a one-line warning (known v1 limitation —
+        cross-currency netting is out of scope for this slice).
+
         Paper-vs-live mirrors :meth:`_global_aggregate_cap_gate`: live
-        hard-blocks into
-        :attr:`ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH`;
-        paper is advisory-with-event and continues.
+        hard-blocks into the matching portfolio terminal; paper is
+        advisory-with-event and continues.
         """
         if self.sub_account_registry is None:
             return None
         policy = self.sub_account_registry.global_risk_policy()
         if not policy.enabled:
             return None
+        daily_loss_limit = policy.portfolio_daily_loss_limit_pct
         drawdown_limit = policy.portfolio_unrealized_drawdown_limit_pct
-        if drawdown_limit is None:
+        if daily_loss_limit is None and drawdown_limit is None:
             return None
 
+        # Single pass over enabled sub-accounts: accumulate portfolio
+        # equity (drawdown denominator) and the daily-loss terms. v1
+        # single-quote-currency assumption — skip mismatches.
+        reference_quote: str | None = None
         portfolio_equity = Decimal("0")
+        portfolio_realized_today = Decimal("0")
+        portfolio_starting_equity_today = Decimal("0")
         any_equity = False
         for sub in self.sub_account_registry.list_active():
-            equity = await self._account_equity(
-                sub, self.sub_account_registry.get_trader(sub.id)
-            )
-            if equity is not None:
-                portfolio_equity += equity
-                any_equity = True
+            trader = self.sub_account_registry.get_trader(sub.id)
+            equity = await self._account_equity(sub, trader)
+            if equity is None:
+                continue
+            sub_quote = sub.capital_policy.quote_currency
+            if reference_quote is None:
+                reference_quote = sub_quote
+            elif sub_quote != reference_quote:
+                # v1 limitation: no cross-currency netting. Skip this
+                # account from the portfolio sums rather than mixing units.
+                logger.warning(
+                    "Global kill switch: skipping sub-account %s "
+                    "(quote %s != portfolio reference %s); v1 assumes a "
+                    "single common quote currency",
+                    sub.id,
+                    sub_quote,
+                    reference_quote,
+                )
+                continue
+            portfolio_equity += equity
+            any_equity = True
+            if daily_loss_limit is not None:
+                realized_today = self._realized_pnl_today(trader, sub.id)
+                portfolio_realized_today += realized_today
+                portfolio_starting_equity_today += equity - realized_today
         if not any_equity:
             # Fail-open: no usable portfolio equity reference.
+            return None
+
+        # Check 0: portfolio realized daily-loss (DEBT-068(c-2)) — first.
+        if daily_loss_limit is not None:
+            daily_loss_outcome = self._portfolio_daily_loss_check(
+                proposal=proposal,
+                record=record,
+                cycle_id=cycle_id,
+                daily_loss_limit=daily_loss_limit,
+                portfolio_realized_today=portfolio_realized_today,
+                portfolio_starting_equity_today=portfolio_starting_equity_today,
+            )
+            if daily_loss_outcome is not None:
+                return daily_loss_outcome
+
+        if drawdown_limit is None:
             return None
 
         open_trades = self._open_trades_for_correlation()
@@ -2078,6 +2301,62 @@ class TradingEngine:
             details=details,
             final_state=ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH,
             advisory_label="Portfolio kill-switch",
+        )
+
+    def _portfolio_daily_loss_check(
+        self,
+        *,
+        proposal: Proposal,
+        record: ProposalRecord,
+        cycle_id: str,
+        daily_loss_limit: Decimal,
+        portfolio_realized_today: Decimal,
+        portfolio_starting_equity_today: Decimal,
+    ) -> GateOutcome | None:
+        """Portfolio realized daily-loss kill switch.
+
+        cross-account-risk-policy §"Global Kill Switches" / DEBT-068(c-2).
+        Trips when ``portfolio_realized_pnl_today`` is worse than
+        ``-portfolio_daily_loss_limit_pct * portfolio_starting_equity_today``.
+        Both sums are precomputed by :meth:`_global_kill_switch_gate` over
+        the enabled sub-accounts sharing the common quote currency. A trip
+        blocks new entries on every sub-account.
+
+        Returns the :meth:`_kill_switch_outcome` for a breach or ``None``
+        when within the limit. Mirrors :meth:`_account_daily_loss_check`
+        with portfolio-level terms.
+        """
+        threshold = -(daily_loss_limit * portfolio_starting_equity_today)
+        if portfolio_realized_today >= threshold:
+            return None
+
+        reason = (
+            f"portfolio_daily_loss_kill_switch: portfolio_realized_today "
+            f"{portfolio_realized_today:.2f} < -({daily_loss_limit} * "
+            f"{portfolio_starting_equity_today}) = {threshold:.2f}"
+        )
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "portfolio_daily_loss_kill_switch",
+            "portfolio_realized_pnl_today": str(portfolio_realized_today),
+            "portfolio_starting_equity_today": str(
+                portfolio_starting_equity_today
+            ),
+            "portfolio_daily_loss_limit_pct": str(daily_loss_limit),
+            "portfolio_daily_loss_threshold": str(threshold),
+            "mode": self.mode,
+        }
+        return self._kill_switch_outcome(
+            proposal=proposal,
+            record=record,
+            cycle_id=cycle_id,
+            reason=reason,
+            details=details,
+            final_state=(
+                ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH
+            ),
+            advisory_label="Portfolio daily-loss kill-switch",
         )
 
     def _kill_switch_outcome(
