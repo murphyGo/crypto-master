@@ -75,7 +75,7 @@ little more tail upside for a lot more ruin.
 
 ```bash
 python -m scripts.goal_baseline --symbol BTCUSDT --interval 1h --days 365
-python -m scripts.goal_eval   --file strategies/experimental/tsmom_vol_breakout.py --days 730
-python -m scripts.goal_gamble --file strategies/experimental/tsmom_vol_breakout.py \
+python -m scripts.goal_eval   --file strategies/tsmom_vol_breakout.py --days 730
+python -m scripts.goal_gamble --file strategies/tsmom_vol_breakout.py \
     --risks 5,10,20,40 --leverage 20 --max-pos 100
 ```

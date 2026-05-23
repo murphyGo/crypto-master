@@ -812,6 +812,12 @@ class ProposalEngine:
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
     ) -> tuple[str, list[OHLCV], dict[str, list[OHLCV]] | None, Decimal | None] | None:
         """Fetch cached OHLCV and return the primary stream for analysis."""
+        # Honor each strategy's declared warmup: indicators that need
+        # ``minimum_candles + 1`` (e.g. ATR computed off the prior bar) get
+        # 10 bars of headroom. The engine's global ``ohlcv_limit`` is the
+        # floor, never the cap.
+        need = max(self.config.ohlcv_limit, strategy.minimum_candles + 10)
+
         if strategy.info.requires_multi_timeframe and strategy.info.timeframes:
             tfs = strategy.info.timeframes
             ohlcv_by_tf: dict[str, list[OHLCV]] = {}
@@ -820,6 +826,7 @@ class ProposalEngine:
                     symbol=symbol,
                     timeframe=tf,
                     ohlcv_cache=ohlcv_cache,
+                    limit=need,
                 )
             primary_tf = tfs[-1]
             primary_ohlcv = ohlcv_by_tf[primary_tf]
@@ -831,13 +838,19 @@ class ProposalEngine:
                 return None
             return primary_tf, primary_ohlcv, ohlcv_by_tf, primary_ohlcv[-1].close
 
+        # Single-TF: route to the strategy's own recommended timeframe when it
+        # declares one, falling back to the engine's global ``timeframe``. The
+        # resulting Proposal records ``eff_tf`` so it reflects the data the
+        # signal was actually computed on.
+        eff_tf = strategy.info.timeframes[0] if strategy.info.timeframes else timeframe
         primary_ohlcv = await self._fetch_ohlcv_cached(
             symbol=symbol,
-            timeframe=timeframe,
+            timeframe=eff_tf,
             ohlcv_cache=ohlcv_cache,
+            limit=need,
         )
         current_price = primary_ohlcv[-1].close if primary_ohlcv else None
-        return timeframe, primary_ohlcv, None, current_price
+        return eff_tf, primary_ohlcv, None, current_price
 
     async def _fetch_ohlcv_cached(
         self,
@@ -845,15 +858,23 @@ class ProposalEngine:
         symbol: str,
         timeframe: str,
         ohlcv_cache: dict[tuple[str, str], list[OHLCV]],
+        limit: int | None = None,
     ) -> list[OHLCV]:
         key = (symbol, timeframe)
+        effective_limit = self.config.ohlcv_limit if limit is None else limit
         cached = ohlcv_cache.get(key)
-        if cached is not None:
+        # Share the cached stream only when it is long enough for this caller;
+        # otherwise re-fetch the larger window and replace it so the entry can
+        # serve every subsequent caller. The fetch still happens once per
+        # ``(symbol, timeframe)`` per cycle for callers needing the same depth,
+        # preserving the temporal-consistency intent (all techniques see the
+        # same candle T) noted above ``_propose_for_strategy``.
+        if cached is not None and len(cached) >= effective_limit:
             return cached
         fetched = await self.exchange.get_ohlcv(
             symbol=symbol,
             timeframe=timeframe,  # type: ignore[arg-type]
-            limit=self.config.ohlcv_limit,
+            limit=effective_limit,
         )
         ohlcv_cache[key] = fetched
         return fetched
@@ -1143,9 +1164,7 @@ class ProposalEngine:
             # DEBT-070: gate on real trade count, mirroring
             # ``_select_best_technique`` so a synthetic-only history
             # doesn't push a technique out of the cold-start branch.
-            results.append(
-                (strategy, perf if perf.real_trade_count > 0 else None)
-            )
+            results.append((strategy, perf if perf.real_trade_count > 0 else None))
         return results
 
     def _score(

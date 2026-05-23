@@ -39,7 +39,7 @@ logging.disable(logging.WARNING)
 from scripts.goal_baseline import fetch_klines
 from src.strategy.loader import load_strategy
 
-STRAT_FILE = Path("strategies/experimental/tsmom_vol_breakout.py")
+STRAT_FILE = Path("strategies/tsmom_vol_breakout.py")
 STATE_DIR = Path("data/paper_forward/tsmom")
 STATE_FILE = STATE_DIR / "state.json"
 TRADES_FILE = STATE_DIR / "trades.jsonl"

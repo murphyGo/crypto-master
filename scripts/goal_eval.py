@@ -5,7 +5,7 @@ tsmom_vol_breakout has real edge at 1x, then sweeps leverage to map the
 return frontier.
 
 Usage:
-    python -m scripts.goal_eval --file strategies/experimental/tsmom_vol_breakout.py \
+    python -m scripts.goal_eval --file strategies/tsmom_vol_breakout.py \
         --interval 4h --days 730 --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT
 """
 

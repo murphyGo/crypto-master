@@ -99,6 +99,7 @@ def make_analysis(
 def make_strategy(
     info: TechniqueInfo | None = None,
     analysis: AnalysisResult | Exception | None = None,
+    minimum_candles: int = 20,
 ) -> BaseStrategy:
     """Build a mock BaseStrategy that returns ``analysis`` from analyze()."""
     info = info or make_info()
@@ -106,6 +107,7 @@ def make_strategy(
     strategy.name = info.name
     strategy.version = info.version
     strategy.info = info
+    strategy.minimum_candles = minimum_candles
 
     if isinstance(analysis, Exception):
         strategy.analyze = AsyncMock(side_effect=analysis)
@@ -170,7 +172,9 @@ def make_engine(
 
 async def test_fetch_and_validate_ohlcv_uses_cache_for_single_timeframe() -> None:
     strategy = make_strategy(info=make_info("tech_a", symbols=["BTC/USDT"]))
-    engine, exchange = make_engine()
+    # Provide >= ohlcv_limit candles so the first fetch's cached entry is long
+    # enough to be shared with the second caller (single fetch expected).
+    engine, exchange = make_engine(ohlcv=make_ohlcv(n=200))
     cache: dict[tuple[str, str], list[OHLCV]] = {}
 
     first = await engine._fetch_and_validate_ohlcv(
@@ -192,6 +196,110 @@ async def test_fetch_and_validate_ohlcv_uses_cache_for_single_timeframe() -> Non
     assert first[1] == second[1]
     assert first[2] is None
     assert first[3] == first[1][-1].close
+    exchange.get_ohlcv.assert_awaited_once()
+
+
+async def test_single_tf_routes_per_strategy_timeframe_and_count() -> None:
+    """A single-TF strategy declaring 4h + high warmup is fed 4h candles with
+    ``limit >= minimum_candles``, and the proposal records the 4h timeframe."""
+    info = make_info("tech_4h", symbols=["BTC/USDT"], technique_type="code")
+    info = info.model_copy(update={"timeframes": ["4h"]})
+    min_candles = 251
+    strategy = make_strategy(
+        info=info,
+        analysis=make_analysis(signal="long", confidence=0.8),
+        minimum_candles=min_candles,
+    )
+
+    calls: list[tuple[str, int]] = []
+
+    def fake_get_ohlcv(**kwargs: object) -> list[OHLCV]:
+        calls.append((str(kwargs["timeframe"]), int(kwargs["limit"])))  # type: ignore[call-overload]
+        return make_ohlcv(n=min_candles + 10)
+
+    engine, exchange = make_engine(
+        strategies={"tech_4h": strategy},
+        perf_records={"tech_4h": make_perf("tech_4h", total_trades=20)},
+    )
+    exchange.get_ohlcv.side_effect = fake_get_ohlcv
+
+    # Engine's global timeframe stays 1h; the strategy's 4h must win.
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT", timeframe="1h")
+
+    assert proposal is not None
+    assert proposal.timeframe == "4h"
+    assert len(calls) == 1
+    fetched_tf, fetched_limit = calls[0]
+    assert fetched_tf == "4h"
+    assert fetched_limit >= min_candles
+
+
+async def test_single_tf_falls_back_to_global_timeframe_when_undeclared() -> None:
+    """A strategy with no declared timeframes uses the engine's global TF."""
+    info = make_info("tech_default", symbols=["BTC/USDT"], technique_type="code")
+    # Model a strategy that declares no recommended timeframes: the engine
+    # then falls back to its global ``timeframe`` argument.
+    info = info.model_copy(update={"timeframes": []})
+    assert info.timeframes == []
+    strategy = make_strategy(
+        info=info,
+        analysis=make_analysis(signal="long", confidence=0.8),
+        minimum_candles=20,
+    )
+
+    calls: list[str] = []
+
+    def fake_get_ohlcv(**kwargs: object) -> list[OHLCV]:
+        calls.append(str(kwargs["timeframe"]))
+        return make_ohlcv(n=210)
+
+    engine, exchange = make_engine(
+        strategies={"tech_default": strategy},
+        perf_records={"tech_default": make_perf("tech_default", total_trades=20)},
+    )
+    exchange.get_ohlcv.side_effect = fake_get_ohlcv
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT", timeframe="1h")
+
+    assert proposal is not None
+    assert proposal.timeframe == "1h"
+    assert calls == ["1h"]
+
+
+async def test_fetch_cached_refetches_when_cached_too_short() -> None:
+    """A cached entry shorter than a later caller's need triggers a re-fetch."""
+    engine, exchange = make_engine()
+
+    def fake_get_ohlcv(**kwargs: object) -> list[OHLCV]:
+        return make_ohlcv(n=int(kwargs["limit"]))  # type: ignore[call-overload]
+
+    exchange.get_ohlcv.side_effect = fake_get_ohlcv
+
+    cache: dict[tuple[str, str], list[OHLCV]] = {}
+    cache[("BTC/USDT", "4h")] = make_ohlcv(n=50)
+
+    result = await engine._fetch_ohlcv_cached(
+        symbol="BTC/USDT",
+        timeframe="4h",
+        ohlcv_cache=cache,
+        limit=300,
+    )
+
+    # The 50-candle cached entry was too short, so a 300-candle fetch replaced it.
+    assert len(result) == 300
+    exchange.get_ohlcv.assert_awaited_once()
+    assert exchange.get_ohlcv.await_args.kwargs["limit"] == 300
+    # The cache now holds the larger window for subsequent callers.
+    assert len(cache[("BTC/USDT", "4h")]) == 300
+
+    # A second caller needing fewer candles is served from cache (no re-fetch).
+    again = await engine._fetch_ohlcv_cached(
+        symbol="BTC/USDT",
+        timeframe="4h",
+        ohlcv_cache=cache,
+        limit=100,
+    )
+    assert len(again) == 300
     exchange.get_ohlcv.assert_awaited_once()
 
 

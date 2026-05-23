@@ -8,7 +8,7 @@ liquidated or suffers a deep drawdown. This is the eyes-open picture of
 the bet, not a single cherry-picked backtest.
 
 Usage:
-    python -m scripts.goal_gamble --file strategies/experimental/tsmom_vol_breakout.py \
+    python -m scripts.goal_gamble --file strategies/tsmom_vol_breakout.py \
         --symbols BTCUSDT,ETHUSDT,SOLUSDT --days 730 --risks 1,5,10,20 --leverage 5
 """
 

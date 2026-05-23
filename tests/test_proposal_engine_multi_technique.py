@@ -70,7 +70,12 @@ def _engine_with_exchange(
     ``get_ohlcv.await_count``.
     """
     exchange = AsyncMock(spec=BaseExchange)
-    exchange.get_ohlcv.return_value = make_ohlcv()
+    # Return >= the engine's default ``ohlcv_limit`` candles so a cached
+    # entry is long enough to be shared across techniques on the same
+    # ``(symbol, timeframe)``. With per-strategy candle-count routing the
+    # cache re-fetches only when a cached list is shorter than a later
+    # caller needs, so a short stub would defeat these sharing assertions.
+    exchange.get_ohlcv.return_value = make_ohlcv(n=200)
 
     tracker = MagicMock(spec=PerformanceTracker)
     perf_records = perf_records or {}
