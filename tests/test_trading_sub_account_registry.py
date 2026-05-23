@@ -541,6 +541,11 @@ sub_accounts:
     assert policy.cap_resolution == "first_come_first_serve"
     assert policy.account_priority == []
     assert policy.operator_freeze is False
+    # DEBT-068(b): opt-in toggle defaults to off so the global cap gate
+    # is inert for deployments that don't configure it.
+    assert policy.enabled is False
+    assert policy.paper_mode == "advisory"
+    assert policy.live_mode == "hard_block"
 
 
 def test_global_risk_policy_parses_all_fields(tmp_path: Path) -> None:
@@ -587,6 +592,62 @@ def test_global_risk_policy_non_mapping_raises(tmp_path: Path) -> None:
         config_path,
         """
 global_risk_policy: 0.5
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    with pytest.raises(SubAccountConfigError, match="global_risk_policy"):
+        SubAccountRegistry(
+            settings=_make_settings(),
+            trader=_make_trader(),
+            config_path=config_path,
+        )
+
+
+def test_global_risk_policy_parses_opt_in_mode_fields(tmp_path: Path) -> None:
+    """DEBT-068(b): ``enabled``/``paper_mode``/``live_mode`` parse from YAML."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+global_risk_policy:
+  enabled: true
+  paper_mode: advisory
+  live_mode: hard_block
+  max_gross_notional_per_symbol_side: 5000
+sub_accounts:
+  - id: default
+    name: Default
+    mode: paper
+    exchange_ref: default
+    capital_policy: {initial_balance: {USDT: 10000}}
+""",
+    )
+    registry = SubAccountRegistry(
+        settings=_make_settings(),
+        trader=_make_trader(),
+        config_path=config_path,
+    )
+    policy = registry.global_risk_policy()
+    assert policy.enabled is True
+    assert policy.paper_mode == "advisory"
+    assert policy.live_mode == "hard_block"
+    assert policy.max_gross_notional_per_symbol_side == Decimal("5000")
+
+
+def test_global_risk_policy_invalid_mode_raises(tmp_path: Path) -> None:
+    """v1 pins ``live_mode`` to ``hard_block``; other values fail to parse."""
+    config_path = tmp_path / "sub_accounts.yaml"
+    _write_sub_accounts_config(
+        config_path,
+        """
+global_risk_policy:
+  enabled: true
+  live_mode: soft_warn
 sub_accounts:
   - id: default
     name: Default

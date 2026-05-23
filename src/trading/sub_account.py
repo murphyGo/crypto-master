@@ -317,6 +317,20 @@ class GlobalRiskPolicy(BaseModel):
     semantics are unchanged for deployments that don't opt in.
     """
 
+    # Opt-in toggle. DEBT-068(b): when False (the default) every global
+    # cap field is inert and the runtime's global-cap gate is a no-op,
+    # preserving the "no global gate" cycle semantics for deployments
+    # that don't opt in.
+    enabled: bool = False
+
+    # Mode handling per spec §"Global Symbol/Side Caps". v1 only supports
+    # ``advisory`` in paper (emit a would-block signal, never block) and
+    # ``hard_block`` in live. The Literals pin the v1 surface so configs
+    # that ask for an unsupported mode fail to parse rather than silently
+    # degrade.
+    paper_mode: Literal["advisory"] = "advisory"
+    live_mode: Literal["hard_block"] = "hard_block"
+
     # Aggregate count and notional caps across all enabled sub-accounts.
     max_open_positions_per_symbol_side: int | None = Field(default=None, ge=1)
     max_gross_notional_per_symbol_side: Decimal | None = Field(

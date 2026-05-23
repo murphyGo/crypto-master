@@ -1461,6 +1461,30 @@ class TradingEngine:
                     )
                 return
 
+            # cross-account-risk-policy DEBT-068(b): opt-in global
+            # symbol/side caps. Runs after the per-account aggregate cap
+            # gate AND after ``_correlation_gate`` (which runs earlier at
+            # line ~1160), satisfying the spec's "global caps checked
+            # after per-account caps and after the correlation governor"
+            # ordering. Inert unless ``GlobalRiskPolicy.enabled`` and at
+            # least one cap is configured. Paper-mode advisories return
+            # ``None`` and emit an event; live-mode rejections
+            # short-circuit here.
+            global_cap_rejection = self._global_aggregate_cap_gate(
+                proposal, record, sub_account, cycle_id
+            )
+            if global_cap_rejection is not None:
+                result.proposals_rejected += 1
+                self.proposal_history.save(global_cap_rejection.final_record)
+                for event in events + global_cap_rejection.events:
+                    self.activity_log.append(
+                        event.event_type,
+                        event.message,
+                        details=event.details,
+                        cycle_id=event.cycle_id,
+                    )
+                return
+
             # proposal-funnel-audit §1 State 5: every gate accepted;
             # the record advances to ``proposal_opened``. ``_execute``
             # promotes to ``trade_opened`` on a successful fill, and
@@ -1969,6 +1993,181 @@ class TradingEngine:
                         f"Stale-position-block rejected "
                         f"{proposal.symbol} {proposal.signal}"
                     ),
+                    details,
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    def _global_aggregate_cap_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject when an opt-in global symbol/side cap would be breached.
+
+        cross-account-risk-policy §"Global Symbol/Side Caps" /
+        DEBT-068(b). Where :meth:`_account_aggregate_cap_gate` sums one
+        sub-account's exposure, this gate aggregates across ALL active
+        sub-accounts and compares the post-fill cross-account totals
+        against the top-level :class:`GlobalRiskPolicy` caps:
+
+        - ``max_open_positions_per_symbol_side``: count of cross-account
+          open trades on ``(proposal.symbol, proposal.signal)``, plus 1
+          for the new proposal.
+        - ``max_gross_notional_per_symbol_side``: summed
+          ``entry_price * entry_quantity`` on that ``(symbol, side)``,
+          plus the new proposal's notional.
+        - ``max_gross_notional_per_symbol``: same but across BOTH sides
+          on ``proposal.symbol``.
+
+        v1 uses ``first_come_first_serve`` semantics: the proposing
+        account loses if its new position pushes the cross-account total
+        over a cap. ``cap_resolution=lowest_priority_loses`` arbitration
+        is deferred (DEBT-068(c)).
+
+        Inert paths return ``None``: no registry, ``enabled=False``, or
+        all three cap fields unset. Paper mode is advisory-with-event
+        (emit a ``PROPOSAL_REJECTED`` event with ``details.advisory=True``
+        and continue) exactly like :meth:`_account_aggregate_cap_gate`;
+        live mode hard-blocks into
+        :attr:`ProposalFinalState.GATE_REJECTED_GLOBAL_CAP`.
+
+        Ordering: the spec requires global caps run AFTER the per-account
+        caps AND after the correlation governor. ``_correlation_gate``
+        runs earlier in ``_handle_proposal`` (line ~1160, before the
+        per-account gates), so wiring this gate after
+        ``_stale_position_block_gate`` satisfies both constraints.
+        """
+        if self.sub_account_registry is None:
+            return None
+        policy = self.sub_account_registry.global_risk_policy()
+        if not policy.enabled:
+            return None
+        if (
+            policy.max_open_positions_per_symbol_side is None
+            and policy.max_gross_notional_per_symbol_side is None
+            and policy.max_gross_notional_per_symbol is None
+        ):
+            return None
+
+        symbol = proposal.symbol
+        side = proposal.signal
+
+        # Cross-account open trades, deduped across active traders.
+        open_trades = self._open_trades_for_correlation()
+        symbol_side_trades = [
+            trade
+            for trade in open_trades
+            if trade.symbol == symbol and trade.side == side
+        ]
+        symbol_trades = [trade for trade in open_trades if trade.symbol == symbol]
+
+        # +1 for the new proposal on the matching (symbol, side).
+        open_positions_total = len(symbol_side_trades) + 1
+
+        new_notional = proposal.entry_price * Decimal(str(proposal.quantity))
+        symbol_side_notional_total = (
+            sum(
+                (trade.entry_price * trade.entry_quantity for trade in symbol_side_trades),
+                start=Decimal("0"),
+            )
+            + new_notional
+        )
+        symbol_notional_total = (
+            sum(
+                (trade.entry_price * trade.entry_quantity for trade in symbol_trades),
+                start=Decimal("0"),
+            )
+            + new_notional
+        )
+
+        breaches: list[str] = []
+        if (
+            policy.max_open_positions_per_symbol_side is not None
+            and open_positions_total > policy.max_open_positions_per_symbol_side
+        ):
+            breaches.append(
+                f"open_positions_per_symbol_side {open_positions_total} > "
+                f"max {policy.max_open_positions_per_symbol_side}"
+            )
+        if (
+            policy.max_gross_notional_per_symbol_side is not None
+            and symbol_side_notional_total > policy.max_gross_notional_per_symbol_side
+        ):
+            breaches.append(
+                f"gross_notional_per_symbol_side {symbol_side_notional_total:.2f} > "
+                f"max {policy.max_gross_notional_per_symbol_side}"
+            )
+        if (
+            policy.max_gross_notional_per_symbol is not None
+            and symbol_notional_total > policy.max_gross_notional_per_symbol
+        ):
+            breaches.append(
+                f"gross_notional_per_symbol {symbol_notional_total:.2f} > "
+                f"max {policy.max_gross_notional_per_symbol}"
+            )
+        if not breaches:
+            return None
+
+        reason = "global_cap: " + "; ".join(breaches)
+        details: dict[str, Any] = {
+            **_proposal_summary(proposal),
+            "reason": reason,
+            "gate_reason": "global_cap",
+            "symbol": symbol,
+            "side": side,
+            "open_positions_per_symbol_side_total": open_positions_total,
+            "gross_notional_per_symbol_side_total": str(symbol_side_notional_total),
+            "gross_notional_per_symbol_total": str(symbol_notional_total),
+            "max_open_positions_per_symbol_side": (
+                policy.max_open_positions_per_symbol_side
+            ),
+            "max_gross_notional_per_symbol_side": (
+                str(policy.max_gross_notional_per_symbol_side)
+                if policy.max_gross_notional_per_symbol_side is not None
+                else None
+            ),
+            "max_gross_notional_per_symbol": (
+                str(policy.max_gross_notional_per_symbol)
+                if policy.max_gross_notional_per_symbol is not None
+                else None
+            ),
+            "mode": self.mode,
+        }
+
+        if self.mode == "paper":
+            # Advisory-only in paper (policy.paper_mode == "advisory"):
+            # emit the would-block event but let the proposal proceed so
+            # strategy-isolated paper measurements are not contaminated
+            # by portfolio-level throttling. The proposal record is NOT
+            # downgraded — it still lands in ``proposal_opened``.
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_REJECTED,
+                f"Global-cap advisory (paper) for {proposal.symbol}",
+                details={**details, "advisory": True},
+                cycle_id=cycle_id,
+            )
+            return None
+
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": (ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value),
+            }
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    (f"Global-cap rejected {proposal.symbol} {proposal.signal}"),
                     details,
                     cycle_id,
                 )

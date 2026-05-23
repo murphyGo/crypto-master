@@ -87,6 +87,10 @@ class FunnelCounts(BaseModel):
     gate_rejected_account_aggregate_cap: int = 0
     gate_rejected_stale_position_block: int = 0
     gate_rejected_risk_sizing: int = 0
+    # cross-account-risk-policy DEBT-068(b): opt-in global symbol/side
+    # cap bucket. Only live-mode hard-blocks land here; paper mode is
+    # advisory-only and leaves the record in ``proposal_opened``.
+    gate_rejected_global_cap: int = 0
     # strategy-tuning (2026-05-13): action-driven terminals. Pause
     # rides on a dedicated ``gate_rejected_*`` bucket; shadow is a
     # *non-rejection* terminal that records the proposal without
@@ -116,6 +120,7 @@ class FunnelCounts(BaseModel):
             + self.gate_rejected_account_aggregate_cap
             + self.gate_rejected_stale_position_block
             + self.gate_rejected_risk_sizing
+            + self.gate_rejected_global_cap
             + self.gate_rejected_strategy_action_pause
             + self.gate_rejected_unknown
         )
@@ -168,6 +173,7 @@ _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
         "gate_rejected_stale_position_block"
     ),
     ProposalFinalState.GATE_REJECTED_RISK_SIZING: "gate_rejected_risk_sizing",
+    ProposalFinalState.GATE_REJECTED_GLOBAL_CAP: "gate_rejected_global_cap",
     ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE: (
         "gate_rejected_strategy_action_pause"
     ),

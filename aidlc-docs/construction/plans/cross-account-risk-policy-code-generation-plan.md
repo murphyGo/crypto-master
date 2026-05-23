@@ -54,7 +54,15 @@ freeze, and the dashboard exposure panel.
       Opt-in global symbol/side caps, per-account + portfolio kill switches,
       and operator freeze toggle deferred under DEBT-068(b)/(c)/(d).
       Risk-sizing gate shipped 2026-05-15 under DEBT-068(a).)
-- [ ] Implement DEBT-068(b) as an opt-in global exposure cap gate.
+- [x] Implement DEBT-068(b) as an opt-in global exposure cap gate.
+      (2026-05-24: `GlobalRiskPolicy.enabled`/`paper_mode`/`live_mode`
+      fields added; new `_global_aggregate_cap_gate` wired into
+      `_handle_proposal` after `_stale_position_block_gate` — i.e. after
+      per-account caps and after `_correlation_gate` (line ~1160), per
+      spec ordering. first_come_first_serve v1; `lowest_priority_loses`
+      arbitration deferred to DEBT-068(c). New
+      `ProposalFinalState.GATE_REJECTED_GLOBAL_CAP` terminal + funnel
+      label/count wiring. +9 tests.)
       `GlobalRiskPolicy.enabled` defaults false; unset caps are inert. In paper
       mode, enabled global caps emit advisory / would-block evidence only and
       never block execution, preserving per-account strategy lab measurements.
@@ -90,8 +98,8 @@ freeze, and the dashboard exposure panel.
 
 - [x] `uv run pytest tests/test_trading_risk_sizing.py tests/test_trading_sub_account.py tests/test_runtime_engine.py -q`
 - [x] `uv run pytest tests/test_trading_sub_account_registry.py -q`
-- [ ] `uv run pytest tests/test_trading_sub_account.py tests/test_trading_sub_account_registry.py tests/test_runtime_engine.py -q`
-      for DEBT-068(b) opt-in global cap behavior.
+- [x] `uv run pytest tests/test_trading_sub_account.py tests/test_trading_sub_account_registry.py tests/test_runtime_engine.py -q`
+      for DEBT-068(b) opt-in global cap behavior. (2026-05-24: 189 passed.)
 - [ ] Targeted dashboard tests for the cross-account risk panel and operator
       freeze toggle.
 - [ ] Targeted runtime-safety-score tests for kill-switch event propagation.

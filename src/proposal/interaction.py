@@ -115,6 +115,10 @@ class ProposalFinalState(str, Enum):
     GATE_REJECTED_ACCOUNT_AGGREGATE_CAP = "gate_rejected_account_aggregate_cap"
     GATE_REJECTED_STALE_POSITION_BLOCK = "gate_rejected_stale_position_block"
     GATE_REJECTED_RISK_SIZING = "gate_rejected_risk_sizing"
+    # cross-account-risk-policy DEBT-068(b): opt-in global symbol/side
+    # caps. Only live mode hard-blocks into this terminal; paper mode is
+    # advisory-only and leaves the record in ``proposal_opened``.
+    GATE_REJECTED_GLOBAL_CAP = "gate_rejected_global_cap"
     # strategy-tuning (2026-05-13): the ``pause`` applied-action
     # rejection rides on its own terminal so the funnel separates
     # action-driven blocks from gate-driven ones.

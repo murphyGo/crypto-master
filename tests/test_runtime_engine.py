@@ -44,6 +44,7 @@ from src.strategy.tuning import (
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
+    GlobalRiskPolicy,
     MarketRegimePolicy,
     ProposalPolicy,
     RiskPolicy,
@@ -222,13 +223,22 @@ def build_engine(
 
 
 class FakeSubAccountRegistry:
-    def __init__(self, sub_accounts: list[SubAccount], traders: dict[str, MagicMock]):
+    def __init__(
+        self,
+        sub_accounts: list[SubAccount],
+        traders: dict[str, MagicMock],
+        global_policy: GlobalRiskPolicy | None = None,
+    ):
         self.sub_accounts = sub_accounts
         self.traders = traders
         self.filter_calls: list[tuple[str, list[object]]] = []
+        self._global_policy = global_policy or GlobalRiskPolicy()
 
     def list_active(self) -> list[SubAccount]:
         return self.sub_accounts
+
+    def global_risk_policy(self) -> GlobalRiskPolicy:
+        return self._global_policy
 
     def get_trader(self, id: str) -> MagicMock:
         return self.traders[id]
@@ -5572,6 +5582,415 @@ async def test_stale_position_block_gate_handles_naive_entry_time_defensively(
         == ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
     )
     assert "stale_position_block" in (record.rejection_reason or "")
+
+
+# =============================================================================
+# cross-account-risk-policy: global aggregate cap gate (DEBT-068(b))
+# =============================================================================
+
+
+async def test_global_cap_gate_disabled_is_noop_even_when_breached(
+    tmp_path: Path,
+) -> None:
+    """``GlobalRiskPolicy.enabled=False`` (default) → gate never fires.
+
+    Even when the cross-account totals would breach every cap, an absent
+    / disabled global policy must leave the proposal untouched and emit
+    no advisory event — the "no global gate" default behaviour.
+    """
+    existing = make_trade(
+        trade_id="t-eth-1",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",  # notional = 10000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-global-disabled",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="5",  # notional = 10000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=[existing],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    # No global_policy → defaults to a disabled GlobalRiskPolicy().
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "global_cap"
+    ]
+    assert advisories == []
+
+
+async def test_global_cap_gate_paper_emits_advisory_but_continues(
+    tmp_path: Path,
+) -> None:
+    """Paper mode + enabled global cap breach → advisory-with-event, no block.
+
+    Per spec §"Global Symbol/Side Caps", paper mode is advisory-only in
+    v1 so strategy-isolated paper measurements are not contaminated by
+    portfolio-level throttling. The proposal still executes; an advisory
+    event with ``advisory=True`` lands in the activity log.
+    """
+    existing = make_trade(
+        trade_id="t-eth-long",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="2",  # notional = 4000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-global-paper",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="2",  # notional = 4000; symbol_side total = 8000 > 5000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=[existing],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "paper"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    # Proposal executes; the global cap is advisory only in paper.
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+    advisories = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason") == "global_cap"
+    ]
+    assert len(advisories) == 1
+    assert advisories[0].details["advisory"] is True
+    assert advisories[0].details["mode"] == "paper"
+
+    # Record was NOT downgraded — it lands in proposal_opened / trade_opened.
+    record = mocks["history"].load("rsi-global-paper")
+    assert (
+        record.final_state != ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
+    )
+
+
+async def test_global_cap_gate_live_rejects_on_open_positions_count(
+    tmp_path: Path,
+) -> None:
+    """Live mode: ``max_open_positions_per_symbol_side`` breach hard-blocks."""
+    open_trades = [
+        make_trade(
+            trade_id="t-eth-1",
+            symbol="ETH/USDT",
+            side="long",
+            entry="2000",
+            quantity="0.1",
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+        make_trade(
+            trade_id="t-eth-2",
+            symbol="ETH/USDT",
+            side="long",
+            entry="2000",
+            quantity="0.1",
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+    ]
+    proposal = make_proposal(
+        proposal_id="rsi-global-count",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="0.1",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=open_trades,
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            # 2 open + 1 new = 3 > cap of 2.
+            max_open_positions_per_symbol_side=2,
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("rsi-global-count")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
+    assert "open_positions_per_symbol_side" in (record.rejection_reason or "")
+
+
+async def test_global_cap_gate_live_rejects_on_symbol_side_notional(
+    tmp_path: Path,
+) -> None:
+    """Live mode: ``max_gross_notional_per_symbol_side`` breach hard-blocks."""
+    existing = make_trade(
+        trade_id="t-eth-long",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="2",  # notional = 4000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-global-ssn",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="2",  # +4000; total 8000 > 5000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=[existing],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            max_gross_notional_per_symbol_side=Decimal("5000"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    record = mocks["history"].load("rsi-global-ssn")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
+    assert "gross_notional_per_symbol_side" in (record.rejection_reason or "")
+
+
+async def test_global_cap_gate_live_rejects_on_symbol_notional_both_sides(
+    tmp_path: Path,
+) -> None:
+    """Live: ``max_gross_notional_per_symbol`` sums BOTH sides on the symbol.
+
+    A delta-balanced book (long + short) stays under each per-side cap
+    but still trips the symbol-level concentration cap.
+    """
+    open_trades = [
+        make_trade(
+            trade_id="t-eth-long",
+            symbol="ETH/USDT",
+            side="long",
+            entry="2000",
+            quantity="1",  # notional = 2000
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+        make_trade(
+            trade_id="t-eth-short",
+            symbol="ETH/USDT",
+            side="short",
+            entry="2000",
+            quantity="1.5",  # notional = 3000
+        ).model_copy(update={"sub_account_id": "rsi_lab"}),
+    ]
+    proposal = make_proposal(
+        proposal_id="rsi-global-sym",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="1.5",  # +3000; symbol total = 2000+3000+3000 = 8000 > 7000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=open_trades,
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            # Per-side long total = 2000+3000 = 5000 (under per-side cap),
+            # but symbol total = 8000 > 7000.
+            max_gross_notional_per_symbol_side=Decimal("6000"),
+            max_gross_notional_per_symbol=Decimal("7000"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.proposals_rejected == 1
+    record = mocks["history"].load("rsi-global-sym")
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
+    assert "gross_notional_per_symbol" in (record.rejection_reason or "")
+
+
+async def test_global_cap_gate_enabled_but_under_caps_passes(
+    tmp_path: Path,
+) -> None:
+    """Enabled global caps with totals within bounds → no-op, proposal opens."""
+    existing = make_trade(
+        trade_id="t-eth-long",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="0.5",  # notional = 1000
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-global-ok",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="0.5",  # +1000; total 2000, count 2 — all under caps
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=[existing],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(
+            enabled=True,
+            max_open_positions_per_symbol_side=5,
+            max_gross_notional_per_symbol_side=Decimal("10000"),
+            max_gross_notional_per_symbol=Decimal("10000"),
+        ),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
+
+
+async def test_global_cap_gate_enabled_with_all_caps_unset_is_noop(
+    tmp_path: Path,
+) -> None:
+    """``enabled=True`` but every cap field None → gate stays inert."""
+    existing = make_trade(
+        trade_id="t-eth-long",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",  # large notional, but no caps configured
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+    proposal = make_proposal(
+        proposal_id="rsi-global-nocaps",
+        symbol="ETH/USDT",
+        signal="long",
+        composite=2.0,
+        entry="2000",
+        sl="1950",
+        tp="2100",
+        quantity="5",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=10,
+        ),
+        open_trades=[existing],
+        ticker_price=Decimal("2000"),
+    )
+    engine.mode = "live"
+    sub = _make_risk_sub()
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+        global_policy=GlobalRiskPolicy(enabled=True),
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_awaited_once()
 
 
 # =============================================================================
