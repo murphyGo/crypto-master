@@ -2091,12 +2091,12 @@ class TradingEngine:
         decision, since these are safety throttles rather than
         preconditions.
 
-        Paper-vs-live mirrors :meth:`_account_aggregate_cap_gate`: live
-        mode hard-blocks into the matching kill-switch terminal; paper mode
-        is advisory-with-event (``PROPOSAL_REJECTED`` with
-        ``details.advisory=True``) and lets the proposal proceed. The
-        dedicated ``RISK_KILL_SWITCH_TRIPPED`` event type is deferred to
-        DEBT-068(g).
+        Paper-vs-live: live mode hard-blocks into the matching kill-switch
+        terminal; paper mode is advisory-with-event and lets the proposal
+        proceed. DEBT-068(g): both branches emit the dedicated
+        :attr:`ActivityEventType.RISK_KILL_SWITCH_TRIPPED` event (paper
+        carries ``details.advisory=True``) via :meth:`_kill_switch_outcome`
+        so dashboards can chart trip windows over time.
         """
         if sub_account is None:
             return None
@@ -2472,14 +2472,22 @@ class TradingEngine:
 
         Shared tail for :meth:`_account_kill_switch_gate` /
         :meth:`_global_kill_switch_gate`. Paper mode emits a
-        ``PROPOSAL_REJECTED`` advisory (``details.advisory=True``) and
-        returns ``None`` so the proposal proceeds; live mode returns a
-        rejecting :class:`GateOutcome` carrying ``final_state``. Mirrors
-        the exact paper/live branch of :meth:`_account_aggregate_cap_gate`.
+        ``RISK_KILL_SWITCH_TRIPPED`` advisory (``details.advisory=True``)
+        and returns ``None`` so the proposal proceeds; live mode returns a
+        rejecting :class:`GateOutcome` carrying ``final_state``.
+
+        DEBT-068(g): kill switches are persistent portfolio-condition
+        gates, so BOTH the paper advisory AND the live hard-block emit the
+        dedicated :attr:`ActivityEventType.RISK_KILL_SWITCH_TRIPPED` event
+        (vs. the old ``PROPOSAL_REJECTED`` reuse) so dashboards can chart
+        trip windows over time. Only the EMITTED event type changes — the
+        live branch's rejection ``final_state`` stays ``final_state`` (the
+        ``GATE_REJECTED_*_KILL_SWITCH`` terminal) so the proposal funnel,
+        which keys on ``final_state``, is unchanged.
         """
         if self.mode == "paper":
             self.activity_log.append(
-                ActivityEventType.PROPOSAL_REJECTED,
+                ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
                 f"{advisory_label} advisory (paper) for {proposal.symbol}",
                 details={**details, "advisory": True},
                 cycle_id=cycle_id,
@@ -2499,7 +2507,7 @@ class TradingEngine:
             reason,
             [
                 GateActivityEvent(
-                    ActivityEventType.PROPOSAL_REJECTED,
+                    ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
                     f"{advisory_label} rejected {proposal.symbol} {proposal.signal}",
                     details,
                     cycle_id,
@@ -2530,13 +2538,12 @@ class TradingEngine:
         in paper they are advisory-with-event. ``self.mode`` selects the
         branch — paper mode lets the proposal continue (returns
         ``None``) but appends an activity event so operators see the
-        would-be rejection. Slice 1 reuses
-        :attr:`ActivityEventType.PROPOSAL_REJECTED` for the advisory
-        emission, with ``details.advisory=True`` as the discriminator
-        between hard rejections and paper-mode advisories. A dedicated
-        ``RISK_CAP_ADVISORY`` event type is deferred to Slice 2 along
-        with funnel-side filtering. Live mode produces a rejection
-        record with ``gate_rejected_account_aggregate_cap``.
+        would-be rejection. DEBT-068(g): the paper advisory now emits the
+        dedicated :attr:`ActivityEventType.RISK_CAP_ADVISORY` event
+        (``details.advisory=True`` kept as a back-compat discriminator).
+        ``RISK_CAP_ADVISORY`` is paper-only by name: live mode produces a
+        rejection record with ``gate_rejected_account_aggregate_cap`` and
+        keeps the ``PROPOSAL_REJECTED`` accompanying event.
         """
         if sub_account is None:
             return None
@@ -2619,7 +2626,7 @@ class TradingEngine:
             # as ``proposal_opened`` — matches the spec's paper-first
             # "advisory-with-event" resolution.
             self.activity_log.append(
-                ActivityEventType.PROPOSAL_REJECTED,
+                ActivityEventType.RISK_CAP_ADVISORY,
                 f"Aggregate-cap advisory (paper) for {proposal.symbol}",
                 details={**details, "advisory": True},
                 cycle_id=cycle_id,
@@ -2675,9 +2682,13 @@ class TradingEngine:
         mode the gate is advisory-with-event: same path as
         :meth:`_account_aggregate_cap_gate` — appends an
         :attr:`ActivityEventType.PROPOSAL_REJECTED` event with
-        ``details.advisory=True`` as the discriminator (a dedicated
-        ``RISK_CAP_ADVISORY`` event type is deferred to Slice 2) but
-        lets the proposal proceed.
+        ``details.advisory=True`` as the discriminator but lets the
+        proposal proceed. NOTE (DEBT-068(g)): this gate intentionally
+        stays on ``PROPOSAL_REJECTED`` and is NOT migrated to
+        ``RISK_CAP_ADVISORY`` — stale-position state already has its own
+        dedicated ``STALE_POSITION_*`` event family (DEBT-068(e)) emitted
+        from the monitor loop; the (g) cap-advisory migration is scoped to
+        the aggregate-notional caps only.
         """
         if sub_account is None:
             return None
@@ -2790,10 +2801,11 @@ class TradingEngine:
 
         Inert paths return ``None``: no registry, ``enabled=False``, or
         all three cap fields unset. Paper mode is advisory-with-event
-        (emit a ``PROPOSAL_REJECTED`` event with ``details.advisory=True``
-        and continue) exactly like :meth:`_account_aggregate_cap_gate`;
-        live mode hard-blocks into
-        :attr:`ProposalFinalState.GATE_REJECTED_GLOBAL_CAP`.
+        (DEBT-068(g): emit a :attr:`ActivityEventType.RISK_CAP_ADVISORY`
+        event with ``details.advisory=True`` and continue) exactly like
+        :meth:`_account_aggregate_cap_gate`; live mode hard-blocks into
+        :attr:`ProposalFinalState.GATE_REJECTED_GLOBAL_CAP` and keeps its
+        ``PROPOSAL_REJECTED`` accompanying event.
 
         Ordering: the spec requires global caps run AFTER the per-account
         caps AND after the correlation governor. ``_correlation_gate``
@@ -2905,7 +2917,7 @@ class TradingEngine:
             # by portfolio-level throttling. The proposal record is NOT
             # downgraded — it still lands in ``proposal_opened``.
             self.activity_log.append(
-                ActivityEventType.PROPOSAL_REJECTED,
+                ActivityEventType.RISK_CAP_ADVISORY,
                 f"Global-cap advisory (paper) for {proposal.symbol}",
                 details={**details, "advisory": True},
                 cycle_id=cycle_id,

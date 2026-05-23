@@ -5267,11 +5267,12 @@ async def test_account_aggregate_cap_gate_paper_emits_advisory_but_continues(
     assert result.positions_opened == 1
     mocks["trader"].open_position.assert_awaited_once()
 
-    # Advisory event present in activity log.
+    # Advisory event present in activity log (DEBT-068(g): dedicated
+    # RISK_CAP_ADVISORY event type, advisory=True kept as discriminator).
     advisories = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_CAP_ADVISORY
         )
         if e.details.get("gate_reason") == "account_aggregate_cap"
     ]
@@ -6079,7 +6080,7 @@ async def test_global_cap_gate_disabled_is_noop_even_when_breached(
     advisories = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_CAP_ADVISORY
         )
         if e.details.get("gate_reason") == "global_cap"
     ]
@@ -6143,7 +6144,7 @@ async def test_global_cap_gate_paper_emits_advisory_but_continues(
     advisories = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_CAP_ADVISORY
         )
         if e.details.get("gate_reason") == "global_cap"
     ]
@@ -6557,7 +6558,7 @@ async def test_open_drawdown_kill_switch_paper_advisory_proceeds(
     advisories = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason") == "open_drawdown_kill_switch"
     ]
@@ -6661,8 +6662,10 @@ async def test_open_stop_risk_kill_switch_tripped_live_distinct_from_cap_gate(
         == ProposalFinalState.GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH.value
     )
 
+    # DEBT-068(g): live kill-switch trips emit RISK_KILL_SWITCH_TRIPPED
+    # (the record final_state / funnel stays the kill-switch terminal).
     rejections = mocks["activity_log"].filter(
-        event_type=ActivityEventType.PROPOSAL_REJECTED
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
     )
     gate_reasons = {e.details.get("gate_reason") for e in rejections}
     # Kill switch fired; the aggregate-cap gate never ran (no double event).
@@ -6748,7 +6751,7 @@ async def test_account_kill_switch_equity_unavailable_returns_none_no_event(
     kill_events = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason")
         in {"open_drawdown_kill_switch", "open_stop_risk_kill_switch"}
@@ -6827,7 +6830,7 @@ async def test_global_kill_switch_summed_portfolio_drawdown_blocks_live(
     event = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason") == "portfolio_kill_switch"
     ][0]
@@ -7047,7 +7050,7 @@ async def test_daily_loss_kill_switch_tripped_live_hard_blocks(
     event = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason") == "daily_loss_kill_switch"
     ][0]
@@ -7091,7 +7094,7 @@ async def test_daily_loss_kill_switch_paper_advisory_proceeds(
     advisories = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason") == "daily_loss_kill_switch"
     ]
@@ -7258,7 +7261,7 @@ async def test_daily_loss_kill_switch_equity_unavailable_skips_no_event(
     kill_events = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason") == "daily_loss_kill_switch"
     ]
@@ -7318,7 +7321,7 @@ async def test_daily_loss_runs_before_open_drawdown_kill_switch(
         == ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH.value
     )
     rejections = mocks["activity_log"].filter(
-        event_type=ActivityEventType.PROPOSAL_REJECTED
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
     )
     gate_reasons = {e.details.get("gate_reason") for e in rejections}
     assert "daily_loss_kill_switch" in gate_reasons
@@ -7424,6 +7427,11 @@ async def test_portfolio_daily_loss_kill_switch_summed_blocks_live(
     assert (
         outcome.final_record.final_state
         == ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value
+    )
+    # DEBT-068(g): live kill-switch trips emit the dedicated event type.
+    assert (
+        outcome.events[0].event_type
+        == ActivityEventType.RISK_KILL_SWITCH_TRIPPED
     )
     details = outcome.events[0].details
     assert details["gate_reason"] == "portfolio_daily_loss_kill_switch"
@@ -7813,11 +7821,13 @@ async def test_operator_freeze_rejects_before_other_gates(tmp_path: Path) -> Non
     assert (
         record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
     )
-    # No kill-switch advisory / rejection event was emitted.
+    # No kill-switch advisory / rejection event was emitted. DEBT-068(g):
+    # kill-switch trips emit RISK_KILL_SWITCH_TRIPPED (not PROPOSAL_REJECTED),
+    # so assert that type is absent for this freeze-precedence cycle.
     kill_events = [
         e
         for e in mocks["activity_log"].filter(
-            event_type=ActivityEventType.PROPOSAL_REJECTED
+            event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED
         )
         if e.details.get("gate_reason")
     ]

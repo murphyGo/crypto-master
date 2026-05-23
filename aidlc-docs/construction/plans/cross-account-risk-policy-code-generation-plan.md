@@ -105,9 +105,13 @@ freeze, and the dashboard exposure panel.
   - [ ] New `ProposalFinalState` terminals for each kill-switch reject
         (mirroring the Slice 1 `gate_rejected_account_aggregate_cap` /
         `gate_rejected_stale_position_block` pattern) + funnel label/count
-        wiring. Paper-mode advisories reuse `PROPOSAL_REJECTED +
+        wiring. Paper-mode advisories reused `PROPOSAL_REJECTED +
         details.advisory=True` per the Slice 2a convention; the dedicated
-        `RISK_CAP_ADVISORY` event type stays deferred to DEBT-068(g).
+        `RISK_CAP_ADVISORY` / `RISK_KILL_SWITCH_TRIPPED` event types SHIPPED
+        2026-05-24 under DEBT-068(g) (event-type migration only — the four risk
+        paper/live emission sites now use the dedicated values; the
+        `details.advisory=True` discriminator is preserved and `final_state` /
+        funnel are unchanged).
         (DEBT-068(c-1) — 2026-05-24: three stateless terminals added —
         `GATE_REJECTED_OPEN_DRAWDOWN_KILL_SWITCH`,
         `GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH`,
@@ -227,9 +231,18 @@ freeze, and the dashboard exposure panel.
       `STALE_POSITION_DETECTED` / `STALE_POSITION_AUTO_CLOSED` are EMITTED to
       the activity log as of 2026-05-24, but their dashboard surfacing +
       safety-score feed are NOT built — tracked here and under (f)/(h). Paper-
-      mode cap advisories currently reuse `PROPOSAL_REJECTED +
-      details.advisory=True` per Q2 docstring-honesty fix; dedicated
-      `RISK_CAP_ADVISORY` event type tracked under DEBT-068(g).
+      mode cap advisories now emit the dedicated `RISK_CAP_ADVISORY` event type
+      (DEBT-068(g) SHIPPED 2026-05-24 — paper cap advisories migrated off the
+      `PROPOSAL_REJECTED + details.advisory=True` reuse, with the kill-switch
+      paper + live emissions moved to `RISK_KILL_SWITCH_TRIPPED`; event-type
+      migration only, `final_state` / funnel unchanged, `details.advisory=True`
+      preserved). One follow-up surfaced: the secondary dashboard "Rejected"
+      column in `src/dashboard/pages/engine.py` keys on exact
+      `event_type == PROPOSAL_REJECTED`, so LIVE kill-switch hard-blocks (now
+      emitted as `RISK_KILL_SWITCH_TRIPPED`) are excluded from that tally — a
+      genuine undercount in that one column (no data lost; funnel keyed on
+      `final_state` remains authoritative) — filed (g-note-dashboard-undercount)
+      tied to (f).
       `runtime-safety-score` kill-switch + stale-event integration tracked
       under DEBT-068(h).)
 - [x] **DEBT-068(d) — operator-freeze RUNTIME READ side. SHIPPED 2026-05-24.**

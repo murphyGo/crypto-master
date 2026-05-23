@@ -383,6 +383,68 @@ class ActivityEventType(str, Enum):
     #                                  reaches the auto-close path)
     STALE_POSITION_AUTO_CLOSED = "stale_position_auto_closed"
 
+    # cross-account-risk-policy DEBT-068(g): paper-mode exposure-cap
+    # advisory. Emitted by the per-account aggregate-cap gate
+    # (``_account_aggregate_cap_gate``) and the opt-in global symbol/side
+    # cap gate (``_global_aggregate_cap_gate``) when, in PAPER mode, a
+    # configured cap WOULD be breached. Paper mode is advisory-only: the
+    # event is emitted but the proposal still proceeds (the proposal
+    # record is NOT downgraded, so the funnel still counts it as
+    # ``proposal_opened``). This is paper-only by design — in LIVE mode
+    # caps hard-block and the rejection's accompanying event stays
+    # ``PROPOSAL_REJECTED`` with the matching ``gate_rejected_*_cap``
+    # terminal. A dedicated event type (vs. reusing ``PROPOSAL_REJECTED``)
+    # lets dashboards chart cap pressure over time per spec §"Activity
+    # events" — caps are a persistent portfolio-condition gate.
+    # ``details.advisory=True`` is KEPT as a back-compat discriminator and
+    # a quick "this never blocked execution" flag. ``details`` payload
+    # (structured-fields contract):
+    #
+    #     proposal_id (str)
+    #     symbol (str)
+    #     reason (str)                 human-readable breach summary
+    #     gate_reason ("account_aggregate_cap" | "global_cap")
+    #     advisory (True)              always True (paper-only event)
+    #     mode ("paper")
+    #     ... plus gate-specific cap totals / limits (e.g.
+    #     gross_notional_total, open_stop_risk_total, sub_account_id for
+    #     the per-account gate; open_positions_per_symbol_side_total,
+    #     gross_notional_per_symbol_side_total, symbol, side for the
+    #     global gate).
+    RISK_CAP_ADVISORY = "risk_cap_advisory"
+
+    # cross-account-risk-policy DEBT-068(g): portfolio kill switch tripped.
+    # Emitted by the per-account kill-switch gate
+    # (``_account_kill_switch_gate``: daily-loss, open-drawdown,
+    # open-stop-risk) and the global kill-switch gate
+    # (``_global_kill_switch_gate``: portfolio daily-loss / drawdown),
+    # both routed through the shared ``_kill_switch_outcome`` tail. Unlike
+    # caps, kill switches earn a dedicated event type in BOTH modes
+    # because they are persistent portfolio-condition gates the spec
+    # explicitly wants charted over time (spec §"Activity events" /
+    # "Runtime Behavior"):
+    #   - PAPER advisory branch: emitted with ``details.advisory=True``;
+    #     the proposal proceeds (no record downgrade).
+    #   - LIVE hard-block branch: emitted as the rejection's accompanying
+    #     activity event. NOTE: only the emitted event type changes — the
+    #     proposal RECORD's ``final_state`` stays the
+    #     ``GATE_REJECTED_*_KILL_SWITCH`` terminal and the proposal funnel
+    #     (which keys on ``final_state``, not event type) is UNCHANGED.
+    # ``details`` payload (structured-fields contract):
+    #
+    #     proposal_id (str)
+    #     symbol (str)
+    #     reason (str)                 human-readable trip summary
+    #     gate_reason (str)            e.g. "daily_loss_kill_switch",
+    #                                  "open_drawdown_kill_switch",
+    #                                  "open_stop_risk_kill_switch",
+    #                                  "portfolio_kill_switch",
+    #                                  "portfolio_daily_loss_kill_switch"
+    #     advisory (bool)              True on the paper branch; absent/False
+    #                                  on the live hard-block branch
+    #     ... plus gate-specific metric/limit fields.
+    RISK_KILL_SWITCH_TRIPPED = "risk_kill_switch_tripped"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.
