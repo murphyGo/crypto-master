@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
@@ -77,6 +78,10 @@ from src.runtime.market_regime import (
 from src.runtime.reconciliation import (
     classify_open_trade,
     compute_health_report,
+)
+from src.runtime.runtime_flags import (
+    DEFAULT_RUNTIME_FLAGS_PATH,
+    read_trading_freeze,
 )
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
@@ -277,6 +282,13 @@ class EngineConfig(BaseModel):
         default=1,
         ge=1,
     )
+    # cross-account-risk-policy DEBT-068(d): path to the operator manual
+    # freeze flag file. Re-read at the START of every ``run_cycle`` so an
+    # operator can freeze a RUNNING engine without a restart. Defaults to
+    # ``config/runtime_flags.yaml`` (project-root-relative, matching the
+    # ``SubAccountRegistry`` config-path convention). Missing or malformed
+    # file ⇒ NOT frozen (freeze is an explicit opt-in).
+    runtime_flags_path: Path = Field(default=DEFAULT_RUNTIME_FLAGS_PATH)
 
 
 @dataclass(frozen=True)
@@ -669,6 +681,14 @@ class TradingEngine:
 
         self._stop_event = asyncio.Event()
         self._cycle_index = 0
+        # cross-account-risk-policy DEBT-068(d): operator manual freeze
+        # state for the CURRENT cycle. Read ONCE at the top of
+        # ``run_cycle`` from ``config/runtime_flags.yaml`` (one disk read
+        # per cycle, NOT per proposal). When True, ``_handle_proposal``
+        # rejects every proposal at the earliest gate in both paper and
+        # live mode. Initialised False so an engine that never runs a
+        # cycle is treated as not frozen.
+        self._operator_freeze_active = False
         self._strategy_lookup_cache: dict[str, str] | None = None
         self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
         self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
@@ -861,6 +881,14 @@ class TradingEngine:
         """
         cycle_id = str(uuid.uuid4())
         self._cycle_index += 1
+        # cross-account-risk-policy DEBT-068(d): re-read the operator
+        # manual freeze flag ONCE per cycle so an operator can freeze a
+        # RUNNING engine without a restart. Cached on ``self`` and read
+        # by every ``_handle_proposal`` call this cycle (no per-proposal
+        # disk read). Fail-safe to NOT frozen on missing/malformed file.
+        self._operator_freeze_active = read_trading_freeze(
+            self.config.runtime_flags_path
+        )
         self._strategy_lookup_cache = None
         self._runtime_policy_cache = {}
         self._runtime_safety_score_cache = None
@@ -1091,6 +1119,21 @@ class TradingEngine:
                 cycle_id,
             )
         ]
+
+        # cross-account-risk-policy DEBT-068(d) — Operator manual freeze.
+        # The EARLIEST reject in the gate stack (spec §"Runtime Behavior"
+        # gate 1): if the operator flipped ``runtime_flags.trading_freeze``
+        # true (read once per cycle into ``self._operator_freeze_active``),
+        # reject EVERY proposal with ``reason="operator_freeze"`` ahead of
+        # the score gate, correlation, regime, kill-switches, sizing, and
+        # caps. Unlike the cap / kill-switch gates this is a MANUAL kill,
+        # so it hard-blocks in BOTH paper and live mode — the operator
+        # explicitly pulled the lever, so there is no lab-measurement
+        # rationale to keep paper trading. We do NOT reuse
+        # ``_kill_switch_outcome`` (which keeps paper advisory).
+        if self._operator_freeze_active:
+            self._reject_operator_freeze(proposal, cycle_id, result, events)
+            return
 
         safety_score = self._current_runtime_safety_score(
             [event.to_activity_event() for event in events]
@@ -2358,6 +2401,60 @@ class TradingEngine:
             ),
             advisory_label="Portfolio daily-loss kill-switch",
         )
+
+    def _reject_operator_freeze(
+        self,
+        proposal: Proposal,
+        cycle_id: str,
+        result: CycleResult,
+        events: list[GateActivityEvent],
+    ) -> None:
+        """Reject one proposal under the operator manual freeze.
+
+        cross-account-risk-policy DEBT-068(d), spec §"Operator Manual
+        Freeze" + §"Runtime Behavior" gate 1. The earliest reject — runs
+        ahead of the score gate, so we persist a rejected
+        :class:`ProposalRecord` directly (carrying
+        :attr:`ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE`) without
+        first running the score decision.
+
+        Hard-blocks in BOTH paper and live mode — the operator pulled the
+        lever, so unlike the cap / kill-switch gates there is no
+        paper-advisory carve-out. Emits the dedicated
+        :attr:`ActivityEventType.OPERATOR_FREEZE_ENGAGED` so dashboards can
+        chart the freeze window over time; the per-proposal rejection
+        detail uses ``reason="operator_freeze"``.
+        """
+        result.proposals_rejected += 1
+        details = {
+            "proposal_id": proposal.proposal_id,
+            "symbol": proposal.symbol,
+            "reason": "operator_freeze",
+        }
+        rejected_record = ProposalRecord(
+            proposal=proposal,
+            sub_account_id=proposal.sub_account_id,
+            decision=ProposalDecision.REJECTED,
+            decision_at=now_utc(),
+            actor=self.config.actor,
+            rejection_reason="operator_freeze",
+            final_state=ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE,
+        )
+        self.proposal_history.save(rejected_record)
+
+        freeze_event = GateActivityEvent(
+            ActivityEventType.OPERATOR_FREEZE_ENGAGED,
+            f"Operator freeze rejected {proposal.symbol} {proposal.signal}",
+            details,
+            cycle_id,
+        )
+        for event in events + [freeze_event]:
+            self.activity_log.append(
+                event.event_type,
+                event.message,
+                details=event.details,
+                cycle_id=event.cycle_id,
+            )
 
     def _kill_switch_outcome(
         self,
@@ -4638,8 +4735,6 @@ class TradingEngine:
         to ``Settings.data_dir`` when the trader doesn't expose a
         tracker (mock traders in unit tests).
         """
-        from pathlib import Path
-
         tracker = getattr(self.trader, "_trade_tracker", None)
         tracker_dir = getattr(tracker, "data_dir", None)
         if isinstance(tracker_dir, Path):

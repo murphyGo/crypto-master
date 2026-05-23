@@ -104,6 +104,11 @@ class FunnelCounts(BaseModel):
     # paper mode is advisory-only.
     gate_rejected_daily_loss_kill_switch: int = 0
     gate_rejected_portfolio_daily_loss_kill_switch: int = 0
+    # cross-account-risk-policy DEBT-068(d): operator manual freeze, the
+    # earliest reject. Hard-blocks in BOTH paper and live (manual kill;
+    # no advisory carve-out), so every frozen-cycle proposal lands here
+    # regardless of mode.
+    gate_rejected_operator_freeze: int = 0
     # strategy-tuning (2026-05-13): action-driven terminals. Pause
     # rides on a dedicated ``gate_rejected_*`` bucket; shadow is a
     # *non-rejection* terminal that records the proposal without
@@ -139,6 +144,7 @@ class FunnelCounts(BaseModel):
             + self.gate_rejected_portfolio_kill_switch
             + self.gate_rejected_daily_loss_kill_switch
             + self.gate_rejected_portfolio_daily_loss_kill_switch
+            + self.gate_rejected_operator_freeze
             + self.gate_rejected_strategy_action_pause
             + self.gate_rejected_unknown
         )
@@ -206,6 +212,9 @@ _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
     ),
     ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH: (
         "gate_rejected_portfolio_daily_loss_kill_switch"
+    ),
+    ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE: (
+        "gate_rejected_operator_freeze"
     ),
     ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE: (
         "gate_rejected_strategy_action_pause"

@@ -144,6 +144,14 @@ class ProposalFinalState(str, Enum):
     GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH = (
         "gate_rejected_portfolio_daily_loss_kill_switch"
     )
+    # cross-account-risk-policy DEBT-068(d): operator manual freeze. The
+    # EARLIEST reject in the gate stack — when the operator flips
+    # ``runtime_flags.trading_freeze`` true, EVERY proposal lands here
+    # ahead of correlation / regime / kill-switch / sizing / caps. Unlike
+    # the cap / kill-switch gates this is a MANUAL kill, so it hard-blocks
+    # in BOTH paper and live mode (no lab-measurement carve-out — the
+    # operator explicitly pulled the lever). Never auto-releases.
+    GATE_REJECTED_OPERATOR_FREEZE = "gate_rejected_operator_freeze"
     # strategy-tuning (2026-05-13): the ``pause`` applied-action
     # rejection rides on its own terminal so the funnel separates
     # action-driven blocks from gate-driven ones.

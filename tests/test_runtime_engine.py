@@ -7282,3 +7282,222 @@ def test_strategy_action_gate_no_sub_account_is_no_op(tmp_path: Path) -> None:
     assert outcome is None
     assert new_proposal is proposal
     assert new_record is record
+
+
+# =============================================================================
+# cross-account-risk-policy DEBT-068(d): operator manual freeze
+# =============================================================================
+
+
+def _write_freeze_flag(path: Path, *, frozen: bool) -> None:
+    """Write a ``config/runtime_flags.yaml``-shaped file at ``path``."""
+    path.write_text(
+        f"runtime_flags:\n  trading_freeze: {str(frozen).lower()}\n",
+        encoding="utf-8",
+    )
+
+
+async def test_operator_freeze_absent_file_trades_normally(tmp_path: Path) -> None:
+    """No flag file ⇒ not frozen ⇒ proposal proceeds to execution."""
+    proposal = make_proposal(proposal_id="no-freeze", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_flags_path=tmp_path / "runtime_flags.yaml",  # absent
+        ),
+    )
+
+    result = await engine.run_cycle()
+
+    assert engine._operator_freeze_active is False
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    mocks["trader"].open_position.assert_called_once()
+    freeze_events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.OPERATOR_FREEZE_ENGAGED
+    )
+    assert freeze_events == []
+
+
+@pytest.mark.parametrize("mode", ["paper", "live"])
+async def test_operator_freeze_rejects_in_both_modes(
+    tmp_path: Path, mode: str
+) -> None:
+    """``trading_freeze: true`` hard-blocks every proposal in paper AND live.
+
+    Unlike caps / kill-switches there is no paper-advisory carve-out: the
+    operator pulled the lever, so no position opens in either mode.
+    """
+    flag_path = tmp_path / "runtime_flags.yaml"
+    _write_freeze_flag(flag_path, frozen=True)
+    proposal = make_proposal(proposal_id="frozen", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_flags_path=flag_path,
+        ),
+    )
+    engine.mode = mode  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert engine._operator_freeze_active is True
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_called()
+
+    record = mocks["history"].load("frozen")
+    assert (
+        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
+    )
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "operator_freeze"
+
+    freeze_events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.OPERATOR_FREEZE_ENGAGED
+    )
+    assert len(freeze_events) == 1
+    assert freeze_events[0].details.get("reason") == "operator_freeze"
+    assert freeze_events[0].details.get("proposal_id") == "frozen"
+
+
+async def test_operator_freeze_rejects_before_other_gates(tmp_path: Path) -> None:
+    """Freeze is the earliest reject — it wins over a would-be kill-switch.
+
+    The proposal's account is configured with a tripped open-drawdown kill
+    switch; without the freeze it would be rejected with
+    ``open_drawdown_kill_switch``. With the freeze on, the operator-freeze
+    terminal fires instead and the kill-switch gate never runs.
+    """
+    flag_path = tmp_path / "runtime_flags.yaml"
+    _write_freeze_flag(flag_path, frozen=True)
+
+    existing = make_trade(
+        trade_id="t-dd",
+        symbol="ETH/USDT",
+        side="long",
+        entry="2000",
+        quantity="5",
+    ).model_copy(
+        update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")}
+    )
+    proposal = make_proposal(
+        proposal_id="freeze-precedence",
+        symbol="BTC/USDT",
+        composite=2.0,
+        quantity="0.01",
+    ).model_copy(update={"sub_account_id": "rsi_lab"})
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_flags_path=flag_path,
+        ),
+        open_trades=[existing],
+    )
+    engine.mode = "live"
+    # Drive the open position deep underwater so the kill switch *would*
+    # trip if it were reached.
+    engine._remember_mark_price("ETH/USDT", Decimal("100"))
+    sub = _make_risk_sub(open_unrealized_drawdown_limit_pct=Decimal("0.05"))
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    record = mocks["history"].load("freeze-precedence")
+    # Operator freeze wins; the kill-switch terminal never fires.
+    assert (
+        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
+    )
+    # No kill-switch advisory / rejection event was emitted.
+    kill_events = [
+        e
+        for e in mocks["activity_log"].filter(
+            event_type=ActivityEventType.PROPOSAL_REJECTED
+        )
+        if e.details.get("gate_reason")
+    ]
+    assert kill_events == []
+    assert (
+        len(
+            mocks["activity_log"].filter(
+                event_type=ActivityEventType.OPERATOR_FREEZE_ENGAGED
+            )
+        )
+        == 1
+    )
+
+
+async def test_operator_freeze_malformed_file_does_not_freeze(
+    tmp_path: Path,
+) -> None:
+    """Malformed flag file ⇒ treated as not-frozen; cycle does not crash."""
+    flag_path = tmp_path / "runtime_flags.yaml"
+    flag_path.write_text("runtime_flags: [oops\n", encoding="utf-8")  # bad YAML
+    proposal = make_proposal(proposal_id="malformed", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_flags_path=flag_path,
+        ),
+    )
+
+    result = await engine.run_cycle()
+
+    assert engine._operator_freeze_active is False
+    assert result.positions_opened == 1
+    mocks["trader"].open_position.assert_called_once()
+
+
+async def test_operator_freeze_reloaded_per_cycle(tmp_path: Path) -> None:
+    """Flipping the flag file between cycles changes the next cycle's behavior.
+
+    Cycle 1 runs unfrozen (file absent), opens a position. The operator
+    then writes ``trading_freeze: true``; cycle 2 picks it up at the top of
+    the cycle and rejects.
+    """
+    flag_path = tmp_path / "runtime_flags.yaml"
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=make_proposal(proposal_id="cycle1", composite=2.0),
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            runtime_flags_path=flag_path,
+        ),
+    )
+
+    # Cycle 1: no flag file → not frozen → opens.
+    result1 = await engine.run_cycle()
+    assert engine._operator_freeze_active is False
+    assert result1.positions_opened == 1
+
+    # Operator freezes a RUNNING engine; swap the per-cycle proposal too.
+    _write_freeze_flag(flag_path, frozen=True)
+    mocks["proposal_engine"].propose_bitcoin = AsyncMock(
+        return_value=make_proposal(proposal_id="cycle2", composite=2.0)
+    )
+
+    # Cycle 2: flag re-read at cycle top → frozen → rejects.
+    result2 = await engine.run_cycle()
+    assert engine._operator_freeze_active is True
+    assert result2.proposals_rejected == 1
+    assert result2.positions_opened == 0
+    record = mocks["history"].load("cycle2")
+    assert (
+        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
+    )
+    # open_position was called exactly once across both cycles (cycle 1 only).
+    mocks["trader"].open_position.assert_called_once()

@@ -1,0 +1,21 @@
+# Operator runtime flags (cross-account-risk-policy DEBT-068(d)).
+#
+# Copy to ``config/runtime_flags.yaml`` to engage. The trading engine
+# re-reads this file at the START of every cycle, so an operator can
+# freeze a RUNNING engine WITHOUT a restart — flip the flag, save, and
+# the next cycle picks it up.
+#
+# Fail-safe semantics (freeze is an explicit opt-in):
+#   - File missing            -> trading_freeze = false (normal trading)
+#   - Malformed / unreadable  -> a loud warning is logged, treated as false
+#
+# When ``trading_freeze: true`` the engine rejects ALL proposals with
+# reason="operator_freeze" ahead of EVERY other gate (correlation,
+# regime, kill switches, sizing, caps). This is a MANUAL kill: it
+# hard-blocks in BOTH paper and live mode. Open positions are left to
+# wind down through their own SL/TP — the freeze only blocks new entries.
+#
+# Hysteresis: the freeze NEVER auto-releases. Set the flag back to
+# ``false`` (an explicit operator edit) to resume trading.
+runtime_flags:
+  trading_freeze: false

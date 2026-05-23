@@ -204,10 +204,35 @@ freeze, and the dashboard exposure panel.
       fix; dedicated `RISK_CAP_ADVISORY` event type tracked under
       DEBT-068(g). `runtime-safety-score` kill-switch integration
       tracked under DEBT-068(h).)
-- [ ] Add the Cross-Account Risk dashboard panel and the operator freeze
-      toggle. (Deferred to Slice 2 under DEBT-068(f); operator freeze
-      toggle reload-per-cycle infrastructure deferred under
-      DEBT-068(d).)
+- [x] **DEBT-068(d) — operator-freeze RUNTIME READ side. SHIPPED 2026-05-24.**
+      (Split out from the originally-bundled dashboard-panel checkbox below so
+      the runtime-shipped half and the dashboard-pending half are unambiguous.)
+      A file-based `config/runtime_flags.yaml` reader (`read_trading_freeze` in
+      `src/runtime/runtime_flags.py`), re-read ONCE at the top of `run_cycle`
+      into `self._operator_freeze_active` (freezes a RUNNING engine without
+      restart; fail-safe to NOT frozen on missing/malformed/non-bool file — a
+      typo can neither freeze nor crash the cycle). New
+      `EngineConfig.runtime_flags_path` (default `config/runtime_flags.yaml`).
+      Gate at the VERY TOP of `_handle_proposal` — the earliest reject, ahead of
+      correlation / regime / kill-switch / sizing / caps — hard-blocking in BOTH
+      paper and live (manual kill; NO paper-advisory carve-out, unlike the
+      kill-switch gates). New `ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE`
+      terminal + `FunnelCounts` field + `_STATE_TO_FIELD` entry +
+      `gate_rejected_total` inclusion; new
+      `ActivityEventType.OPERATOR_FREEZE_ENGAGED` event with
+      `reason="operator_freeze"`. `config/runtime_flags.yaml.example` added.
+      Freeze blocks NEW-ENTRY proposals only; open positions wind down via the
+      separate (non-freeze-gated) SL/TP polling path, per spec. +17 tests (11
+      loader + 6 engine); full suite 2134 passed (+17); ruff + mypy clean;
+      qa-reviewer 🟢. Session log
+      `docs/sessions/2026-05-24-cross-account-risk-policy-operator-freeze.md`.
+- [ ] **DEBT-068(f) — Cross-Account Risk dashboard panel + operator-freeze
+      toggle WRITE side.** (Originally bundled with the (d) runtime read side
+      above; split 2026-05-24. The runtime READ side shipped under (d); what
+      remains here is the dashboard panel — per-account + global aggregate
+      views, kill-switch state indicator, freeze-state indicator — plus the
+      operator-freeze toggle UI that WRITES `trading_freeze` back to
+      `config/runtime_flags.yaml`. NOT built; stays open.)
 - [ ] Add tests for sizing math, config parsing, gate ordering, kill-switch
       lifecycle, stale-position actions, and dashboard rendering.
       (Slice 1 partial — sizing-math, config-parsing, per-account

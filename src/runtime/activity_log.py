@@ -317,6 +317,21 @@ class ActivityEventType(str, Enum):
     #     symbol (str)
     RETUNE_FLAGGED = "retune_flagged"
 
+    # cross-account-risk-policy DEBT-068(d): operator manual freeze
+    # engaged. Emitted for every proposal rejected because the operator
+    # flipped ``runtime_flags.trading_freeze`` true in
+    # ``config/runtime_flags.yaml`` (re-read at the top of each cycle).
+    # The freeze is the EARLIEST reject in the gate stack and hard-blocks
+    # in BOTH paper and live mode (manual kill — no paper-advisory
+    # carve-out). A dedicated event type (vs. reusing ``PROPOSAL_REJECTED``)
+    # lets dashboards chart the freeze window over time per spec
+    # §"Activity events". ``details`` payload:
+    #
+    #     proposal_id (str)
+    #     symbol (str)
+    #     reason ("operator_freeze")
+    OPERATOR_FREEZE_ENGAGED = "operator_freeze_engaged"
+
 
 class ActivityEvent(BaseModel):
     """A single activity log entry.
