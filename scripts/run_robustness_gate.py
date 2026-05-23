@@ -172,6 +172,22 @@ STRATEGY_SPECS: tuple[StrategySpec, ...] = (
         timeframe="4h",
         param_grid={},
     ),
+    StrategySpec(
+        name="raschke_holy_grail",
+        strategy_file="raschke_holy_grail.py",
+        timeframe="1h",
+        # Knobs (ADX_THRESHOLD, EMA_PERIOD, ...) are module-level
+        # constants, not __init__ kwargs — sensitivity gate skips.
+        param_grid={},
+    ),
+    StrategySpec(
+        name="ma_crossover",
+        strategy_file="ma_crossover.py",
+        timeframe="1h",
+        # MovingAverageCrossoverStrategy.__init__ accepts short/long period.
+        param_grid={"short_period": [8, 10, 12], "long_period": [20, 25, 30]},
+        factory_kwargs=("short_period", "long_period"),
+    ),
 )
 
 SYMBOL = "BTC/USDT"

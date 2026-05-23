@@ -132,7 +132,8 @@ def test_runner_loads_target_strategies() -> None:
     real run. Pin the existence of each file so the runner stays in
     sync with what's on disk.
     """
-    assert len(STRATEGY_SPECS) == 7  # P0~P4 + DEBT-060/DEBT-061 cohort
+    # P0~P4 + DEBT-060/DEBT-061 cohort (7) + raschke_holy_grail, ma_crossover (2)
+    assert len(STRATEGY_SPECS) == 9
     seen_names: set[str] = set()
     for spec in STRATEGY_SPECS:
         path = STRATEGIES_DIR / spec.strategy_file
