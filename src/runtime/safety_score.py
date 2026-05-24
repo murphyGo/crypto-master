@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -43,6 +44,7 @@ class RuntimeSafetyInputs(BaseModel):
     correlation_warnings: int = Field(default=0, ge=0)
     liquidation_events: int = Field(default=0, ge=0)
     cold_start_blocks: int = Field(default=0, ge=0)
+    kill_switch_conditions: int = Field(default=0, ge=0)
     open_drawdown_percent: float = Field(default=0.0, ge=0.0)
 
 
@@ -102,6 +104,7 @@ def inputs_from_activity_events(
         correlation_warnings=_count(events, ActivityEventType.CORRELATION_WARNING),
         liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
         cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
+        kill_switch_conditions=_count_kill_switch_conditions(events),
         open_drawdown_percent=open_drawdown_percent,
     )
 
@@ -181,6 +184,12 @@ def compute_runtime_safety_score(
     )
     score = _apply_penalty(
         score,
+        min(inputs.kill_switch_conditions * 25, 60),
+        f"kill-switch conditions={inputs.kill_switch_conditions}",
+        factors,
+    )
+    score = _apply_penalty(
+        score,
         min(inputs.cold_start_blocks * 5, 15),
         f"cold-start blocks={inputs.cold_start_blocks}",
         factors,
@@ -205,6 +214,45 @@ def compute_runtime_safety_score(
 
 def _count(events: list[ActivityEvent], event_type: ActivityEventType) -> int:
     return sum(1 for event in events if event.event_type == event_type.value)
+
+
+def _count_kill_switch_conditions(events: list[ActivityEvent]) -> int:
+    """Count distinct LIVE kill-switch conditions in ``events``.
+
+    DEBT-068(h): kill-switch trips are persistent portfolio-condition
+    gates that should pull the runtime safety score toward DEGRADED. A
+    single tripped condition can fire on every proposal in a cycle, so
+    raw event counts overstate severity. We instead count DISTINCT
+    ``(cycle_id, gate_reason, sub_account_id)`` tuples — one trip of a
+    given gate, in a given cycle, on a given account, counts once.
+
+    Paper advisories (``details.advisory`` truthy) are EXCLUDED: the
+    score measures live money-safety health, and paper-mode kill
+    switches are advisory-only (the proposal still proceeds). The
+    ``cycle_id`` is read from the event's top-level field (where the
+    engine reliably sets it on both the paper-advisory and live
+    hard-block branches), falling back to ``details`` for robustness.
+    Missing/None ``sub_account_id`` normalizes to ``"__global__"`` so a
+    portfolio-level gate counts once per cycle. The portfolio/global
+    gates (``portfolio_kill_switch`` / ``portfolio_daily_loss_kill_switch``)
+    drop the proposer ``sub_account_id`` at emit time (DEBT-068(h)), so a
+    single global trip that fires across N proposers in one cycle collapses
+    to ONE condition here instead of N. Account-level gates carry a stable
+    real account id and so still count per-account.
+    """
+    conditions: set[tuple[str | None, Any, str]] = set()
+    for event in events:
+        if event.event_type != ActivityEventType.RISK_KILL_SWITCH_TRIPPED.value:
+            continue
+        if event.details.get("advisory"):
+            continue
+        cycle_id = event.cycle_id
+        if cycle_id is None:
+            cycle_id = event.details.get("cycle_id")
+        gate_reason = event.details.get("gate_reason")
+        sub_account_id = event.details.get("sub_account_id") or "__global__"
+        conditions.add((cycle_id, gate_reason, sub_account_id))
+    return len(conditions)
 
 
 def _is_stale_quote(event: ActivityEvent) -> bool:

@@ -1349,6 +1349,63 @@ def test_kill_switch_state_stale_block() -> None:
     assert state == "stale-block"
 
 
+def test_portfolio_trip_not_attributed_to_proposer() -> None:
+    """DEBT-068(h) f-1 regression: a PORTFOLIO trip has no owning account.
+
+    The engine drops the proposer ``sub_account_id`` on
+    ``portfolio_*`` kill-switch events, so the per-account state panel
+    must NOT light up any sub-account for a global trip. A separate
+    account-level trip on the same account still resolves normally.
+    """
+    portfolio_trip = make_event(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        timestamp=now_utc(),
+        cycle_id="cyc-1",
+        details={
+            "proposal_id": "p-1",
+            "symbol": "ETHUSDT",
+            "side": "long",
+            "gate_reason": "portfolio_daily_loss_kill_switch",
+            "mode": "live",
+            # NOTE: no sub_account_id — engine dropped the proposer id.
+        },
+    )
+    # No real account should be attributed the portfolio trip.
+    assert (
+        kill_switch_state_for_account([portfolio_trip], "acc", cycle_id="cyc-1")
+        == "none"
+    )
+    # An account-level trip on the same cycle still resolves for that account.
+    account_trip = _kill_switch_event(
+        sub_account_id="acc", gate_reason="daily_loss_kill_switch"
+    )
+    assert (
+        kill_switch_state_for_account(
+            [portfolio_trip, account_trip], "acc", cycle_id="cyc-1"
+        )
+        == "daily-loss-tripped"
+    )
+
+
+def test_risk_gate_events_portfolio_trip_renders_dash_account() -> None:
+    """DEBT-068(h) f-1: a portfolio trip with no sub_account_id renders '—'."""
+    portfolio_trip = make_event(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        timestamp=now_utc(),
+        cycle_id="cyc-1",
+        details={
+            "proposal_id": "p-1",
+            "symbol": "ETHUSDT",
+            "side": "long",
+            "gate_reason": "portfolio_kill_switch",
+            "mode": "live",
+        },
+    )
+    df = build_risk_gate_events_dataframe([portfolio_trip])
+    assert df.iloc[0]["Sub-account"] == "—"
+    assert df.iloc[0]["Gate Reason"] == "portfolio_kill_switch"
+
+
 def test_portfolio_cap_utilization_bands() -> None:
     # 70/90/100 thresholds: total/limit gives the band.
     green = _global_cap_event(

@@ -263,8 +263,13 @@ freeze, and the dashboard exposure panel.
       genuine undercount in that one column (no data lost; funnel keyed on
       `final_state` remains authoritative) — filed (g-note-dashboard-undercount)
       tied to (f).
-      `runtime-safety-score` kill-switch + stale-event integration tracked
-      under DEBT-068(h).)
+      `runtime-safety-score` kill-switch integration tracked under DEBT-068(h)
+      — SHIPPED 2026-05-25: LIVE kill-switch trips now feed the safety score
+      (`kill_switch_conditions` input + distinct-condition extractor + per-
+      condition-25 / cap-60 penalty; kill-switch-only scope — the (e) stale
+      event types are surfaced on the dashboard, NOT fed into the score, by
+      design). With (h) shipped, the DEBT-068 umbrella SUBSTANCE is COMPLETE;
+      only the minor ride-along notes remain.)
 - [x] **DEBT-068(d) — operator-freeze RUNTIME READ side. SHIPPED 2026-05-24.**
       (Split out from the originally-bundled dashboard-panel checkbox below so
       the runtime-shipped half and the dashboard-pending half are unambiguous.)
@@ -374,11 +379,27 @@ freeze, and the dashboard exposure panel.
       (f-1), +14; operator-freeze toggle WRITE-side tests shipped 2026-05-25
       under (f-2), +12 (10 runtime_flags write-side + 2 dashboard plan) —
       full suite 2181 passed.)
-- [ ] Targeted runtime-safety-score tests for kill-switch event propagation.
+- [x] Targeted runtime-safety-score tests for kill-switch event propagation.
+      (DEBT-068(h) SHIPPED 2026-05-25 — `kill_switch_conditions` input +
+      `_count_kill_switch_conditions` distinct-`(cycle_id, gate_reason,
+      sub_account_id)` extractor (non-advisory only, portfolio gates collapse to
+      `"__global__"`) + per-condition-25 / cap-60 penalty in
+      `compute_runtime_safety_score`; 1 live condition → 75/DEGRADED. +14 tests
+      (10 original + 4 regression for the multi-proposer over-count fix); full
+      suite 2195 passed. **COMPLETES the DEBT-068 umbrella SUBSTANCE.**)
 
 ## Completion Checklist
 
-- [ ] Code implemented.
-- [ ] Tests pass.
-- [ ] Session log and cross-check added.
-- [ ] `aidlc-docs/aidlc-state.md` updated.
+- [x] Code implemented. (Slice 2 SUBSTANCE complete — (a), (b), (c) [(c-1)+(c-2)],
+      (c-arb), (d), (e), (f) [(f-1)+(f-2)], (g), (h) all shipped as of 2026-05-25.
+      DEBT-068(h) kill-switch → runtime-safety-score integration completed the
+      umbrella substance; only six minor ride-along follow-up notes remain.)
+- [x] Tests pass. (Full suite 2195 passed as of the DEBT-068(h) cycle 2026-05-25;
+      ruff + mypy clean.)
+- [x] Session log and cross-check added. (Per-slice session logs under
+      `docs/sessions/`; the latest is
+      `docs/sessions/2026-05-25-cross-account-risk-policy-kill-switch-safety-score-h.md`.
+      No phase-boundary cross-check — the umbrella remains Active pending the
+      lead's status-flip decision.)
+- [x] `aidlc-docs/aidlc-state.md` updated. (Unit row carries the per-slice ship
+      log; updated for DEBT-068(h) 2026-05-25.)

@@ -2337,6 +2337,14 @@ class TradingEngine:
             "portfolio_drawdown_threshold": str(threshold),
             "mode": self.mode,
         }
+        # DEBT-068(h): a PORTFOLIO trip is not owned by the proposer that
+        # happened to trip it. Drop the proposer ``sub_account_id`` that
+        # ``_proposal_summary`` injected so the event honestly carries no
+        # owning account. This keeps the safety-score dedup correct (one
+        # global condition counts once per cycle, not once per proposer)
+        # and stops the f-1 per-account panel attributing the trip to a
+        # proposer. The triggering proposal stays joinable via ``proposal_id``.
+        details.pop("sub_account_id", None)
         return self._kill_switch_outcome(
             proposal=proposal,
             record=record,
@@ -2391,6 +2399,10 @@ class TradingEngine:
             "portfolio_daily_loss_threshold": str(threshold),
             "mode": self.mode,
         }
+        # DEBT-068(h): see _global_kill_switch_gate — a PORTFOLIO trip is
+        # not owned by the proposer that tripped it. Drop the proposer
+        # ``sub_account_id`` so the event carries no owning account.
+        details.pop("sub_account_id", None)
         return self._kill_switch_outcome(
             proposal=proposal,
             record=record,
