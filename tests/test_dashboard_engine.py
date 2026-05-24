@@ -10,6 +10,7 @@ import pytest
 from src.dashboard.pages.engine import (
     CycleSummary,
     aggregate_cycles,
+    build_cross_account_risk_dataframe,
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
     build_market_regime_account_dataframe,
@@ -18,10 +19,15 @@ from src.dashboard.pages.engine import (
     build_market_regime_events_dataframe,
     build_market_regime_status_dataframe,
     build_market_regime_status_rows,
+    build_operator_freeze_state,
+    build_portfolio_cap_utilization,
+    build_risk_gate_events_dataframe,
     build_runtime_safety_score,
     build_sub_account_metrics_dataframe,
     build_summary_metrics,
+    build_symbol_side_exposure_dataframe,
     build_timeline_dataframe,
+    kill_switch_state_for_account,
 )
 from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
 from src.utils.time import now_utc
@@ -1201,3 +1207,320 @@ def test_reconciliation_drilldown_empty_on_failed_event() -> None:
     # Columns still preserved so the dashboard renders the empty table
     # without a KeyError.
     assert "State" in df.columns
+
+
+# =============================================================================
+# Cross-Account Risk panel (cross-account-risk-policy DEBT-068(f-1))
+# =============================================================================
+
+
+def _kill_switch_event(
+    *,
+    sub_account_id: str,
+    gate_reason: str,
+    cycle_id: str | None = "cyc-1",
+    timestamp: datetime | None = None,
+    advisory: bool = False,
+    proposal_id: str = "p-1",
+    extra: dict | None = None,
+) -> ActivityEvent:
+    details = {
+        "proposal_id": proposal_id,
+        "sub_account_id": sub_account_id,
+        "symbol": "ETHUSDT",
+        "side": "long",
+        "gate_reason": gate_reason,
+        "mode": "live",
+    }
+    if advisory:
+        details["advisory"] = True
+        details["mode"] = "paper"
+    if extra:
+        details.update(extra)
+    return make_event(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        timestamp=timestamp or now_utc(),
+        cycle_id=cycle_id,
+        details=details,
+    )
+
+
+def _global_cap_event(
+    *,
+    event_type: ActivityEventType = ActivityEventType.RISK_CAP_ADVISORY,
+    symbol: str = "ETHUSDT",
+    side: str = "long",
+    open_positions_total: int | None = None,
+    max_open_positions: int | None = None,
+    ss_notional_total: str | None = None,
+    max_ss_notional: str | None = None,
+    holders: list[str] | None = None,
+    proposer: str = "rsi_universal",
+    cycle_id: str | None = "cyc-1",
+    timestamp: datetime | None = None,
+    advisory: bool = True,
+) -> ActivityEvent:
+    details: dict = {
+        "proposal_id": "p-g",
+        "sub_account_id": proposer,
+        "proposer_account": proposer,
+        "symbol": symbol,
+        "side": side,
+        "gate_reason": "global_cap",
+        "mode": "paper" if advisory else "live",
+        "existing_holders": holders or [],
+    }
+    if advisory:
+        details["advisory"] = True
+    if open_positions_total is not None:
+        details["open_positions_per_symbol_side_total"] = open_positions_total
+    if max_open_positions is not None:
+        details["max_open_positions_per_symbol_side"] = max_open_positions
+    if ss_notional_total is not None:
+        details["gross_notional_per_symbol_side_total"] = ss_notional_total
+    if max_ss_notional is not None:
+        details["max_gross_notional_per_symbol_side"] = max_ss_notional
+    return make_event(
+        event_type=event_type,
+        timestamp=timestamp or now_utc(),
+        cycle_id=cycle_id,
+        details=details,
+    )
+
+
+def test_cross_account_risk_df_empty_on_no_events() -> None:
+    df = build_cross_account_risk_dataframe([])
+    assert df.empty
+    assert "Kill-switch State" in df.columns
+
+
+def test_cross_account_risk_df_kill_switch_state() -> None:
+    events = [
+        _kill_switch_event(
+            sub_account_id="rsi_universal",
+            gate_reason="daily_loss_kill_switch",
+            extra={"realized_pnl_today": "-150.0", "equity": "5000.0"},
+        ),
+    ]
+    df = build_cross_account_risk_dataframe(events)
+    row = df.iloc[0]
+    assert row["Sub-account"] == "rsi_universal"
+    assert row["Kill-switch State"] == "daily-loss-tripped"
+    assert row["Equity"] == "5000.0"
+    assert row["Realized PnL (today)"] == "-150.0"
+    # Unsourced field renders n/a, not invented.
+    assert row["Gross Open Notional"] == "n/a"
+
+
+def test_kill_switch_state_window_is_latest_cycle() -> None:
+    old = _kill_switch_event(
+        sub_account_id="acc",
+        gate_reason="open_stop_risk_kill_switch",
+        cycle_id="cyc-old",
+        timestamp=now_utc() - timedelta(hours=2),
+    )
+    # A newer event from a different account establishes the latest cycle
+    # as cyc-new; acc did not trip in cyc-new -> state none.
+    newer_other = _kill_switch_event(
+        sub_account_id="other",
+        gate_reason="open_drawdown_kill_switch",
+        cycle_id="cyc-new",
+        timestamp=now_utc(),
+    )
+    state = kill_switch_state_for_account(
+        [old, newer_other], "acc", cycle_id="cyc-new"
+    )
+    assert state == "none"
+    state_other = kill_switch_state_for_account(
+        [old, newer_other], "other", cycle_id="cyc-new"
+    )
+    assert state_other == "drawdown-tripped"
+
+
+def test_kill_switch_state_stale_block() -> None:
+    ev = make_event(
+        event_type=ActivityEventType.STALE_POSITION_DETECTED,
+        timestamp=now_utc(),
+        cycle_id="cyc-1",
+        details={"sub_account_id": "acc", "resolution": "block_new_entries"},
+    )
+    state = kill_switch_state_for_account([ev], "acc", cycle_id="cyc-1")
+    assert state == "stale-block"
+
+
+def test_portfolio_cap_utilization_bands() -> None:
+    # 70/90/100 thresholds: total/limit gives the band.
+    green = _global_cap_event(
+        ss_notional_total="3400", max_ss_notional="5000"
+    )  # 68% -> green
+    df = build_portfolio_cap_utilization([green])
+    band = df.loc[df["Cap"] == "gross_notional_per_symbol_side", "Band"].iloc[0]
+    assert band == "green"
+
+    amber = _global_cap_event(ss_notional_total="3600", max_ss_notional="5000")
+    assert (
+        build_portfolio_cap_utilization([amber])
+        .loc[lambda d: d["Cap"] == "gross_notional_per_symbol_side", "Band"]
+        .iloc[0]
+        == "amber"
+    )  # 72%
+
+    red = _global_cap_event(ss_notional_total="4600", max_ss_notional="5000")
+    assert (
+        build_portfolio_cap_utilization([red])
+        .loc[lambda d: d["Cap"] == "gross_notional_per_symbol_side", "Band"]
+        .iloc[0]
+        == "red"
+    )  # 92%
+
+    breach = _global_cap_event(ss_notional_total="5500", max_ss_notional="5000")
+    assert (
+        build_portfolio_cap_utilization([breach])
+        .loc[lambda d: d["Cap"] == "gross_notional_per_symbol_side", "Band"]
+        .iloc[0]
+        == "breach"
+    )  # 110%
+
+
+def test_portfolio_cap_utilization_empty_when_no_global_events() -> None:
+    df = build_portfolio_cap_utilization([])
+    assert df.empty
+
+
+def test_symbol_side_exposure_counts_distinct_accounts() -> None:
+    ev = _global_cap_event(
+        symbol="ETHUSDT",
+        side="long",
+        holders=["bollinger_band_reversion", "vcp_breakout"],
+        proposer="rsi_universal",
+        ss_notional_total="6000",
+        max_ss_notional="5000",
+        open_positions_total=4,
+        max_open_positions=3,
+    )
+    df = build_symbol_side_exposure_dataframe([ev])
+    row = df.iloc[0]
+    assert row["Symbol"] == "ETHUSDT"
+    assert row["Side"] == "long"
+    # 2 holders + proposer = 3 distinct accounts.
+    assert row["Accounts"] == 3
+    assert row["Total Notional"] == "6000"
+    # ss_notional 120% beats open_positions 133%? open_positions 4/3=133%.
+    assert row["Closest Cap"] == "open_positions_per_symbol_side"
+
+
+def test_risk_gate_events_includes_dedicated_and_live_rejected() -> None:
+    kill = _kill_switch_event(
+        sub_account_id="acc", gate_reason="open_drawdown_kill_switch"
+    )
+    live_cap = make_event(
+        event_type=ActivityEventType.PROPOSAL_REJECTED,
+        timestamp=now_utc(),
+        cycle_id="cyc-1",
+        details={
+            "sub_account_id": "acc",
+            "symbol": "BNBUSDT",
+            "side": "short",
+            "gate_reason": "global_cap",
+            "mode": "live",
+        },
+    )
+    # Unrelated rejection must be excluded.
+    stale_quote = make_event(
+        event_type=ActivityEventType.PROPOSAL_REJECTED,
+        timestamp=now_utc(),
+        details={"gate_reason": "stale_quote_past_sl", "sub_account_id": "acc"},
+    )
+    df = build_risk_gate_events_dataframe([kill, live_cap, stale_quote])
+    reasons = set(df["Gate Reason"])
+    assert "open_drawdown_kill_switch" in reasons
+    assert "global_cap" in reasons
+    assert "stale_quote_past_sl" not in reasons
+
+
+def test_operator_freeze_state_engaged_and_not() -> None:
+    assert build_operator_freeze_state([]).engaged is False
+    freeze = make_event(
+        event_type=ActivityEventType.OPERATOR_FREEZE_ENGAGED,
+        timestamp=now_utc(),
+        cycle_id="cyc-1",
+        details={"proposal_id": "p1", "reason": "operator_freeze"},
+    )
+    state = build_operator_freeze_state([freeze])
+    assert state.engaged is True
+    assert state.last_engaged_at is not None
+
+
+# --- DEBT-068(g-note): Rejected-column rebase pins ---
+
+
+def test_rejected_tally_counts_live_kill_switch_not_paper_advisory() -> None:
+    """Live kill-switch trips count; paper advisories do not."""
+    events = [
+        make_event(
+            event_type=ActivityEventType.PROPOSAL_GENERATED,
+            timestamp=now_utc(),
+            details={"sub_account_id": "live_acc"},
+        ),
+        # Live kill-switch trip WITHOUT a sibling PROPOSAL_REJECTED ->
+        # must self-count as a rejection.
+        _kill_switch_event(
+            sub_account_id="live_acc",
+            gate_reason="daily_loss_kill_switch",
+            proposal_id="p-live",
+            advisory=False,
+        ),
+        # Paper advisory kill-switch -> must NOT count.
+        _kill_switch_event(
+            sub_account_id="paper_acc",
+            gate_reason="open_drawdown_kill_switch",
+            proposal_id="p-paper",
+            advisory=True,
+        ),
+    ]
+    df = build_sub_account_metrics_dataframe(events)
+    live_row = df.loc[df["Sub-account"] == "live_acc"].iloc[0]
+    assert live_row["Rejected"] == 1
+    # The paper advisory contributed nothing countable, so paper_acc has no
+    # row at all (and certainly is not tallied as a rejection).
+    paper_rows = df.loc[df["Sub-account"] == "paper_acc"]
+    if not paper_rows.empty:
+        assert paper_rows.iloc[0]["Rejected"] == 0
+
+
+def test_rejected_tally_no_double_count_live_kill_switch() -> None:
+    """A live kill-switch emits BOTH events on one proposal -> count once."""
+    pid = "p-dup"
+    events = [
+        make_event(
+            event_type=ActivityEventType.PROPOSAL_REJECTED,
+            timestamp=now_utc(),
+            details={
+                "sub_account_id": "acc",
+                "proposal_id": pid,
+                "gate_reason": "daily_loss_kill_switch",
+                "mode": "live",
+            },
+        ),
+        _kill_switch_event(
+            sub_account_id="acc",
+            gate_reason="daily_loss_kill_switch",
+            proposal_id=pid,
+            advisory=False,
+        ),
+    ]
+    df = build_sub_account_metrics_dataframe(events)
+    row = df.loc[df["Sub-account"] == "acc"].iloc[0]
+    assert row["Rejected"] == 1
+
+
+def test_rejected_tally_excludes_risk_cap_advisory() -> None:
+    """RISK_CAP_ADVISORY is never a hard block -> never counts as Rejected."""
+    events = [
+        _global_cap_event(advisory=True),
+    ]
+    df = build_sub_account_metrics_dataframe(events)
+    # The advisory event references rsi_universal but is not a rejection.
+    if not df.empty and "rsi_universal" in set(df["Sub-account"]):
+        row = df.loc[df["Sub-account"] == "rsi_universal"].iloc[0]
+        assert row["Rejected"] == 0

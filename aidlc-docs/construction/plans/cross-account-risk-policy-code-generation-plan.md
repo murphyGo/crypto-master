@@ -287,13 +287,37 @@ freeze, and the dashboard exposure panel.
       loader + 6 engine); full suite 2134 passed (+17); ruff + mypy clean;
       qa-reviewer 🟢. Session log
       `docs/sessions/2026-05-24-cross-account-risk-policy-operator-freeze.md`.
-- [ ] **DEBT-068(f) — Cross-Account Risk dashboard panel + operator-freeze
-      toggle WRITE side.** (Originally bundled with the (d) runtime read side
-      above; split 2026-05-24. The runtime READ side shipped under (d); what
-      remains here is the dashboard panel — per-account + global aggregate
-      views, kill-switch state indicator, freeze-state indicator — plus the
-      operator-freeze toggle UI that WRITES `trading_freeze` back to
-      `config/runtime_flags.yaml`. NOT built; stays open.)
+- [x] **DEBT-068(f-1) — Cross-Account Risk dashboard panel (read-only).
+      SHIPPED 2026-05-24.** (The (f) dashboard slice is now SPLIT into (f-1)
+      read-only panel [this checkbox] and (f-2) operator-freeze toggle WRITE
+      side [below], so the read-shipped half and the write-pending half are
+      unambiguous.) All in `src/dashboard/pages/engine.py`, event-driven, pure
+      `build_*` + thin `render_*` per the reconciliation-banner pattern:
+      `build_cross_account_risk_dataframe` (per-account equity / realized-today /
+      unrealized / stop-risk / notional + kill-switch state),
+      `kill_switch_state_for_account`, `build_portfolio_cap_utilization`
+      (GREEN/AMBER/RED/BREACH bands at 70/90/100%, lower-inclusive, breach > 100),
+      `build_symbol_side_exposure_dataframe` (distinct-account count + total
+      notional + closest cap), `build_risk_gate_events_dataframe`,
+      `build_operator_freeze_state` (READ-ONLY freeze-STATE indicator),
+      `render_cross_account_risk` wired into `render()`. PLUS the
+      (g-note-dashboard-undercount) "Rejected"-column fix via a shared
+      `_genuine_rejection_events` helper (counts hard blocks once: live
+      kill-switch dedup by `proposal_id`, operator-freeze self-counts, paper
+      advisories excluded) — RESOLVES (g-note-dashboard-undercount). Panel
+      populates from risk-gate event details only; fields never invented, never
+      crash on empty/partial data. +14 tests; full suite 2169 passed (+14); ruff
+      + mypy clean; qa-reviewer 🟢. One follow-up filed
+      (f-1-note-snapshot-event): no dedicated portfolio-snapshot `ActivityEvent`
+      exists (`_record_portfolio_snapshot` writes to `PortfolioTracker`, not the
+      activity log), so the panel shows no steady-state on quiet cycles. Session
+      log
+      `docs/sessions/2026-05-24-cross-account-risk-policy-dashboard-panel-f-1.md`.
+- [ ] **DEBT-068(f-2) — operator-freeze toggle WRITE side.** The interactive
+      widget that WRITES `trading_freeze` back to `config/runtime_flags.yaml`
+      with a confirmation step. The runtime READ side shipped under (d); the
+      read-only freeze-STATE indicator shipped under (f-1); what remains is the
+      writer. NOT built; stays open.
 - [ ] Add tests for sizing math, config parsing, gate ordering, kill-switch
       lifecycle, stale-position actions, and dashboard rendering.
       (Slice 1 partial — sizing-math, config-parsing, per-account
@@ -310,7 +334,14 @@ freeze, and the dashboard exposure panel.
       paper, auto_close live, alert_only, block_new_entries visibility event,
       degraded downgrade, unrecoverable operator-only, no-double-close after
       SL/TP and time-stop, block-gate-unchanged), +8 tests (2134 → 2142).
-      Dashboard RENDERING tests remain deferred to (f).)
+      2026-05-24 DEBT-068(f-1) shipped the read-only Cross-Account Risk panel
+      `build_*` tests — per-account dataframe assembly, cap-utilization band
+      boundaries (70/90/100, lower-inclusive, breach > 100), symbol/side
+      exposure aggregation, freeze-state indicator, and the
+      `_genuine_rejection_events` Rejected-column rule (live kill-switch
+      proposal_id dedup, operator-freeze self-count, paper advisories excluded);
+      +14 tests (2156 → 2169). The operator-freeze toggle WRITE-side rendering
+      tests remain deferred to (f-2).)
 
 ## Verification
 
@@ -319,7 +350,9 @@ freeze, and the dashboard exposure panel.
 - [x] `uv run pytest tests/test_trading_sub_account.py tests/test_trading_sub_account_registry.py tests/test_runtime_engine.py -q`
       for DEBT-068(b) opt-in global cap behavior. (2026-05-24: 189 passed.)
 - [ ] Targeted dashboard tests for the cross-account risk panel and operator
-      freeze toggle.
+      freeze toggle. (Read-only panel `build_*` tests shipped 2026-05-24 under
+      (f-1), +14; operator-freeze toggle WRITE-side tests remain deferred to
+      (f-2).)
 - [ ] Targeted runtime-safety-score tests for kill-switch event propagation.
 
 ## Completion Checklist
