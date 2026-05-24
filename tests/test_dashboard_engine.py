@@ -13,6 +13,7 @@ from src.dashboard.pages.engine import (
     build_cross_account_risk_dataframe,
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
+    build_freeze_toggle_plan,
     build_market_regime_account_dataframe,
     build_market_regime_account_rows,
     build_market_regime_degraded_events_dataframe,
@@ -1449,6 +1450,23 @@ def test_operator_freeze_state_engaged_and_not() -> None:
     state = build_operator_freeze_state([freeze])
     assert state.engaged is True
     assert state.last_engaged_at is not None
+
+
+# --- DEBT-068(f-2): freeze toggle plan (pure decision logic) ---
+
+
+def test_freeze_toggle_plan_when_not_frozen_engages() -> None:
+    plan = build_freeze_toggle_plan(currently_frozen=False)
+    assert plan.next_value is True
+    assert plan.action_label == "Engage freeze"
+    assert "HALTS" in plan.confirmation_prompt
+
+
+def test_freeze_toggle_plan_when_frozen_disengages() -> None:
+    plan = build_freeze_toggle_plan(currently_frozen=True)
+    assert plan.next_value is False
+    assert plan.action_label == "Disengage freeze"
+    assert "RESUMES" in plan.confirmation_prompt
 
 
 # --- DEBT-068(g-note): Rejected-column rebase pins ---

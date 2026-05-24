@@ -313,11 +313,31 @@ freeze, and the dashboard exposure panel.
       activity log), so the panel shows no steady-state on quiet cycles. Session
       log
       `docs/sessions/2026-05-24-cross-account-risk-policy-dashboard-panel-f-1.md`.
-- [ ] **DEBT-068(f-2) — operator-freeze toggle WRITE side.** The interactive
-      widget that WRITES `trading_freeze` back to `config/runtime_flags.yaml`
-      with a confirmation step. The runtime READ side shipped under (d); the
-      read-only freeze-STATE indicator shipped under (f-1); what remains is the
-      writer. NOT built; stays open.
+- [x] **DEBT-068(f-2) — operator-freeze toggle WRITE side. SHIPPED 2026-05-25.
+      COMPLETES DEBT-068(f).** The interactive, confirmation-gated widget that
+      WRITES `trading_freeze` back to `config/runtime_flags.yaml`. Runtime flags
+      write side in `src/runtime/runtime_flags.py`: new
+      `write_trading_freeze(value, path)` — a read-merge-write that PRESERVES
+      unrelated keys, writes atomically via the canonical
+      `src.utils.io.atomic_write_text` (DEBT-028 single source of truth), and
+      REFUSES to overwrite a malformed/unreadable existing file (raises the new
+      `RuntimeFlagsWriteError`, file left byte-for-byte untouched — the deliberate
+      LOUD-fail inverse of the (d) reader's never-crash fail-safe); missing/empty
+      file = fresh-start; new `_load_existing_document` is the read-half of the
+      merge. Dashboard side in `src/dashboard/pages/engine.py`: new
+      `FreezeTogglePlan` + pure `build_freeze_toggle_plan` + thin
+      confirmation-gated `render_operator_freeze_toggle` (REPLACES the (f-1)
+      read-only indicator; now ALSO renders on the quiet-log path so a freeze can
+      still be engaged). Rerun-safe: the write is gated inside `if submitted and
+      acknowledged:` (`st.form` + `st.form_submit_button` + mandatory ack
+      checkbox, `clear_on_submit`) so a page refresh cannot re-toggle. +12 tests
+      (10 runtime_flags write-side + 2 dashboard plan); full suite 2181 passed
+      (+12), 0 failed; ruff + mypy clean; qa-reviewer 🟢. Two non-blocking
+      follow-ups filed: (f-2-note-test-gap) — post-`atomic_write_text`
+      `OSError`→`RuntimeFlagsWriteError` wrap branch (~L204) untested, low
+      priority; (f-2-note-broad-except) — dashboard reader wrapped in broad
+      `except Exception` (~L1543), justified, no fix needed. Session log
+      `docs/sessions/2026-05-25-cross-account-risk-policy-operator-freeze-toggle-f-2.md`.
 - [ ] Add tests for sizing math, config parsing, gate ordering, kill-switch
       lifecycle, stale-position actions, and dashboard rendering.
       (Slice 1 partial — sizing-math, config-parsing, per-account
@@ -349,10 +369,11 @@ freeze, and the dashboard exposure panel.
 - [x] `uv run pytest tests/test_trading_sub_account_registry.py -q`
 - [x] `uv run pytest tests/test_trading_sub_account.py tests/test_trading_sub_account_registry.py tests/test_runtime_engine.py -q`
       for DEBT-068(b) opt-in global cap behavior. (2026-05-24: 189 passed.)
-- [ ] Targeted dashboard tests for the cross-account risk panel and operator
+- [x] Targeted dashboard tests for the cross-account risk panel and operator
       freeze toggle. (Read-only panel `build_*` tests shipped 2026-05-24 under
-      (f-1), +14; operator-freeze toggle WRITE-side tests remain deferred to
-      (f-2).)
+      (f-1), +14; operator-freeze toggle WRITE-side tests shipped 2026-05-25
+      under (f-2), +12 (10 runtime_flags write-side + 2 dashboard plan) —
+      full suite 2181 passed.)
 - [ ] Targeted runtime-safety-score tests for kill-switch event propagation.
 
 ## Completion Checklist

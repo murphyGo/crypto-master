@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Literal, TypedDict
 
 import pandas as pd
@@ -1492,6 +1493,120 @@ def build_operator_freeze_state(events: list[ActivityEvent]) -> OperatorFreezeSt
     return OperatorFreezeState(engaged=engaged, last_engaged_at=latest.timestamp)
 
 
+@dataclass(frozen=True)
+class FreezeTogglePlan:
+    """Pure plan for the operator-freeze write toggle (DEBT-068(f-2)).
+
+    Keeps the ENGAGE/DISENGAGE decision and its confirmation copy out of the
+    ``st.*`` widget so it is unit-testable. The widget renders this plan and,
+    only on an explicit confirm+submit, calls
+    :func:`src.runtime.runtime_flags.write_trading_freeze` with ``next_value``.
+
+    Attributes:
+        currently_frozen: The current operator-freeze flag value (the file
+            READ side), i.e. what the toggle would flip.
+        next_value: The boolean the operator's action would write — the
+            negation of ``currently_frozen``.
+        action_label: Short button label, ``"Engage freeze"`` /
+            ``"Disengage freeze"``.
+        confirmation_prompt: Mandatory acknowledgement copy the operator must
+            check before the action can fire. Spells out that this is a
+            trading-wide halt/resume.
+    """
+
+    currently_frozen: bool
+    next_value: bool
+    action_label: str
+    confirmation_prompt: str
+
+
+def build_freeze_toggle_plan(currently_frozen: bool) -> FreezeTogglePlan:
+    """Decide the next freeze value + mandatory confirmation copy.
+
+    Pure helper (no Streamlit, no I/O) so the toggle's decision logic is
+    tested directly. Disengaging is an explicit operator write of ``false``
+    (the freeze never auto-releases — spec §"Hysteresis"), so it is treated
+    as a deliberate, confirmation-gated action exactly like engaging.
+    """
+    if currently_frozen:
+        return FreezeTogglePlan(
+            currently_frozen=True,
+            next_value=False,
+            action_label="Disengage freeze",
+            confirmation_prompt=(
+                "I understand this RESUMES all new entries across every "
+                "sub-account."
+            ),
+        )
+    return FreezeTogglePlan(
+        currently_frozen=False,
+        next_value=True,
+        action_label="Engage freeze",
+        confirmation_prompt=(
+            "I understand this HALTS all new entries across every "
+            "sub-account."
+        ),
+    )
+
+
+def render_operator_freeze_toggle(flags_path: Path | None = None) -> None:
+    """Render the interactive operator-freeze toggle (DEBT-068(f-2)).
+
+    Replaces the f-1 read-only indicator: shows the CURRENT freeze state read
+    from ``config/runtime_flags.yaml`` and lets the operator engage/disengage
+    it with a MANDATORY confirmation (spec §"Dashboard Behavior").
+
+    Rerun-safety: the file write happens ONLY inside the ``st.form`` submit
+    branch AND only when the confirmation checkbox is ticked. Streamlit
+    re-runs the whole script on every interaction; a form's submit value is
+    ``True`` for exactly the one rerun triggered by the click and ``False``
+    on a plain page refresh, so a refresh can never re-toggle the freeze.
+    The actual file mutation lives in
+    :func:`src.runtime.runtime_flags.write_trading_freeze`, keeping this
+    widget thin.
+    """
+    # Local imports so the page stays importable without the runtime package
+    # being side-effect-loaded, matching the rest of the dashboard's thin
+    # widget style.
+    from src.runtime.runtime_flags import (
+        RuntimeFlagsWriteError,
+        read_trading_freeze,
+        write_trading_freeze,
+    )
+
+    try:
+        currently_frozen = read_trading_freeze(flags_path)
+    except Exception as exc:  # defensive: read is fail-safe, but never crash UI
+        st.warning(f"Could not read freeze state: {exc}")
+        currently_frozen = False
+
+    if currently_frozen:
+        st.error("Operator manual freeze: ENGAGED — all new entries blocked.")
+    else:
+        st.success("Operator manual freeze: not engaged.")
+
+    plan = build_freeze_toggle_plan(currently_frozen)
+    with st.form("operator_freeze_toggle", clear_on_submit=True):
+        st.caption(
+            "Toggling the operator freeze is a trading-wide action and never "
+            "auto-releases — disengaging requires this same explicit step."
+        )
+        acknowledged = st.checkbox(plan.confirmation_prompt, value=False)
+        submitted = st.form_submit_button(plan.action_label)
+
+    # Write ONLY on an explicit submit with the acknowledgement ticked.
+    if submitted and acknowledged:
+        try:
+            write_trading_freeze(plan.next_value, flags_path)
+        except RuntimeFlagsWriteError as exc:
+            st.error(f"Freeze NOT changed — write failed: {exc}")
+        else:
+            verb = "ENGAGED" if plan.next_value else "DISENGAGED"
+            st.success(f"Operator manual freeze {verb}.")
+    elif submitted and not acknowledged:
+        st.warning("Confirmation required — tick the acknowledgement to proceed.")
+
+
 def render_cross_account_risk(events: list[ActivityEvent]) -> None:
     """Render the Cross-Account Risk panel (read-only, DEBT-068(f-1)).
 
@@ -1519,18 +1634,16 @@ def render_cross_account_risk(events: list[ActivityEvent]) -> None:
             "enabled, or no risk gate (cap / kill-switch / freeze / stale) has "
             "fired on the recorded window."
         )
+        # The operator-freeze toggle still renders below the info message so an
+        # operator can ENGAGE a freeze even on a quiet log (the file-based flag
+        # is independent of whether any risk event has fired yet).
+        render_operator_freeze_toggle()
         return
 
-    # Read-only operator-freeze indicator (write-side toggle deferred to f-2).
-    if freeze.engaged:
-        suffix = (
-            f" (last engaged {freeze.last_engaged_at.isoformat(timespec='seconds')})"
-            if freeze.last_engaged_at is not None
-            else ""
-        )
-        st.error(f"Operator manual freeze: ENGAGED — all proposals blocked{suffix}")
-    else:
-        st.success("Operator manual freeze: not engaged")
+    # Interactive operator-freeze toggle (DEBT-068(f-2)). Replaces the f-1
+    # read-only indicator: shows the file-based freeze state and lets the
+    # operator engage/disengage it with mandatory confirmation.
+    render_operator_freeze_toggle()
 
     if not metrics_df.empty:
         st.caption("Per-sub-account risk metrics")
@@ -1716,6 +1829,7 @@ def render(
 __all__ = [
     "CycleSummary",
     "EngineSummaryMetrics",
+    "FreezeTogglePlan",
     "MarketRegimeAccountPolicyRow",
     "MarketRegimeStatusRow",
     "OperatorFreezeState",
@@ -1724,6 +1838,7 @@ __all__ = [
     "build_cross_account_risk_dataframe",
     "build_cycle_duration_dataframe",
     "build_cycles_dataframe",
+    "build_freeze_toggle_plan",
     "build_operator_freeze_state",
     "build_portfolio_cap_utilization",
     "build_risk_gate_events_dataframe",
@@ -1744,5 +1859,6 @@ __all__ = [
     "latest_reconciliation_event",
     "render",
     "render_cross_account_risk",
+    "render_operator_freeze_toggle",
     "render_reconciliation_banner",
 ]

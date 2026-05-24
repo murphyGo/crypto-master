@@ -34,6 +34,7 @@ from pathlib import Path
 import yaml
 
 from src.logger import get_logger
+from src.utils.io import atomic_write_text
 
 logger = get_logger(__name__)
 
@@ -130,4 +131,131 @@ def read_trading_freeze(path: Path | None = None) -> bool:
     return value
 
 
-__all__ = ["DEFAULT_RUNTIME_FLAGS_PATH", "read_trading_freeze"]
+class RuntimeFlagsWriteError(RuntimeError):
+    """Raised when the freeze flag cannot be written safely.
+
+    The dashboard surfaces the message verbatim so the operator knows the
+    toggle did NOT take effect (e.g. the existing file was malformed and we
+    refused to clobber it). Never swallowed silently — a failed freeze write
+    must be loud, since the operator believes trading is (un)frozen.
+    """
+
+
+def write_trading_freeze(value: bool, path: Path | None = None) -> None:
+    """Write the operator ``trading_freeze`` flag, atomically and merge-safe.
+
+    Write-side counterpart to :func:`read_trading_freeze` (DEBT-068(f-2)).
+    The dashboard freeze toggle calls this on an explicit, confirmed operator
+    action; the engine never calls it.
+
+    Behavior:
+
+    - Writes ``runtime_flags.trading_freeze: <true|false>`` such that
+      :func:`read_trading_freeze` round-trips the same bool back.
+    - **Merge-preserving**: if the file already exists and parses to a
+      mapping, every other top-level key and every other key under
+      ``runtime_flags`` is preserved — only ``trading_freeze`` is set. This
+      stops the toggle from clobbering unrelated operator-edited flags.
+    - **Atomic**: delegates to :func:`src.utils.io.atomic_write_text`, which
+      writes to a per-call-unique sibling ``.tmp`` then ``os.replace``es it
+      over the target, so a crash mid-write can never leave a half-written
+      flag file that the fail-safe reader then mis-parses. The temp file is
+      cleaned up on any failure (no orphan ``.tmp`` left behind).
+    - Creates the parent ``config/`` directory if missing.
+
+    Malformed-existing-file policy (deliberate, documented choice):
+        If the file exists but cannot be read or does not parse to a mapping
+        (or its ``runtime_flags`` block is not a mapping), we **refuse** and
+        raise :class:`RuntimeFlagsWriteError` rather than overwrite it. The
+        read side fails SAFE (an unparseable file reads as "not frozen"), so
+        silently overwriting a hand-edited-but-broken file here could both
+        destroy operator intent AND mask the breakage. Refusing surfaces the
+        problem to the operator, who can fix the file by hand. This is the
+        opposite stance to the reader (which must never crash a cycle) on
+        purpose: a write is an explicit, interactive operator action where a
+        loud failure is the safe outcome.
+
+    Hysteresis (spec §"Hysteresis and Reset Semantics"): the operator freeze
+    NEVER auto-releases. DISENGAGING is therefore just as much an explicit
+    operator write — ``write_trading_freeze(False)`` — as engaging it; there
+    is no automatic path that clears the flag.
+
+    Args:
+        value: The boolean to persist under ``runtime_flags.trading_freeze``.
+        path: Optional override for the flag-file location. Defaults to
+            :data:`DEFAULT_RUNTIME_FLAGS_PATH`.
+
+    Raises:
+        RuntimeFlagsWriteError: If an existing file cannot be parsed as a
+            mapping (refusal to clobber), or if the atomic write fails.
+    """
+    flags_path = path or DEFAULT_RUNTIME_FLAGS_PATH
+
+    document = _load_existing_document(flags_path)
+    section = document.get("runtime_flags")
+    if section is None:
+        section = {}
+        document["runtime_flags"] = section
+    elif not isinstance(section, dict):
+        raise RuntimeFlagsWriteError(
+            f"Refusing to write {flags_path}: existing 'runtime_flags' is not "
+            f"a mapping ({type(section).__name__!r}); fix the file by hand "
+            f"before toggling the freeze so unrelated flags are not lost."
+        )
+    section["trading_freeze"] = value
+
+    flags_path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = yaml.safe_dump(document, default_flow_style=False, sort_keys=False)
+    try:
+        # Single source of truth for atomic writes (DEBT-028). A crash
+        # mid-write leaves the prior file intact rather than a half-written
+        # flag the fail-safe reader would mis-parse.
+        atomic_write_text(flags_path, rendered)
+    except OSError as exc:
+        raise RuntimeFlagsWriteError(
+            f"Failed to atomically write {flags_path}: {exc}"
+        ) from exc
+    logger.info(
+        "Operator wrote trading_freeze=%s to %s (freeze never auto-releases; "
+        "disengaging requires an explicit write of false).",
+        value,
+        flags_path,
+    )
+
+
+def _load_existing_document(flags_path: Path) -> dict:
+    """Return the parsed file as a mutable mapping, or ``{}`` if absent/empty.
+
+    Refuses (raises :class:`RuntimeFlagsWriteError`) on an existing file that
+    is unreadable or does not parse to a mapping — see the write policy in
+    :func:`write_trading_freeze`. A missing or empty file is the normal
+    fresh-start case and yields an empty mapping to merge into.
+    """
+    if not flags_path.exists():
+        return {}
+    try:
+        with flags_path.open("r", encoding="utf-8") as fh:
+            parsed = yaml.safe_load(fh)
+    except (OSError, yaml.YAMLError) as exc:
+        raise RuntimeFlagsWriteError(
+            f"Refusing to write {flags_path}: existing file is "
+            f"unreadable/malformed ({exc}); fix it by hand before toggling "
+            f"the freeze so its contents are not lost."
+        ) from exc
+    if parsed is None:
+        return {}
+    if not isinstance(parsed, dict):
+        raise RuntimeFlagsWriteError(
+            f"Refusing to write {flags_path}: existing top-level document is "
+            f"not a mapping ({type(parsed).__name__!r}); fix it by hand "
+            f"before toggling the freeze."
+        )
+    return parsed
+
+
+__all__ = [
+    "DEFAULT_RUNTIME_FLAGS_PATH",
+    "RuntimeFlagsWriteError",
+    "read_trading_freeze",
+    "write_trading_freeze",
+]

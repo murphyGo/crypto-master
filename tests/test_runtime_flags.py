@@ -13,10 +13,13 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+import yaml
 
 from src.runtime.runtime_flags import (
     DEFAULT_RUNTIME_FLAGS_PATH,
+    RuntimeFlagsWriteError,
     read_trading_freeze,
+    write_trading_freeze,
 )
 
 _LOGGER_NAME = "src.runtime.runtime_flags"
@@ -133,3 +136,98 @@ def test_non_boolean_trading_freeze_warns_and_is_not_frozen(
         "trading_freeze" in record.getMessage() and record.levelno == logging.WARNING
         for record in caplog.records
     )
+
+
+# --- DEBT-068(f-2): write_trading_freeze ---
+
+
+def test_write_then_read_round_trip_true(tmp_path: Path) -> None:
+    flags = tmp_path / "runtime_flags.yaml"
+    write_trading_freeze(True, flags)
+    assert read_trading_freeze(flags) is True
+
+
+def test_write_then_read_round_trip_false(tmp_path: Path) -> None:
+    flags = tmp_path / "runtime_flags.yaml"
+    write_trading_freeze(False, flags)
+    assert read_trading_freeze(flags) is False
+
+
+def test_write_creates_missing_parent_dir(tmp_path: Path) -> None:
+    flags = tmp_path / "config" / "runtime_flags.yaml"
+    assert not flags.parent.exists()
+    write_trading_freeze(True, flags)
+    assert flags.exists()
+    assert read_trading_freeze(flags) is True
+
+
+def test_write_preserves_other_runtime_flags_keys(tmp_path: Path) -> None:
+    """An unrelated key under runtime_flags survives the toggle."""
+    flags = tmp_path / "runtime_flags.yaml"
+    flags.write_text(
+        "runtime_flags:\n  other_flag: true\n  trading_freeze: false\n",
+        encoding="utf-8",
+    )
+    write_trading_freeze(True, flags)
+    parsed = yaml.safe_load(flags.read_text(encoding="utf-8"))
+    assert parsed["runtime_flags"]["other_flag"] is True
+    assert parsed["runtime_flags"]["trading_freeze"] is True
+    assert read_trading_freeze(flags) is True
+
+
+def test_write_preserves_other_top_level_keys(tmp_path: Path) -> None:
+    """Top-level keys outside runtime_flags are not clobbered."""
+    flags = tmp_path / "runtime_flags.yaml"
+    flags.write_text(
+        "some_other_section:\n  nested: 42\nruntime_flags:\n  trading_freeze: false\n",
+        encoding="utf-8",
+    )
+    write_trading_freeze(True, flags)
+    parsed = yaml.safe_load(flags.read_text(encoding="utf-8"))
+    assert parsed["some_other_section"]["nested"] == 42
+    assert parsed["runtime_flags"]["trading_freeze"] is True
+
+
+def test_write_leaves_no_temp_file_behind(tmp_path: Path) -> None:
+    """Atomic write cleans up — only the target file exists afterwards."""
+    flags = tmp_path / "runtime_flags.yaml"
+    write_trading_freeze(True, flags)
+    remaining = sorted(p.name for p in tmp_path.iterdir())
+    assert remaining == ["runtime_flags.yaml"]
+
+
+def test_write_into_existing_empty_file(tmp_path: Path) -> None:
+    """An empty existing file is the fresh-start case, not a refusal."""
+    flags = tmp_path / "runtime_flags.yaml"
+    flags.write_text("", encoding="utf-8")
+    write_trading_freeze(True, flags)
+    assert read_trading_freeze(flags) is True
+
+
+def test_write_refuses_malformed_existing_file(tmp_path: Path) -> None:
+    """Malformed YAML ⇒ refuse (raise), do NOT clobber the operator's file."""
+    flags = tmp_path / "runtime_flags.yaml"
+    original = "runtime_flags: [oops\n"
+    flags.write_text(original, encoding="utf-8")
+    with pytest.raises(RuntimeFlagsWriteError):
+        write_trading_freeze(True, flags)
+    # File left untouched.
+    assert flags.read_text(encoding="utf-8") == original
+
+
+def test_write_refuses_non_mapping_top_level(tmp_path: Path) -> None:
+    flags = tmp_path / "runtime_flags.yaml"
+    original = "- a\n- b\n"
+    flags.write_text(original, encoding="utf-8")
+    with pytest.raises(RuntimeFlagsWriteError):
+        write_trading_freeze(True, flags)
+    assert flags.read_text(encoding="utf-8") == original
+
+
+def test_write_refuses_non_mapping_runtime_flags_section(tmp_path: Path) -> None:
+    flags = tmp_path / "runtime_flags.yaml"
+    original = "runtime_flags: not_a_mapping\n"
+    flags.write_text(original, encoding="utf-8")
+    with pytest.raises(RuntimeFlagsWriteError):
+        write_trading_freeze(True, flags)
+    assert flags.read_text(encoding="utf-8") == original
