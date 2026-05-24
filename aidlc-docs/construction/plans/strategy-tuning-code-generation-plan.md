@@ -28,8 +28,10 @@ recommendation" workflow.
 
 - [x] Implement the action-state recommender as a pure function over
       `PerformanceTracker` aggregates and DEBT-061 fail-closed metrics.
-      (Slice 1, 2026-05-13. PF approximation via best/worst PnL until
-      `TechniquePerformance.gross_win`/`gross_loss` exposed — DEBT-069(e).)
+      (Slice 1, 2026-05-13. DEBT-069(e) shipped 2026-05-24: true
+      `TechniquePerformance.gross_win_pct` / `gross_loss_pct` /
+      `max_drawdown_pct` aggregates replace the earlier best/worst PnL
+      PF approximation.)
 - [x] Add `strategy_tuning` block to sub-account YAML schema with parsing,
       defaults, and validation; default `enabled: false`. (Slice 1.)
 - [ ] Persist applied/recommended state and evidence snapshots via an
@@ -58,9 +60,15 @@ recommendation" workflow.
       tests and `STRATEGY_ACTION_APPLIED` emission tests deferred to
       Slice 2. Funnel `_STATE_TO_FIELD` aggregator unit-test gaps for the
       2 new states — DEBT-069(i).)
+- [x] Add true PF / closed-trade drawdown tests for DEBT-069(e). (2026-05-24:
+      `tests/test_strategy_performance.py` pins gross win/loss, synthetic
+      exclusion, and cumulative drawdown; `tests/test_strategy_tuning_recommender.py`
+      pins true gross-win/gross-loss PF input.)
 
 ## Verification
 
+- [x] `uv run pytest tests/test_strategy_performance.py tests/test_strategy_tuning_recommender.py -q`
+      (2026-05-24 DEBT-069(e): 119 passed.)
 - [ ] `uv run pytest tests/test_runtime_engine.py tests/test_trading_sub_account.py tests/test_proposal_engine.py tests/test_baseline_strategies.py -q`
 - [ ] Targeted dashboard tests for strategy applied/recommended visibility
       and the "Apply recommendation" affordance.

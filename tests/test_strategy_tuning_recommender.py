@@ -353,7 +353,7 @@ def test_promote_overrides_keep_when_promote_thresholds_clear() -> None:
 
 
 def test_evidence_from_performance_reconstructs_inputs() -> None:
-    """Constructor wraps ``TechniquePerformance`` + a fail-closed rate."""
+    """Constructor wraps true PF/drawdown metrics + a fail-closed rate."""
     perf = TechniquePerformance(
         technique_name="rsi_universal",
         technique_version="1.0",
@@ -365,18 +365,22 @@ def test_evidence_from_performance_reconstructs_inputs() -> None:
         win_rate=0.5,
         avg_pnl_percent=1.0,
         total_pnl_percent=12.0,
-        best_trade_pnl=5.0,
+        best_trade_pnl=20.0,
         worst_trade_pnl=-4.0,
+        gross_win_pct=12.0,
+        gross_loss_pct=8.0,
+        max_drawdown_pct=6.5,
     )
     evidence = evidence_from_performance(perf, fail_closed_rate=0.2)
     assert evidence.closed_trades == 12
     assert evidence.win_rate == pytest.approx(0.5)
     assert evidence.closed_pnl_pct == pytest.approx(12.0)
+    assert evidence.max_drawdown_pct == pytest.approx(6.5)
     assert evidence.fail_closed_rate == pytest.approx(0.2)
-    # Profit factor reconstructed from win/loss × magnitudes:
-    # (6 * 5.0) / (4 * 4.0) = 30/16 = 1.875.
+    # True profit factor is gross win / gross loss. It intentionally
+    # ignores the old best/worst-trade approximation.
     assert evidence.profit_factor is not None
-    assert evidence.profit_factor == pytest.approx(1.875)
+    assert evidence.profit_factor == pytest.approx(1.5)
 
 
 def test_evidence_from_performance_returns_none_profit_factor_without_losses() -> None:
@@ -392,6 +396,8 @@ def test_evidence_from_performance_returns_none_profit_factor_without_losses() -
         win_rate=1.0,
         best_trade_pnl=5.0,
         worst_trade_pnl=0.0,
+        gross_win_pct=15.0,
+        gross_loss_pct=0.0,
     )
     evidence = evidence_from_performance(perf, fail_closed_rate=0.0)
     assert evidence.profit_factor is None

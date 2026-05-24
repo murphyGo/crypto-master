@@ -79,26 +79,20 @@ def evidence_from_performance(
     Args:
         perf: Per-technique aggregate snapshot. ``wins / losses /
             breakevens`` count toward the window; ``total_pnl_percent``
-            and ``worst_trade_pnl`` map to the recommender's inputs.
+            and the gross win/loss aggregates map to the
+            recommender's inputs.
         fail_closed_rate: ``proposals_fail_closed / proposals_emitted``
             from :class:`~src.proposal.fail_closed_metrics.\
 StrategyFailClosedCounts`.
         max_drawdown_pct: Optional explicit max-drawdown override.
-            Defaults to ``|perf.worst_trade_pnl|`` — the
-            ``PerformanceTracker`` does not currently compute a rolling
-            drawdown series, so we approximate via the worst single
-            closed trade. Operators can supply the true series-level
-            drawdown when available.
+            Defaults to ``perf.max_drawdown_pct``.
     """
     closed = perf.wins + perf.losses + perf.breakevens
     if max_drawdown_pct is None:
-        # Worst single-trade PnL stands in for the rolling drawdown
-        # until a series-level metric lands. ``worst_trade_pnl`` is
-        # already a percentage of entry; abs() gives the magnitude
-        # the retune bucket compares against.
-        max_drawdown_pct = abs(perf.worst_trade_pnl)
-
-    profit_factor = _infer_profit_factor(perf)
+        max_drawdown_pct = perf.max_drawdown_pct
+    profit_factor = None
+    if perf.gross_loss_pct > 0.0:
+        profit_factor = perf.gross_win_pct / perf.gross_loss_pct
 
     return RecommenderEvidence(
         closed_trades=closed,
@@ -108,38 +102,6 @@ StrategyFailClosedCounts`.
         max_drawdown_pct=max_drawdown_pct,
         fail_closed_rate=fail_closed_rate,
     )
-
-
-def _infer_profit_factor(perf: TechniquePerformance) -> float | None:
-    """Best-effort profit-factor reconstruction from a summary.
-
-    :class:`TechniquePerformance` does not persist a profit-factor
-    field today — it stores ``avg_pnl_percent`` / ``total_pnl_percent``
-    / ``best_trade_pnl`` / ``worst_trade_pnl`` only. We approximate:
-
-    * If there are no losses, profit factor is undefined; return
-      ``None`` so buckets requiring an explicit ratio skip the
-      strategy rather than infer infinite edge from one win.
-    * If ``total_pnl_percent`` is positive with at least one loss,
-      reconstruct a coarse ratio from win/loss counts × average
-      magnitudes. This is intentionally rough — the recommender's
-      job is to bucket, not to backtest.
-
-    Callers that have a real profit-factor (from a backtester run or
-    a future PerformanceTracker enhancement) should bypass this
-    helper and build :class:`RecommenderEvidence` directly.
-    """
-    if perf.losses == 0:
-        return None
-    # Coarse reconstruction: assume win-side magnitudes scale with
-    # best_trade_pnl and loss-side with |worst_trade_pnl|. This
-    # produces a useful order-of-magnitude figure but is *not* a
-    # substitute for tracking gross-win / gross-loss directly.
-    gross_win = perf.wins * max(perf.best_trade_pnl, 0.0)
-    gross_loss = perf.losses * abs(min(perf.worst_trade_pnl, 0.0))
-    if gross_loss == 0:
-        return None
-    return gross_win / gross_loss
 
 
 def recommend_action(

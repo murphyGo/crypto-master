@@ -160,6 +160,9 @@ class TechniquePerformance(BaseModel):
         total_pnl_percent: Cumulative P&L percentage.
         best_trade_pnl: Best single trade P&L percentage.
         worst_trade_pnl: Worst single trade P&L percentage.
+        gross_win_pct: Sum of positive closed-trade P&L percentages.
+        gross_loss_pct: Absolute sum of negative closed-trade P&L percentages.
+        max_drawdown_pct: Max closed-trade drawdown over cumulative P&L.
         last_updated: Timestamp of last update.
     """
 
@@ -176,6 +179,9 @@ class TechniquePerformance(BaseModel):
     total_pnl_percent: float = 0.0
     best_trade_pnl: float = 0.0
     worst_trade_pnl: float = 0.0
+    gross_win_pct: float = 0.0
+    gross_loss_pct: float = 0.0
+    max_drawdown_pct: float = 0.0
     last_updated: datetime = Field(default_factory=now_utc)
     # Q2 follow-up: number of ``synthetic=True`` records excluded from
     # the money-relevant aggregations above. Reported separately so
@@ -231,27 +237,34 @@ class TechniquePerformance(BaseModel):
         # reflects all records so operator-facing "how many records do
         # we have" counts stay honest; ``synthetic_count`` surfaces the
         # excluded count separately.
+        # If a future performance derivation includes proposal-only
+        # ``shadow=True`` rows, filter them out the same way before
+        # they reach these money-relevant aggregates.
         synthetic_count = sum(1 for r in records if r.synthetic)
         real_records = [r for r in records if not r.synthetic]
 
         wins = sum(1 for r in real_records if r.outcome == TradeOutcome.WIN)
         losses = sum(1 for r in real_records if r.outcome == TradeOutcome.LOSS)
-        breakevens = sum(
-            1 for r in real_records if r.outcome == TradeOutcome.BREAKEVEN
-        )
+        breakevens = sum(1 for r in real_records if r.outcome == TradeOutcome.BREAKEVEN)
         pending = sum(1 for r in real_records if r.outcome == TradeOutcome.PENDING)
 
         closed_trades = wins + losses + breakevens
         win_rate = wins / closed_trades if closed_trades > 0 else 0.0
 
         # Calculate P&L stats from closed real trades only.
+        closed_real_records = [
+            r for r in real_records if r.outcome != TradeOutcome.PENDING
+        ]
         pnl_values = [
-            r.pnl_percent for r in real_records if r.pnl_percent is not None
+            r.pnl_percent for r in closed_real_records if r.pnl_percent is not None
         ]
         total_pnl = sum(pnl_values) if pnl_values else 0.0
         avg_pnl = total_pnl / len(pnl_values) if pnl_values else 0.0
         best_pnl = max(pnl_values) if pnl_values else 0.0
         worst_pnl = min(pnl_values) if pnl_values else 0.0
+        gross_win_pct = sum(pnl for pnl in pnl_values if pnl > 0.0)
+        gross_loss_pct = abs(sum(pnl for pnl in pnl_values if pnl < 0.0))
+        max_drawdown_pct = _max_drawdown_pct(pnl_values)
 
         return cls(
             sub_account_id=records[-1].sub_account_id,
@@ -267,9 +280,23 @@ class TechniquePerformance(BaseModel):
             total_pnl_percent=total_pnl,
             best_trade_pnl=best_pnl,
             worst_trade_pnl=worst_pnl,
+            gross_win_pct=gross_win_pct,
+            gross_loss_pct=gross_loss_pct,
+            max_drawdown_pct=max_drawdown_pct,
             last_updated=now_utc(),
             synthetic_count=synthetic_count,
         )
+
+
+def _max_drawdown_pct(pnl_values: list[float]) -> float:
+    peak = 0.0
+    cumulative = 0.0
+    max_drawdown = 0.0
+    for pnl in pnl_values:
+        cumulative += pnl
+        peak = max(peak, cumulative)
+        max_drawdown = max(max_drawdown, peak - cumulative)
+    return max_drawdown
 
 
 class PerformanceTracker:

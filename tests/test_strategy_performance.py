@@ -338,6 +338,9 @@ class TestTechniquePerformance:
         assert abs(perf.win_rate - 0.6667) < 0.01  # 2/3
         assert perf.best_trade_pnl == 4.0
         assert perf.worst_trade_pnl == -2.0
+        assert perf.gross_win_pct == 7.85
+        assert perf.gross_loss_pct == 2.0
+        assert perf.max_drawdown_pct == 2.0
 
     def test_from_records_with_pending(self) -> None:
         """Test from_records counts pending correctly."""
@@ -376,6 +379,42 @@ class TestTechniquePerformance:
         assert perf.pending == 1
         assert perf.wins == 1
         assert perf.win_rate == 1.0  # 1 win / 1 closed
+        assert perf.gross_win_pct == 3.9
+        assert perf.gross_loss_pct == 0.0
+        assert perf.max_drawdown_pct == 0.0
+
+    def test_from_records_calculates_closed_trade_drawdown(self) -> None:
+        """Drawdown tracks cumulative closed real P&L peak-to-trough."""
+
+        def record(outcome: TradeOutcome, pnl_percent: float) -> PerformanceRecord:
+            return PerformanceRecord(
+                technique_name="test",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("52000"),
+                confidence=0.8,
+                outcome=outcome,
+                exit_price=Decimal("52000"),
+                pnl_percent=pnl_percent,
+            )
+
+        records = [
+            record(TradeOutcome.WIN, 4.0),
+            record(TradeOutcome.LOSS, -1.5),
+            record(TradeOutcome.WIN, 2.0),
+            record(TradeOutcome.LOSS, -6.0),
+            record(TradeOutcome.WIN, 1.0),
+        ]
+
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+
+        assert perf.gross_win_pct == 7.0
+        assert perf.gross_loss_pct == 7.5
+        assert perf.max_drawdown_pct == 6.0
 
 
 class TestPerformanceTracker:
@@ -2083,6 +2122,9 @@ class TestSyntheticMarkers:
         assert abs(perf.total_pnl_percent - 3.0) < 1e-9
         assert perf.best_trade_pnl == 5.0
         assert perf.worst_trade_pnl == -2.0
+        assert perf.gross_win_pct == 5.0
+        assert perf.gross_loss_pct == 2.0
+        assert perf.max_drawdown_pct == 2.0
 
     def test_from_records_synthetic_count_zero_when_no_synthetic(self) -> None:
         """``synthetic_count`` is 0 when no synthetic rows are present."""
@@ -2108,6 +2150,9 @@ class TestSyntheticMarkers:
         assert perf.losses == 0
         assert perf.win_rate == 0.0
         assert perf.avg_pnl_percent == 0.0
+        assert perf.gross_win_pct == 0.0
+        assert perf.gross_loss_pct == 0.0
+        assert perf.max_drawdown_pct == 0.0
 
     def test_real_trade_count_excludes_synthetic_rows(self) -> None:
         """DEBT-065: ``real_trade_count`` returns ``total_trades -
