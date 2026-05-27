@@ -4,7 +4,14 @@ Related Requirements:
 - NFR-002: Claude CLI Integration
 """
 
-from src.strategy.base import StrategyError
+# LAYER-F2: import ``StrategyError`` from the neutral ``src.exceptions``
+# module rather than ``src.strategy.base`` so the AI adapter does not
+# depend on the strategy domain. ``ClaudeTimeoutError`` still
+# multiply-inherits the SAME ``StrategyError`` class object that
+# ``strategy.base`` re-exports, so the proposal engine's
+# ``except StrategyError`` clauses still catch a Claude timeout as a
+# clean per-strategy skip (Phase 12.3 behaviour preserved).
+from src.exceptions import StrategyError
 
 
 class ClaudeError(Exception):

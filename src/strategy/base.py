@@ -18,6 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.exceptions import StrategyError
 from src.models import OHLCV, AnalysisResult
 from src.utils.time import now_utc
 
@@ -25,15 +26,21 @@ from src.utils.time import now_utc
 # Exceptions
 # =============================================================================
 
-
-class StrategyError(Exception):
-    """Base exception for strategy errors.
-
-    All strategy-related exceptions inherit from this class,
-    allowing callers to catch all strategy errors with a single except clause.
-    """
-
-    pass
+# ``StrategyError`` is defined in the neutral ``src.exceptions`` module
+# (LAYER-F2) so the AI adapter can root ``ClaudeTimeoutError`` off it
+# without importing the strategy domain. It is re-exported here so the
+# canonical ``from src.strategy.base import StrategyError`` path — and
+# every ``except StrategyError`` site — is unchanged.
+__all__ = [
+    "StrategyError",
+    "StrategyValidationError",
+    "StrategyDataInsufficient",
+    "StrategyExecutionError",
+    "StrategyLoadError",
+    "TechniqueInfo",
+    "BaseStrategy",
+    "default_max_bars_held",
+]
 
 
 class StrategyValidationError(StrategyError):

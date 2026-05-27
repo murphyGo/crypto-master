@@ -19,9 +19,11 @@ from src.ai.improver import (
     StrategyImprover,
     StrategyImproverError,
 )
+from src.ai.ports import LLMClient
 
 __all__ = [
     "ClaudeCLI",
+    "LLMClient",
     "DEFAULT_TIMEOUT_SECONDS",
     "ClaudeError",
     "ClaudeNotFoundError",

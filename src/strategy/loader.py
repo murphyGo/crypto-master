@@ -9,12 +9,15 @@ Related Requirements:
 - NFR-010: Analysis Technique Extensibility
 """
 
+from __future__ import annotations
+
 import ast
 import decimal
 import importlib.util
 import re
 from decimal import Decimal
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -26,6 +29,14 @@ from src.strategy.base import (
     StrategyValidationError,
     TechniqueInfo,
 )
+
+if TYPE_CHECKING:
+    # Annotation-only import. Imported eagerly it forms a cycle:
+    # loader -> src.ai.ports -> src.ai.__init__ -> src.ai.improver
+    # -> loader (mid-init). ``LLMClient`` is used solely in type
+    # annotations here, so the TYPE_CHECKING guard + ``from __future__
+    # import annotations`` keeps it out of the runtime import graph.
+    from src.ai.ports import LLMClient
 
 # Default strategies directory
 DEFAULT_STRATEGIES_DIR = Path("strategies")
@@ -70,15 +81,31 @@ class PromptStrategy(BaseStrategy):
         prompt: The prompt template content.
     """
 
-    def __init__(self, info: TechniqueInfo, prompt_content: str) -> None:
+    def __init__(
+        self,
+        info: TechniqueInfo,
+        prompt_content: str,
+        *,
+        llm_client: LLMClient | None = None,
+    ) -> None:
         """Initialize prompt strategy.
 
         Args:
             info: Technique metadata.
             prompt_content: The prompt template (markdown content after frontmatter).
+            llm_client: Optional injected LLM client (LAYER-F1 / DIP
+                seam). When provided, ``analyze`` uses it directly
+                instead of constructing a concrete ``ClaudeCLI`` — the
+                domain strategy no longer news up the edge adapter. When
+                ``None`` (the default and the production path),
+                ``analyze`` falls back to constructing ``ClaudeCLI``
+                with the per-strategy timeout override, preserving
+                historical behaviour. ``LLMClient`` is a structural
+                Protocol, so ``ClaudeCLI`` satisfies it with no changes.
         """
         super().__init__(info)
         self._prompt_content = prompt_content
+        self._llm_client = llm_client
 
     @property
     def prompt(self) -> str:
@@ -223,7 +250,7 @@ class PromptStrategy(BaseStrategy):
             StrategyValidationError: If input data is invalid.
             StrategyExecutionError: If Claude analysis fails.
         """
-        from src.ai import ClaudeCLI, ClaudeError
+        from src.ai import ClaudeError
         from src.ai.exceptions import ClaudeTimeoutError
 
         # Validate input
@@ -238,19 +265,30 @@ class PromptStrategy(BaseStrategy):
             current_price=current_price,
         )
 
-        # Execute Claude CLI. Phase 14.1: per-strategy timeout
-        # override — when ``info.claude_timeout_seconds`` is set, pass
-        # it to ``ClaudeCLI`` directly so prompt-heavy strategies
-        # (e.g. multi-TF ICT/SMC analysis) get a longer leash without
-        # forcing every other strategy onto the same global timeout.
-        # ``None`` (default) lets ``ClaudeCLI`` resolve from
+        # LAYER-F1 / DIP: prefer an injected ``LLMClient`` so the domain
+        # strategy does not construct the concrete edge adapter at
+        # runtime. When none is injected (the production path), fall
+        # back to constructing ``ClaudeCLI`` here.
+        #
+        # Phase 14.1: per-strategy timeout override — when
+        # ``info.claude_timeout_seconds`` is set, pass it to
+        # ``ClaudeCLI`` directly so prompt-heavy strategies (e.g.
+        # multi-TF ICT/SMC analysis) get a longer leash without forcing
+        # every other strategy onto the same global timeout. ``None``
+        # (default) lets ``ClaudeCLI`` resolve from
         # ``Settings.claude_cli_timeout_seconds`` as before.
-        timeout_override = self.info.claude_timeout_seconds
         try:
-            if timeout_override is not None:
-                client = ClaudeCLI(timeout=float(timeout_override))
+            client: LLMClient
+            if self._llm_client is not None:
+                client = self._llm_client
             else:
-                client = ClaudeCLI()
+                from src.ai import ClaudeCLI
+
+                timeout_override = self.info.claude_timeout_seconds
+                if timeout_override is not None:
+                    client = ClaudeCLI(timeout=float(timeout_override))
+                else:
+                    client = ClaudeCLI()
             response = await client.analyze(prompt)
         except ClaudeTimeoutError:
             # Phase 12.3: ClaudeTimeoutError is a StrategyError, so it
@@ -504,13 +542,20 @@ def load_technique_info_from_py(
     return info, strategy_class
 
 
-def load_strategy(file_path: Path) -> BaseStrategy:
+def load_strategy(
+    file_path: Path, *, llm_client: LLMClient | None = None
+) -> BaseStrategy:
     """Load a strategy from a file.
 
     Automatically detects file type (.md or .py) and loads accordingly.
 
     Args:
         file_path: Path to strategy file.
+        llm_client: Optional injected LLM client passed to prompt-based
+            (``.md``) strategies so the loaded ``PromptStrategy`` uses
+            it instead of constructing a concrete ``ClaudeCLI`` at
+            analyze time (LAYER-F1 / DIP). Ignored for code (``.py``)
+            strategies. ``None`` (default) keeps the production path.
 
     Returns:
         Initialized BaseStrategy instance.
@@ -522,7 +567,9 @@ def load_strategy(file_path: Path) -> BaseStrategy:
 
     if suffix == ".md":
         info, prompt_content = load_technique_info_from_md(file_path)
-        return PromptStrategy(info=info, prompt_content=prompt_content)
+        return PromptStrategy(
+            info=info, prompt_content=prompt_content, llm_client=llm_client
+        )
 
     elif suffix == ".py":
         info, strategy_class = load_technique_info_from_py(file_path)

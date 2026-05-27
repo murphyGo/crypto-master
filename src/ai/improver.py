@@ -18,11 +18,12 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import yaml
 from pydantic import BaseModel, Field
 
+from src.ai import prompts
 from src.ai.claude import ClaudeCLI
 from src.ai.exceptions import ClaudeParseError
 from src.logger import get_logger
@@ -32,6 +33,12 @@ from src.strategy.performance import PerformanceRecord, TechniquePerformance
 from src.strategy.trade_autopsy import TradeAutopsy
 from src.utils.io import atomic_write_text
 from src.utils.time import now_utc
+
+if TYPE_CHECKING:
+    # Annotation-only import (see ``src/strategy/loader.py`` for the
+    # cycle this guard avoids). ``improver`` already imports ``loader``,
+    # so keeping ``LLMClient`` out of the runtime graph here is clean.
+    from src.ai.ports import LLMClient
 
 logger = get_logger("crypto_master.ai.improver")
 
@@ -137,15 +144,18 @@ class StrategyImprover:
 
     def __init__(
         self,
-        claude: ClaudeCLI | None = None,
+        claude: LLMClient | None = None,
         experimental_dir: Path | None = None,
         catalog_path: Path | None = None,
     ) -> None:
         """Initialize the improver.
 
         Args:
-            claude: Optional pre-built ClaudeCLI instance (useful for
-                tests). Defaults to a fresh ``ClaudeCLI()``.
+            claude: Optional pre-built LLM client (LAYER-F1 / DIP seam).
+                Typed against the narrow :class:`LLMClient` Protocol so
+                tests can inject any structural fake; defaults to a
+                fresh ``ClaudeCLI()`` (the only production adapter,
+                NFR-002).
             experimental_dir: Directory where generated techniques are
                 written. Defaults to ``strategies/experimental/``.
             catalog_path: Path to the strategy priority matrix
@@ -591,69 +601,6 @@ class StrategyImprover:
             f"{catalog}\n\n"
         )
 
-    @staticmethod
-    def _new_idea_output_contract() -> str:
-        """Runtime Output Contract instruction for ``prompt``-type techniques.
-
-        Phase 17.2 / DEBT-019 — the new-idea flow's body MUST tell
-        Claude to embed the chasulang-style runtime JSON schema in the
-        generated technique. Without this, Claude defaults to a human-
-        readable rule list and the resulting ``technique_type: prompt``
-        candidate produces unparseable per-bar output, which the
-        backtester loops on for hours. The schema mirrors the trade
-        block of ``strategies/chasulang_ict_smc.md`` (the canonical
-        production-hardened template) plus the four keys the
-        ``PromptStrategy`` parser hard-requires.
-        """
-        return (
-            "## Output Contract\n"
-            "If `technique_type: prompt`, the technique body MUST "
-            "include an explicit `## Output Contract` section telling "
-            "Claude how to respond at *runtime* (per-bar). The "
-            "technique body's contract section must require ONE fenced "
-            "JSON object per bar, no prose around the block, with at "
-            "minimum these four keys (mirror "
-            "`strategies/chasulang_ict_smc.md` for the canonical "
-            "shape):\n"
-            "```json\n"
-            "{\n"
-            '  "signal": "long" | "short" | "neutral",\n'
-            '  "entry_price": <decimal> | null,\n'
-            '  "stop_loss": <decimal> | null,\n'
-            '  "take_profit": <decimal> | null\n'
-            "}\n"
-            "```\n"
-            "Additional keys (confidence, reasoning, structured "
-            "context) are encouraged when they help the technique, but "
-            "the four keys above are mandatory and must keep their "
-            "names verbatim — the backtest engine parses them by key. "
-            "A `prompt`-type technique that omits this contract section "
-            "will be rejected as unrunnable.\n\n"
-        )
-
-    @staticmethod
-    def _output_format_instructions() -> str:
-        """Boilerplate telling Claude how to format its reply."""
-        return (
-            "OUTPUT FORMAT\n"
-            "Respond ONLY with a single fenced markdown code block "
-            "labeled ``markdown`` containing the full technique file. "
-            "The file must start with YAML frontmatter delimited by "
-            "`---` lines and containing at minimum:\n"
-            "- name: short snake_case identifier\n"
-            "- version: semantic version string\n"
-            "- description: single line of description\n"
-            '- technique_type: either "prompt" or "code"\n'
-            "- hypothesis: ONE sentence stating the specific market "
-            "inefficiency or behavior this technique exploits, phrased "
-            'so it could be falsified by data (e.g. "funding rate '
-            "above the 95th percentile predicts a mean-reverting move "
-            'within 8 hours"). This is mandatory — a technique with '
-            "no falsifiable hypothesis will be rejected.\n"
-            "\nAfter the frontmatter, include the prompt/logic body. "
-            "Do not wrap it in additional commentary."
-        )
-
     def _build_improvement_prompt(
         self,
         technique: TechniqueInfo,
@@ -705,44 +652,10 @@ class StrategyImprover:
             f"{records_block}\n\n"
             "## Trade Autopsies\n"
             f"{autopsy_block}\n\n"
-            + self._failure_analysis_section()
-            + self._hard_constraints_section()
+            + prompts.failure_analysis_section()
+            + prompts.hard_constraints_section()
             + f'Use name="{suggested_name}" (or similar) and bump the '
-            "version above the original.\n\n" + self._output_format_instructions()
-        )
-
-    @staticmethod
-    def _failure_analysis_section() -> str:
-        return (
-            "## Required Reasoning Process\n"
-            "Before writing the revised technique, work through these "
-            "steps in your reply (inside the markdown body, as a "
-            "## Failure Analysis section at the top):\n"
-            "1. Identify 2-3 SPECIFIC failure modes visible in the "
-            'losing trades (e.g. "entered counter-trend during strong '
-            'momentum", "stops too tight relative to ATR", '
-            '"signal fires equally in trending and ranging regimes").\n'
-            "2. For each failure mode, state the structural reason it "
-            "happens — not just the symptom.\n"
-            "3. Propose ONE targeted change per failure mode. Avoid "
-            "stacking many small filters (that is overfitting); prefer "
-            "one principled rule per problem.\n\n"
-        )
-
-    @staticmethod
-    def _hard_constraints_section() -> str:
-        return (
-            "## Hard Constraints\n"
-            "- Do NOT add lookback-specific thresholds tuned to the "
-            'exact trades shown (e.g. "avoid trading on Tuesdays" '
-            "because two losses happened on a Tuesday).\n"
-            "- Do NOT add more than 2 new conditions total. Simpler "
-            "rules generalize better.\n"
-            "- Every new rule must be justifiable from a market-"
-            'structure argument, not just "it would have avoided the '
-            'losses above."\n'
-            "- The hypothesis in frontmatter must reflect what the "
-            "REVISED technique exploits, not the original.\n\n"
+            "version above the original.\n\n" + prompts.output_format_instructions()
         )
 
     def _build_new_idea_prompt(self, context: str) -> str:
@@ -791,8 +704,8 @@ class StrategyImprover:
             "it is available.\n\n"
             f"{context_line}"
             + self._catalog_section()
-            + self._new_idea_output_contract()
-            + self._output_format_instructions()
+            + prompts.new_idea_output_contract()
+            + prompts.output_format_instructions()
         )
 
     def _build_new_idea_code_prompt(self, context: str) -> str:
@@ -827,102 +740,10 @@ class StrategyImprover:
             "LLM in the hot path: this is the only acceptable shape "
             "for catalog picks because it is deterministic, fast, and "
             "immune to JSON-contract drift.\n\n"
-            + self._code_shape_requirements()
-            + self._code_hard_constraints()
+            + prompts.code_shape_requirements()
+            + prompts.code_hard_constraints()
             + f"{context_line}"
-            + self._code_output_format()
-        )
-
-    @staticmethod
-    def _code_shape_requirements() -> str:
-        return (
-            "## Required file shape\n"
-            "Mirror the canonical baselines under the project's "
-            "``strategies/`` directory:\n"
-            "- ``strategies/rsi.py``\n"
-            "- ``strategies/ma_crossover.py``\n"
-            "- ``strategies/bollinger_bands.py``\n\n"
-            "Concretely, the file MUST contain:\n"
-            "1. A module docstring describing the strategy.\n"
-            "2. Imports from the project (`from src.models import "
-            "OHLCV, AnalysisResult`, `from src.strategy.base import "
-            "BaseStrategy, StrategyExecutionError, TechniqueInfo`). "
-            "You may also import indicators from "
-            "``src.strategy.indicators`` (``rsi``, ``sma``, "
-            "``bollinger_bands``, etc.) — prefer these over reinventing "
-            "the math.\n"
-            "3. A module-level ``TECHNIQUE_INFO`` dict with keys "
-            "``name``, ``version``, ``description``, ``author``, "
-            "``hypothesis``, ``symbols``, ``timeframes``, ``status``, "
-            "``changelog``. "
-            "Use a short snake_case ``name``, semantic ``version`` "
-            '(e.g. ``"1.0.0"``), and one-line ``description``. The '
-            "``technique_type`` key is set automatically by the loader "
-            "— do NOT include it.\n"
-            "4. Module-level parameter constants (period lengths, "
-            "thresholds, SL/TP percentages) so a future tuning pass is "
-            "a one-line change.\n"
-            "5. A class ``class XxxStrategy(BaseStrategy)`` whose "
-            "``__init__`` accepts ``info: TechniqueInfo`` plus the "
-            "tunables (with the module-level constants as defaults), "
-            "and whose ``analyze`` method matches the abstract "
-            "signature exactly:\n\n"
-            "```python\n"
-            "async def analyze(\n"
-            "    self,\n"
-            "    ohlcv: list[OHLCV],\n"
-            "    symbol: str,\n"
-            '    timeframe: str = "1h",\n'
-            ") -> AnalysisResult:\n"
-            "    ...\n"
-            "```\n\n"
-            "The body computes the signal from ``ohlcv`` alone and "
-            "returns an ``AnalysisResult`` with ``signal`` "
-            '(``"long" | "short" | "neutral"``), ``confidence``, '
-            "``entry_price``, ``stop_loss``, ``take_profit``, and "
-            "``reasoning``. It MUST NOT import or call ``ClaudeCLI``, "
-            "``subprocess``, ``requests``, or any other I/O — all "
-            "decisions come from OHLCV.\n\n"
-        )
-
-    @staticmethod
-    def _code_hard_constraints() -> str:
-        return (
-            "## Hard constraints\n"
-            "- Stay deterministic. No randomness, no wall-clock-"
-            "dependent branches, no network calls.\n"
-            "- Use ``Decimal`` for prices in the returned "
-            "``AnalysisResult`` (the engine and risk model assume "
-            "``Decimal`` money math).\n"
-            "- Validate input via ``self.validate_input(ohlcv, "
-            "min_candles=...)`` at the top of ``analyze``, with "
-            "``min_candles`` set high enough for the longest lookback "
-            "the strategy needs.\n"
-            "- Surface unexpected failures by raising "
-            '``StrategyExecutionError(f"…: {e}", '
-            "strategy_name=self.name)``; surface insufficient-history "
-            "cases by returning a neutral ``AnalysisResult`` with "
-            "valid placeholder prices (mirror the canonical "
-            "``_neutral_result`` helper in the baseline files).\n"
-            "- ``hypothesis`` in ``TECHNIQUE_INFO`` is mandatory: one "
-            "falsifiable sentence stating the structural inefficiency "
-            "the technique exploits.\n"
-            "- Do not import or call file/network/process APIs "
-            "(``open``, ``pathlib``, ``os``, ``subprocess``, "
-            "``requests``, ``urllib``, sockets, or dynamic execution); "
-            "the loader rejects those before execution.\n\n"
-        )
-
-    @staticmethod
-    def _code_output_format() -> str:
-        return (
-            "## Output format\n"
-            "Respond ONLY with a single fenced code block labeled "
-            "``python`` containing the full ``.py`` file body. No "
-            "prose around the block, no markdown frontmatter, no "
-            "additional commentary — the operator pipeline writes the "
-            "block verbatim to ``strategies/experimental/<slug>.py`` "
-            "and loads it with ``src.strategy.loader.load_strategy``."
+            + prompts.code_output_format()
         )
 
     def _build_user_idea_prompt(self, user_idea: str) -> str:
@@ -962,8 +783,8 @@ class StrategyImprover:
             "(stop-loss, position sizing).\n"
             "- If the idea requires data the system may not have, "
             "list it in a ## Data Requirements section.\n\n"
-            + self._new_idea_output_contract()
-            + self._output_format_instructions()
+            + prompts.new_idea_output_contract()
+            + prompts.output_format_instructions()
         )
 
     @staticmethod

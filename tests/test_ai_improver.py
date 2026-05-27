@@ -76,13 +76,16 @@ def make_improver(
 
 
 def test_prompt_section_helpers_are_isolated() -> None:
-    assert (
-        "## Required Reasoning Process" in StrategyImprover._failure_analysis_section()
-    )
-    assert "## Hard Constraints" in StrategyImprover._hard_constraints_section()
-    assert "## Required file shape" in StrategyImprover._code_shape_requirements()
-    assert "## Hard constraints" in StrategyImprover._code_hard_constraints()
-    assert "## Output format" in StrategyImprover._code_output_format()
+    # AI-F4: the pure prompt-text builders now live in src/ai/prompts.py
+    # as module-level functions, isolated from the improver's
+    # parse/validate/persist core.
+    from src.ai import prompts
+
+    assert "## Required Reasoning Process" in prompts.failure_analysis_section()
+    assert "## Hard Constraints" in prompts.hard_constraints_section()
+    assert "## Required file shape" in prompts.code_shape_requirements()
+    assert "## Hard constraints" in prompts.code_hard_constraints()
+    assert "## Output format" in prompts.code_output_format()
 
 
 def sample_technique() -> TechniqueInfo:

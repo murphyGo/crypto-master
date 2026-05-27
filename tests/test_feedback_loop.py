@@ -23,6 +23,7 @@ from src.backtest.validator import (
 from src.config import reload_settings
 from src.feedback.audit import AuditEventType, AuditLog
 from src.feedback.loop import (
+    BacktestContext,
     FeedbackLoop,
     FeedbackLoopError,
     LoopStatus,
@@ -1006,3 +1007,56 @@ def test_save_state_crash_preserves_prior_snapshot(
     loaded = loop.load_state("seed-cand")
     assert loaded.status == LoopStatus.GENERATED.value
     assert loaded.technique_name == "seed"
+
+
+# =============================================================================
+# AI-F5: BacktestContext parameter object
+# =============================================================================
+
+
+def test_backtest_context_is_frozen() -> None:
+    """AI-F5: the context is immutable so backtest + gate see the same inputs."""
+    import dataclasses
+
+    ctx = BacktestContext(ohlcv=[], symbol="BTC/USDT", timeframe="1h")
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        ctx.symbol = "ETH/USDT"  # type: ignore[misc]
+
+
+@pytest.mark.asyncio
+async def test_run_cycle_accepts_backtest_context(tmp_path: Path) -> None:
+    """AI-F5: ``_run_cycle`` consumes a ``BacktestContext`` and threads it.
+
+    Exercises the bundled-argument seam directly (rather than via an
+    entry point) so the context-threading is pinned independently.
+    """
+    loop, _, _ = make_loop(tmp_path, gate_passed=True)
+    generated = await loop.improver.suggest_improvement(
+        technique=sample_technique_info(),
+        original_source="original prompt body",
+        performance=sample_performance(),
+        records=[],
+        save=True,
+    )
+
+    multi_tf = {"1h": [], "15m": []}
+    ctx = BacktestContext(
+        ohlcv=[],
+        symbol="ETH/USDT",
+        timeframe="15m",
+        ohlcv_by_timeframe=multi_tf,
+    )
+    await loop._run_cycle(
+        generated=generated,
+        kind="improvement",
+        context=ctx,
+    )
+
+    bt_call = loop.backtester.run_for_strategy.await_args
+    assert bt_call.kwargs["symbol"] == "ETH/USDT"
+    assert bt_call.kwargs["timeframe"] == "15m"
+    assert bt_call.kwargs["ohlcv_by_timeframe"] is multi_tf
+
+    gate_call = loop.gate.evaluate.await_args
+    assert gate_call.kwargs["symbol"] == "ETH/USDT"
+    assert gate_call.kwargs["ohlcv_by_timeframe"] is multi_tf

@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -140,6 +141,44 @@ class CandidateRecord(UtcTimestampMixin, BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
 
+@dataclass(frozen=True)
+class BacktestContext:
+    """The market-data + gate inputs shared by every feedback cycle (AI-F5).
+
+    The four public entry points (``improve_existing``, ``propose_new``,
+    ``from_user_idea``, ``reevaluate``) and ``_run_cycle`` all threaded
+    the same ~7 market-data/gate arguments. Bundling them into one frozen
+    value object collapses the repeated parameter list to a single
+    argument: each entry point builds the context once and passes it
+    through, while ``_run_cycle`` keeps only the few per-candidate
+    arguments (``generated``, ``kind``, ``sub_account_id``).
+
+    Frozen so a context built at the top of an entry point cannot be
+    mutated mid-cycle — the backtest and the gate evaluate against the
+    same inputs by construction.
+
+    Attributes:
+        ohlcv: Primary-TF OHLCV series the candidate is evaluated on.
+        symbol: Trading pair symbol (e.g. ``"BTC/USDT"``).
+        timeframe: Primary candle timeframe; for multi-TF candidates the
+            primary key into ``ohlcv_by_timeframe``.
+        profile: Optional trading profile (sizing / risk envelope).
+        strategy_factory: Optional factory the ``RobustnessGate`` uses to
+            build parameter-grid variants for sensitivity analysis.
+        param_grid: Optional parameter grid for the sensitivity gate.
+        ohlcv_by_timeframe: For multi-TF candidates, the full
+            ``{tf: [OHLCV]}`` dict; ``None`` for single-TF candidates.
+    """
+
+    ohlcv: list[OHLCV]
+    symbol: str
+    timeframe: str = "1h"
+    profile: TradingProfile | None = None
+    strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None
+    param_grid: dict[str, list[Any]] | None = None
+    ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None
+
+
 # =============================================================================
 # Orchestrator
 # =============================================================================
@@ -236,9 +275,7 @@ class FeedbackLoop:
             records=records,
             save=True,
         )
-        return await self._run_cycle(
-            generated=generated,
-            kind="improvement",
+        context = BacktestContext(
             ohlcv=ohlcv,
             symbol=symbol,
             timeframe=timeframe,
@@ -246,6 +283,11 @@ class FeedbackLoop:
             strategy_factory=strategy_factory,
             param_grid=param_grid,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
+        return await self._run_cycle(
+            generated=generated,
+            kind="improvement",
+            context=context,
         )
 
     async def propose_new(
@@ -275,9 +317,7 @@ class FeedbackLoop:
         )
         if strategy_factory is None and code_type and param_grid:
             strategy_factory = self._strategy_factory_for_generated_code(generated)
-        return await self._run_cycle(
-            generated=generated,
-            kind="new_idea",
+        bt_context = BacktestContext(
             ohlcv=ohlcv,
             symbol=symbol,
             timeframe=timeframe,
@@ -285,6 +325,11 @@ class FeedbackLoop:
             strategy_factory=strategy_factory,
             param_grid=param_grid,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
+        return await self._run_cycle(
+            generated=generated,
+            kind="new_idea",
+            context=bt_context,
             sub_account_id=sub_account_id,
         )
 
@@ -326,9 +371,7 @@ class FeedbackLoop:
         generated = await self.improver.generate_from_user_idea(
             user_idea=user_idea, save=True
         )
-        return await self._run_cycle(
-            generated=generated,
-            kind="user_idea",
+        context = BacktestContext(
             ohlcv=ohlcv,
             symbol=symbol,
             timeframe=timeframe,
@@ -336,6 +379,11 @@ class FeedbackLoop:
             strategy_factory=strategy_factory,
             param_grid=param_grid,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
+        return await self._run_cycle(
+            generated=generated,
+            kind="user_idea",
+            context=context,
         )
 
     async def reevaluate(
@@ -371,9 +419,7 @@ class FeedbackLoop:
             suggested_filename=experimental_path.name,
             saved_path=experimental_path,
         )
-        return await self._run_cycle(
-            generated=synthetic,
-            kind="reevaluation",
+        context = BacktestContext(
             ohlcv=ohlcv,
             symbol=symbol,
             timeframe=timeframe,
@@ -381,6 +427,11 @@ class FeedbackLoop:
             strategy_factory=strategy_factory,
             param_grid=param_grid,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+        )
+        return await self._run_cycle(
+            generated=synthetic,
+            kind="reevaluation",
+            context=context,
         )
 
     # ------------------------------------------------------------------
@@ -522,16 +573,15 @@ class FeedbackLoop:
         self,
         generated: GeneratedTechnique,
         kind: CandidateKind,
-        ohlcv: list[OHLCV],
-        symbol: str,
-        timeframe: str,
-        profile: TradingProfile | None,
-        strategy_factory: StrategyFactory | AsyncStrategyFactory | None,
-        param_grid: dict[str, list[Any]] | None,
-        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        context: BacktestContext,
         sub_account_id: str = "default",
     ) -> CandidateRecord:
-        """Run the full backtest → gate cycle for a fresh candidate."""
+        """Run the full backtest → gate cycle for a fresh candidate.
+
+        AI-F5: the shared market-data/gate inputs are bundled into
+        ``context`` (a :class:`BacktestContext`) so this method and its
+        four entry points no longer re-list the same ~7 arguments.
+        """
         if generated.saved_path is None:
             raise FeedbackLoopError(
                 "Generated technique has no saved_path; the improver "
@@ -564,23 +614,23 @@ class FeedbackLoop:
             strategy = load_strategy(generated.saved_path)
             backtest = await self.backtester.run_for_strategy(
                 strategy=strategy,
-                ohlcv=ohlcv,
-                symbol=symbol,
-                timeframe=timeframe,
-                profile=profile,
-                ohlcv_by_timeframe=ohlcv_by_timeframe,
+                ohlcv=context.ohlcv,
+                symbol=context.symbol,
+                timeframe=context.timeframe,
+                profile=context.profile,
+                ohlcv_by_timeframe=context.ohlcv_by_timeframe,
             )
             record = self._after_backtest(record, backtest)
 
             report = await self.gate.evaluate(
                 strategy=strategy,
-                ohlcv=ohlcv,
-                symbol=symbol,
-                timeframe=timeframe,
-                profile=profile,
-                strategy_factory=strategy_factory,
-                param_grid=param_grid,
-                ohlcv_by_timeframe=ohlcv_by_timeframe,
+                ohlcv=context.ohlcv,
+                symbol=context.symbol,
+                timeframe=context.timeframe,
+                profile=context.profile,
+                strategy_factory=context.strategy_factory,
+                param_grid=context.param_grid,
+                ohlcv_by_timeframe=context.ohlcv_by_timeframe,
             )
             return self._after_gate(record, report)
 
