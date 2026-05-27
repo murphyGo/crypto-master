@@ -333,20 +333,47 @@ def build_notification_dispatcher(
     return default_dispatcher
 
 
-def _build_engine_settings_phase(
-    settings: Settings,
-    config: EngineConfig | None,
-) -> EngineConfig:
-    """Resolve engine settings into the immutable runtime config artifact."""
-    return config or _engine_config_from_settings(settings)
-
-
-def _build_engine_config_phase(
+def build_engine(
     settings: Settings,
     exchange: BaseExchange,
-    activity: ActivityLog,
-) -> tuple[ProposalEngine, ProposalHistory, ProposalInteraction]:
-    """Build strategy/proposal configuration artifacts."""
+    config: EngineConfig | None = None,
+    registry: SubAccountRegistry | None = None,
+    trader: Trader | None = None,
+    activity_log: ActivityLog | None = None,
+) -> TradingEngine:
+    """Wire all the components and return a ready-to-run ``TradingEngine``.
+
+    Splitting this out keeps ``main`` thin and makes it easy for an
+    integration test or a one-shot ``python -c "..."`` to construct
+    the engine without standing up an event loop.
+
+    When ``config`` is omitted, all engine tunables are read from
+    ``Settings``: cycle interval, auto-approve threshold, altcoin
+    symbol list, balance, and per-symbol cap (Phase 10.2 / 12.1) plus
+    monitor interval, bitcoin symbol, altcoin top-K, and actor name
+    (Phase 13.2 / DEBT-003).
+
+    Phase 19.1 adds the ``registry`` parameter as the wiring seam for
+    sub-account capital segmentation. When omitted the engine
+    constructs a single-``default`` registry internally so legacy
+    callers see no behaviour change. The engine does not yet consume
+    the registry — 19.2 will fan out ``cycle()`` per sub-account.
+
+    The body reads top-to-bottom as the composition-root wiring
+    sequence: resolve config, share an activity log, build the
+    proposal stack, then the trader / registry / dispatcher, and
+    finally the engine. ``build_trader``,
+    ``build_notification_dispatcher`` and ``_engine_config_from_settings``
+    stay extracted because ``run()`` reuses them; the rest is inlined
+    here since it is a single cohesive wiring decision (CAH-03).
+    """
+    # Resolve the immutable runtime config (env-driven unless injected).
+    config = config or _engine_config_from_settings(settings)
+    # Share one activity log across the trader and the proposal stack
+    # (Phase 12.3 / DEBT-027 dashboard event surface).
+    activity = activity_log if activity_log is not None else ActivityLog()
+
+    # Strategy / proposal artifacts.
     strategies = load_all_strategies()
     perf = PerformanceTracker()
     # DEBT-061: per-strategy emission / fail-closed counters. The
@@ -373,71 +400,23 @@ def _build_engine_config_phase(
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
-    return proposal_engine, history, interaction
 
+    # Build or reuse the trader and sub-account registry.
+    if trader is None:
+        trader = build_trader(settings, exchange, config, activity_log=activity)
+    if registry is None:
+        registry = SubAccountRegistry(
+            settings=settings,
+            trader=trader,
+            exchange=exchange,
+            activity_log=activity,
+            paper_auto_deposit_on_liquidation=(
+                config.paper_auto_deposit_on_liquidation
+            ),
+        )
 
-def _build_engine_exchange_phase(
-    settings: Settings,
-    exchange: BaseExchange,
-) -> BaseExchange:
-    """Return the authenticated exchange artifact passed to build_engine."""
-    del settings
-    return exchange
+    notifier = build_notification_dispatcher(settings, config, registry)
 
-
-def _build_engine_activity_log_phase(
-    activity_log: ActivityLog | None,
-) -> ActivityLog:
-    """Return the shared activity log artifact for runtime components."""
-    return activity_log if activity_log is not None else ActivityLog()
-
-
-def _build_engine_trader_phase(
-    settings: Settings,
-    exchange: BaseExchange,
-    config: EngineConfig,
-    activity: ActivityLog,
-    trader: Trader | None,
-) -> Trader:
-    """Build or reuse the trader artifact."""
-    if trader is not None:
-        return trader
-    return build_trader(settings, exchange, config, activity_log=activity)
-
-
-def _build_engine_registry_phase(
-    settings: Settings,
-    exchange: BaseExchange,
-    config: EngineConfig,
-    activity: ActivityLog,
-    trader: Trader,
-    registry: SubAccountRegistry | None,
-) -> SubAccountRegistry:
-    """Build or reuse the sub-account registry artifact."""
-    if registry is not None:
-        return registry
-    return SubAccountRegistry(
-        settings=settings,
-        trader=trader,
-        exchange=exchange,
-        activity_log=activity,
-        paper_auto_deposit_on_liquidation=config.paper_auto_deposit_on_liquidation,
-    )
-
-
-def _build_engine_runtime_phase(
-    settings: Settings,
-    exchange: BaseExchange,
-    config: EngineConfig,
-    proposal_engine: ProposalEngine,
-    history: ProposalHistory,
-    interaction: ProposalInteraction,
-    trader: Trader,
-    registry: SubAccountRegistry,
-    notifier: NotificationDispatcher,
-    activity: ActivityLog,
-) -> TradingEngine:
-    """Build the final TradingEngine artifact."""
     logger.info(
         f"Trading mode: {settings.trading_mode} "
         f"(trader={type(trader).__name__}, exchange={exchange.name}, "
@@ -456,64 +435,6 @@ def _build_engine_runtime_phase(
         portfolio_tracker=PortfolioTracker(),
         mode=settings.trading_mode,
         quote_currency="USDT",
-    )
-
-
-def build_engine(
-    settings: Settings,
-    exchange: BaseExchange,
-    config: EngineConfig | None = None,
-    registry: SubAccountRegistry | None = None,
-    trader: Trader | None = None,
-    activity_log: ActivityLog | None = None,
-) -> TradingEngine:
-    """Wire all the components and return a ready-to-run ``TradingEngine``.
-
-    Splitting this out keeps ``main`` thin and makes it easy for an
-    integration test or a one-shot ``python -c "..."`` to construct
-    the engine without standing up an event loop.
-
-    When ``config`` is omitted, all engine tunables are read from
-    ``Settings``: cycle interval, auto-approve threshold, altcoin
-    symbol list, balance, and per-symbol cap (Phase 10.2 / 12.1) plus
-    monitor interval, bitcoin symbol, altcoin top-K, and actor name
-    (Phase 13.2 / DEBT-003).
-
-    Phase 19.1 adds the ``registry`` parameter as the wiring seam for
-    sub-account capital segmentation. When omitted the engine
-    constructs a single-``default`` registry internally so legacy
-    callers see no behaviour change. The engine does not yet consume
-    the registry — 19.2 will fan out ``cycle()`` per sub-account.
-    """
-    config = _build_engine_settings_phase(settings, config)
-    exchange = _build_engine_exchange_phase(settings, exchange)
-    activity = _build_engine_activity_log_phase(activity_log)
-    proposal_engine, history, interaction = _build_engine_config_phase(
-        settings,
-        exchange,
-        activity,
-    )
-    trader = _build_engine_trader_phase(settings, exchange, config, activity, trader)
-    registry = _build_engine_registry_phase(
-        settings,
-        exchange,
-        config,
-        activity,
-        trader,
-        registry,
-    )
-    notifier = build_notification_dispatcher(settings, config, registry)
-    return _build_engine_runtime_phase(
-        settings,
-        exchange,
-        config,
-        proposal_engine,
-        history,
-        interaction,
-        trader,
-        registry,
-        notifier,
-        activity,
     )
 
 
