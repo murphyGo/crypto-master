@@ -25,7 +25,11 @@ from src.models import Order, OrderRequest, OrderStatus, Position
 from src.strategy.performance import TradeHistory, TradeHistoryTracker
 from src.trading.base import exit_condition_for_position, exit_reason_for_position
 from src.trading.strategy import TradingError
-from src.utils.trading_types import OrderSide
+from src.utils.trading_types import (
+    OrderSide,
+    closing_order_side,
+    entry_order_side,
+)
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -239,7 +243,7 @@ class LiveTrader:
 
         order_request = OrderRequest(
             symbol=position.symbol,
-            side="buy" if position.side == "long" else "sell",
+            side=entry_order_side(position.side),
             type="market",
             quantity=position.quantity,
         )
@@ -482,7 +486,7 @@ class LiveTrader:
         Returns:
             Updated TradeHistory, or None if trade not found.
         """
-        closing_side: OrderSide = "sell" if position.side == "long" else "buy"
+        closing_side: OrderSide = closing_order_side(position.side)
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,

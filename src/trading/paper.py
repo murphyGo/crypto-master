@@ -26,7 +26,11 @@ from src.trading.base import exit_condition_for_position
 from src.trading.strategy import TradingError
 from src.utils.io import atomic_write_text
 from src.utils.trading_math import pnl_for_trade
-from src.utils.trading_types import OrderSide
+from src.utils.trading_types import (
+    OrderSide,
+    closing_order_side,
+    entry_order_side,
+)
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -1207,7 +1211,7 @@ class PaperTrader:
         # Build order request
         order_request = OrderRequest(
             symbol=position.symbol,
-            side="buy" if position.side == "long" else "sell",
+            side=entry_order_side(position.side),
             type="market",
             quantity=position.quantity,
         )
@@ -1320,7 +1324,7 @@ class PaperTrader:
         position = open_pos.position
 
         # Build closing order (opposite side)
-        closing_side: OrderSide = "sell" if position.side == "long" else "buy"
+        closing_side: OrderSide = closing_order_side(position.side)
         order_request = OrderRequest(
             symbol=position.symbol,
             side=closing_side,
