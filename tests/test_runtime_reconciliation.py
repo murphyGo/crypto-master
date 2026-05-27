@@ -9,15 +9,19 @@ density at the same level as ``test_tools_backfill_paper_sl_tp.py``.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 from src.runtime.reconciliation import (
     DEFAULT_STALE_THRESHOLD_SECONDS,
     LOCKED_CONSISTENCY_EPSILON,
     LOCKED_CONSISTENCY_RELATIVE_RATIO,
     OpenTradeState,
+    _load_json_list,
     _locked_consistency_tolerance,
     classify_open_trade,
     compute_closed_but_malformed_count,
@@ -649,3 +653,48 @@ def test_health_report_stale_count_zero_when_all_rows_fresh(tmp_path: Path) -> N
 def test_default_stale_threshold_constant_is_seven_days() -> None:
     """DEBT-064: pin the 7-day default so dashboards / docs can reference it."""
     assert DEFAULT_STALE_THRESHOLD_SECONDS == 7 * 24 * 3600
+
+
+# =============================================================================
+# _load_json_list — fail-soft JSON-array reader (RECON-F4 dedup)
+# =============================================================================
+
+
+def test_load_json_list_missing_file_returns_empty(tmp_path: Path) -> None:
+    """A non-existent path is the common case (no ledger yet) → ``[]``."""
+    assert _load_json_list(tmp_path / "absent.json", context="paper ledger") == []
+
+
+def test_load_json_list_malformed_json_returns_empty_and_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unparseable JSON is logged (tagged with ``context``) and yields ``[]``."""
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not valid json", encoding="utf-8")
+    # The module logger sets ``propagate=False`` (see ``src/logger.py``), so
+    # caplog's root handler never sees the record — attach caplog's handler
+    # to the module logger directly.
+    module_logger = logging.getLogger("crypto_master.runtime.reconciliation")
+    module_logger.addHandler(caplog.handler)
+    try:
+        with caplog.at_level("WARNING"):
+            result = _load_json_list(bad, context="paper ledger")
+    finally:
+        module_logger.removeHandler(caplog.handler)
+    assert result == []
+    assert "Failed to read paper ledger" in caplog.text
+
+
+def test_load_json_list_non_list_json_returns_empty(tmp_path: Path) -> None:
+    """A valid-but-non-array top-level JSON value (dict) → ``[]`` (shape guard)."""
+    obj = tmp_path / "obj.json"
+    obj.write_text(json.dumps({"status": "open"}), encoding="utf-8")
+    assert _load_json_list(obj, context="perf records at") == []
+
+
+def test_load_json_list_valid_list_returns_rows(tmp_path: Path) -> None:
+    """A valid JSON array is returned verbatim (filtering stays at call sites)."""
+    arr = tmp_path / "arr.json"
+    payload = [{"id": "a"}, {"id": "b"}, "scalar"]
+    arr.write_text(json.dumps(payload), encoding="utf-8")
+    assert _load_json_list(arr, context="paper ledger") == payload

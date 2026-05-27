@@ -45,6 +45,7 @@ from decimal import Decimal
 from typing import Literal
 
 from src.trading.sub_account import RiskPolicy
+from src.utils.trading_types import TradeSide
 
 # Reasons returned to the caller when a proposal cannot be sized.
 # Stable string identifiers so dashboard/audit consumers can group on
@@ -89,7 +90,7 @@ def compute_risk_budget_size(
     account_equity: Decimal | None,
     entry_price: Decimal,
     stop_loss_price: Decimal,
-    side: Literal["long", "short"],
+    side: TradeSide,
     policy: RiskPolicy,
 ) -> Decimal | RiskSizingRejection:
     """Size a proposal under ``sizing_mode='risk_budget'``.

@@ -342,6 +342,27 @@ def _row_is_closed_but_malformed(row: dict[str, Any]) -> bool:
     )
 
 
+def _load_json_list(path: Path, *, context: str) -> list:
+    """Fail-soft read of a JSON array file (RECON-F4 dedup).
+
+    Returns ``[]`` for a missing file, an unreadable/malformed file
+    (logging a warning tagged with ``context`` so each caller keeps its
+    distinct message), or a top-level JSON value that is not a list.
+    Per-reader row filtering stays at the call site.
+    """
+    if not path.exists():
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            rows = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read %s %s: %s", context, path, exc)
+        return []
+    if not isinstance(rows, list):
+        return []
+    return rows
+
+
 def compute_closed_but_malformed_count(
     data_dir: Path,
     sub_account_id: str,
@@ -355,16 +376,7 @@ def compute_closed_but_malformed_count(
     log-and-continue contract).
     """
     trades_path = data_dir / "trades" / "paper" / sub_account_id / "trades.json"
-    if not trades_path.exists():
-        return 0
-    try:
-        with open(trades_path, encoding="utf-8") as f:
-            rows = json.load(f)
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read paper ledger %s: %s", trades_path, exc)
-        return 0
-    if not isinstance(rows, list):
-        return 0
+    rows = _load_json_list(trades_path, context="paper ledger")
     return sum(
         1
         for row in rows
@@ -431,18 +443,7 @@ def _load_perf_record_ids(
         if not technique_dir.is_dir():
             continue
         records_path = technique_dir / "records.json"
-        if not records_path.exists():
-            continue
-        try:
-            with open(records_path, encoding="utf-8") as f:
-                rows = json.load(f)
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning(
-                "Failed to read perf records at %s: %s", records_path, exc
-            )
-            continue
-        if not isinstance(rows, list):
-            continue
+        rows = _load_json_list(records_path, context="perf records at")
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -458,16 +459,7 @@ def _load_open_trade_rows(
 ) -> list[dict[str, Any]]:
     """Return raw open-trade rows for ``sub_account_id`` (``status == "open"``)."""
     trades_path = data_dir / "trades" / "paper" / sub_account_id / "trades.json"
-    if not trades_path.exists():
-        return []
-    try:
-        with open(trades_path, encoding="utf-8") as f:
-            rows = json.load(f)
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read paper ledger %s: %s", trades_path, exc)
-        return []
-    if not isinstance(rows, list):
-        return []
+    rows = _load_json_list(trades_path, context="paper ledger")
     return [
         row for row in rows if isinstance(row, dict) and row.get("status") == "open"
     ]

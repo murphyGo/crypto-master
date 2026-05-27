@@ -46,6 +46,7 @@ from src.trading.strategy import (
 )
 from src.utils.io import atomic_write_text
 from src.utils.trading_math import pnl_for_trade
+from src.utils.trading_types import TradeSide
 
 logger = get_logger("crypto_master.backtest.engine")
 
@@ -232,7 +233,7 @@ class BacktestTrade(BaseModel):
 
     trade_id: str
     symbol: str
-    side: Literal["long", "short"]
+    side: TradeSide
     entry_time: datetime
     exit_time: datetime
     entry_price: Decimal
@@ -865,7 +866,7 @@ class Backtester:
     def _apply_slippage(
         self,
         base_price: Decimal,
-        side: Literal["long", "short"],
+        side: TradeSide,
         is_entry: bool,
     ) -> Decimal:
         """Adjust a reference price by the configured slippage.

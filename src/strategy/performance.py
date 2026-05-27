@@ -30,6 +30,7 @@ from src.utils.io import atomic_write_text
 from src.utils.pydantic_mixins import DecimalFieldsMixin, UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
+from src.utils.trading_types import TradeSide
 
 logger = get_logger("crypto_master.strategy.performance")
 
@@ -821,7 +822,7 @@ class TradeHistory(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     performance_record_id: str | None = None
     sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
     symbol: str
-    side: Literal["long", "short"]
+    side: TradeSide
     mode: Literal["backtest", "paper", "live"]
 
     # Entry details
@@ -945,7 +946,7 @@ class TradeHistoryTracker:
     def open_trade(
         self,
         symbol: str,
-        side: Literal["long", "short"],
+        side: TradeSide,
         entry_price: Decimal,
         entry_quantity: Decimal,
         mode: Literal["backtest", "paper", "live"],

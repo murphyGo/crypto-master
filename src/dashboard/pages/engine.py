@@ -1023,6 +1023,53 @@ def _cap_band(pct: float | None) -> CapBand | None:
     return "green"
 
 
+# (label, total_key, limit_key) for each global cap, shared by the
+# cap-utilization table and the closest-cap picker (DASH-F2 dedup).
+_GLOBAL_CAP_SPECS: tuple[tuple[str, str, str], ...] = (
+    (
+        "open_positions_per_symbol_side",
+        "open_positions_per_symbol_side_total",
+        "max_open_positions_per_symbol_side",
+    ),
+    (
+        "gross_notional_per_symbol_side",
+        "gross_notional_per_symbol_side_total",
+        "max_gross_notional_per_symbol_side",
+    ),
+    (
+        "gross_notional_per_symbol",
+        "gross_notional_per_symbol_total",
+        "max_gross_notional_per_symbol",
+    ),
+)
+
+
+def _pct_of_cap(
+    details: dict[str, object], total_key: str, limit_key: str
+) -> float | None:
+    """Percent-of-limit for one cap key in a global-cap payload.
+
+    Returns ``None`` when the limit is unset/unparseable, the total is
+    unset/unparseable, or the limit is zero (no meaningful ratio). The
+    arithmetic is identical to the previously-inlined
+    ``total_val / limit_val * 100.0`` (DASH-F2 dedup, behavior-preserving).
+    """
+    limit_raw = details.get(limit_key)
+    if limit_raw in (None, ""):
+        return None
+    total_raw = details.get(total_key)
+    if total_raw in (None, ""):
+        return None
+    try:
+        limit_val = float(str(limit_raw))
+        total_val = float(str(total_raw))
+    except (TypeError, ValueError):
+        return None
+    if not limit_val:
+        return None
+    return total_val / limit_val * 100.0
+
+
 def _latest_by(
     events: list[ActivityEvent],
     *,
@@ -1234,39 +1281,19 @@ def build_portfolio_cap_utilization(events: list[ActivityEvent]) -> pd.DataFrame
     latest = max(global_events, key=lambda e: e.timestamp)
     details = latest.details or {}
 
-    # (label, total_key, limit_key)
-    cap_specs = [
-        (
-            "open_positions_per_symbol_side",
-            "open_positions_per_symbol_side_total",
-            "max_open_positions_per_symbol_side",
-        ),
-        (
-            "gross_notional_per_symbol_side",
-            "gross_notional_per_symbol_side_total",
-            "max_gross_notional_per_symbol_side",
-        ),
-        (
-            "gross_notional_per_symbol",
-            "gross_notional_per_symbol_total",
-            "max_gross_notional_per_symbol",
-        ),
-    ]
-
     rows: list[dict[str, object]] = []
-    for label, total_key, limit_key in cap_specs:
+    for label, total_key, limit_key in _GLOBAL_CAP_SPECS:
         limit_raw = details.get(limit_key)
         if limit_raw in (None, ""):
             continue  # cap not configured — inert.
         total_raw = details.get(total_key)
         try:
-            limit_val = float(str(limit_raw))
-            total_val = (
-                float(str(total_raw)) if total_raw not in (None, "") else None
-            )
+            float(str(limit_raw))  # both must parse, or the row is dropped
+            if total_raw not in (None, ""):
+                float(str(total_raw))
         except (TypeError, ValueError):
             continue
-        pct = (total_val / limit_val * 100.0) if (total_val is not None and limit_val) else None
+        pct = _pct_of_cap(details, total_key, limit_key)
         rows.append(
             {
                 "Cap": label,
@@ -1352,38 +1379,12 @@ def build_symbol_side_exposure_dataframe(
 
 def _closest_global_cap(details: dict[str, object]) -> str:
     """Cap label with the highest percent-of-limit in a global-cap payload."""
-    cap_specs = [
-        (
-            "open_positions_per_symbol_side",
-            "open_positions_per_symbol_side_total",
-            "max_open_positions_per_symbol_side",
-        ),
-        (
-            "gross_notional_per_symbol_side",
-            "gross_notional_per_symbol_side_total",
-            "max_gross_notional_per_symbol_side",
-        ),
-        (
-            "gross_notional_per_symbol",
-            "gross_notional_per_symbol_total",
-            "max_gross_notional_per_symbol",
-        ),
-    ]
     best_label = "—"
     best_pct = -1.0
-    for label, total_key, limit_key in cap_specs:
-        limit_raw = details.get(limit_key)
-        total_raw = details.get(total_key)
-        if limit_raw in (None, "") or total_raw in (None, ""):
+    for label, total_key, limit_key in _GLOBAL_CAP_SPECS:
+        pct = _pct_of_cap(details, total_key, limit_key)
+        if pct is None:
             continue
-        try:
-            limit_val = float(str(limit_raw))
-            total_val = float(str(total_raw))
-        except (TypeError, ValueError):
-            continue
-        if not limit_val:
-            continue
-        pct = total_val / limit_val * 100.0
         if pct > best_pct:
             best_pct = pct
             best_label = label

@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.models import OHLCV
 from src.strategy.performance import TradeHistory
 from src.utils.time import ensure_utc
+from src.utils.trading_types import TradeSide
 
 if TYPE_CHECKING:
     from src.backtest.engine import BacktestTrade
@@ -44,7 +45,7 @@ class TradeAutopsy(BaseModel):
 
     trade_id: str
     symbol: str
-    side: Literal["long", "short"]
+    side: TradeSide
     mode: Literal["backtest", "paper", "live"]
     sub_account_id: str = "default"
     entry_time: datetime

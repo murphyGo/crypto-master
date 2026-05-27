@@ -381,7 +381,7 @@ class PerformanceAnalyzer:
         Returns ``int(round((365 * 24 * 3600) / median_dt_seconds))`` or
         ``None`` when the cadence is undefined (fewer than two points,
         non-positive median Δt). The integer round-trip lines up with
-        ``_sharpe_from_returns``'s ``int | None`` contract; the
+        ``metrics.sharpe_from_returns``'s ``int | None`` contract; the
         precision loss from rounding is negligible against ``√(N)``
         scaling.
         """
@@ -404,13 +404,6 @@ class PerformanceAnalyzer:
             return None
         seconds_per_year = 365 * 24 * 3600
         return int(round(seconds_per_year / median_dt))
-
-    @staticmethod
-    def _sharpe_from_returns(
-        returns: list[float], trades_per_year: int | None
-    ) -> float | None:
-        """Common tail: mean / std with optional sqrt(N) annualization."""
-        return sharpe_from_returns(returns, trades_per_year)
 
     # ------------------------------------------------------------------
     # Reporting
