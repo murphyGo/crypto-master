@@ -68,6 +68,7 @@ from src.runtime.correlation_governor import (
     CorrelationWarningPolicy,
     evaluate_correlation_gate,
 )
+from src.runtime.gate_reason import GateReason
 from src.runtime.market_regime import (
     DEFAULT_BEAR_BAND,
     DEFAULT_BULL_BAND,
@@ -1584,7 +1585,7 @@ class TradingEngine:
             details: dict[str, Any] = {
                 **_proposal_summary(proposal),
                 "reason": reason,
-                "gate_reason": "risk_sizing",
+                "gate_reason": GateReason.RISK_SIZING.value,
                 "risk_sizing_reason": sized.reason,
                 "sub_account_id": sub_account.id,
                 "quote_currency": quote_currency,
@@ -1925,7 +1926,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "daily_loss_kill_switch",
+            "gate_reason": GateReason.DAILY_LOSS_KILL_SWITCH.value,
             "sub_account_id": sub_account.id,
             "realized_pnl_today": str(realized_today),
             "current_quote_balance": str(equity),
@@ -2044,7 +2045,7 @@ class TradingEngine:
                 details: dict[str, Any] = {
                     **_proposal_summary(proposal),
                     "reason": reason,
-                    "gate_reason": "open_drawdown_kill_switch",
+                    "gate_reason": GateReason.OPEN_DRAWDOWN_KILL_SWITCH.value,
                     "sub_account_id": sub_account.id,
                     "unrealized_pnl_open": str(unrealized),
                     "equity": str(equity),
@@ -2077,7 +2078,7 @@ class TradingEngine:
                 details = {
                     **_proposal_summary(proposal),
                     "reason": reason,
-                    "gate_reason": "open_stop_risk_kill_switch",
+                    "gate_reason": GateReason.OPEN_STOP_RISK_KILL_SWITCH.value,
                     "sub_account_id": sub_account.id,
                     "open_stop_risk": str(open_stop_risk),
                     "equity": str(equity),
@@ -2224,7 +2225,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "portfolio_kill_switch",
+            "gate_reason": GateReason.PORTFOLIO_KILL_SWITCH.value,
             "portfolio_unrealized_pnl": str(portfolio_unrealized),
             "portfolio_equity": str(portfolio_equity),
             "portfolio_unrealized_drawdown_limit_pct": str(drawdown_limit),
@@ -2284,7 +2285,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "portfolio_daily_loss_kill_switch",
+            "gate_reason": GateReason.PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value,
             "portfolio_realized_pnl_today": str(portfolio_realized_today),
             "portfolio_starting_equity_today": str(
                 portfolio_starting_equity_today
@@ -2462,7 +2463,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
-                        "gate_reason": "total_cap",
+                        "gate_reason": GateReason.TOTAL_CAP.value,
                         "open_count": len(open_trades),
                         "cap": total_cap,
                         "blocking_trades": blocking_trades,
@@ -2528,7 +2529,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
-                        "gate_reason": "symbol_cap",
+                        "gate_reason": GateReason.SYMBOL_CAP.value,
                         "open_count": existing,
                         "cap": cap,
                         "blocking_trades": blocking_trades,
@@ -2625,7 +2626,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "account_aggregate_cap",
+            "gate_reason": GateReason.ACCOUNT_AGGREGATE_CAP.value,
             "sub_account_id": sub_account.id,
             "gross_notional_total": str(notional_total),
             "open_stop_risk_total": str(stop_risk_total),
@@ -2741,7 +2742,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "stale_position_block",
+            "gate_reason": GateReason.STALE_POSITION_BLOCK.value,
             "sub_account_id": sub_account.id,
             "oldest_trade_id": oldest_trade.id,
             "oldest_trade_symbol": oldest_trade.symbol,
@@ -2992,7 +2993,7 @@ class TradingEngine:
         details: dict[str, Any] = {
             **_proposal_summary(proposal),
             "reason": reason,
-            "gate_reason": "global_cap",
+            "gate_reason": GateReason.GLOBAL_CAP.value,
             "symbol": symbol,
             "side": side,
             "open_positions_per_symbol_side_total": open_positions_total,
@@ -3144,7 +3145,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
-                        "gate_reason": "sibling_family_dedup",
+                        "gate_reason": GateReason.SIBLING_FAMILY_DEDUP.value,
                         "family": family,
                         "symbol": proposal.symbol,
                         "signal": proposal.signal,
@@ -3188,7 +3189,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
-                        "gate_reason": "runtime_safety_paused",
+                        "gate_reason": GateReason.RUNTIME_SAFETY_PAUSED.value,
                         "runtime_safety_score": safety_score.score,
                         "runtime_safety_band": safety_score.band.value,
                         "runtime_safety_pause_min_score": pause_min_score,
@@ -3293,7 +3294,7 @@ class TradingEngine:
                     {
                         **_proposal_summary(proposal),
                         "reason": reason,
-                        "gate_reason": "trend_filter_blocked",
+                        "gate_reason": GateReason.TREND_FILTER_BLOCKED.value,
                         "htf_timeframe": "1d",
                         "htf_last_close": str(last_close),
                         "htf_sma200": str(sma200),
@@ -3439,7 +3440,7 @@ class TradingEngine:
         # ``details`` already carries ``proposal_id`` / ``record_id`` /
         # ``sub_account_id`` via ``_proposal_summary``; ``gate_reason``
         # is the spec §1 canonical discriminator string.
-        details["gate_reason"] = "market_regime_blocked"
+        details["gate_reason"] = GateReason.MARKET_REGIME_BLOCKED.value
         return GateOutcome(
             GateDecision.REJECTED,
             reason,
@@ -3561,7 +3562,7 @@ class TradingEngine:
                 {
                     **_proposal_summary(proposal),
                     "reason": "strategy_action_shadow",
-                    "gate_reason": "strategy_action_shadow",
+                    "gate_reason": GateReason.STRATEGY_ACTION_SHADOW.value,
                     "shadow": True,
                 },
                 cycle_id,
@@ -3578,7 +3579,7 @@ class TradingEngine:
             )
 
         if action == StrategyAction.PAUSE:
-            reason = "strategy_action_pause"
+            reason = GateReason.STRATEGY_ACTION_PAUSE.value
             paused_record = record.reject(
                 ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE, reason
             )
@@ -3668,7 +3669,7 @@ class TradingEngine:
                 {
                     **_proposal_summary(proposal),
                     "reason": reason,
-                    "gate_reason": "correlation_blocked",
+                    "gate_reason": GateReason.CORRELATION_BLOCKED.value,
                     "warnings": warning_details,
                 },
                 cycle_id,
@@ -4134,7 +4135,7 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "reason": reason,
-                "gate_reason": "stale_quote_no_live_data",
+                "gate_reason": GateReason.STALE_QUOTE_NO_LIVE_DATA.value,
                 "proposal_stop_loss": str(proposal.stop_loss),
                 "live_price": str(live_price),
                 "drift_bps": drift_bps,
@@ -4194,7 +4195,7 @@ class TradingEngine:
             details={
                 **_proposal_summary(proposal),
                 "reason": reason,
-                "gate_reason": "stale_quote_no_live_data",
+                "gate_reason": GateReason.STALE_QUOTE_NO_LIVE_DATA.value,
                 "detail": detail,
                 "proposal_stop_loss": str(proposal.stop_loss),
             },

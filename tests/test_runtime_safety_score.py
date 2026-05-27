@@ -8,12 +8,19 @@ import pytest
 from pydantic import ValidationError
 
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.runtime.gate_reason import GateReason
 from src.runtime.safety_score import (
+    GLOBAL_SUB_ACCOUNT_SENTINEL,
     RuntimeSafetyBand,
     RuntimeSafetyInputs,
     RuntimeSafetyPolicy,
     RuntimeSafetyScore,
     compute_runtime_safety_score,
+    event_advisory,
+    event_cycle_id,
+    event_gate_reason,
+    event_reason,
+    event_sub_account_id,
     format_runtime_safety_summary,
     inputs_from_activity_events,
     inputs_from_recent_activity_events,
@@ -369,3 +376,79 @@ def test_kill_switch_scope_excludes_stale_and_freeze_events() -> None:
     assert inputs.kill_switch_conditions == 0
     assert safety.score == 100
     assert safety.band == RuntimeSafetyBand.SAFE
+
+
+# =============================================================================
+# Bounded typed accessors over ``ActivityEvent.details`` (CAH-13, Part 2)
+#
+# Each accessor must reproduce the historical ``.get(default)`` semantics
+# exactly — both the present-key and absent-key (default) behaviors.
+# =============================================================================
+
+
+def _event(**details: object) -> ActivityEvent:
+    return ActivityEvent(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        details=dict(details),
+    )
+
+
+def test_event_advisory_present_truthy_and_falsy() -> None:
+    assert event_advisory(_event(advisory=True)) is True
+    assert event_advisory(_event(advisory=False)) is False
+
+
+def test_event_advisory_absent_defaults_false() -> None:
+    # Historical: ``bool(details.get("advisory"))`` -> False when absent.
+    assert event_advisory(_event()) is False
+
+
+def test_event_cycle_id_prefers_top_level_field() -> None:
+    event = ActivityEvent(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        cycle_id="top-level",
+        details={"cycle_id": "in-details"},
+    )
+    assert event_cycle_id(event) == "top-level"
+
+
+def test_event_cycle_id_falls_back_to_details() -> None:
+    event = ActivityEvent(
+        event_type=ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
+        details={"cycle_id": "in-details"},
+    )
+    assert event_cycle_id(event) == "in-details"
+
+
+def test_event_cycle_id_absent_defaults_none() -> None:
+    assert event_cycle_id(_event()) is None
+
+
+def test_event_gate_reason_present_and_absent() -> None:
+    assert (
+        event_gate_reason(_event(gate_reason=GateReason.DAILY_LOSS_KILL_SWITCH.value))
+        == "daily_loss_kill_switch"
+    )
+    # Historical: ``details.get("gate_reason")`` -> None when absent.
+    assert event_gate_reason(_event()) is None
+
+
+def test_event_sub_account_id_present() -> None:
+    assert event_sub_account_id(_event(sub_account_id="acct-1")) == "acct-1"
+
+
+def test_event_sub_account_id_absent_or_falsy_normalizes_to_sentinel() -> None:
+    # Historical: ``details.get("sub_account_id") or "__global__"``.
+    assert event_sub_account_id(_event()) == GLOBAL_SUB_ACCOUNT_SENTINEL
+    assert event_sub_account_id(_event(sub_account_id="")) == GLOBAL_SUB_ACCOUNT_SENTINEL
+    assert (
+        event_sub_account_id(_event(sub_account_id=None))
+        == GLOBAL_SUB_ACCOUNT_SENTINEL
+    )
+    assert GLOBAL_SUB_ACCOUNT_SENTINEL == "__global__"
+
+
+def test_event_reason_present_and_absent() -> None:
+    assert event_reason(_event(reason="stale_quote_past_sl")) == "stale_quote_past_sl"
+    # Historical: ``str(details.get("reason", ""))`` -> "" when absent.
+    assert event_reason(_event()) == ""

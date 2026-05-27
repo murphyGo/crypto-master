@@ -44,6 +44,7 @@ import pandas as pd
 import streamlit as st
 
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.runtime.gate_reason import GateReason
 
 # Color bands mirror the reconciliation banner's stable-string contract so
 # the render layer can branch on these without depending on Streamlit's
@@ -322,7 +323,7 @@ def build_portfolio_cap_utilization(events: list[ActivityEvent]) -> pd.DataFrame
     global_events = [
         e
         for e in events
-        if (e.details or {}).get("gate_reason") == "global_cap"
+        if (e.details or {}).get("gate_reason") == GateReason.GLOBAL_CAP.value
         and e.event_type
         in (
             ActivityEventType.RISK_CAP_ADVISORY.value,
@@ -388,7 +389,7 @@ def build_symbol_side_exposure_dataframe(
     latest_by_key: dict[tuple[str, str], ActivityEvent] = {}
     for event in events:
         details = event.details or {}
-        if details.get("gate_reason") != "global_cap":
+        if details.get("gate_reason") != GateReason.GLOBAL_CAP.value:
             continue
         if event.event_type not in (
             ActivityEventType.RISK_CAP_ADVISORY.value,
@@ -469,14 +470,14 @@ def build_risk_gate_events_dataframe(
         "Advisory",
     ]
     risk_gate_reasons = {
-        "account_aggregate_cap",
-        "global_cap",
-        "daily_loss_kill_switch",
-        "open_drawdown_kill_switch",
-        "open_stop_risk_kill_switch",
-        "portfolio_kill_switch",
-        "portfolio_daily_loss_kill_switch",
-        "operator_freeze",
+        GateReason.ACCOUNT_AGGREGATE_CAP.value,
+        GateReason.GLOBAL_CAP.value,
+        GateReason.DAILY_LOSS_KILL_SWITCH.value,
+        GateReason.OPEN_DRAWDOWN_KILL_SWITCH.value,
+        GateReason.OPEN_STOP_RISK_KILL_SWITCH.value,
+        GateReason.PORTFOLIO_KILL_SWITCH.value,
+        GateReason.PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value,
+        GateReason.OPERATOR_FREEZE.value,
     }
     dedicated_types = {
         ActivityEventType.RISK_CAP_ADVISORY.value,

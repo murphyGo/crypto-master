@@ -41,3 +41,45 @@ def test_cold_import_succeeds(module: str) -> None:
         f"stdout:\n{result.stdout}\n"
         f"stderr:\n{result.stderr}"
     )
+
+
+def test_activity_events_pure_module_has_no_io_dependency() -> None:
+    """The pure activity-event vocabulary must not pull IO machinery (CAH-13 / LAYER-F4).
+
+    ``activity_events`` holds only the model + enum; importing it cold must
+    not transitively load the JSONL rotator or the activity-log IO adapter.
+    This guards the layer split that lets pure consumers (e.g.
+    ``safety_score``) depend on the vocabulary without the file-write layer.
+
+    (``src.config`` is intentionally NOT asserted-absent here: importing any
+    ``src.runtime`` submodule runs the package ``__init__``, which eagerly
+    imports config-bound siblings — a pre-existing, separate concern.)
+    """
+    code = (
+        "import sys; import src.runtime.activity_events; "
+        "io = [m for m in ('src.runtime.jsonl_rotator', "
+        "'src.runtime.activity_log') if m in sys.modules]; "
+        "print(','.join(io))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    pulled = result.stdout.strip()
+    assert pulled == "", f"activity_events cold-pulled IO modules: {pulled}"
+
+
+def test_safety_score_does_not_import_activity_log_io_module() -> None:
+    """``safety_score`` imports the vocabulary from the PURE module, not the IO adapter.
+
+    A source-level check (not transitive) — the ``src.runtime`` package
+    ``__init__`` eagerly imports unrelated modules, so we assert on
+    ``safety_score``'s own import statements rather than ``sys.modules``.
+    """
+    from pathlib import Path
+
+    source = Path("src/runtime/safety_score.py").read_text()
+    assert "from src.runtime.activity_events import" in source
+    assert "from src.runtime.activity_log import" not in source

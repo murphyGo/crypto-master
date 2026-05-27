@@ -19,10 +19,84 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.runtime.activity_events import ActivityEvent, ActivityEventType
 from src.utils.time import ensure_utc, now_utc
 
 DEFAULT_RECENT_LOOKBACK_HOURS = 24
+
+# Default for an absent ``sub_account_id`` — a portfolio-level gate that drops
+# the proposer account collapses to one shared bucket. Centralized here so the
+# kill-switch dedup tuple and any future consumer agree on the sentinel.
+GLOBAL_SUB_ACCOUNT_SENTINEL = "__global__"
+
+
+# =============================================================================
+# Bounded typed accessors over ``ActivityEvent.details`` (CAH-13, Part 2)
+# =============================================================================
+#
+# ``ActivityEvent.details`` is intentionally a free-form ``dict[str, Any]`` (the
+# polymorphism is load-bearing — see the per-event-type payload contracts in
+# ``activity_events``). We deliberately do NOT type the whole dict. But the
+# RUNTIME-PAUSING safety-score path reads a *bounded* set of keys with silent
+# ``.get(default)`` fallbacks, where producer/consumer drift would fail silently
+# and skew the operator's safety band. These accessors centralize exactly those
+# key strings + defaults in one place so a drift is a single-site, test-catchable
+# change. Each accessor preserves the historical ``.get(...)`` semantics exactly.
+
+
+def event_advisory(event: ActivityEvent) -> bool:
+    """Truthiness of ``details["advisory"]`` (default falsy).
+
+    Paper-mode kill switches / cap breaches set this; the safety score
+    excludes advisory-only conditions from the LIVE money-safety rollup.
+    Mirrors the historical ``bool(event.details.get("advisory"))``.
+    """
+    return bool(event.details.get("advisory"))
+
+
+def event_cycle_id(event: ActivityEvent) -> str | None:
+    """Cycle id for the event, preferring the top-level field.
+
+    The engine reliably sets the top-level ``cycle_id`` on both the
+    paper-advisory and live hard-block branches; we fall back to
+    ``details["cycle_id"]`` for robustness, matching the historical
+    ``event.cycle_id`` ``or`` ``details.get("cycle_id")`` order (default
+    ``None``).
+    """
+    cycle_id = event.cycle_id
+    if cycle_id is None:
+        cycle_id = event.details.get("cycle_id")
+    return cycle_id
+
+
+def event_gate_reason(event: ActivityEvent) -> str | None:
+    """``details["gate_reason"]`` discriminator (default ``None``).
+
+    Returns the raw string as persisted (a
+    ``src.runtime.gate_reason.GateReason`` ``.value``); compare against
+    ``GateReason`` members at consumer sites. Mirrors the historical
+    ``event.details.get("gate_reason")``.
+    """
+    return event.details.get("gate_reason")
+
+
+def event_sub_account_id(event: ActivityEvent) -> str:
+    """``details["sub_account_id"]`` normalized to a non-empty string.
+
+    A missing / falsy account id normalizes to
+    :data:`GLOBAL_SUB_ACCOUNT_SENTINEL` so a portfolio-level gate counts
+    once per cycle. Mirrors the historical
+    ``event.details.get("sub_account_id") or "__global__"``.
+    """
+    return event.details.get("sub_account_id") or GLOBAL_SUB_ACCOUNT_SENTINEL
+
+
+def event_reason(event: ActivityEvent) -> str:
+    """``details["reason"]`` coerced to ``str`` (default ``""``).
+
+    Mirrors the historical ``str(event.details.get("reason", ""))``.
+    """
+    return str(event.details.get("reason", ""))
 
 
 class RuntimeSafetyBand(str, Enum):
@@ -244,19 +318,20 @@ def _count_kill_switch_conditions(events: list[ActivityEvent]) -> int:
     for event in events:
         if event.event_type != ActivityEventType.RISK_KILL_SWITCH_TRIPPED.value:
             continue
-        if event.details.get("advisory"):
+        if event_advisory(event):
             continue
-        cycle_id = event.cycle_id
-        if cycle_id is None:
-            cycle_id = event.details.get("cycle_id")
-        gate_reason = event.details.get("gate_reason")
-        sub_account_id = event.details.get("sub_account_id") or "__global__"
-        conditions.add((cycle_id, gate_reason, sub_account_id))
+        conditions.add(
+            (
+                event_cycle_id(event),
+                event_gate_reason(event),
+                event_sub_account_id(event),
+            )
+        )
     return len(conditions)
 
 
 def _is_stale_quote(event: ActivityEvent) -> bool:
-    reason = str(event.details.get("reason", ""))
+    reason = event_reason(event)
     return "stale_quote" in reason or "stale-quote" in event.message
 
 
@@ -273,11 +348,17 @@ def _apply_penalty(
 
 
 __all__ = [
+    "GLOBAL_SUB_ACCOUNT_SENTINEL",
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",
     "RuntimeSafetyScore",
     "compute_runtime_safety_score",
+    "event_advisory",
+    "event_cycle_id",
+    "event_gate_reason",
+    "event_reason",
+    "event_sub_account_id",
     "format_runtime_safety_summary",
     "inputs_from_activity_events",
     "inputs_from_recent_activity_events",

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.config import reload_settings
-from src.runtime import activity_log, jsonl_rotator
+from src.runtime import activity_events, jsonl_rotator
 from src.runtime.activity_log import (
     ActivityEvent,
     ActivityEventType,
@@ -21,12 +21,14 @@ def _set_clock(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
 
     Phase 21.2: write-time wall-clock comes from ``now_utc()`` in two
     spots — the rotator's active-month token and ``ActivityEvent``'s
-    default ``timestamp`` factory. Patching both keeps tests
+    default ``timestamp`` factory. ``ActivityEvent`` now lives in the
+    pure ``activity_events`` module (CAH-13 / LAYER-F4), so the model
+    factory resolves ``now_utc`` there. Patching both keeps tests
     deterministic across the boundary.
     """
     fixed = when if when.tzinfo is not None else when.replace(tzinfo=timezone.utc)
     monkeypatch.setattr(jsonl_rotator, "now_utc", lambda: fixed)
-    monkeypatch.setattr(activity_log, "now_utc", lambda: fixed)
+    monkeypatch.setattr(activity_events, "now_utc", lambda: fixed)
 
 
 # =============================================================================

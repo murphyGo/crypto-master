@@ -50,6 +50,7 @@ from src.runtime.activity_log import (
     ActivityEventType,
     ActivityLog,
 )
+from src.runtime.gate_reason import GateReason
 from src.utils.time import now_utc
 
 logger = get_logger("crypto_master.dashboard.proposals")
@@ -97,14 +98,14 @@ GATE_REJECTION_COLUMNS: tuple[str, ...] = (
 # when bucketing per-gate sample events. Order matches
 # ``GATE_REJECTION_COLUMNS`` so the bar chart and sample lookup agree.
 GATE_REASON_BY_STATE: dict[str, tuple[str, ...]] = {
-    "gate_rejected_market_regime": ("market_regime_blocked",),
-    "gate_rejected_correlation": ("correlation_blocked",),
-    "gate_rejected_trend_filter": ("trend_filter_blocked",),
-    "gate_rejected_sibling_family": ("sibling_family_dedup",),
-    "gate_rejected_runtime_safety_pause": ("runtime_safety_paused",),
-    "gate_rejected_total_cap": ("total_cap",),
-    "gate_rejected_symbol_cap": ("symbol_cap",),
-    "gate_rejected_stale_quote": ("stale_quote_no_live_data",),
+    "gate_rejected_market_regime": (GateReason.MARKET_REGIME_BLOCKED.value,),
+    "gate_rejected_correlation": (GateReason.CORRELATION_BLOCKED.value,),
+    "gate_rejected_trend_filter": (GateReason.TREND_FILTER_BLOCKED.value,),
+    "gate_rejected_sibling_family": (GateReason.SIBLING_FAMILY_DEDUP.value,),
+    "gate_rejected_runtime_safety_pause": (GateReason.RUNTIME_SAFETY_PAUSED.value,),
+    "gate_rejected_total_cap": (GateReason.TOTAL_CAP.value,),
+    "gate_rejected_symbol_cap": (GateReason.SYMBOL_CAP.value,),
+    "gate_rejected_stale_quote": (GateReason.STALE_QUOTE_NO_LIVE_DATA.value,),
 }
 
 
