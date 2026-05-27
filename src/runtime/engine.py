@@ -1127,6 +1127,35 @@ class TradingEngine:
         result.proposals_generated += len(proposals)
         return proposals
 
+    def _finalize_rejection(
+        self,
+        *,
+        final_record: ProposalRecord,
+        replay_events: list[GateActivityEvent],
+        result: CycleResult,
+    ) -> None:
+        """Persist a rejected proposal record and replay its staged events.
+
+        CAH-05: the invariant persist-and-replay tail shared by every gate
+        rejection in :meth:`_handle_proposal`. The caller is responsible for
+        passing the EXACT event list that site already iterates — ``outcome.
+        events`` for sites that bake the running ``events`` list into the
+        outcome (Shape A), or ``events + gate_outcome.events`` for sites that
+        keep the gate's own events separate (Shape B). This helper does not
+        concatenate; it only iterates ``replay_events`` verbatim so the two
+        asymmetric shapes stay behavior-identical and events are neither
+        double- nor under-counted.
+        """
+        result.proposals_rejected += 1
+        self.proposal_history.save(final_record)
+        for event in replay_events:
+            self.activity_log.append(
+                event.event_type,
+                event.message,
+                details=event.details,
+                cycle_id=event.cycle_id,
+            )
+
     async def _handle_proposal(
         self,
         proposal: Proposal,
@@ -1236,21 +1265,14 @@ class TradingEngine:
             )
             events.extend(correlation_outcome.events)
             if correlation_outcome.decision == GateDecision.REJECTED:
-                result.proposals_rejected += 1
-                outcome = GateOutcome(
-                    GateDecision.REJECTED,
-                    correlation_outcome.reason,
-                    events,
-                    correlation_outcome.final_record,
+                # Shape A: the running ``events`` list already carries the
+                # correlation gate's events (extended above), so the replay
+                # list is ``events`` itself — NOT ``events + outcome.events``.
+                self._finalize_rejection(
+                    final_record=correlation_outcome.final_record,
+                    replay_events=events,
+                    result=result,
                 )
-                self.proposal_history.save(outcome.final_record)
-                for event in outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
                 return
             record = correlation_outcome.final_record
 
@@ -1262,15 +1284,11 @@ class TradingEngine:
                 cycle_id,
             )
             if regime_outcome is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(regime_outcome.final_record)
-                for event in events + regime_outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=regime_outcome.final_record,
+                    replay_events=events + regime_outcome.events,
+                    result=result,
+                )
                 return
 
             # cross-account-risk-policy §"Runtime Behavior" / DEBT-068(c):
@@ -1295,15 +1313,11 @@ class TradingEngine:
                 cycle_id,
             )
             if account_kill_switch is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(account_kill_switch.final_record)
-                for event in events + account_kill_switch.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=account_kill_switch.final_record,
+                    replay_events=events + account_kill_switch.events,
+                    result=result,
+                )
                 return
 
             global_kill_switch = await self._global_kill_switch_gate(
@@ -1312,15 +1326,11 @@ class TradingEngine:
                 cycle_id,
             )
             if global_kill_switch is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(global_kill_switch.final_record)
-                for event in events + global_kill_switch.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=global_kill_switch.final_record,
+                    replay_events=events + global_kill_switch.events,
+                    result=result,
+                )
                 return
 
             proposal, risk_sizing_outcome = await self._risk_budget_sizing_gate(
@@ -1331,15 +1341,11 @@ class TradingEngine:
                 cycle_id,
             )
             if risk_sizing_outcome is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(risk_sizing_outcome.final_record)
-                for event in events + risk_sizing_outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=risk_sizing_outcome.final_record,
+                    replay_events=events + risk_sizing_outcome.events,
+                    result=result,
+                )
                 return
             # strategy-tuning §"Runtime Behavior": enforce the applied
             # action for this ``(sub_account, strategy)`` pair. ``keep``
@@ -1356,15 +1362,11 @@ class TradingEngine:
                 cycle_id,
             )
             if action_outcome is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(action_outcome.final_record)
-                for event in events + action_outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=action_outcome.final_record,
+                    replay_events=events + action_outcome.events,
+                    result=result,
+                )
                 return
 
             trend_rejection = await self._trend_filter_gate(
@@ -1374,15 +1376,11 @@ class TradingEngine:
                 cycle_id,
             )
             if trend_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(trend_rejection.final_record)
-                for event in events + trend_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=trend_rejection.final_record,
+                    replay_events=events + trend_rejection.events,
+                    result=result,
+                )
                 return
 
             sibling_rejection = self._sibling_family_gate(
@@ -1391,15 +1389,11 @@ class TradingEngine:
                 cycle_id,
             )
             if sibling_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(sibling_rejection.final_record)
-                for event in events + sibling_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=sibling_rejection.final_record,
+                    replay_events=events + sibling_rejection.events,
+                    result=result,
+                )
                 return
 
             post_incident_safety_score = self._current_runtime_safety_score(
@@ -1413,139 +1407,49 @@ class TradingEngine:
                 cycle_id,
             )
             if pause_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(pause_rejection.final_record)
-                for event in events + pause_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=pause_rejection.final_record,
+                    replay_events=events + pause_rejection.events,
+                    result=result,
+                )
                 return
 
-            # Phase 12.1: cross-cycle position cap. The composite
-            # gate has accepted this proposal, but we may already be
-            # at the per-symbol cap from previous cycles' open trades.
-            # Block execution here and record a second rejection
-            # reason on top of the existing composite-threshold one.
-            policy = self._runtime_policy_for(sub_account)
-            cap = policy.max_open_positions_per_symbol
-            open_trades = trader.get_open_trades()
-            total_cap = policy.max_open_positions_total
-            if total_cap is not None and len(open_trades) >= total_cap:
-                reason = (
-                    f"total open-position cap {total_cap} reached on "
-                    f"sub-account {proposal.sub_account_id} ({len(open_trades)} open)"
-                )
-                # proposal-funnel-audit §1 State 4: total-cap rejection.
-                rejected_record = record.model_copy(
-                    update={
-                        "decision": ProposalDecision.REJECTED.value,
-                        "rejection_reason": reason,
-                        "decision_at": now_utc(),
-                        "final_state": (
-                            ProposalFinalState.GATE_REJECTED_TOTAL_CAP.value
-                        ),
-                    }
-                )
-                result.proposals_rejected += 1
-                blocking_trades = await self._build_cap_blocker_payload(
-                    open_trades=open_trades,
-                    cap=total_cap,
-                    reason="total_cap",
-                )
-                outcome = GateOutcome(
-                    GateDecision.REJECTED,
-                    reason,
-                    events
-                    + [
-                        GateActivityEvent(
-                            ActivityEventType.PROPOSAL_REJECTED,
-                            f"Total-cap rejected {proposal.symbol} {proposal.signal}",
-                            {
-                                **_proposal_summary(proposal),
-                                "reason": reason,
-                                "gate_reason": "total_cap",
-                                "open_count": len(open_trades),
-                                "cap": total_cap,
-                                "blocking_trades": blocking_trades,
-                            },
-                            cycle_id,
-                        )
-                    ],
-                    rejected_record,
-                )
-                self.proposal_history.save(outcome.final_record)
-                for event in outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
-                return
-            existing = sum(
-                1 for trade in open_trades if trade.symbol == proposal.symbol
+            # Phase 12.1: cross-cycle position caps. The composite gate
+            # has accepted this proposal, but we may already be at the
+            # total or per-symbol cap from previous cycles' open trades.
+            # Block execution here and record a second rejection reason on
+            # top of the existing composite-threshold one. CAH-05: these
+            # two caps are now extracted into ``_total_cap_gate`` /
+            # ``_symbol_cap_gate`` to match the 13 sibling ``_*_gate``
+            # methods; the total cap runs first (order preserved).
+            total_cap_rejection = await self._total_cap_gate(
+                proposal,
+                record,
+                sub_account,
+                trader,
+                cycle_id,
             )
-            if existing >= cap:
-                reason = (
-                    f"symbol {proposal.symbol} cap {cap} reached on "
-                    f"sub-account {proposal.sub_account_id} ({existing} open)"
+            if total_cap_rejection is not None:
+                self._finalize_rejection(
+                    final_record=total_cap_rejection.final_record,
+                    replay_events=events + total_cap_rejection.events,
+                    result=result,
                 )
-                # proposal-funnel-audit §1 State 4: symbol-cap rejection.
-                rejected_record = record.model_copy(
-                    update={
-                        "decision": ProposalDecision.REJECTED.value,
-                        "rejection_reason": reason,
-                        "decision_at": now_utc(),
-                        "final_state": (
-                            ProposalFinalState.GATE_REJECTED_SYMBOL_CAP.value
-                        ),
-                    }
+                return
+
+            symbol_cap_rejection = await self._symbol_cap_gate(
+                proposal,
+                record,
+                sub_account,
+                trader,
+                cycle_id,
+            )
+            if symbol_cap_rejection is not None:
+                self._finalize_rejection(
+                    final_record=symbol_cap_rejection.final_record,
+                    replay_events=events + symbol_cap_rejection.events,
+                    result=result,
                 )
-                result.proposals_rejected += 1
-                # Filter to the per-symbol blockers only — these are the
-                # trades that actually count against the per-symbol cap;
-                # the dashboard's diagnostic panel must not list trades
-                # on other symbols as the blocker.
-                symbol_blockers = [
-                    trade for trade in open_trades if trade.symbol == proposal.symbol
-                ]
-                blocking_trades = await self._build_cap_blocker_payload(
-                    open_trades=symbol_blockers,
-                    cap=cap,
-                    reason="symbol_cap",
-                )
-                outcome = GateOutcome(
-                    GateDecision.REJECTED,
-                    reason,
-                    events
-                    + [
-                        GateActivityEvent(
-                            ActivityEventType.PROPOSAL_REJECTED,
-                            f"Cap-rejected {proposal.symbol} {proposal.signal}",
-                            {
-                                **_proposal_summary(proposal),
-                                "reason": reason,
-                                "gate_reason": "symbol_cap",
-                                "open_count": existing,
-                                "cap": cap,
-                                "blocking_trades": blocking_trades,
-                            },
-                            cycle_id,
-                        )
-                    ],
-                    rejected_record,
-                )
-                self.proposal_history.save(outcome.final_record)
-                for event in outcome.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
                 return
 
             # cross-account-risk-policy gates: per-account aggregate
@@ -1557,30 +1461,22 @@ class TradingEngine:
                 proposal, record, sub_account, trader, cycle_id
             )
             if account_agg_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(account_agg_rejection.final_record)
-                for event in events + account_agg_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=account_agg_rejection.final_record,
+                    replay_events=events + account_agg_rejection.events,
+                    result=result,
+                )
                 return
 
             stale_block_rejection = self._stale_position_block_gate(
                 proposal, record, sub_account, trader, cycle_id
             )
             if stale_block_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(stale_block_rejection.final_record)
-                for event in events + stale_block_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=stale_block_rejection.final_record,
+                    replay_events=events + stale_block_rejection.events,
+                    result=result,
+                )
                 return
 
             # cross-account-risk-policy DEBT-068(b): opt-in global
@@ -1596,15 +1492,11 @@ class TradingEngine:
                 proposal, record, sub_account, cycle_id
             )
             if global_cap_rejection is not None:
-                result.proposals_rejected += 1
-                self.proposal_history.save(global_cap_rejection.final_record)
-                for event in events + global_cap_rejection.events:
-                    self.activity_log.append(
-                        event.event_type,
-                        event.message,
-                        details=event.details,
-                        cycle_id=event.cycle_id,
-                    )
+                self._finalize_rejection(
+                    final_record=global_cap_rejection.final_record,
+                    replay_events=events + global_cap_rejection.events,
+                    result=result,
+                )
                 return
 
             # proposal-funnel-audit §1 State 5: every gate accepted;
@@ -1627,15 +1519,16 @@ class TradingEngine:
                 )
             await self._execute(proposal, cycle_id, result, trader, exchange)
         else:
-            result.proposals_rejected += 1
             # proposal-funnel-audit §1 State 3b: score gate rejection.
             rejected_record = record.model_copy(
                 update={"final_state": ProposalFinalState.SCORE_REJECTED.value}
             )
-            outcome = GateOutcome(
-                GateDecision.REJECTED,
-                record.rejection_reason,
-                events
+            # Shape A: the score-reject event is concatenated onto the
+            # running ``events`` list here, and the replay list is that
+            # full concatenation.
+            self._finalize_rejection(
+                final_record=rejected_record,
+                replay_events=events
                 + [
                     GateActivityEvent(
                         ActivityEventType.PROPOSAL_REJECTED,
@@ -1647,16 +1540,8 @@ class TradingEngine:
                         cycle_id,
                     )
                 ],
-                rejected_record,
+                result=result,
             )
-            self.proposal_history.save(outcome.final_record)
-            for event in outcome.events:
-                self.activity_log.append(
-                    event.event_type,
-                    event.message,
-                    details=event.details,
-                    cycle_id=event.cycle_id,
-                )
 
     async def _risk_budget_sizing_gate(
         self,
@@ -2548,6 +2433,140 @@ class TradingEngine:
                     ActivityEventType.RISK_KILL_SWITCH_TRIPPED,
                     f"{advisory_label} rejected {proposal.symbol} {proposal.signal}",
                     details,
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    async def _total_cap_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject when the sub-account total open-position cap is reached.
+
+        CAH-05: extracted verbatim from the inline Phase 12.1 cross-cycle
+        cap block in :meth:`_handle_proposal` to match the 13 sibling
+        ``_*_gate`` methods. Returns ``None`` when no total cap is
+        configured or the account is below it; returns a rejecting
+        :class:`GateOutcome` (carrying only this gate's own event, like the
+        siblings) when ``len(open_trades) >= max_open_positions_total``.
+        Runs BEFORE :meth:`_symbol_cap_gate` (order preserved).
+        """
+        policy = self._runtime_policy_for(sub_account)
+        open_trades = trader.get_open_trades()
+        total_cap = policy.max_open_positions_total
+        if total_cap is None or len(open_trades) < total_cap:
+            return None
+
+        reason = (
+            f"total open-position cap {total_cap} reached on "
+            f"sub-account {proposal.sub_account_id} ({len(open_trades)} open)"
+        )
+        # proposal-funnel-audit §1 State 4: total-cap rejection.
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": (ProposalFinalState.GATE_REJECTED_TOTAL_CAP.value),
+            }
+        )
+        blocking_trades = await self._build_cap_blocker_payload(
+            open_trades=open_trades,
+            cap=total_cap,
+            reason="total_cap",
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Total-cap rejected {proposal.symbol} {proposal.signal}",
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "gate_reason": "total_cap",
+                        "open_count": len(open_trades),
+                        "cap": total_cap,
+                        "blocking_trades": blocking_trades,
+                    },
+                    cycle_id,
+                )
+            ],
+            rejected_record,
+        )
+
+    async def _symbol_cap_gate(
+        self,
+        proposal: Proposal,
+        record: ProposalRecord,
+        sub_account: SubAccount | None,
+        trader: Trader,
+        cycle_id: str,
+    ) -> GateOutcome | None:
+        """Reject when the per-symbol open-position cap is reached.
+
+        CAH-05: extracted verbatim from the inline Phase 12.1 cross-cycle
+        cap block in :meth:`_handle_proposal` to match the 13 sibling
+        ``_*_gate`` methods. Returns ``None`` when the symbol is below the
+        per-symbol cap; returns a rejecting :class:`GateOutcome` (carrying
+        only this gate's own event, like the siblings) when
+        ``existing >= max_open_positions_per_symbol``. Runs AFTER
+        :meth:`_total_cap_gate` (order preserved).
+        """
+        policy = self._runtime_policy_for(sub_account)
+        cap = policy.max_open_positions_per_symbol
+        open_trades = trader.get_open_trades()
+        existing = sum(1 for trade in open_trades if trade.symbol == proposal.symbol)
+        if existing < cap:
+            return None
+
+        reason = (
+            f"symbol {proposal.symbol} cap {cap} reached on "
+            f"sub-account {proposal.sub_account_id} ({existing} open)"
+        )
+        # proposal-funnel-audit §1 State 4: symbol-cap rejection.
+        rejected_record = record.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": now_utc(),
+                "final_state": (ProposalFinalState.GATE_REJECTED_SYMBOL_CAP.value),
+            }
+        )
+        # Filter to the per-symbol blockers only — these are the trades
+        # that actually count against the per-symbol cap; the dashboard's
+        # diagnostic panel must not list trades on other symbols as the
+        # blocker.
+        symbol_blockers = [
+            trade for trade in open_trades if trade.symbol == proposal.symbol
+        ]
+        blocking_trades = await self._build_cap_blocker_payload(
+            open_trades=symbol_blockers,
+            cap=cap,
+            reason="symbol_cap",
+        )
+        return GateOutcome(
+            GateDecision.REJECTED,
+            reason,
+            [
+                GateActivityEvent(
+                    ActivityEventType.PROPOSAL_REJECTED,
+                    f"Cap-rejected {proposal.symbol} {proposal.signal}",
+                    {
+                        **_proposal_summary(proposal),
+                        "reason": reason,
+                        "gate_reason": "symbol_cap",
+                        "open_count": existing,
+                        "cap": cap,
+                        "blocking_trades": blocking_trades,
+                    },
                     cycle_id,
                 )
             ],

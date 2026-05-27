@@ -1716,6 +1716,135 @@ async def test_gate_envelope_saves_final_cap_rejection_once(
     assert "cap 1 reached" in record.rejection_reason
 
 
+# =============================================================================
+# CAH-05: _finalize_rejection / cap-gate extraction event-count invariants.
+#
+# The refactor routes every gate rejection through ``_finalize_rejection``.
+# The replay-event list shape is asymmetric (Shape A iterates the running
+# ``events`` list; Shape B iterates ``events + gate.events``). These tests
+# guard against the double/under-count hazard by asserting the EXACT count
+# and ordered identity of emitted activity events at a representative Shape A
+# site (total-cap) and a Shape B site (market-regime), plus that
+# ``proposals_rejected`` increments exactly once.
+# =============================================================================
+
+
+# Activity events emitted per-proposal inside ``_handle_proposal`` (the
+# cycle-level CYCLE_STARTED / CYCLE_COMPLETED / MONITOR_PASS markers are
+# emitted elsewhere and are not what this refactor touches).
+_PROPOSAL_LIFECYCLE_EVENTS = frozenset(
+    {
+        ActivityEventType.PROPOSAL_GENERATED,
+        ActivityEventType.PROPOSAL_ACCEPTED,
+        ActivityEventType.PROPOSAL_REJECTED,
+        ActivityEventType.MARKET_REGIME_BLOCKED,
+    }
+)
+
+
+async def test_total_cap_rejection_event_count_shape_a(tmp_path: Path) -> None:
+    """Shape A (total-cap): GENERATED + ACCEPTED + REJECTED, exactly once each."""
+    existing_trade = make_trade(
+        trade_id="t-eth-existing",
+        symbol="ETH/USDT",
+        side="long",
+    ).model_copy(update={"sub_account_id": "cap_acct"})
+    proposal = make_proposal(
+        proposal_id="btc-total-cap",
+        symbol="BTC/USDT",
+        signal="long",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "cap_acct"})
+    engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+    cap_account = SubAccount(
+        id="cap_acct",
+        name="Cap Test",
+        mode="paper",
+        exchange_ref="default",
+        initial_balance={"USDT": Decimal("10000")},
+        risk_policy=RiskPolicy(
+            max_open_positions_total=1,
+            max_open_positions_per_symbol=5,
+        ),
+    )
+    mocks["trader"].get_open_trades.return_value = [existing_trade]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [cap_account], {"cap_acct": mocks["trader"]}
+    )  # type: ignore[assignment]
+    engine._runtime_policy_cache = {}
+
+    result = await engine.run_cycle()
+
+    # Total-cap is a Shape A site: the rejection event is concatenated onto
+    # the running ``events`` list and replayed verbatim. Exactly one
+    # increment, no double-count.
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+
+    emitted = [
+        event
+        for event in mocks["activity_log"].read_all()
+        if event.event_type in _PROPOSAL_LIFECYCLE_EVENTS
+    ]
+    types = [event.event_type for event in emitted]
+    # GENERATED → ACCEPTED → REJECTED, no duplicates / drops.
+    assert types == [
+        ActivityEventType.PROPOSAL_GENERATED,
+        ActivityEventType.PROPOSAL_ACCEPTED,
+        ActivityEventType.PROPOSAL_REJECTED,
+    ]
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    assert rejections[0].details["gate_reason"] == "total_cap"
+    assert rejections[0].details["cap"] == 1
+
+
+async def test_regime_rejection_event_count_shape_b(tmp_path: Path) -> None:
+    """Shape B (regime): GENERATED + ACCEPTED + REGIME_BLOCKED, exactly once each."""
+    proposal = make_proposal(
+        proposal_id="btc-regime-count",
+        composite=2.0,
+    ).model_copy(update={"sub_account_id": "regime_acct"})
+    engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=proposal)
+    _attach_regime_account(
+        engine,
+        mocks["trader"],
+        enabled=True,
+        allowed_regimes=["sideways"],
+    )
+    mocks["exchange"].get_ohlcv = AsyncMock(
+        return_value=_make_regime_ohlcv([100.0] * 198 + [97.0, 97.0]),
+    )
+
+    result = await engine.run_cycle()
+
+    # Regime is a Shape B site: the gate's own event is concatenated with
+    # the running ``events`` list at the call site (``events + gate.events``)
+    # and replayed verbatim. Exactly one increment.
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+
+    emitted = [
+        event
+        for event in mocks["activity_log"].read_all()
+        if event.event_type in _PROPOSAL_LIFECYCLE_EVENTS
+    ]
+    types = [event.event_type for event in emitted]
+    assert types == [
+        ActivityEventType.PROPOSAL_GENERATED,
+        ActivityEventType.PROPOSAL_ACCEPTED,
+        ActivityEventType.MARKET_REGIME_BLOCKED,
+    ]
+    blocked = mocks["activity_log"].filter(
+        event_type=ActivityEventType.MARKET_REGIME_BLOCKED
+    )
+    assert len(blocked) == 1
+
+
 async def test_gate_activity_crash_leaves_final_record_not_torn(
     tmp_path: Path,
 ) -> None:
