@@ -41,6 +41,7 @@ For active technical debt grouped by these units, see
 | `cross-account-risk-policy` | Cross-sub-account exposure, risk sizing, stale-position, and kill-switch policies for strategy labs | `src/runtime/`, `src/trading/sub_account*.py`, `config/sub_accounts.yaml`, `tests/test_runtime_*`, `tests/test_trading_sub_account*` |
 | `market-regime` | Current market regime classification and per-sub-account regime gating policy | `src/runtime/`, `src/trading/sub_account*.py`, `src/dashboard/`, `tests/test_runtime_*`, `tests/test_trading_sub_account*`, `tests/test_dashboard_*` |
 | `strategy-tuning` | Data-driven tuning, pausing, and promotion policy for live paper-lab strategy families | `strategies/`, `config/sub_accounts.yaml`, `src/proposal/`, `src/dashboard/`, `tests/test_baseline_strategies.py`, `tests/test_runtime_*`, `tests/test_dashboard_*` |
+| `clean-architecture-hardening` | Guide-driven, behavior-preserving SOLID/clean-architecture refactor from the 2026-05-28 eleven-subagent review (port extraction, long-function/God-object decomposition, adapter dedup, typed contracts) | `src/`, `tests/`, `aidlc-docs/construction/plans/clean-architecture-hardening-code-generation-plan.md`, `docs/TECH-DEBT.md`, `docs/sessions/` |
 
 ## Detailed Units
 
@@ -396,3 +397,29 @@ For active technical debt grouped by these units, see
 - **Suggested Tests**: `tests/test_baseline_strategies.py`,
   `tests/test_strategy_loader.py`, `tests/test_proposal_engine.py`,
   `tests/test_runtime_engine.py`, dashboard strategy evidence tests.
+
+### `clean-architecture-hardening`
+
+- **Responsibilities**: Convert the 2026-05-28 guide-driven, eleven-subagent
+  clean-code/architecture review (verified by two independent cold-read passes)
+  into bounded, behavior-preserving refactor units: an `LLMClient` port + a
+  `CcxtExchange` shared adapter base (reusability/OCP), long-function and
+  God-object decomposition (SRP), enum-derived funnel mapping +
+  `ProposalRecord` transition methods + a `GateReason` enum (extensibility/typed
+  contracts), plus dead-code/dedup hygiene. Owns the catalogue of explicitly
+  REJECTED over-engineering traps (no `Money` VO, no gate-pipeline, no generic
+  repository) so they are not re-proposed.
+- **Related Requirements**: Cross-cutting maintainability/extensibility;
+  touches NFR-002 (LLM-via-CLI preserved), NFR-009 (new-exchange extensibility),
+  and the same FR/NFR surface as the units it refactors.
+- **Existing Status**: New cross-cutting refactor unit created from the
+  2026-05-28 clean-code-architecture-guide review. Plan:
+  `aidlc-docs/construction/plans/clean-architecture-hardening-code-generation-plan.md`
+  (units CAH-01 … CAH-15, risk-tiered).
+- **Future Change Triggers**: Further structured architecture reviews, a new
+  exchange or LLM transport, God-object decomposition follow-through (CAH-15),
+  or a decision to revisit any rejected abstraction once its Rule-of-Three
+  threshold is genuinely met.
+- **Suggested Tests**: Each unit runs its owning module's targeted suite plus
+  the full `pytest` + `ruff check src tests` + `mypy src` gate; trading-domain
+  units (CAH-01/02/05/06/07/12) additionally get a `quant-trader-expert` review.
