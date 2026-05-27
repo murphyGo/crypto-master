@@ -108,6 +108,9 @@ class RSIMeanReversionStrategy(BaseStrategy):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         # ``period + 1`` deltas are needed for Wilder's RSI; ask for a
         # margin so the smoothing has time to converge to canonical

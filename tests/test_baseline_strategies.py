@@ -10,6 +10,7 @@ Each strategy gets:
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -18,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from src.models import OHLCV, AnalysisResult
+from src.strategy.base import BaseStrategy
 
 STRATEGIES_DIR = Path(__file__).resolve().parents[1] / "strategies"
 
@@ -826,3 +828,71 @@ async def test_ma_short_sl_excludes_current_candle_lookback(ma_module) -> None:
     # NEW: max(closes[-6:-1]) = max([180,140,125,150,100]) = 180 > 150.
     assert result.stop_loss == Decimal("180.00")
     assert result.stop_loss > result.entry_price
+
+
+# =============================================================================
+# CAH-07 — LSP: uniform analyze() signatures
+# =============================================================================
+#
+# BaseStrategy.analyze declares two keyword-only params,
+# ``ohlcv_by_timeframe`` and ``current_price``. The proposal engine only
+# passes them when a strategy's ``requires_multi_timeframe`` gate is set,
+# so a single-TF strategy that omitted them from its override would only
+# crash (TypeError) if it were ever mis-flagged multi-TF — the contract
+# was enforced by convention, not by signature. These tests are the LSP
+# guard: every registered strategy's ``analyze`` MUST accept the base
+# kwargs so the override stays Liskov-substitutable.
+
+
+def _registered_strategies() -> dict[str, BaseStrategy]:
+    """Load every registered strategy instance from strategies/."""
+    from src.strategy.loader import load_all_strategies
+
+    return load_all_strategies()
+
+
+def test_every_strategy_analyze_accepts_base_kwargs() -> None:
+    """LSP: each strategy.analyze accepts ohlcv_by_timeframe + current_price."""
+    strategies = _registered_strategies()
+    assert strategies, "expected at least one registered strategy"
+
+    offenders: list[str] = []
+    for name, strategy in strategies.items():
+        params = inspect.signature(strategy.analyze).parameters
+        for required in ("ohlcv_by_timeframe", "current_price"):
+            param = params.get(required)
+            if param is None or param.kind is not inspect.Parameter.KEYWORD_ONLY:
+                offenders.append(f"{name}: missing keyword-only '{required}'")
+
+    assert not offenders, "analyze() signature violates base contract: " + "; ".join(
+        offenders
+    )
+
+
+async def test_every_strategy_analyze_callable_with_base_kwargs() -> None:
+    """LSP (runtime): passing the base kwargs must not raise TypeError.
+
+    A short OHLCV series is used so single-TF strategies fail fast on
+    their own validate_input (ValueError) rather than running full logic
+    — what matters here is that supplying the kwargs is signature-legal
+    and never trips a TypeError on the call itself.
+    """
+    strategies = _registered_strategies()
+    ohlcv = _make_ohlcv([100.0] * 5)
+
+    for name, strategy in strategies.items():
+        try:
+            await strategy.analyze(
+                ohlcv,
+                "BTC/USDT",
+                "1h",
+                ohlcv_by_timeframe={"1h": ohlcv},
+                current_price=Decimal("100.0"),
+            )
+        except TypeError as exc:  # pragma: no cover - failure path
+            pytest.fail(f"{name}.analyze rejected base kwargs: {exc}")
+        except Exception:
+            # Any non-TypeError (e.g. ValueError from insufficient data,
+            # ClaudeError from prompt strategies) is irrelevant to the
+            # signature contract under test.
+            pass

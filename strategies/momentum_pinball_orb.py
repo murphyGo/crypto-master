@@ -56,6 +56,9 @@ class MomentumPinballORBStrategy(BaseStrategy):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str = "15m",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         self.validate_input(ohlcv, min_candles=self.minimum_candles)
 

@@ -61,6 +61,9 @@ class MACrossoverStrategy(BaseStrategy):
         ohlcv: list[OHLCV],
         symbol: str,
         timeframe: str = "1h",
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        current_price: Decimal | None = None,
     ) -> AnalysisResult:
         # Need at least long_period + 1 closes to compute the previous
         # bar's MAs (for cross detection).
