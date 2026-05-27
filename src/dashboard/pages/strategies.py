@@ -33,6 +33,7 @@ from src.strategy.tuning_recommender import (
     RecommenderEvidence,
     evidence_from_performance,
     recommend_action,
+    seed_action_for,
 )
 
 logger = get_logger("crypto_master.dashboard.strategies")
@@ -227,10 +228,6 @@ def build_combinations_equity_dataframe(report: MultiAccountReport) -> pd.DataFr
 # =============================================================================
 
 
-# Sentinel rendered when the recommender returns ``None`` (evidence too thin).
-INSUFFICIENT_EVIDENCE = "—"
-
-
 class StrategyTuningRow(BaseModel):
     """One per-``(sub-account, strategy)`` row for the tuning view.
 
@@ -240,9 +237,11 @@ class StrategyTuningRow(BaseModel):
             ``StrategyTuningPolicy.applied_action_for`` / overrides).
         applied: The currently-applied action (config state), e.g.
             ``"keep"`` / ``"scout"`` / ``"pause"``.
-        recommended: The recommender's output rendered as a string, or
-            :data:`INSUFFICIENT_EVIDENCE` when ``recommend_action``
-            returned ``None`` (evidence too thin).
+        recommended: The recommendation rendered as a string. This is the
+            live ``recommend_action`` output, or — when the recommender
+            returns ``None`` (evidence too thin) — the per-strategy seed
+            (``seed_action_for``) so the operator always sees a starting
+            recommendation (DEBT-069(b)).
         evidence_summary: Human-readable one-line evidence digest
             (closed trades, profit factor, win rate, closed PnL,
             fail-closed rate) so the operator can sanity-check the
@@ -324,9 +323,12 @@ def build_strategy_tuning_rows(
     * ``Recommended`` is ``recommend_action(evidence, thresholds)`` where
       ``thresholds`` are the per-strategy thresholds
       (``policy.thresholds_for(name)``). When the recommender returns
-      ``None`` (evidence too thin), the row renders
-      :data:`INSUFFICIENT_EVIDENCE` and carries an empty ``yaml_diff`` —
-      it never crashes on thin evidence.
+      ``None`` (evidence too thin), the row falls back to the per-strategy
+      seed via ``seed_action_for(name)`` (DEBT-069(b)) so every strategy
+      gets a starting recommendation on day one. The seed is treated as a
+      real recommendation — it can ``differ`` from the applied state and
+      produce a YAML diff — but it never changes Applied and never gates
+      trades.
 
     Args:
         strategies: ``{name: BaseStrategy}``, typically from
@@ -359,25 +361,28 @@ def build_strategy_tuning_rows(
             perf, fail_closed_rate=fail_closed_rate
         )
         applied = policy.applied_action_for(strategy.name)
-        recommended = recommend_action(evidence, policy.thresholds_for(strategy.name))
-
-        if recommended is None:
-            recommended_label = INSUFFICIENT_EVIDENCE
-            differs = False
-            yaml_diff = ""
-        else:
-            recommended_label = recommended.value
-            differs = recommended != applied
-            yaml_diff = build_strategy_tuning_yaml_diff(
-                effective_sub_account, strategy.name, applied, recommended
-            )
+        # DEBT-069(b): the live recommender is authoritative; the per-strategy
+        # seed is only a fallback when evidence is too thin to recommend
+        # (``recommend_action`` returns ``None``). The seed CAN differ from
+        # the applied state (e.g. a seeded ``pause`` vs an applied ``keep``),
+        # in which case the diff + YAML snippet are surfaced exactly as for a
+        # live recommendation. With the catch-all seed, every strategy now
+        # gets a non-``None`` recommendation, so there is no insufficient-
+        # evidence path left for this builder.
+        recommended = recommend_action(
+            evidence, policy.thresholds_for(strategy.name)
+        ) or seed_action_for(strategy.name)
+        differs = recommended != applied
+        yaml_diff = build_strategy_tuning_yaml_diff(
+            effective_sub_account, strategy.name, applied, recommended
+        )
 
         rows.append(
             StrategyTuningRow(
                 sub_account_id=effective_sub_account,
                 strategy=strategy.name,
                 applied=applied.value,
-                recommended=recommended_label,
+                recommended=recommended.value,
                 evidence_summary=_format_evidence_summary(evidence),
                 differs=differs,
                 yaml_diff=yaml_diff,
@@ -453,7 +458,7 @@ def render_strategy_tuning(
     if not diffs:
         st.caption(
             "No pending changes — every applied action matches the "
-            "recommendation (or evidence is insufficient to recommend)."
+            "recommendation."
         )
         return
 
@@ -571,7 +576,6 @@ def render(
 
 
 __all__ = [
-    "INSUFFICIENT_EVIDENCE",
     "StrategyTuningRow",
     "build_combinations_equity_dataframe",
     "build_strategy_tuning_dataframe",

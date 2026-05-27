@@ -23,9 +23,12 @@ from src.strategy.tuning import (
     ThresholdSpec,
 )
 from src.strategy.tuning_recommender import (
+    SEED_DEFAULT_ACTION,
+    STRATEGY_SEED_ACTIONS,
     RecommenderEvidence,
     evidence_from_performance,
     recommend_action,
+    seed_action_for,
 )
 
 # ---------------------------------------------------------------------------
@@ -401,3 +404,62 @@ def test_evidence_from_performance_returns_none_profit_factor_without_losses() -
     )
     evidence = evidence_from_performance(perf, fail_closed_rate=0.0)
     assert evidence.profit_factor is None
+
+
+# ---------------------------------------------------------------------------
+# DEBT-069(b): initial-action seeding for named strategy families.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("rsi_universal", StrategyAction.SCOUT),
+        ("rsi_4h", StrategyAction.SCOUT),
+        ("rsi_15m", StrategyAction.SCOUT),
+        ("momentum_pinball_orb", StrategyAction.PAUSE),
+        ("vwap_mean_reversion", StrategyAction.PAUSE),
+        ("bollinger_band_reversion", StrategyAction.PAUSE),
+        ("turtle_soup_reclaim", StrategyAction.PAUSE),
+        ("raschke_holy_grail", StrategyAction.SCOUT),
+        ("ma_crossover", StrategyAction.SCOUT),
+        ("vcp_breakout", StrategyAction.RETUNE),
+        ("session_vwap_pullback", StrategyAction.RETUNE),
+        ("tsmom_vol_breakout", StrategyAction.RETUNE),
+        ("weinstein_stage2_filter", StrategyAction.RETUNE),
+    ],
+)
+def test_seed_action_for_named_families(
+    name: str, expected: StrategyAction
+) -> None:
+    """Every named family returns its quant-validated seed action."""
+    assert seed_action_for(name) == expected
+
+
+def test_seed_action_for_name_traps() -> None:
+    """The two registered-name traps key correctly (not the filename)."""
+    # rsi.py registers ``rsi_universal`` (not ``rsi``).
+    assert seed_action_for("rsi_universal") == StrategyAction.SCOUT
+    # bollinger_bands.py registers ``bollinger_band_reversion``.
+    assert seed_action_for("bollinger_band_reversion") == StrategyAction.PAUSE
+    # The bare filename-style keys are NOT in the map ⇒ catch-all retune.
+    assert seed_action_for("rsi") == StrategyAction.RETUNE
+    assert seed_action_for("bollinger_bands") == StrategyAction.RETUNE
+
+
+def test_seed_action_for_unnamed_strategy_is_catch_all_retune() -> None:
+    """Any name not in the map falls through to the spec's retune default."""
+    assert seed_action_for("some_llm_generated_thing") == StrategyAction.RETUNE
+    assert seed_action_for("") == StrategyAction.RETUNE
+    assert SEED_DEFAULT_ACTION == StrategyAction.RETUNE
+
+
+def test_seed_action_for_is_case_sensitive_to_registered_name() -> None:
+    """Keys match the registered ``name`` verbatim (lower-cased at source).
+
+    The dashboard keys rows by ``strategy.name`` (already the lower-cased
+    ``TECHNIQUE_INFO["name"]``), so the seed map mirrors that exactly. A
+    differently-cased key is not a named family and hits the catch-all.
+    """
+    assert seed_action_for("RSI_UNIVERSAL") == StrategyAction.RETUNE
+    assert "rsi_universal" in STRATEGY_SEED_ACTIONS

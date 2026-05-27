@@ -199,8 +199,84 @@ def recommend_action(
     return None
 
 
+# =============================================================================
+# Initial-action seeding for named strategy families (DEBT-069(b)).
+# =============================================================================
+#
+# Seed map for the *Recommended column fallback only*. See the functional
+# spec §"Initial Actions for Named Strategy Families". On day one a strategy
+# has no (or too-thin) closed-trade evidence, so ``recommend_action`` returns
+# ``None`` (profit-factor undefined). Rather than render nothing, the
+# dashboard falls back to a static per-strategy seed so the operator sees a
+# starting recommendation derived from the Fly 2026-05-13 snapshot evidence.
+#
+# Framing (load-bearing): this is a *fallback, not an override*. It NEVER
+# changes the applied state (which stays whatever the config says, typically
+# ``keep``), and it NEVER gates trades. The instant live evidence is
+# sufficient, ``recommend_action`` returns a non-``None`` action which
+# supersedes the seed — see ``build_strategy_tuning_rows``.
+#
+# Keys are the registered technique ``name`` (= ``TECHNIQUE_INFO["name"]
+# .lower()``), the same key the dashboard rows and ``applied_action_for`` use
+# — NOT the strategy filename. Two name traps: ``rsi.py`` registers
+# ``"rsi_universal"`` and ``bollinger_bands.py`` registers
+# ``"bollinger_band_reversion"``.
+STRATEGY_SEED_ACTIONS: dict[str, StrategyAction] = {
+    "rsi_universal": StrategyAction.SCOUT,
+    "rsi_4h": StrategyAction.SCOUT,
+    "rsi_15m": StrategyAction.SCOUT,
+    "momentum_pinball_orb": StrategyAction.PAUSE,
+    "vwap_mean_reversion": StrategyAction.PAUSE,
+    "bollinger_band_reversion": StrategyAction.PAUSE,
+    "turtle_soup_reclaim": StrategyAction.PAUSE,
+    "raschke_holy_grail": StrategyAction.SCOUT,
+    "ma_crossover": StrategyAction.SCOUT,
+    "vcp_breakout": StrategyAction.RETUNE,
+    "session_vwap_pullback": StrategyAction.RETUNE,
+    "tsmom_vol_breakout": StrategyAction.RETUNE,
+    "weinstein_stage2_filter": StrategyAction.RETUNE,
+}
+
+# Catch-all for any technique name not in the seed map: the spec's
+# "default / simple-trend / LLM-generated -> retune" row. ``vcp_breakout`` /
+# ``session_vwap_pullback`` also resolve to ``retune`` because their
+# conditional ("keep if PF>=threshold else retune") cannot meet the keep band
+# under thin evidence (PF undefined), so they collapse to the retune leg.
+SEED_DEFAULT_ACTION: StrategyAction = StrategyAction.RETUNE
+
+
+def seed_action_for(name: str) -> StrategyAction:
+    """Return the seeded fallback action for a technique ``name``.
+
+    Recommended-column fallback only (DEBT-069(b)). This is consulted by
+    the dashboard *only* when the live :func:`recommend_action` returns
+    ``None`` (evidence too thin to recommend). It is a fallback, not an
+    override: it never mutates the applied state and never gates trades.
+    Once live evidence is sufficient, the recommender's output supersedes
+    this seed.
+
+    Lookup is ``STRATEGY_SEED_ACTIONS.get(name, SEED_DEFAULT_ACTION)`` so
+    any unnamed / deprecated / LLM-generated strategy falls through to the
+    spec's ``retune`` default.
+
+    Args:
+        name: The registered technique ``name`` (``TECHNIQUE_INFO["name"]
+            .lower()``), matching the key the dashboard rows and
+            ``applied_action_for`` use.
+
+    Returns:
+        The seeded :class:`StrategyAction` for ``name``, or
+        :data:`SEED_DEFAULT_ACTION` (``retune``) when ``name`` is not a
+        named family.
+    """
+    return STRATEGY_SEED_ACTIONS.get(name, SEED_DEFAULT_ACTION)
+
+
 __all__ = [
+    "SEED_DEFAULT_ACTION",
+    "STRATEGY_SEED_ACTIONS",
     "RecommenderEvidence",
     "evidence_from_performance",
     "recommend_action",
+    "seed_action_for",
 ]

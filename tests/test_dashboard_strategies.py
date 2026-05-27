@@ -534,11 +534,12 @@ def test_tuning_rows_recommendation_differs_produces_yaml_diff() -> None:
     assert "was: pause" in row.yaml_diff
 
 
-def test_tuning_rows_thin_evidence_renders_dash_no_crash() -> None:
-    from src.dashboard.pages.strategies import (
-        INSUFFICIENT_EVIDENCE,
-        build_strategy_tuning_rows,
-    )
+def test_tuning_rows_thin_evidence_falls_back_to_seed() -> None:
+    # DEBT-069(b): thin evidence (recommender returns None) now falls back
+    # to the per-strategy seed instead of rendering a dash. An *unnamed*
+    # strategy hits the catch-all seed (retune); applied defaults to keep,
+    # so the seed differs and a YAML diff is offered.
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
 
     strategies = {"cold": make_strategy(make_info(name="cold"))}
     tracker = _make_tracker_returning({"cold": _thin_evidence_perf("cold")})
@@ -547,9 +548,54 @@ def test_tuning_rows_thin_evidence_renders_dash_no_crash() -> None:
     rows = build_strategy_tuning_rows(strategies, policy, tracker)
 
     row = rows[0]
-    assert row.recommended == INSUFFICIENT_EVIDENCE
-    assert row.differs is False
-    assert row.yaml_diff == ""
+    assert row.applied == "keep"
+    assert row.recommended == "retune"  # catch-all seed
+    assert row.differs is True
+    assert "applied: retune" in row.yaml_diff
+
+
+def test_tuning_rows_thin_evidence_seeded_pause_produces_yaml_diff() -> None:
+    # DEBT-069(b): a named family seeded to PAUSE under thin evidence shows
+    # a diff vs the applied KEEP and a valid YAML snippet.
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {
+        "momentum_pinball_orb": make_strategy(make_info(name="momentum_pinball_orb"))
+    }
+    tracker = _make_tracker_returning(
+        {"momentum_pinball_orb": _thin_evidence_perf("momentum_pinball_orb")}
+    )
+    policy = StrategyTuningPolicy(enabled=True)  # applied defaults to keep
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.applied == "keep"
+    assert row.recommended == "pause"  # seeded
+    assert row.differs is True
+    assert "strategy_tuning:" in row.yaml_diff
+    assert "    momentum_pinball_orb:" in row.yaml_diff
+    assert "      applied: pause" in row.yaml_diff
+
+
+def test_tuning_rows_live_recommendation_supersedes_seed() -> None:
+    # DEBT-069(b): when live evidence is sufficient, the recommender output
+    # wins — the seed must NOT override a real recommendation. rsi_universal
+    # seeds to SCOUT, but keep-band evidence recommends KEEP.
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {
+        "rsi_universal": make_strategy(make_info(name="rsi_universal"))
+    }
+    tracker = _make_tracker_returning(
+        {"rsi_universal": _keep_band_perf("rsi_universal")}
+    )
+    policy = StrategyTuningPolicy(enabled=True)
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.recommended == "keep"  # live recommendation, not the scout seed
 
 
 def test_tuning_rows_sub_account_id_override_wins() -> None:
