@@ -8392,3 +8392,164 @@ async def test_operator_freeze_reloaded_per_cycle(tmp_path: Path) -> None:
     )
     # open_position was called exactly once across both cycles (cycle 1 only).
     mocks["trader"].open_position.assert_called_once()
+
+
+# =============================================================================
+# strategy-tuning DEBT-069(d): STRATEGY_ACTION_APPLIED emission
+# =============================================================================
+
+
+def _tuning_sub_account(
+    overrides: dict[str, StrategyOverride],
+) -> SubAccount:
+    return SubAccount(
+        id="lab",
+        name="Lab",
+        mode="paper",
+        exchange_ref="default",
+        capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
+        strategy_tuning=StrategyTuningPolicy(
+            enabled=True,
+            strategy_overrides=overrides,
+        ),
+    )
+
+
+def _strategy_applied_events(activity_log: ActivityLog) -> list[dict]:
+    return [
+        e.details or {}
+        for e in activity_log.read_all()
+        if e.event_type == ActivityEventType.STRATEGY_ACTION_APPLIED.value
+    ]
+
+
+@pytest.mark.asyncio
+async def test_strategy_action_first_run_seeds_silently(tmp_path: Path) -> None:
+    """No prior snapshot ⇒ seed the snapshot, emit zero events."""
+    snapshot_path = tmp_path / "snap.json"
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub = _tuning_sub_account(
+        {"rsi_universal": StrategyOverride(applied=StrategyAction.SCOUT)}
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub], {"lab": mocks["trader"]}
+    )
+
+    await engine.run_cycle()
+
+    assert _strategy_applied_events(mocks["activity_log"]) == []
+    assert snapshot_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_strategy_action_changed_emits_one_event_per_change(
+    tmp_path: Path,
+) -> None:
+    """A changed applied action across runs emits one event with full details."""
+    snapshot_path = tmp_path / "snap.json"
+    # First process: seed scout/pause.
+    engine1, mocks1 = build_engine(
+        tmp_path=tmp_path / "run1",
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub1 = _tuning_sub_account(
+        {
+            "rsi_universal": StrategyOverride(applied=StrategyAction.SCOUT),
+            "momentum_pinball_orb": StrategyOverride(applied=StrategyAction.PAUSE),
+        }
+    )
+    engine1.sub_account_registry = FakeSubAccountRegistry(
+        [sub1], {"lab": mocks1["trader"]}
+    )
+    await engine1.run_cycle()
+    assert _strategy_applied_events(mocks1["activity_log"]) == []
+
+    # Second process: rsi_universal flipped scout -> keep, orb unchanged.
+    engine2, mocks2 = build_engine(
+        tmp_path=tmp_path / "run2",
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub2 = _tuning_sub_account(
+        {
+            "rsi_universal": StrategyOverride(applied=StrategyAction.KEEP),
+            "momentum_pinball_orb": StrategyOverride(applied=StrategyAction.PAUSE),
+        }
+    )
+    engine2.sub_account_registry = FakeSubAccountRegistry(
+        [sub2], {"lab": mocks2["trader"]}
+    )
+    await engine2.run_cycle()
+
+    events = _strategy_applied_events(mocks2["activity_log"])
+    assert len(events) == 1
+    assert events[0] == {
+        "sub_account": "lab",
+        "strategy": "rsi_universal",
+        "prior_action": "scout",
+        "new_action": "keep",
+    }
+
+
+@pytest.mark.asyncio
+async def test_strategy_action_unchanged_emits_nothing(tmp_path: Path) -> None:
+    """Identical applied state across runs ⇒ no events on the second run."""
+    snapshot_path = tmp_path / "snap.json"
+    engine1, mocks1 = build_engine(
+        tmp_path=tmp_path / "run1",
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub1 = _tuning_sub_account(
+        {"rsi_universal": StrategyOverride(applied=StrategyAction.SCOUT)}
+    )
+    engine1.sub_account_registry = FakeSubAccountRegistry(
+        [sub1], {"lab": mocks1["trader"]}
+    )
+    await engine1.run_cycle()
+
+    engine2, mocks2 = build_engine(
+        tmp_path=tmp_path / "run2",
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub2 = _tuning_sub_account(
+        {"rsi_universal": StrategyOverride(applied=StrategyAction.SCOUT)}
+    )
+    engine2.sub_account_registry = FakeSubAccountRegistry(
+        [sub2], {"lab": mocks2["trader"]}
+    )
+    await engine2.run_cycle()
+
+    assert _strategy_applied_events(mocks2["activity_log"]) == []
+
+
+@pytest.mark.asyncio
+async def test_strategy_action_diff_runs_once_per_process(tmp_path: Path) -> None:
+    """The diff emitter is guarded so a second cycle does not re-emit."""
+    snapshot_path = tmp_path / "snap.json"
+    # Seed a prior snapshot so the first cycle below would emit if the guard
+    # were absent on a subsequent cycle.
+    from src.runtime.strategy_action_snapshot import save_snapshot
+
+    save_snapshot({"lab": {"rsi_universal": "pause"}}, snapshot_path)
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        config=EngineConfig(strategy_action_snapshot_path=snapshot_path),
+    )
+    sub = _tuning_sub_account(
+        {"rsi_universal": StrategyOverride(applied=StrategyAction.SCOUT)}
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub], {"lab": mocks["trader"]}
+    )
+
+    await engine.run_cycle()
+    await engine.run_cycle()
+
+    # pause -> scout transition emitted exactly once across both cycles.
+    events = _strategy_applied_events(mocks["activity_log"])
+    assert len(events) == 1
+    assert events[0]["prior_action"] == "pause"
+    assert events[0]["new_action"] == "scout"

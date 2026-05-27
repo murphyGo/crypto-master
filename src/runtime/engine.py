@@ -89,6 +89,13 @@ from src.runtime.safety_score import (
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
 )
+from src.runtime.strategy_action_snapshot import (
+    DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH,
+    AppliedStateMap,
+    diff_snapshots,
+    load_snapshot,
+    save_snapshot,
+)
 from src.strategy.base import default_max_bars_held
 from src.strategy.performance import (
     PerformanceRecord,
@@ -290,6 +297,15 @@ class EngineConfig(BaseModel):
     # ``SubAccountRegistry`` config-path convention). Missing or malformed
     # file ⇒ NOT frozen (freeze is an explicit opt-in).
     runtime_flags_path: Path = Field(default=DEFAULT_RUNTIME_FLAGS_PATH)
+
+    # strategy-tuning Slice 2 DEBT-069(d): durable snapshot of each
+    # ``(sub_account, strategy)`` applied tuning-action, diffed once per
+    # process at first cycle to emit ``STRATEGY_ACTION_APPLIED`` events on
+    # any ``prior-state -> new-state`` transition (an operator editing the
+    # YAML + restart). First run with no prior snapshot seeds silently.
+    strategy_action_snapshot_path: Path = Field(
+        default=DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH
+    )
 
 
 @dataclass(frozen=True)
@@ -690,6 +706,11 @@ class TradingEngine:
         # live mode. Initialised False so an engine that never runs a
         # cycle is treated as not frozen.
         self._operator_freeze_active = False
+        # strategy-tuning DEBT-069(d): the applied-action transition diff is a
+        # ONCE-PER-PROCESS operation (it detects YAML edits that take effect on
+        # restart, not per-cycle changes). Guarded by this flag so it runs at
+        # the first ``run_cycle`` only.
+        self._strategy_action_diff_done = False
         self._strategy_lookup_cache: dict[str, str] | None = None
         self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
         self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
@@ -904,6 +925,11 @@ class TradingEngine:
         )
 
         result = CycleResult(cycle_id=cycle_id)
+
+        # strategy-tuning DEBT-069(d): emit STRATEGY_ACTION_APPLIED events for
+        # any applied-action transition since the previous run. Runs once per
+        # process (first cycle); seeds silently on first deploy.
+        self._maybe_emit_strategy_action_transitions(cycle_id)
 
         for sub_account in self._active_sub_accounts():
             sub_account_id = self._sub_account_id(sub_account)
@@ -5141,6 +5167,75 @@ class TradingEngine:
 
     def _sub_account_id(self, sub_account: SubAccount | None) -> str:
         return sub_account.id if sub_account is not None else DEFAULT_SUB_ACCOUNT_ID
+
+    def _current_applied_state_map(self) -> AppliedStateMap:
+        """Snapshot the applied tuning-action per ``(sub_account, strategy)``.
+
+        strategy-tuning DEBT-069(d). For every active sub-account, records the
+        applied action for the union of (a) the strategies registered on the
+        proposal engine and (b) any strategy named in the policy's
+        ``strategy_overrides``. Including the registered strategies (which
+        default to ``keep``) means that REMOVING an override — e.g. flipping a
+        strategy back from ``scout`` to the ``keep`` default — is still a
+        detectable ``scout -> keep`` transition rather than a silent
+        disappearance. Sub-accounts with no policy (the ``None`` /
+        registry-less case) contribute nothing — there is no applied state to
+        diff.
+        """
+        registered = set(self.proposal_engine.strategies.keys())
+        result: AppliedStateMap = {}
+        for sub_account in self._active_sub_accounts():
+            if sub_account is None:
+                continue
+            policy = sub_account.strategy_tuning
+            names = registered | set(policy.strategy_overrides.keys())
+            if not names:
+                continue
+            result[sub_account.id] = {
+                name: policy.applied_action_for(name).value for name in sorted(names)
+            }
+        return result
+
+    def _maybe_emit_strategy_action_transitions(self, cycle_id: str) -> None:
+        """Emit ``STRATEGY_ACTION_APPLIED`` for applied-action transitions.
+
+        strategy-tuning DEBT-069(d). Once per process: load the prior snapshot,
+        diff against the current applied state, emit one event per changed
+        ``(sub_account, strategy)``, then persist the new snapshot.
+
+        First run (no prior snapshot) seeds the snapshot and emits NOTHING so a
+        fresh deploy does not storm the activity log. The whole operation is
+        wrapped defensively — a snapshot IO failure must never take the cycle
+        down.
+        """
+        if self._strategy_action_diff_done:
+            return
+        self._strategy_action_diff_done = True
+
+        path = self.config.strategy_action_snapshot_path
+        try:
+            current = self._current_applied_state_map()
+            prior = load_snapshot(path)
+            if prior is not None:
+                for transition in diff_snapshots(prior, current):
+                    self.activity_log.append(
+                        ActivityEventType.STRATEGY_ACTION_APPLIED,
+                        (
+                            f"Applied action for {transition.strategy} on "
+                            f"{transition.sub_account_id}: "
+                            f"{transition.prior_action} -> {transition.new_action}"
+                        ),
+                        details={
+                            "sub_account": transition.sub_account_id,
+                            "strategy": transition.strategy,
+                            "prior_action": transition.prior_action,
+                            "new_action": transition.new_action,
+                        },
+                        cycle_id=cycle_id,
+                    )
+            save_snapshot(current, path)
+        except Exception:  # pragma: no cover - defensive: never crash the cycle
+            logger.exception("strategy-action transition emitter failed")
 
     def _trader_for_sub_account(self, sub_account_id: str) -> Trader:
         if self.sub_account_registry is None:

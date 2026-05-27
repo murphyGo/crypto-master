@@ -21,6 +21,11 @@ from src.strategy.performance import (
     TechniquePerformance,
     TradeOutcome,
 )
+from src.strategy.tuning import (
+    StrategyAction,
+    StrategyOverride,
+    StrategyTuningPolicy,
+)
 
 # =============================================================================
 # Helpers
@@ -445,3 +450,168 @@ render()
     assert not at.exception, [str(e) for e in at.exception]
     titles = [t.value for t in at.title]
     assert any("Analysis Techniques" in t for t in titles), titles
+
+
+# =============================================================================
+# strategy-tuning DEBT-069(a): Applied / Recommended view + YAML clipboard diff
+# =============================================================================
+
+
+def _make_tracker_returning(
+    perf_by_name: dict[str, TechniquePerformance],
+    sub_account_id: str = "lab",
+) -> MagicMock:
+    tracker = MagicMock(spec=PerformanceTracker)
+    tracker.sub_account_id = sub_account_id
+    tracker.get_performance.side_effect = lambda name, version: perf_by_name[name]
+    return tracker
+
+
+def _keep_band_perf(name: str) -> TechniquePerformance:
+    """Healthy band: PF 1.5, win 50%, 30 closed ⇒ recommends keep."""
+    return TechniquePerformance(
+        technique_name=name,
+        technique_version="1.0.0",
+        wins=15,
+        losses=15,
+        breakevens=0,
+        win_rate=0.5,
+        total_pnl_percent=10.0,
+        gross_win_pct=30.0,
+        gross_loss_pct=20.0,
+        max_drawdown_pct=3.0,
+    )
+
+
+def _thin_evidence_perf(name: str) -> TechniquePerformance:
+    """Zero closed trades ⇒ recommender returns None (insufficient)."""
+    return TechniquePerformance(
+        technique_name=name,
+        technique_version="1.0.0",
+    )
+
+
+def test_tuning_rows_applied_and_recommended_keep_match() -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+    policy = StrategyTuningPolicy(enabled=True)  # default applied = keep
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.sub_account_id == "lab"
+    assert row.applied == "keep"
+    assert row.recommended == "keep"
+    assert row.differs is False
+    assert row.yaml_diff == ""
+    assert "closed=30" in row.evidence_summary
+    assert "PF=1.50" in row.evidence_summary
+
+
+def test_tuning_rows_recommendation_differs_produces_yaml_diff() -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+    # Applied = pause, but evidence recommends keep ⇒ differs + diff.
+    policy = StrategyTuningPolicy(
+        enabled=True,
+        strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
+    )
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.applied == "pause"
+    assert row.recommended == "keep"
+    assert row.differs is True
+    assert "strategy_tuning:" in row.yaml_diff
+    assert "rsi:" in row.yaml_diff
+    assert "applied: keep" in row.yaml_diff
+    assert "was: pause" in row.yaml_diff
+
+
+def test_tuning_rows_thin_evidence_renders_dash_no_crash() -> None:
+    from src.dashboard.pages.strategies import (
+        INSUFFICIENT_EVIDENCE,
+        build_strategy_tuning_rows,
+    )
+
+    strategies = {"cold": make_strategy(make_info(name="cold"))}
+    tracker = _make_tracker_returning({"cold": _thin_evidence_perf("cold")})
+    policy = StrategyTuningPolicy(enabled=True)
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.recommended == INSUFFICIENT_EVIDENCE
+    assert row.differs is False
+    assert row.yaml_diff == ""
+
+
+def test_tuning_rows_sub_account_id_override_wins() -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning(
+        {"rsi": _keep_band_perf("rsi")}, sub_account_id="tracker-default"
+    )
+    policy = StrategyTuningPolicy(enabled=True)
+
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, sub_account_id="explicit"
+    )
+
+    assert rows[0].sub_account_id == "explicit"
+
+
+def test_tuning_yaml_diff_empty_when_recommended_equals_applied() -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_yaml_diff
+
+    assert (
+        build_strategy_tuning_yaml_diff(
+            "lab", "rsi", StrategyAction.KEEP, StrategyAction.KEEP
+        )
+        == ""
+    )
+
+
+def test_tuning_yaml_diff_content() -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_yaml_diff
+
+    diff = build_strategy_tuning_yaml_diff(
+        "lab", "momentum_pinball_orb", StrategyAction.KEEP, StrategyAction.PAUSE
+    )
+    assert "lab: apply recommended action for 'momentum_pinball_orb'" in diff
+    assert "(was: keep)" in diff
+    assert "    momentum_pinball_orb:" in diff
+    assert "      applied: pause" in diff
+
+
+def test_tuning_dataframe_columns_and_empty() -> None:
+    from src.dashboard.pages.strategies import (
+        build_strategy_tuning_dataframe,
+        build_strategy_tuning_rows,
+    )
+
+    empty = build_strategy_tuning_dataframe([])
+    assert list(empty.columns) == [
+        "Sub-account",
+        "Strategy",
+        "Applied",
+        "Recommended",
+        "Evidence",
+    ]
+    assert empty.empty
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+    rows = build_strategy_tuning_rows(
+        strategies, StrategyTuningPolicy(enabled=True), tracker
+    )
+    df = build_strategy_tuning_dataframe(rows)
+    assert df.iloc[0]["Applied"] == "keep"
+    assert df.iloc[0]["Recommended"] == "keep"

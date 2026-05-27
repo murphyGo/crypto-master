@@ -293,16 +293,16 @@ class ActivityEventType(str, Enum):
     # strategy)`` pair transitions — operator-initiated YAML reload
     # or (future) automated policy. The event payload carries the
     # transition tuple so dashboards / audit log can reconstruct the
-    # history without re-deriving it from YAML diffs. ``details``
-    # payload (structured-fields contract — pinned by
-    # ``test_strategy_action_applied_event_payload``):
+    # history without re-deriving it from YAML diffs. Emitted by
+    # ``engine._maybe_emit_strategy_action_transitions``; the shape is
+    # exercised by
+    # ``tests/test_runtime_engine.py::test_strategy_action_changed_emits_one_event_per_change``.
+    # ``details`` payload (4-key contract):
     #
-    #     sub_account_id (str)
+    #     sub_account (str)          sub-account id
     #     strategy (str)             technique name
-    #     prior_state (str)           StrategyAction value
-    #     new_state (str)             StrategyAction value
-    #     applied_by ("operator" | "system")
-    #     evidence_snapshot (dict | None)
+    #     prior_action (str)         StrategyAction value
+    #     new_action (str)           StrategyAction value
     STRATEGY_ACTION_APPLIED = "strategy_action_applied"
 
     # Strategy-tuning retune advisory (strategy-tuning unit). Emitted
