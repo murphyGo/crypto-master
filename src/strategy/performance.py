@@ -26,7 +26,7 @@ from src.config import get_settings
 from src.logger import get_logger
 from src.models import AnalysisResult
 from src.strategy.base import TechniqueInfo
-from src.utils.io import atomic_write_text
+from src.utils.io import atomic_write_text, read_text
 from src.utils.pydantic_mixins import DecimalFieldsMixin, UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 
@@ -565,8 +565,12 @@ class PerformanceTracker:
             return []
 
         try:
-            with open(records_path, encoding="utf-8") as f:
-                data = json.load(f)
+            # CAH-14: route the read through ``utils/io`` so all FS access
+            # in this module goes through one seam (writes already use
+            # ``atomic_write_text``). Same error semantics as the prior
+            # raw ``open(...)`` — ``OSError`` and a bad-JSON parse both
+            # fall through to the handler below and yield an empty list.
+            data = json.loads(read_text(records_path))
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"Failed to load records from {records_path}: {e}")
             return []

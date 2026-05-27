@@ -2200,3 +2200,61 @@ class TestSyntheticMarkers:
         )
         assert perf.total_trades == 2
         assert perf.real_trade_count == 0
+
+
+class TestCah14DipSeam:
+    """CAH-14: the trackers read/write through an injected data dir.
+
+    Proves the de-globalized seam — a tracker can be constructed with a
+    ``tmp_path`` data directory and exercised end-to-end WITHOUT
+    monkeypatching ``get_settings()`` or touching the process-global
+    settings / real filesystem. This is the testability guarantee CAH-14
+    is about; the aggregation/PnL math is unchanged and covered by the
+    existing test classes above.
+    """
+
+    def test_performance_tracker_round_trip_with_injected_dir(
+        self,
+        tmp_path: Path,
+        sample_technique_info: TechniqueInfo,
+        sample_analysis_result: AnalysisResult,
+    ) -> None:
+        """Write then read back records via an injected data dir only."""
+        tracker = PerformanceTracker(data_dir=tmp_path)
+
+        record = tracker.record_analysis(
+            technique=sample_technique_info,
+            result=sample_analysis_result,
+            symbol="BTC/USDT",
+            timeframe="4h",
+        )
+
+        # Read side goes through utils/io.read_text under the hood.
+        loaded = tracker.load_records(sample_technique_info.name)
+        assert len(loaded) == 1
+        assert loaded[0].id == record.id
+        assert loaded[0].symbol == "BTC/USDT"
+        # File landed under the injected dir, not the global default.
+        assert (
+            tmp_path / "default" / sample_technique_info.name / "records.json"
+        ).exists()
+
+    def test_trade_history_tracker_round_trip_with_injected_dir(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Open then load back a trade via an injected data dir only."""
+        tracker = TradeHistoryTracker(data_dir=tmp_path)
+
+        trade = tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+        )
+
+        loaded = tracker.load_trades("paper")
+        assert len(loaded) == 1
+        assert loaded[0].id == trade.id
+        assert (tmp_path / "paper" / "default" / "trades.json").exists()

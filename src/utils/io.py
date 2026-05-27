@@ -41,7 +41,44 @@ import os
 import uuid
 from pathlib import Path
 
-__all__ = ["atomic_write_text"]
+__all__ = ["atomic_write_text", "read_text"]
+
+
+def read_text(
+    path: Path,
+    *,
+    encoding: str = "utf-8",
+) -> str:
+    """Read the full contents of ``path`` as text.
+
+    The read counterpart to :func:`atomic_write_text`. Centralising
+    reads here keeps all filesystem access in the persistence-layer
+    modules (CAH-14: ``strategy/performance.py`` /
+    ``strategy/trade_history.py``) routed through ``utils/io`` rather
+    than scattering raw ``open(...)`` calls, which keeps the FS seam in
+    one place and lets tests patch a single function.
+
+    This is a thin wrapper over :meth:`pathlib.Path.read_text` — it does
+    no locking and no existence pre-check. Callers that tolerate a
+    missing file should guard with ``path.exists()`` (as the trackers
+    do) before calling; otherwise the underlying ``OSError`` propagates
+    unchanged, preserving the prior raw-``open`` error semantics so the
+    callers' existing ``except OSError`` handling is unaffected.
+
+    Args:
+        path: Source path to read.
+        encoding: Text encoding. Defaults to ``"utf-8"`` to match the
+            project-wide convention for on-disk records and
+            :func:`atomic_write_text`.
+
+    Returns:
+        The full file contents as a string.
+
+    Raises:
+        OSError: Propagated from the underlying read (e.g. the file does
+            not exist). Callers wrap or log as appropriate.
+    """
+    return path.read_text(encoding=encoding)
 
 
 def atomic_write_text(

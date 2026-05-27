@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from src.config import get_settings
 from src.logger import get_logger
 from src.strategy.performance import DEFAULT_SUB_ACCOUNT_ID
-from src.utils.io import atomic_write_text
+from src.utils.io import atomic_write_text, read_text
 from src.utils.pydantic_mixins import DecimalFieldsMixin, UtcTimestampMixin
 from src.utils.time import ensure_utc, now_utc
 from src.utils.trading_math import pnl_for_trade
@@ -442,8 +442,11 @@ class TradeHistoryTracker:
             return []
 
         try:
-            with open(trades_path, encoding="utf-8") as f:
-                data = json.load(f)
+            # CAH-14: route the read through ``utils/io`` so all FS access
+            # in this module goes through one seam (writes already use
+            # ``atomic_write_text``). Same error semantics as the prior
+            # raw ``open(...)``.
+            data = json.loads(read_text(trades_path))
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"Failed to load trades from {trades_path}: {e}")
             return []

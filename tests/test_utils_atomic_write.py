@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.io import atomic_write_text
+from src.utils.io import atomic_write_text, read_text
 
 # =============================================================================
 # Happy path
@@ -387,3 +387,30 @@ def test_per_call_tmp_uses_unique_token(
         "Two writes must use distinct tmp paths so concurrent callers "
         "don't race on the same file"
     )
+
+
+# =============================================================================
+# read_text — CAH-14 read counterpart
+# =============================================================================
+
+
+class TestReadText:
+    """:func:`src.utils.io.read_text` round-trips and propagates OSError."""
+
+    def test_round_trip_with_atomic_write(self, tmp_path: Path) -> None:
+        """``read_text`` returns exactly what ``atomic_write_text`` wrote."""
+        path = tmp_path / "payload.json"
+        atomic_write_text(path, '{"a": 1}')
+        assert read_text(path) == '{"a": 1}'
+
+    def test_missing_file_raises_oserror(self, tmp_path: Path) -> None:
+        """A missing path propagates ``OSError`` (FileNotFoundError) —
+        same semantics callers' ``except OSError`` already handles."""
+        with pytest.raises(OSError):
+            read_text(tmp_path / "does-not-exist.json")
+
+    def test_custom_encoding(self, tmp_path: Path) -> None:
+        """Non-default encoding round-trips."""
+        path = tmp_path / "latin.txt"
+        path.write_text("café", encoding="latin-1")
+        assert read_text(path, encoding="latin-1") == "café"
