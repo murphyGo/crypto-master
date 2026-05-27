@@ -7,63 +7,9 @@ Related Requirements:
 """
 
 from abc import ABC, abstractmethod
-from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 from src.models import OHLCV, Balance, Order, OrderRequest, Ticker
-
-
-def _decimal_or_none(value: Any) -> Decimal | None:
-    """Coerce a ccxt scalar to ``Decimal``, returning None for null/0/empty.
-
-    ccxt fills numeric fields with ``None`` when the venue did not
-    return a value and with ``0`` for "no fill yet" — both cases are
-    semantically "absent" for the Order model's optional fields.
-    """
-    if value in (None, "", 0, 0.0):
-        return None
-    try:
-        decimal_value = Decimal(str(value))
-    except (TypeError, ValueError, ArithmeticError):
-        return None
-    return decimal_value if decimal_value > 0 else None
-
-
-def _extract_ccxt_fee(raw_order: dict[str, Any]) -> tuple[Decimal | None, str | None]:
-    """Pull the total fee out of a ccxt order response.
-
-    ccxt unifies fee data across venues into either a single ``fee``
-    object (``{"cost": 0.5, "currency": "USDT", ...}``) or a list of
-    per-fill fee objects under ``fees``. Sum costs across the list when
-    present so callers see the trade-level total. Returns
-    ``(amount, currency)`` where amount may be ``None`` if the venue
-    didn't surface a fee (consistency-hardening CH-06).
-    """
-    total = Decimal("0")
-    currency: str | None = None
-    fees_list = raw_order.get("fees")
-    if isinstance(fees_list, list) and fees_list:
-        for entry in fees_list:
-            if not isinstance(entry, dict):
-                continue
-            cost = _decimal_or_none(entry.get("cost"))
-            if cost is not None:
-                total += cost
-                if currency is None:
-                    entry_currency = entry.get("currency")
-                    if isinstance(entry_currency, str) and entry_currency:
-                        currency = entry_currency
-    fee_block = raw_order.get("fee")
-    if isinstance(fee_block, dict):
-        cost = _decimal_or_none(fee_block.get("cost"))
-        if cost is not None and not (isinstance(fees_list, list) and fees_list):
-            total += cost
-            entry_currency = fee_block.get("currency")
-            if isinstance(entry_currency, str) and entry_currency and currency is None:
-                currency = entry_currency
-    if total <= 0:
-        return None, currency
-    return total, currency
 
 
 class ExchangeError(Exception):
