@@ -870,6 +870,63 @@ class PaperTrader:
         # available behind ``self._auto_deposit_on_liquidation``
         # for testing scenarios that need the run to continue.
         balance = self.get_balance(quote_currency)
+        liquidated, balance_before, balance_after = self._apply_close_to_balance(
+            balance=balance,
+            margin=margin,
+            pnl=pnl,
+            exit_fee=exit_fee,
+        )
+
+        # Close trade via tracker (records total fees for P&L accuracy)
+        closed_trade = self._trade_tracker.close_trade(
+            trade_id=trade_id,
+            exit_price=exit_price,
+            close_reason=reason,
+            fees=exit_fee,
+        )
+
+        # Remove from open positions
+        del self._open_positions[trade_id]
+
+        logger.info(
+            f"Closed paper position {trade_id}: {reason}, "
+            f"exit_price={exit_price}, P&L={pnl}, fees={total_fees}"
+        )
+
+        if liquidated and self._activity_log is not None:
+            self._emit_liquidation_event(
+                position=position,
+                exit_price=exit_price,
+                pnl=pnl,
+                balance_before=balance_before,
+                balance_after=balance_after,
+            )
+
+        if closed_trade is not None and balance is not None:
+            self._save_balances()
+
+        return closed_trade
+
+    def _apply_close_to_balance(
+        self,
+        *,
+        balance: PaperBalance | None,
+        margin: Decimal,
+        pnl: Decimal,
+        exit_fee: Decimal,
+    ) -> tuple[bool, Decimal, Decimal]:
+        """Apply a close's margin-unlock, P&L, and fee to ``balance``.
+
+        Pure statement-order-preserving extraction of the
+        liquidation-clamp balance-mutation block from
+        :meth:`close_position` (TRAD-F4 / CAH-06). Mutates ``balance``
+        in place and returns ``(liquidated, balance_before,
+        balance_after)``.
+
+        The ``unlock(margin)`` → read ``balance.free`` →
+        ``projected_free`` statement order is load-bearing: a reorder
+        changes the persisted balance. Do not "tidy" the arithmetic.
+        """
         liquidated = False
         balance_before = Decimal("0")
         balance_after = Decimal("0")
@@ -901,48 +958,45 @@ class PaperTrader:
 
             balance_after = balance.free
 
-        # Close trade via tracker (records total fees for P&L accuracy)
-        closed_trade = self._trade_tracker.close_trade(
-            trade_id=trade_id,
-            exit_price=exit_price,
-            close_reason=reason,
-            fees=exit_fee,
+        return liquidated, balance_before, balance_after
+
+    def _emit_liquidation_event(
+        self,
+        *,
+        position: Position,
+        exit_price: Decimal,
+        pnl: Decimal,
+        balance_before: Decimal,
+        balance_after: Decimal,
+    ) -> None:
+        """Emit the ``LIQUIDATED`` activity event for an under-water close.
+
+        Pure extraction of the event-construction block from
+        :meth:`close_position` (TRAD-F4 / CAH-06). Callers gate on
+        ``liquidated and self._activity_log is not None`` before
+        invoking, so ``self._activity_log`` is assumed non-``None`` here.
+        """
+        assert self._activity_log is not None
+        # Structured-fields contract pinned by
+        # ``test_under_water_close_emits_liquidated_event``. The
+        # dashboard reads these keys verbatim.
+        self._activity_log.append(
+            ActivityEventType.LIQUIDATED,
+            (
+                f"Paper liquidation: {position.symbol} {position.side} "
+                f"realized_pnl={pnl} balance_after={balance_after}"
+            ),
+            details={
+                "symbol": position.symbol,
+                "side": position.side,
+                "entry": str(position.entry_price),
+                "exit": str(exit_price),
+                "qty": str(position.quantity),
+                "realized_pnl": str(pnl),
+                "balance_before": str(balance_before),
+                "balance_after": str(balance_after),
+            },
         )
-
-        # Remove from open positions
-        del self._open_positions[trade_id]
-
-        logger.info(
-            f"Closed paper position {trade_id}: {reason}, "
-            f"exit_price={exit_price}, P&L={pnl}, fees={total_fees}"
-        )
-
-        if liquidated and self._activity_log is not None:
-            # Structured-fields contract pinned by
-            # ``test_under_water_close_emits_liquidated_event``. The
-            # dashboard reads these keys verbatim.
-            self._activity_log.append(
-                ActivityEventType.LIQUIDATED,
-                (
-                    f"Paper liquidation: {position.symbol} {position.side} "
-                    f"realized_pnl={pnl} balance_after={balance_after}"
-                ),
-                details={
-                    "symbol": position.symbol,
-                    "side": position.side,
-                    "entry": str(position.entry_price),
-                    "exit": str(exit_price),
-                    "qty": str(position.quantity),
-                    "realized_pnl": str(pnl),
-                    "balance_before": str(balance_before),
-                    "balance_after": str(balance_after),
-                },
-            )
-
-        if closed_trade is not None and balance is not None:
-            self._save_balances()
-
-        return closed_trade
 
     async def force_close_orphan(
         self,

@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field
 from src.ai.exceptions import ClaudeTimeoutError
 from src.exchange.base import BaseExchange, ExchangeError
 from src.logger import get_logger
-from src.models import OHLCV, AnalysisResult
+from src.models import OHLCV, AnalysisResult, Position
 from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
@@ -737,13 +737,69 @@ class ProposalEngine:
             logger.info(f"{strategy.name} returned neutral on {symbol}; " "no proposal")
             return None
 
-        # P1 (F)+(G): universal SL floor enforcement. Widen the
-        # strategy-declared SL outward to whichever is stricter — the
-        # ATR-scaled floor (1.5 × ATR(14)) or the per-timeframe minimum
-        # percentage. Never tightens an existing SL. Sized at the
-        # proposal layer (single-point intercept) so individual
-        # strategies don't need to reason about noise envelopes
-        # themselves.
+        analysis = self._apply_sl_floor(
+            analysis=analysis,
+            strategy=strategy,
+            symbol=symbol,
+            primary_ohlcv=primary_ohlcv,
+            primary_timeframe=primary_timeframe,
+        )
+
+        position = self._size_position(
+            analysis=analysis,
+            strategy=strategy,
+            symbol=symbol,
+            balance=balance,
+            risk_percent=risk_percent,
+            leverage=leverage,
+            sub_account_id=sub_account_id,
+        )
+        if position is None:
+            return None
+
+        rr = analysis.risk_reward_ratio or 0.0
+        score = self._score(analysis, perf)
+
+        return Proposal(
+            symbol=symbol,
+            timeframe=primary_timeframe,
+            technique_name=strategy.name,
+            technique_version=strategy.version,
+            sub_account_id=sub_account_id,
+            signal=position.side,
+            entry_price=position.entry_price,
+            stop_loss=position.stop_loss or analysis.stop_loss,
+            take_profit=position.take_profit or analysis.take_profit,
+            quantity=position.quantity,
+            leverage=position.leverage,
+            risk_reward_ratio=rr,
+            score=score,
+            reasoning=analysis.reasoning,
+        )
+
+    def _apply_sl_floor(
+        self,
+        *,
+        analysis: AnalysisResult,
+        strategy: BaseStrategy,
+        symbol: str,
+        primary_ohlcv: list[OHLCV],
+        primary_timeframe: str,
+    ) -> AnalysisResult:
+        """Widen ``analysis``'s SL to the universal floor when needed.
+
+        Pure extraction of the inlined SL-floor block from
+        :meth:`_build_proposal_for_strategy` (PROP-F5 / CAH-06).
+        Returns the (possibly floored) analysis; identical behavior.
+
+        P1 (F)+(G): universal SL floor enforcement. Widen the
+        strategy-declared SL outward to whichever is stricter — the
+        ATR-scaled floor (1.5 × ATR(14)) or the per-timeframe minimum
+        percentage. Never tightens an existing SL. Sized at the
+        proposal layer (single-point intercept) so individual
+        strategies don't need to reason about noise envelopes
+        themselves.
+        """
         atr = compute_atr(primary_ohlcv, period=14)
         floored_sl = enforce_sl_floor(
             side="long" if analysis.signal == "long" else "short",
@@ -759,7 +815,26 @@ class ProposalEngine:
                 f"(atr={atr}, tf={primary_timeframe})"
             )
             analysis = analysis.model_copy(update={"stop_loss": floored_sl})
+        return analysis
 
+    def _size_position(
+        self,
+        *,
+        analysis: AnalysisResult,
+        strategy: BaseStrategy,
+        symbol: str,
+        balance: Decimal,
+        risk_percent: float | None,
+        leverage: int | None,
+        sub_account_id: str,
+    ) -> Position | None:
+        """Size a position from ``analysis``, or ``None`` if rejected.
+
+        Pure extraction of the position-sizing try/except block from
+        :meth:`_build_proposal_for_strategy` (PROP-F5 / CAH-06).
+        Identical behavior — records a fail-closed and returns ``None``
+        on ``TradingValidationError``.
+        """
         try:
             position = self.trading_strategy.create_position(
                 analysis=analysis,
@@ -782,26 +857,7 @@ class ProposalEngine:
             # exactly this site firing under the 1.5→2.0 floor bump.
             self._record_fail_closed(strategy, sub_account_id)
             return None
-
-        rr = analysis.risk_reward_ratio or 0.0
-        score = self._score(analysis, perf)
-
-        return Proposal(
-            symbol=symbol,
-            timeframe=primary_timeframe,
-            technique_name=strategy.name,
-            technique_version=strategy.version,
-            sub_account_id=sub_account_id,
-            signal=position.side,
-            entry_price=position.entry_price,
-            stop_loss=position.stop_loss or analysis.stop_loss,
-            take_profit=position.take_profit or analysis.take_profit,
-            quantity=position.quantity,
-            leverage=position.leverage,
-            risk_reward_ratio=rr,
-            score=score,
-            reasoning=analysis.reasoning,
-        )
+        return position
 
     async def _fetch_and_validate_ohlcv(
         self,
