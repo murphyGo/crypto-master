@@ -13,10 +13,12 @@ Related Requirements:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -362,6 +364,41 @@ def _format_decimal(value: Decimal) -> str:
     return f"{value.quantize(Decimal('0.01'))}"
 
 
+# CAH-08 / LAYER-F5: ``load_replay_input`` / ``build_scenarios`` were
+# relocated here from ``src.tools.proposal_replay`` (a CLI script) so the
+# dashboard adapter no longer reaches into a CLI tool for shared replay
+# logic. Behaviour-preserving move — same functions, same signatures.
+def load_replay_input(path: Path) -> ProposalReplayInput:
+    """Load a replay input JSON file."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return ProposalReplayInput.model_validate(payload)
+    except OSError as exc:
+        raise ProposalReplayInputError(
+            f"failed to read replay input {path}: {exc}"
+        ) from exc
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ProposalReplayInputError(f"invalid replay input {path}: {exc}") from exc
+
+
+def build_scenarios(
+    *,
+    min_scores: list[float],
+    exit_assumptions: list[str],
+) -> list[ProposalReplayScenario]:
+    """Build scenario grid from CLI option values."""
+    scores = min_scores or [0.0]
+    assumptions = exit_assumptions or [ProposalReplayExitAssumption.STOP_FIRST.value]
+    return [
+        ProposalReplayScenario(
+            min_score=score,
+            exit_assumption=ProposalReplayExitAssumption(assumption),
+        )
+        for score in scores
+        for assumption in assumptions
+    ]
+
+
 __all__ = [
     "ProposalReplayExitAssumption",
     "ProposalReplayCase",
@@ -370,6 +407,8 @@ __all__ = [
     "ProposalReplayOutcome",
     "ProposalReplayScenario",
     "ProposalReplayScenarioResult",
+    "build_scenarios",
     "compare_replay_scenarios",
+    "load_replay_input",
     "render_replay_report",
 ]

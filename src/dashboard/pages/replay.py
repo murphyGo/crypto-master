@@ -19,10 +19,11 @@ from src.dashboard.query_params import query_param_first as _query_param_first
 from src.proposal.replay import (
     ProposalReplayExitAssumption,
     ProposalReplayInputError,
+    build_scenarios,
     compare_replay_scenarios,
+    load_replay_input,
     render_replay_report,
 )
-from src.tools.proposal_replay import build_scenarios, load_replay_input
 
 DEFAULT_MIN_SCORES = "0.0, 1.0"
 

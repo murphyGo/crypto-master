@@ -43,14 +43,16 @@ from src.strategy.performance import (
     PerformanceRecord,
     PerformanceTracker,
     TechniquePerformance,
-    TradeHistory,
-    TradeHistoryTracker,
     TradeOutcome,
 )
 from src.strategy.trade_autopsy import (
     TradeAutopsy,
     TradeAutopsyError,
     TradeAutopsyOutcome,
+)
+from src.strategy.trade_history import (
+    TradeHistory,
+    TradeHistoryTracker,
 )
 
 __all__ = [

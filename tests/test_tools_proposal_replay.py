@@ -12,8 +12,12 @@ import pytest
 from src.models import OHLCV
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import ProposalDecision, ProposalRecord
-from src.proposal.replay import ProposalReplayCase, ProposalReplayInput
-from src.tools.proposal_replay import build_scenarios, main
+from src.proposal.replay import (
+    ProposalReplayCase,
+    ProposalReplayInput,
+    build_scenarios,
+)
+from src.tools.proposal_replay import main
 
 
 def _score() -> ProposalScore:

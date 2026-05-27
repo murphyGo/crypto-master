@@ -1964,7 +1964,10 @@ class TestAtomicWriteRegression:
         def boom(path: Path, text: str, **kwargs: object) -> None:
             raise OSError("simulated mid-write crash")
 
-        monkeypatch.setattr("src.strategy.performance.atomic_write_text", boom)
+        # CAH-08 / STRAT-F1: TradeHistoryTracker moved to
+        # src.strategy.trade_history, so its atomic_write_text reference
+        # now lives in that module's namespace.
+        monkeypatch.setattr("src.strategy.trade_history.atomic_write_text", boom)
 
         with pytest.raises(OSError, match="simulated mid-write crash"):
             tracker.open_trade(
