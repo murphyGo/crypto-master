@@ -4012,6 +4012,33 @@ class TradingEngine:
         # operator decides whether to harden the freshness threshold
         # via ``EngineConfig.max_ticker_age_seconds``.
         ticker_ts = ticker.timestamp
+        # CAH-01 [BUGFIX] / DEBT-033: a None ticker timestamp is
+        # unverifiable freshness — the venue gave us no sample time. It
+        # is *less* trustworthy than a real timestamp, not maximally
+        # fresh, so it must not flow into the past-SL / slippage checks
+        # below as if it were 0 seconds old. Mirror the over-age branch:
+        # WARN + fall through normally, but HARD-REJECT when
+        # ``reject_if_stale_quote`` is True so the operator's fail-closed
+        # switch still applies.
+        if ticker_ts is None:
+            logger.warning(
+                "stale_quote_check_failed: symbol=%s proposal_id=%s "
+                "error_type=stale_ticker error=ticker timestamp missing "
+                "(unverifiable freshness)",
+                proposal.symbol,
+                proposal.proposal_id,
+            )
+            if policy.reject_if_stale_quote:
+                reason = "stale_quote_no_live_data"
+                self._record_no_live_data_rejection(
+                    proposal=proposal,
+                    cycle_id=cycle_id,
+                    result=result,
+                    reason=reason,
+                    detail="ticker_timestamp_missing",
+                )
+                return reason
+            return None
         if ticker_ts.tzinfo is None:
             # Phase 21 contract: exchange adapters produce UTC-aware
             # timestamps via ``from_unix_ms``. Naive timestamps reach

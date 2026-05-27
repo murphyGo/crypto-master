@@ -60,11 +60,20 @@ class Ticker(BaseModel):
     """Current price ticker for a trading pair.
 
     Represents the latest price information from an exchange.
+
+    ``timestamp`` is nullable: ccxt returns ``None`` timestamps on some
+    venues, and a missing timestamp is *less* trustworthy than a real
+    one — not maximally fresh. CAH-01 [BUGFIX]: the adapters set
+    ``timestamp=None`` (rather than fabricating ``now_utc()``) so the
+    stale-quote gate (:meth:`Engine._stale_quote_gate`) can treat
+    unverifiable freshness as fail-closed when the operator has
+    ``reject_if_stale_quote`` enabled, instead of laundering a stale
+    tape into "0 seconds old".
     """
 
     symbol: str
     price: Decimal
-    timestamp: datetime
+    timestamp: datetime | None
 
     model_config = {"frozen": True}
 

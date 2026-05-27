@@ -151,6 +151,7 @@ def build_engine(
     ticker_price: Decimal = Decimal("50000"),
     ticker_error: Exception | None = None,
     ticker_timestamp: datetime | None = None,
+    ticker_timestamp_none: bool = False,
 ) -> tuple[TradingEngine, dict[str, MagicMock]]:
     """Build a TradingEngine with mock dependencies wired together."""
     exchange = AsyncMock(spec=BaseExchange)
@@ -162,7 +163,13 @@ def build_engine(
         # through to the stale-quote sanity checks. Tests that
         # exercise the freshness gate itself override this via
         # ``ticker_timestamp``.
-        ts = ticker_timestamp if ticker_timestamp is not None else now_utc()
+        #
+        # CAH-01 [BUGFIX]: ``ticker_timestamp_none=True`` produces a
+        # ``Ticker.timestamp=None`` (the adapter's missing-timestamp
+        # output) so the None-branch of the stale-quote gate can be
+        # exercised. It is a distinct flag from ``ticker_timestamp``
+        # because ``None`` is already the "use now_utc()" sentinel.
+        ts = None if ticker_timestamp_none else (ticker_timestamp or now_utc())
         exchange.get_ticker.return_value = Ticker(
             symbol="BTC/USDT",
             price=ticker_price,
@@ -2818,6 +2825,111 @@ async def test_reject_if_stale_quote_true_blocks_fill_on_ticker_fetch_error(
     record = mocks["history"].load("reject-fetch-fail-1")
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason == "stale_quote_no_live_data"
+
+
+# =============================================================================
+# CAH-01 [BUGFIX]: None ticker timestamp == unverifiable freshness
+# =============================================================================
+#
+# A ccxt None ticker timestamp must NOT be laundered into "0 seconds old"
+# (the prior now_utc() fallback defeated the DEBT-033 freshness gate). The
+# adapters now pass ``Ticker.timestamp=None`` through; the gate mirrors the
+# over-age branch: WARN + fall through normally, HARD-REJECT when
+# ``reject_if_stale_quote`` is True.
+
+
+async def test_reject_if_stale_quote_true_blocks_fill_on_none_ticker_timestamp(
+    tmp_path: Path,
+) -> None:
+    """When ``reject_if_stale_quote=True``, a None ticker timestamp triggers
+    the same hard rejection as a stale/over-age ticker.
+
+    CAH-01: unverifiable freshness is fail-closed under the operator's
+    opt-in switch. The reason matches the over-age branch
+    (``stale_quote_no_live_data``) so the rejection-distribution audit
+    treats them as one bucket; the ``detail`` distinguishes them
+    (``ticker_timestamp_missing``).
+    """
+    proposal = make_proposal(proposal_id="reject-none-ts-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_stale_quote=True,
+        ),
+        # Live below SL would normally reject via past-SL gate, but the
+        # missing-timestamp check fires first.
+        ticker_price=Decimal("49000"),
+        ticker_timestamp_none=True,
+    )
+
+    result = await engine.run_cycle()
+
+    # Hard rejection: no fill, reason is the shared no-live-data marker.
+    assert result.positions_opened == 0
+    assert result.proposals_accepted == 1
+    assert result.proposals_rejected == 1
+    mocks["trader"].open_position.assert_not_called()
+    record = mocks["history"].load("reject-none-ts-1")
+    assert record.decision == ProposalDecision.REJECTED.value
+    assert record.rejection_reason == "stale_quote_no_live_data"
+
+
+async def test_reject_if_stale_quote_false_falls_through_on_none_ticker_timestamp(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When ``reject_if_stale_quote=False`` (default), a None ticker
+    timestamp WARNs and falls through, mirroring the over-age branch.
+
+    CAH-01: the fix must not block paper-mode fills on a venue that
+    happens to omit ticker timestamps; it only refuses to *fabricate*
+    freshness. The price-comparison branches are skipped (no verifiable
+    quote age), so a past-SL ticker price must NOT cause a rejection.
+    """
+    import logging
+
+    proposal = make_proposal(proposal_id="none-ts-fall-through-1", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            reject_if_stale_quote=False,
+        ),
+        ticker_price=Decimal("49000"),  # past SL=49500 on a long
+        ticker_timestamp_none=True,
+    )
+
+    target_logger = logging.getLogger("crypto_master.runtime.engine")
+    target_logger.addHandler(caplog.handler)
+    previous_level = target_logger.level
+    target_logger.setLevel(logging.WARNING)
+    try:
+        result = await engine.run_cycle()
+    finally:
+        target_logger.removeHandler(caplog.handler)
+        target_logger.setLevel(previous_level)
+
+    # Fall-through: fill proceeded at proposal.entry_price.
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    mocks["trader"].open_position.assert_called_once()
+    record = mocks["history"].load("none-ts-fall-through-1")
+    assert record.decision == ProposalDecision.ACCEPTED.value
+
+    # WARN log carries the stale-ticker marker so operators can see the
+    # gate was effectively a no-op for that proposal.
+    warn_messages = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "stale_quote_check_failed" in r.getMessage()
+    ]
+    assert len(warn_messages) == 1
+    msg = warn_messages[0]
+    assert "stale_ticker" in msg
+    assert "timestamp missing" in msg
 
 
 # =============================================================================

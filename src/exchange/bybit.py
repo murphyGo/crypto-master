@@ -32,8 +32,11 @@ from src.exchange.base import (
     _extract_ccxt_fee,
 )
 from src.exchange.factory import register_exchange
+from src.logger import get_logger
 from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
-from src.utils.time import from_unix_ms
+from src.utils.time import from_unix_ms, now_utc
+
+logger = get_logger("crypto_master.exchange.bybit")
 
 
 class CCXTClient(Protocol):
@@ -257,10 +260,30 @@ class BybitExchange(BaseExchange):
         try:
             raw_ticker = await client.fetch_ticker(symbol)
 
+            # CAH-01 [BUGFIX]: ccxt returns None timestamps on some venues.
+            # A None ticker timestamp is *less* trustworthy than a real one,
+            # not maximally fresh — stamping now_utc() here would launder a
+            # stale tape into "0 seconds old" and silently defeat the
+            # stale-quote gate (DEBT-033). Pass None through so the gate can
+            # treat unverifiable freshness as fail-closed; the warning keeps
+            # the anomaly visible. The guard also avoids from_unix_ms(None)
+            # raising TypeError (which would escape the ExchangeAPIError-only
+            # contract below).
+            raw_ts = raw_ticker.get("timestamp")
+            if raw_ts is None:
+                logger.warning(
+                    "Bybit returned no ticker timestamp for %s; "
+                    "passing through timestamp=None",
+                    symbol,
+                )
+                ticker_ts = None
+            else:
+                ticker_ts = from_unix_ms(raw_ts)
+
             return Ticker(
                 symbol=symbol,
                 price=Decimal(str(raw_ticker["last"])),
-                timestamp=from_unix_ms(raw_ticker["timestamp"]),
+                timestamp=ticker_ts,
             )
 
         except RateLimitExceeded as e:
@@ -482,6 +505,20 @@ class BybitExchange(BaseExchange):
         """
         average_price = _decimal_or_none(raw_order.get("average"))
         fee_amount, fee_currency = _extract_ccxt_fee(raw_order)
+        # CAH-01 [BUGFIX]: ccxt returns None timestamps on some venues. Order
+        # .created_at is a required (non-nullable) datetime, so fall back to
+        # now_utc() rather than letting from_unix_ms(None) raise TypeError and
+        # turn an otherwise-valid order into a throw (breaking reconciliation).
+        raw_ts = raw_order.get("timestamp")
+        if raw_ts is None:
+            logger.warning(
+                "Bybit returned no timestamp for order %s; "
+                "falling back to receipt time for created_at",
+                raw_order.get("id"),
+            )
+            created_at = now_utc()
+        else:
+            created_at = from_unix_ms(raw_ts)
         return Order(
             id=str(raw_order["id"]),
             symbol=raw_order["symbol"],
@@ -494,7 +531,7 @@ class BybitExchange(BaseExchange):
             fee=fee_amount,
             fee_currency=fee_currency,
             status=self._map_order_status(raw_order["status"]),
-            created_at=from_unix_ms(raw_order["timestamp"]),
+            created_at=created_at,
             updated_at=(
                 from_unix_ms(raw_order["lastTradeTimestamp"])
                 if raw_order.get("lastTradeTimestamp")

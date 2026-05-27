@@ -1,5 +1,6 @@
 """Tests for the Binance exchange implementation."""
 
+import logging
 import os
 import sys
 import time
@@ -13,6 +14,22 @@ from src.config import BinanceConfig
 from src.exchange.base import ExchangeAPIError, ExchangeConnectionError, ExchangeError
 from src.exchange.binance import BinanceExchange
 from src.models import OHLCV, Order, OrderRequest, OrderStatus, Ticker
+
+
+def _capture_adapter_log(caplog: pytest.LogCaptureFixture) -> None:
+    """Route the binance adapter logger into ``caplog``.
+
+    ``src.logger.get_logger`` sets ``propagate = False`` (so adapter
+    warnings don't bubble to the root logger / duplicate handlers).
+    pytest's ``caplog`` attaches only to the root logger, so a
+    non-propagating module logger is invisible to it. Attaching
+    ``caplog.handler`` directly to the named logger makes the
+    CAH-01 fallback warnings assertable. The autouse logger-reset
+    fixture in ``conftest.py`` tears the handler down per test.
+    """
+    logger = logging.getLogger("crypto_master.exchange.binance")
+    logger.addHandler(caplog.handler)
+    logger.setLevel(logging.WARNING)
 
 
 @pytest.fixture
@@ -463,6 +480,139 @@ class TestBinanceExchangeTicker:
             result = await exchange.get_ticker("BTC/USDT")
 
             assert isinstance(result.timestamp, datetime)
+
+
+class TestBinanceNoneTimestampGuard:
+    """CAH-01 [BUGFIX]: ccxt returns None timestamps on some venues.
+
+    from_unix_ms(None) raises TypeError, which would escape the
+    adapter's documented ExchangeAPIError-only contract. For the
+    *ticker* the guard passes ``timestamp=None`` through (a missing
+    timestamp is unverifiable freshness, not maximally fresh, so the
+    stale-quote gate can fail-closed) and logs a warning. For the
+    *order* ``created_at`` is non-nullable, so it falls back to
+    now_utc() and logs a warning instead of raising.
+    """
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_none_timestamp_is_none(
+        self,
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """None ticker timestamp -> no TypeError, timestamp is None, warning."""
+        mock_ccxt_client.fetch_ticker.return_value = {
+            "symbol": "BTC/USDT",
+            "last": 42500.0,
+            "timestamp": None,
+        }
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            _capture_adapter_log(caplog)
+            result = await exchange.get_ticker("BTC/USDT")
+
+        assert isinstance(result, Ticker)
+        # CAH-01: a missing timestamp is passed through as None, never
+        # fabricated as now_utc() — otherwise the stale-quote gate would
+        # treat a stale tape as "0 seconds old".
+        assert result.timestamp is None
+        assert any("no ticker timestamp" in r.getMessage() for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_numeric_timestamp_unchanged(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """Regression: a normal numeric timestamp still maps exactly as before."""
+        mock_ccxt_client.fetch_ticker.return_value = {
+            "symbol": "BTC/USDT",
+            "last": 42500.0,
+            "timestamp": 1704067200000,
+        }
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_ticker("BTC/USDT")
+
+        assert result.timestamp == datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+    @pytest.mark.asyncio
+    async def test_get_order_none_timestamp_falls_back_to_now(
+        self,
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """None order timestamp -> no TypeError, order returned, now_utc() created_at."""
+        mock_ccxt_client.fetch_order.return_value = {
+            "id": "12345",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "type": "limit",
+            "price": 42000.0,
+            "amount": 0.1,
+            "filled": 0.1,
+            "status": "closed",
+            "timestamp": None,
+            "lastTradeTimestamp": None,
+        }
+        before = datetime.now(tz=timezone.utc)
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            _capture_adapter_log(caplog)
+            result = await exchange.get_order("12345", "BTC/USDT")
+
+        after = datetime.now(tz=timezone.utc)
+        assert isinstance(result, Order)
+        assert result.id == "12345"
+        # created_at is a required non-nullable datetime -> now_utc() fallback.
+        assert result.created_at.tzinfo == timezone.utc
+        assert before <= result.created_at <= after
+        # updated_at mirrors the pre-existing guard (None on missing).
+        assert result.updated_at is None
+        assert any("no timestamp for order" in r.getMessage() for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_get_order_numeric_timestamp_unchanged(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        """Regression: a normal numeric order timestamp still maps exactly as before."""
+        mock_ccxt_client.fetch_order.return_value = {
+            "id": "12345",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "type": "limit",
+            "price": 42000.0,
+            "amount": 0.1,
+            "filled": 0.1,
+            "status": "closed",
+            "timestamp": 1704067200000,
+            "lastTradeTimestamp": 1704067200000,
+        }
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = mock_ccxt_client
+
+            exchange = BinanceExchange(config=binance_config, testnet=True)
+            await exchange.connect()
+
+            result = await exchange.get_order("12345", "BTC/USDT")
+
+        assert result.created_at == datetime(2024, 1, 1, tzinfo=timezone.utc)
 
 
 class TestBinanceExchangeBalance:
