@@ -125,28 +125,20 @@ class FunnelCounts(BaseModel):
 
     @property
     def gate_rejected_total(self) -> int:
-        """Sum of every ``gate_rejected_*`` bucket (post-acceptance rejections)."""
-        return (
-            self.gate_rejected_market_regime
-            + self.gate_rejected_correlation
-            + self.gate_rejected_trend_filter
-            + self.gate_rejected_sibling_family
-            + self.gate_rejected_runtime_safety_pause
-            + self.gate_rejected_total_cap
-            + self.gate_rejected_symbol_cap
-            + self.gate_rejected_stale_quote
-            + self.gate_rejected_account_aggregate_cap
-            + self.gate_rejected_stale_position_block
-            + self.gate_rejected_risk_sizing
-            + self.gate_rejected_global_cap
-            + self.gate_rejected_open_drawdown_kill_switch
-            + self.gate_rejected_open_stop_risk_kill_switch
-            + self.gate_rejected_portfolio_kill_switch
-            + self.gate_rejected_daily_loss_kill_switch
-            + self.gate_rejected_portfolio_daily_loss_kill_switch
-            + self.gate_rejected_operator_freeze
-            + self.gate_rejected_strategy_action_pause
-            + self.gate_rejected_unknown
+        """Sum of every ``gate_rejected_*`` bucket (post-acceptance rejections).
+
+        PROP-F1 (CAH-12): derived by iterating the ``GATE_REJECTED_*``
+        members of :class:`ProposalFinalState` rather than hand-summing
+        the ~20 fields. ``field_name == enum.value`` for every member
+        (machine-verified; guarded by the funnel coverage test), so
+        ``getattr(self, member.value)`` reaches the backing field. Adding
+        a new ``GATE_REJECTED_*`` terminal now folds into this total
+        automatically.
+        """
+        return sum(
+            getattr(self, member.value)
+            for member in ProposalFinalState
+            if member.name.startswith("GATE_REJECTED_")
         )
 
     @property
@@ -175,56 +167,16 @@ class FunnelCounts(BaseModel):
 # Mapping from ``ProposalFinalState`` to the ``FunnelCounts`` field
 # name. Defined at module level so the aggregator does not re-derive it
 # per call.
+#
+# PROP-F1 (CAH-12): derived from the enum rather than hand-maintained.
+# ``field_name == enum.value`` for every member (machine-verified; the
+# funnel coverage test asserts ``set(FunnelCounts.model_fields) >=
+# {s.value for s in ProposalFinalState}``), so the derivation reproduces
+# the prior hand-written dict exactly. Adding a terminal that lacks a
+# backing field now fails the coverage test loudly instead of silently
+# KeyError-ing here at runtime.
 _STATE_TO_FIELD: dict[ProposalFinalState, str] = {
-    ProposalFinalState.GENERATED: "generated",
-    ProposalFinalState.SCORED: "scored",
-    ProposalFinalState.SCORE_ACCEPTED: "score_accepted",
-    ProposalFinalState.SCORE_REJECTED: "score_rejected",
-    ProposalFinalState.GATE_REJECTED_MARKET_REGIME: "gate_rejected_market_regime",
-    ProposalFinalState.GATE_REJECTED_CORRELATION: "gate_rejected_correlation",
-    ProposalFinalState.GATE_REJECTED_TREND_FILTER: "gate_rejected_trend_filter",
-    ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY: "gate_rejected_sibling_family",
-    ProposalFinalState.GATE_REJECTED_RUNTIME_SAFETY_PAUSE: (
-        "gate_rejected_runtime_safety_pause"
-    ),
-    ProposalFinalState.GATE_REJECTED_TOTAL_CAP: "gate_rejected_total_cap",
-    ProposalFinalState.GATE_REJECTED_SYMBOL_CAP: "gate_rejected_symbol_cap",
-    ProposalFinalState.GATE_REJECTED_STALE_QUOTE: "gate_rejected_stale_quote",
-    ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP: (
-        "gate_rejected_account_aggregate_cap"
-    ),
-    ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK: (
-        "gate_rejected_stale_position_block"
-    ),
-    ProposalFinalState.GATE_REJECTED_RISK_SIZING: "gate_rejected_risk_sizing",
-    ProposalFinalState.GATE_REJECTED_GLOBAL_CAP: "gate_rejected_global_cap",
-    ProposalFinalState.GATE_REJECTED_OPEN_DRAWDOWN_KILL_SWITCH: (
-        "gate_rejected_open_drawdown_kill_switch"
-    ),
-    ProposalFinalState.GATE_REJECTED_OPEN_STOP_RISK_KILL_SWITCH: (
-        "gate_rejected_open_stop_risk_kill_switch"
-    ),
-    ProposalFinalState.GATE_REJECTED_PORTFOLIO_KILL_SWITCH: (
-        "gate_rejected_portfolio_kill_switch"
-    ),
-    ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH: (
-        "gate_rejected_daily_loss_kill_switch"
-    ),
-    ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH: (
-        "gate_rejected_portfolio_daily_loss_kill_switch"
-    ),
-    ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE: (
-        "gate_rejected_operator_freeze"
-    ),
-    ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE: (
-        "gate_rejected_strategy_action_pause"
-    ),
-    ProposalFinalState.SHADOW_RECORDED: "shadow_recorded",
-    ProposalFinalState.GATE_REJECTED_UNKNOWN: "gate_rejected_unknown",
-    ProposalFinalState.PROPOSAL_OPENED: "proposal_opened",
-    ProposalFinalState.TRADE_OPENED: "trade_opened",
-    ProposalFinalState.OUTCOME_LINKED: "outcome_linked",
-    ProposalFinalState.OPEN_ERRORED: "open_errored",
+    state: state.value for state in ProposalFinalState
 }
 
 

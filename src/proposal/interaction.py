@@ -239,6 +239,67 @@ class ProposalRecord(UtcTimestampMixin, BaseModel):
 
     model_config = {"use_enum_values": True}
 
+    # =========================================================================
+    # Domain transitions (PROP-F8 / CAH-12)
+    # =========================================================================
+    #
+    # ``ProposalRecord`` carries ``use_enum_values=True`` (above), so every
+    # stored enum is coerced to its ``.value`` string at validation time. The
+    # transition methods below pass ``.value`` explicitly so the records they
+    # produce are byte-identical to the inline ``model_copy(update={...})``
+    # bundles they replace in ``src/runtime/engine.py`` — see the equivalence
+    # test in ``tests/test_proposal_interaction.py``.
+
+    def reject(
+        self,
+        final_state: ProposalFinalState,
+        reason: str | None,
+        *,
+        at: datetime | None = None,
+    ) -> ProposalRecord:
+        """Return a rejected copy with the standard 4-field reject bundle.
+
+        Collapses the recurring inline
+        ``model_copy(update={"decision": ..., "rejection_reason": ...,
+        "decision_at": ..., "final_state": ...})`` that fires at every
+        post-acceptance gate. ``decision`` becomes
+        :attr:`ProposalDecision.REJECTED`, ``decision_at`` defaults to
+        :func:`now_utc` when ``at`` is omitted, and ``final_state`` is the
+        terminal the gate decided on.
+
+        Args:
+            final_state: Terminal funnel state for the rejection.
+            reason: Free-form rejection reason (or ``None``).
+            at: Decision timestamp. Defaults to :func:`now_utc`.
+
+        Returns:
+            A new :class:`ProposalRecord` (the original is unmodified).
+        """
+        return self.model_copy(
+            update={
+                "decision": ProposalDecision.REJECTED.value,
+                "rejection_reason": reason,
+                "decision_at": at or now_utc(),
+                "final_state": final_state.value,
+            }
+        )
+
+    def mark(self, final_state: ProposalFinalState) -> ProposalRecord:
+        """Return a copy with only ``final_state`` advanced.
+
+        For non-reject funnel transitions (score-accept, proposal-opened,
+        trade-opened, open-errored, …) the only field that changes is
+        ``final_state``. ``decision`` / ``decision_at`` / ``rejection_reason``
+        are left untouched.
+
+        Args:
+            final_state: Terminal funnel state to record.
+
+        Returns:
+            A new :class:`ProposalRecord` (the original is unmodified).
+        """
+        return self.model_copy(update={"final_state": final_state.value})
+
 
 # =============================================================================
 # Display

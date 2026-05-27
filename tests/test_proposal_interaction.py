@@ -23,6 +23,7 @@ from src.proposal.interaction import (
     default_decision_prompt,
     format_proposal,
 )
+from src.utils.time import now_utc
 
 # =============================================================================
 # Helpers
@@ -1027,3 +1028,100 @@ def test_proposal_final_state_includes_strategy_action_pause_and_shadow_recorded
     assert (
         ProposalFinalState("shadow_recorded") is ProposalFinalState.SHADOW_RECORDED
     )
+
+
+# =============================================================================
+# ProposalRecord.reject / .mark domain transitions (PROP-F8 / CAH-12)
+# =============================================================================
+
+
+def test_reject_matches_inline_model_copy_bundle_byte_identical() -> None:
+    """``record.reject(...)`` produces the same record as the old inline bundle.
+
+    Proves the migrated engine call sites are behavior-preserving: the
+    method-produced record must be byte-identical (incl. ``.value`` string
+    coercion under ``use_enum_values=True``) to the 4-field
+    ``model_copy(update={...})`` it replaced.
+    """
+    base = ProposalRecord(
+        proposal=make_proposal(proposal_id="rej-eq"),
+        decision=ProposalDecision.ACCEPTED,
+    )
+    at = datetime(2026, 5, 28, 12, 0, tzinfo=timezone.utc)
+
+    inline = base.model_copy(
+        update={
+            "decision": ProposalDecision.REJECTED.value,
+            "rejection_reason": "too_correlated",
+            "decision_at": at,
+            "final_state": ProposalFinalState.GATE_REJECTED_CORRELATION.value,
+        }
+    )
+    via_method = base.reject(
+        ProposalFinalState.GATE_REJECTED_CORRELATION,
+        "too_correlated",
+        at=at,
+    )
+
+    assert via_method == inline
+    assert via_method.model_dump_json() == inline.model_dump_json()
+
+
+def test_reject_coerces_enums_to_value_strings() -> None:
+    """Under ``use_enum_values=True`` stored fields are plain strings."""
+    base = ProposalRecord(proposal=make_proposal(proposal_id="rej-val"))
+    rejected = base.reject(ProposalFinalState.GATE_REJECTED_SYMBOL_CAP, "cap_hit")
+
+    assert rejected.decision == "rejected"
+    assert rejected.final_state == "gate_rejected_symbol_cap"
+    assert isinstance(rejected.decision, str)
+    assert isinstance(rejected.final_state, str)
+    assert rejected.rejection_reason == "cap_hit"
+    assert rejected.decision_at is not None
+    # Original is unmodified.
+    assert base.decision == "pending"
+
+
+def test_reject_defaults_decision_at_to_now() -> None:
+    base = ProposalRecord(proposal=make_proposal(proposal_id="rej-now"))
+    before = now_utc()
+    rejected = base.reject(ProposalFinalState.GATE_REJECTED_TOTAL_CAP, None)
+    after = now_utc()
+
+    assert rejected.decision_at is not None
+    assert before <= rejected.decision_at <= after
+    assert rejected.rejection_reason is None
+
+
+def test_mark_matches_inline_single_field_model_copy() -> None:
+    """``record.mark(...)`` equals the inline single-``final_state`` update."""
+    base = ProposalRecord(
+        proposal=make_proposal(proposal_id="mark-eq"),
+        decision=ProposalDecision.ACCEPTED,
+        decision_at=datetime(2026, 5, 28, 9, 0, tzinfo=timezone.utc),
+    )
+
+    inline = base.model_copy(
+        update={"final_state": ProposalFinalState.PROPOSAL_OPENED.value}
+    )
+    via_method = base.mark(ProposalFinalState.PROPOSAL_OPENED)
+
+    assert via_method == inline
+    assert via_method.model_dump_json() == inline.model_dump_json()
+
+
+def test_mark_only_changes_final_state() -> None:
+    """``mark`` leaves decision / decision_at / rejection_reason untouched."""
+    at = datetime(2026, 5, 28, 9, 0, tzinfo=timezone.utc)
+    base = ProposalRecord(
+        proposal=make_proposal(proposal_id="mark-only"),
+        decision=ProposalDecision.ACCEPTED,
+        decision_at=at,
+        rejection_reason=None,
+    )
+    marked = base.mark(ProposalFinalState.TRADE_OPENED)
+
+    assert marked.final_state == "trade_opened"
+    assert marked.decision == "accepted"
+    assert marked.decision_at == at
+    assert marked.rejection_reason is None

@@ -1235,9 +1235,7 @@ class TradingEngine:
             # Subsequent gate rejections will overwrite ``final_state``;
             # the score-accepted bucket is for the in-flight transition
             # and the final terminal record when every gate accepts.
-            record = record.model_copy(
-                update={"final_state": ProposalFinalState.SCORE_ACCEPTED.value}
-            )
+            record = record.mark(ProposalFinalState.SCORE_ACCEPTED)
             events.append(
                 GateActivityEvent(
                     ActivityEventType.PROPOSAL_ACCEPTED,
@@ -1505,9 +1503,7 @@ class TradingEngine:
             # the post-execute stale-quote gate (inside ``_execute``)
             # rewrites the record back to
             # ``gate_rejected_stale_quote`` if it fires.
-            record = record.model_copy(
-                update={"final_state": ProposalFinalState.PROPOSAL_OPENED.value}
-            )
+            record = record.mark(ProposalFinalState.PROPOSAL_OPENED)
             outcome = GateOutcome(GateDecision.ACCEPTED, None, events, record)
             self.proposal_history.save(outcome.final_record)
             for event in outcome.events:
@@ -1520,9 +1516,7 @@ class TradingEngine:
             await self._execute(proposal, cycle_id, result, trader, exchange)
         else:
             # proposal-funnel-audit §1 State 3b: score gate rejection.
-            rejected_record = record.model_copy(
-                update={"final_state": ProposalFinalState.SCORE_REJECTED.value}
-            )
+            rejected_record = record.mark(ProposalFinalState.SCORE_REJECTED)
             # Shape A: the score-reject event is concatenated onto the
             # running ``events`` list here, and the replay list is that
             # full concatenation.
@@ -1601,13 +1595,8 @@ class TradingEngine:
             }
             if sized.details is not None:
                 details.update(sized.details)
-            rejected_record = record.model_copy(
-                update={
-                    "decision": ProposalDecision.REJECTED.value,
-                    "rejection_reason": reason,
-                    "decision_at": now_utc(),
-                    "final_state": ProposalFinalState.GATE_REJECTED_RISK_SIZING.value,
-                }
+            rejected_record = record.reject(
+                ProposalFinalState.GATE_REJECTED_RISK_SIZING, reason
             )
             return proposal, GateOutcome(
                 GateDecision.REJECTED,
@@ -1673,11 +1662,7 @@ class TradingEngine:
             # join.
             try:
                 existing = self.proposal_history.load(proposal.proposal_id)
-                updated = existing.model_copy(
-                    update={
-                        "final_state": ProposalFinalState.OPEN_ERRORED.value,
-                    }
-                )
+                updated = existing.mark(ProposalFinalState.OPEN_ERRORED)
                 self.proposal_history.save(updated)
             except Exception:  # pragma: no cover - defensive
                 pass
@@ -1717,9 +1702,7 @@ class TradingEngine:
         # crash between the two writes still leaves a coherent record.
         try:
             existing = self.proposal_history.load(proposal.proposal_id)
-            updated = existing.model_copy(
-                update={"final_state": ProposalFinalState.TRADE_OPENED.value}
-            )
+            updated = existing.mark(ProposalFinalState.TRADE_OPENED)
             self.proposal_history.save(updated)
         except Exception as e:  # pragma: no cover - defensive
             logger.warning(
@@ -2417,14 +2400,7 @@ class TradingEngine:
             )
             return None
 
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": final_state.value,
-            }
-        )
+        rejected_record = record.reject(final_state, reason)
         return GateOutcome(
             GateDecision.REJECTED,
             reason,
@@ -2468,13 +2444,8 @@ class TradingEngine:
             f"sub-account {proposal.sub_account_id} ({len(open_trades)} open)"
         )
         # proposal-funnel-audit §1 State 4: total-cap rejection.
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": (ProposalFinalState.GATE_REJECTED_TOTAL_CAP.value),
-            }
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_TOTAL_CAP, reason
         )
         blocking_trades = await self._build_cap_blocker_payload(
             open_trades=open_trades,
@@ -2532,13 +2503,8 @@ class TradingEngine:
             f"sub-account {proposal.sub_account_id} ({existing} open)"
         )
         # proposal-funnel-audit §1 State 4: symbol-cap rejection.
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": (ProposalFinalState.GATE_REJECTED_SYMBOL_CAP.value),
-            }
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_SYMBOL_CAP, reason
         )
         # Filter to the per-symbol blockers only — these are the trades
         # that actually count against the per-symbol cap; the dashboard's
@@ -2690,15 +2656,8 @@ class TradingEngine:
             )
             return None
 
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP.value
-                ),
-            }
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_ACCOUNT_AGGREGATE_CAP, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -2800,15 +2759,8 @@ class TradingEngine:
             )
             return None
 
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK.value
-                ),
-            }
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_STALE_POSITION_BLOCK, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -3110,13 +3062,8 @@ class TradingEngine:
             )
             return None
 
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                "final_state": (ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value),
-            }
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_GLOBAL_CAP, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -3183,15 +3130,9 @@ class TradingEngine:
             return None
 
         reason = f"sibling_strategy_dedup:{family}"
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                # proposal-funnel-audit §1 State 4: sibling-family
-                # dedup rejection.
-                "final_state": (ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY.value),
-            }
+        # proposal-funnel-audit §1 State 4: sibling-family dedup rejection.
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -3233,17 +3174,9 @@ class TradingEngine:
             f"runtime safety score {safety_score.score} below pause minimum "
             f"{pause_min_score}"
         )
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                # proposal-funnel-audit §1 State 4: runtime-safety-pause
-                # rejection.
-                "final_state": (
-                    ProposalFinalState.GATE_REJECTED_RUNTIME_SAFETY_PAUSE.value
-                ),
-            }
+        # proposal-funnel-audit §1 State 4: runtime-safety-pause rejection.
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_RUNTIME_SAFETY_PAUSE, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -3346,14 +3279,9 @@ class TradingEngine:
         else:
             return None
 
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                # proposal-funnel-audit §1 State 4: trend-filter rejection.
-                "final_state": (ProposalFinalState.GATE_REJECTED_TREND_FILTER.value),
-            }
+        # proposal-funnel-audit §1 State 4: trend-filter rejection.
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_TREND_FILTER, reason
         )
         return GateOutcome(
             GateDecision.REJECTED,
@@ -3504,14 +3432,9 @@ class TradingEngine:
         }
         if classification.reason is not None:
             details["classifier_reason"] = classification.reason
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                # proposal-funnel-audit §1 State 4: market-regime rejection.
-                "final_state": (ProposalFinalState.GATE_REJECTED_MARKET_REGIME.value),
-            }
+        # proposal-funnel-audit §1 State 4: market-regime rejection.
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_MARKET_REGIME, reason
         )
         # ``details`` already carries ``proposal_id`` / ``record_id`` /
         # ``sub_account_id`` via ``_proposal_summary``; ``gate_reason``
@@ -3656,15 +3579,8 @@ class TradingEngine:
 
         if action == StrategyAction.PAUSE:
             reason = "strategy_action_pause"
-            paused_record = record.model_copy(
-                update={
-                    "decision": ProposalDecision.REJECTED.value,
-                    "rejection_reason": reason,
-                    "decision_at": now_utc(),
-                    "final_state": (
-                        ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE.value
-                    ),
-                }
+            paused_record = record.reject(
+                ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE, reason
             )
             event = GateActivityEvent(
                 ActivityEventType.PROPOSAL_REJECTED,
@@ -3741,14 +3657,9 @@ class TradingEngine:
             return GateOutcome(GateDecision.ACCEPTED, None, events, record)
 
         reason = decision.reason
-        rejected_record = record.model_copy(
-            update={
-                "decision": ProposalDecision.REJECTED.value,
-                "rejection_reason": reason,
-                "decision_at": now_utc(),
-                # proposal-funnel-audit §1 State 4: correlation rejection.
-                "final_state": (ProposalFinalState.GATE_REJECTED_CORRELATION.value),
-            }
+        # proposal-funnel-audit §1 State 4: correlation rejection.
+        rejected_record = record.reject(
+            ProposalFinalState.GATE_REJECTED_CORRELATION, reason
         )
         events.append(
             GateActivityEvent(
@@ -4195,17 +4106,11 @@ class TradingEngine:
         # truncated file.
         try:
             existing = self.proposal_history.load(proposal.proposal_id)
-            updated = existing.model_copy(
-                update={
-                    "decision": ProposalDecision.REJECTED.value,
-                    "rejection_reason": reason,
-                    "decision_at": now_utc(),
-                    # proposal-funnel-audit §1 State 4 (presented at
-                    # State 4 in the UI even though it fires inside
-                    # ``_execute`` — open-decision §6 stale-quote
-                    # resolution, 2026-05-13).
-                    "final_state": (ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value),
-                }
+            # proposal-funnel-audit §1 State 4 (presented at State 4 in
+            # the UI even though it fires inside ``_execute`` —
+            # open-decision §6 stale-quote resolution, 2026-05-13).
+            updated = existing.reject(
+                ProposalFinalState.GATE_REJECTED_STALE_QUOTE, reason
             )
             self.proposal_history.save(updated)
         except Exception as e:  # pragma: no cover - defensive
@@ -4260,16 +4165,11 @@ class TradingEngine:
         """
         try:
             existing = self.proposal_history.load(proposal.proposal_id)
-            updated = existing.model_copy(
-                update={
-                    "decision": ProposalDecision.REJECTED.value,
-                    "rejection_reason": reason,
-                    "decision_at": now_utc(),
-                    # proposal-funnel-audit §1 State 4: presented at
-                    # State 4 in the UI per open-decision §6 stale-
-                    # quote resolution (2026-05-13).
-                    "final_state": (ProposalFinalState.GATE_REJECTED_STALE_QUOTE.value),
-                }
+            # proposal-funnel-audit §1 State 4: presented at State 4 in
+            # the UI per open-decision §6 stale-quote resolution
+            # (2026-05-13).
+            updated = existing.reject(
+                ProposalFinalState.GATE_REJECTED_STALE_QUOTE, reason
             )
             self.proposal_history.save(updated)
         except Exception as e:  # pragma: no cover - defensive

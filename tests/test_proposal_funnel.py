@@ -155,6 +155,60 @@ def test_each_final_state_lands_in_its_own_bucket() -> None:
     assert counts.total == len(list(ProposalFinalState))
 
 
+def test_funnel_field_coverage_for_every_final_state() -> None:
+    """PROP-F1 (CAH-12): every ``ProposalFinalState`` has a backing field.
+
+    This is the regression guard that makes "add a new terminal" safe.
+    The ``_STATE_TO_FIELD`` mapping and ``gate_rejected_total`` are now
+    derived from the enum via ``getattr(self, member.value)``; if a future
+    enum member lacks a matching ``FunnelCounts`` field this assertion
+    fails loudly instead of the aggregator KeyError-ing at runtime.
+    """
+    field_names = set(FunnelCounts.model_fields)
+    state_values = {state.value for state in ProposalFinalState}
+    assert state_values <= field_names, (
+        "every ProposalFinalState.value must back a FunnelCounts field; "
+        f"missing: {sorted(state_values - field_names)}"
+    )
+
+
+def test_state_to_field_derivation_reproduces_identity() -> None:
+    """The derived ``_STATE_TO_FIELD`` maps each state to its own ``.value``."""
+    from src.proposal.funnel import _STATE_TO_FIELD
+
+    assert _STATE_TO_FIELD == {state: state.value for state in ProposalFinalState}
+
+
+def test_gate_rejected_total_derivation_sums_exactly_the_gate_members() -> None:
+    """PROP-F1: ``gate_rejected_total`` sums precisely the GATE_REJECTED_* fields.
+
+    Builds a ``FunnelCounts`` with a distinct value in every
+    ``GATE_REJECTED_*`` bucket (and noise in non-gate buckets) and asserts
+    the derived total equals the hand-summed gate buckets only — no
+    double-count, no missed bucket, no leakage from non-gate fields.
+    """
+    gate_members = [
+        s for s in ProposalFinalState if s.name.startswith("GATE_REJECTED_")
+    ]
+    # Distinct values so a missed/duplicated term changes the total.
+    gate_values = {member.value: i + 1 for i, member in enumerate(gate_members)}
+    counts = FunnelCounts(
+        # Non-gate buckets carry noise that must NOT count toward the total.
+        generated=100,
+        scored=200,
+        score_accepted=300,
+        proposal_opened=400,
+        trade_opened=500,
+        shadow_recorded=600,
+        **gate_values,
+    )
+    expected = sum(gate_values.values())
+    assert counts.gate_rejected_total == expected
+    # Sanity: 20 gate buckets summing 1..20 => 210.
+    assert len(gate_members) == 20
+    assert expected == 210
+
+
 def test_gate_rejected_total_sums_every_gate_bucket() -> None:
     records = [
         _record(
