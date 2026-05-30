@@ -6057,9 +6057,7 @@ async def test_stale_auto_close_unrecoverable_alerts_only(
 ) -> None:
     """auto_close + stale + reconciliation ``unrecoverable`` → NEVER closed,
     high-priority alert emitted."""
-    stale_trade = _make_recoverable_stale_trade(
-        trade_id="t-stale-unrec", hours_old=30
-    )
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-unrec", hours_old=30)
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -6078,8 +6076,9 @@ async def test_stale_auto_close_unrecoverable_alerts_only(
     # A valid TradeHistory cannot omit its core fields (entry_price/size/
     # symbol/side are all required by the model), so the unrecoverable
     # state is forced at the classifier boundary.
+    # CAH-15 Slice 2: ``_classify_trade_reconciliation`` moved to PositionMonitor.
     monkeypatch.setattr(
-        engine,
+        engine._position_monitor,
         "_classify_trade_reconciliation",
         lambda trade: OpenTradeState.UNRECOVERABLE,
     )
@@ -6105,11 +6104,113 @@ async def test_stale_auto_close_unrecoverable_alerts_only(
     assert details["priority"] == "high"
 
 
+async def test_monitor_multi_rung_single_pass_closes_each_exactly_once(
+    tmp_path: Path,
+) -> None:
+    """CAH-15 Slice 2 ADR CHANGE A: SL/TP + time-stop + stale-age + orphan
+    force-close all in ONE monitor pass close exactly four distinct trades,
+    once each — no double-count, no double-close, no fall-through.
+
+    The four close rungs are mutually exclusive via ``continue`` and feed a
+    single ``closed_count`` that is written once to ``result.positions_closed``.
+    This is the regression most likely to break under the PositionMonitor
+    extraction, so it is asserted explicitly across all four rungs at once.
+    """
+    # A: SL/TP hit (check_exit_conditions returns an exit before time-stop).
+    trade_sl = make_trade(trade_id="A-sl", symbol="BTC/USDT", side="long")
+    # B: aged far beyond its default 1h/48-bar time-stop window (make_trade's
+    # default entry_time is weeks old) and NOT orphaned -> time-stop.
+    trade_ts = make_trade(trade_id="B-ts", symbol="SOL/USDT", side="long")
+    # C: 30h old -> past the 24h stale cap but inside the 48h time-stop window,
+    # reconciliation MONITORABLE -> stale auto_close.
+    trade_stale = _make_recoverable_stale_trade(trade_id="C-stale", hours_old=30)
+    # D: missing in-memory position state -> orphan watchdog; pre-seeded to one
+    # strike below the threshold so THIS pass force-closes it.
+    trade_orphan = make_trade(trade_id="D-orphan", symbol="XRP/USDT", side="short")
+
+    open_trades = [trade_sl, trade_ts, trade_stale, trade_orphan]
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=open_trades,
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    trader = mocks["trader"]
+
+    def _closed(trade: TradeHistory, price: Decimal, pnl: float) -> TradeHistory:
+        return trade.model_copy(
+            update={
+                "status": "closed",
+                "exit_price": price,
+                "exit_quantity": trade.entry_quantity,
+                "pnl_percent": pnl,
+            }
+        )
+
+    by_id = {t.id: t for t in open_trades}
+
+    trader.get_open_position = MagicMock(
+        side_effect=lambda trade_id: None if trade_id == "D-orphan" else object()
+    )
+    trader.check_exit_conditions = MagicMock(
+        side_effect=lambda trade_id, price: (
+            (True, "stop_loss") if trade_id == "A-sl" else (False, None)
+        )
+    )
+
+    async def _close(trade_id: str, price: Decimal, *, reason: str) -> TradeHistory:
+        return _closed(by_id[trade_id], price, 0.0)
+
+    trader.close_position = AsyncMock(side_effect=_close)
+
+    async def _force_close(trade_id: str, price: Decimal) -> TradeHistory:
+        return _closed(by_id[trade_id], price, 1.0)
+
+    trader.force_close_orphan = AsyncMock(side_effect=_force_close)
+
+    sub = _make_risk_sub(
+        max_time_in_position_hours=24,
+        stale_position_action="auto_close",
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub],
+        {"rsi_lab": trader},
+    )  # type: ignore[assignment]
+
+    # One strike below threshold -> this pass is the force-close strike.
+    engine._position_monitor._orphan_strike_counts["D-orphan"] = (
+        ORPHAN_AUTO_CLOSE_THRESHOLD - 1
+    )
+
+    result = await engine.run_cycle()
+
+    # CHANGE A: exactly four closes, one per rung, single accumulation.
+    assert result.positions_closed == 4
+
+    # No double-close: each market close fired once with its own reason, and the
+    # orphan path force-closed exactly once.
+    close_reasons = sorted(
+        call.kwargs["reason"] for call in trader.close_position.await_args_list
+    )
+    assert close_reasons == ["stale_age_cap", "stop_loss", "time_stop"]
+    closed_ids = {call.args[0] for call in trader.close_position.await_args_list}
+    assert closed_ids == {"A-sl", "B-ts", "C-stale"}
+    trader.force_close_orphan.assert_awaited_once()
+    assert trader.force_close_orphan.await_args.args[0] == "D-orphan"
+
+    # Each rung emitted its canonical event exactly once.
+    log = mocks["activity_log"]
+    assert len(log.filter(event_type=ActivityEventType.POSITION_TIME_STOPPED)) == 1
+    assert len(log.filter(event_type=ActivityEventType.STALE_POSITION_AUTO_CLOSED)) == 1
+    assert (
+        len(log.filter(event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED)) == 1
+    )
+    # The orphan counter was pruned after the force-close.
+    assert "D-orphan" not in engine._orphan_strike_counts
+
+
 async def test_stale_alert_only_emits_event_without_closing(tmp_path: Path) -> None:
     """alert_only + stale → STALE_POSITION_DETECTED, position NOT closed."""
-    stale_trade = _make_recoverable_stale_trade(
-        trade_id="t-stale-alert", hours_old=30
-    )
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-alert", hours_old=30)
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -6144,9 +6245,7 @@ async def test_stale_block_new_entries_emits_detected_event_from_monitor(
 ) -> None:
     """block_new_entries + stale → monitor emits STALE_POSITION_DETECTED
     (operator visibility) without closing; enforcement stays in the gate."""
-    stale_trade = _make_recoverable_stale_trade(
-        trade_id="t-stale-block", hours_old=30
-    )
+    stale_trade = _make_recoverable_stale_trade(trade_id="t-stale-block", hours_old=30)
 
     engine, mocks = build_engine(
         tmp_path=tmp_path,
@@ -6396,9 +6495,7 @@ async def test_global_cap_gate_paper_emits_advisory_but_continues(
 
     # Record was NOT downgraded — it lands in proposal_opened / trade_opened.
     record = mocks["history"].load("rsi-global-paper")
-    assert (
-        record.final_state != ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
-    )
+    assert record.final_state != ProposalFinalState.GATE_REJECTED_GLOBAL_CAP.value
 
 
 async def test_global_cap_gate_live_rejects_on_open_positions_count(
@@ -6757,9 +6854,7 @@ async def _run_arb_gate(
 
 async def test_arb_fcfs_regression_blocks_breach(tmp_path: Path) -> None:
     """1. FCFS (default): a breach hard-blocks live with arbitration n/a."""
-    holder = _arb_holder_trade(
-        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-rank2", sub_account_id="lab_c", quantity="2")
     # proposer outranks lab_c, but FCFS ignores priority.
     engine, _mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
@@ -6781,9 +6876,7 @@ async def test_arb_fcfs_regression_blocks_breach(tmp_path: Path) -> None:
 
 async def test_arb_high_priority_proposer_admitted(tmp_path: Path) -> None:
     """2. Proposer rank 0, key held only by rank-2 holder → ADMIT (live)."""
-    holder = _arb_holder_trade(
-        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-rank2", sub_account_id="lab_c", quantity="2")
     engine, mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
         proposer_id="lab_a",  # rank 0
@@ -6813,9 +6906,7 @@ async def test_arb_high_priority_proposer_admitted(tmp_path: Path) -> None:
 
 async def test_arb_lowest_priority_proposer_blocked(tmp_path: Path) -> None:
     """3. Proposer rank 2 (lowest listed), key held only by rank-0 → BLOCK."""
-    holder = _arb_holder_trade(
-        trade_id="h-rank0", sub_account_id="lab_a", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-rank0", sub_account_id="lab_a", quantity="2")
     engine, _mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
         proposer_id="lab_c",  # rank 2
@@ -6878,9 +6969,7 @@ async def test_arb_no_holders_alone_exceeds_cap_blocks(tmp_path: Path) -> None:
 
 async def test_arb_unlisted_proposer_blocks(tmp_path: Path) -> None:
     """6. Proposer not in account_priority, listed holders → BLOCK (rank inf)."""
-    holder = _arb_holder_trade(
-        trade_id="h-rank0", sub_account_id="lab_a", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-rank0", sub_account_id="lab_a", quantity="2")
     engine, _mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
         proposer_id="lab_x",  # not in account_priority
@@ -6903,9 +6992,7 @@ async def test_arb_unlisted_proposer_blocks(tmp_path: Path) -> None:
 async def test_arb_empty_priority_blocks_both_modes(tmp_path: Path) -> None:
     """7. Empty account_priority → block every breach (FCFS-equivalent)."""
     for resolution in ("first_come_first_serve", "lowest_priority_loses"):
-        holder = _arb_holder_trade(
-            trade_id="h", sub_account_id="lab_a", quantity="2"
-        )
+        holder = _arb_holder_trade(trade_id="h", sub_account_id="lab_a", quantity="2")
         engine, _mocks, proposal, sub = _build_arb_engine(
             tmp_path=tmp_path,
             proposer_id="lab_b",
@@ -6924,9 +7011,7 @@ async def test_arb_empty_priority_blocks_both_modes(tmp_path: Path) -> None:
 
 async def test_arb_self_only_holder_excluded_blocks(tmp_path: Path) -> None:
     """8. Proposer already holds AND is sole holder → self-excluded → BLOCK."""
-    holder = _arb_holder_trade(
-        trade_id="h-self", sub_account_id="lab_a", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-self", sub_account_id="lab_a", quantity="2")
     engine, _mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
         proposer_id="lab_a",  # rank 0 but only holder is itself
@@ -7082,9 +7167,7 @@ async def test_arb_admitted_live_breach_emits_informational_event(
     tmp_path: Path,
 ) -> None:
     """13. Admitted live breach → informational RISK_CAP_ADVISORY (advisory=False)."""
-    holder = _arb_holder_trade(
-        trade_id="h-rank2", sub_account_id="lab_c", quantity="2"
-    )
+    holder = _arb_holder_trade(trade_id="h-rank2", sub_account_id="lab_c", quantity="2")
     engine, mocks, proposal, sub = _build_arb_engine(
         tmp_path=tmp_path,
         proposer_id="lab_a",
@@ -7140,7 +7223,9 @@ async def test_arb_sub_account_none_is_fcfs_equivalent(tmp_path: Path) -> None:
     engine, _mocks = build_engine(
         tmp_path=tmp_path,
         btc_proposal=proposal,
-        config=EngineConfig(auto_approve_threshold=1.0, max_open_positions_per_symbol=10),
+        config=EngineConfig(
+            auto_approve_threshold=1.0, max_open_positions_per_symbol=10
+        ),
         open_trades=[holder],
         ticker_price=Decimal("2000"),
     )
@@ -7412,9 +7497,7 @@ async def test_account_kill_switch_inert_when_pct_fields_none(
         side="long",
         entry="2000",
         quantity="5",
-    ).model_copy(
-        update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")}
-    )
+    ).model_copy(update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")})
     proposal = make_proposal(
         proposal_id="inert",
         symbol="BTC/USDT",
@@ -8158,10 +8241,7 @@ async def test_portfolio_daily_loss_kill_switch_summed_blocks_live(
         == ProposalFinalState.GATE_REJECTED_PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value
     )
     # DEBT-068(g): live kill-switch trips emit the dedicated event type.
-    assert (
-        outcome.events[0].event_type
-        == ActivityEventType.RISK_KILL_SWITCH_TRIPPED
-    )
+    assert outcome.events[0].event_type == ActivityEventType.RISK_KILL_SWITCH_TRIPPED
     details = outcome.events[0].details
     assert details["gate_reason"] == "portfolio_daily_loss_kill_switch"
     assert details["portfolio_realized_pnl_today"] == "-800"
@@ -8452,9 +8532,7 @@ async def test_operator_freeze_absent_file_trades_normally(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize("mode", ["paper", "live"])
-async def test_operator_freeze_rejects_in_both_modes(
-    tmp_path: Path, mode: str
-) -> None:
+async def test_operator_freeze_rejects_in_both_modes(tmp_path: Path, mode: str) -> None:
     """``trading_freeze: true`` hard-blocks every proposal in paper AND live.
 
     Unlike caps / kill-switches there is no paper-advisory carve-out: the
@@ -8481,9 +8559,7 @@ async def test_operator_freeze_rejects_in_both_modes(
     mocks["trader"].open_position.assert_not_called()
 
     record = mocks["history"].load("frozen")
-    assert (
-        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
-    )
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
     assert record.decision == ProposalDecision.REJECTED.value
     assert record.rejection_reason == "operator_freeze"
 
@@ -8512,9 +8588,7 @@ async def test_operator_freeze_rejects_before_other_gates(tmp_path: Path) -> Non
         side="long",
         entry="2000",
         quantity="5",
-    ).model_copy(
-        update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")}
-    )
+    ).model_copy(update={"sub_account_id": "rsi_lab", "stop_loss": Decimal("1000")})
     proposal = make_proposal(
         proposal_id="freeze-precedence",
         symbol="BTC/USDT",
@@ -8547,9 +8621,7 @@ async def test_operator_freeze_rejects_before_other_gates(tmp_path: Path) -> Non
     assert result.positions_opened == 0
     record = mocks["history"].load("freeze-precedence")
     # Operator freeze wins; the kill-switch terminal never fires.
-    assert (
-        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
-    )
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
     # No kill-switch advisory / rejection event was emitted. DEBT-068(g):
     # kill-switch trips emit RISK_KILL_SWITCH_TRIPPED (not PROPOSAL_REJECTED),
     # so assert that type is absent for this freeze-precedence cycle.
@@ -8628,9 +8700,7 @@ async def test_operator_freeze_reloaded_per_cycle(tmp_path: Path) -> None:
     assert result2.proposals_rejected == 1
     assert result2.positions_opened == 0
     record = mocks["history"].load("cycle2")
-    assert (
-        record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
-    )
+    assert record.final_state == ProposalFinalState.GATE_REJECTED_OPERATOR_FREEZE.value
     # open_position was called exactly once across both cycles (cycle 1 only).
     mocks["trader"].open_position.assert_called_once()
 

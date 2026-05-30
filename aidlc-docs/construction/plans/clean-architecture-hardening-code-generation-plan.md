@@ -373,10 +373,17 @@ complementary moves; do NOT migrate the whole dict.**
     live engine config; ADR CHANGE B (`_remember_mark_price` injected directly).
     Engine 5343→5196 lines; +11 tests; 2328 passed; black/ruff/mypy clean. Session log
     `docs/sessions/2026-05-31-clean-architecture-hardening-cah-15-slice-1-snapshot-recorder.md`.
-  - `[ ]` Slice 2 — `PositionMonitor` (+ ENG-F6 `_handle_orphan_trade`); ADR CHANGE A
-    (multi-rung single-pass close-count equality) + CHANGE B; mandatory quant review.
-  - `[ ]` Slice 3 — `ProposalGateChain` — CONDITIONAL, deferred; re-measure coupling
-    after Slice 2 before any go/no-go.
+  - `[x]` **Slice 2 — `PositionMonitor`** (+ ENG-F6 `_handle_orphan_trade`) (2026-05-31):
+    monitor/exit cluster → `src/runtime/position_monitor.py`; construct-once instance
+    owning cross-cycle `_orphan_strike_counts` (engine proxies via property); ADR
+    CHANGE A (multi-rung single-pass close-count proof) + CHANGE B (callbacks injected
+    directly, never chained). Engine 5196→4603 lines; +1 test; 2329 passed; quant 🟢 +
+    qa 🟢. Session log
+    `docs/sessions/2026-05-31-clean-architecture-hardening-cah-15-slice-2-position-monitor.md`.
+  - `[ ]` Slice 3 — `ProposalGateChain` — CONDITIONAL, **DEFERRED per ADR Alternative C**.
+    Irreducible gate-ordering complexity + six per-cycle caches → high live-money risk
+    for a cosmetic gain. Re-measure residual coupling after Slices 1+2 and require a
+    fresh quant go/no-go before any extraction.
 
 ---
 

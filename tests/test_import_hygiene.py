@@ -25,6 +25,10 @@ COLD_IMPORT_TARGETS = [
     "src.dashboard.app",
     "src.strategy.loader",
     "src.strategy",
+    # CAH-15 Slice 2: the monitor collaborator must cold-import cleanly — it
+    # uses a function-local import for the engine's EngineError/ErrorCategory to
+    # avoid a module-level engine↔position_monitor cycle.
+    "src.runtime.position_monitor",
 ]
 
 
