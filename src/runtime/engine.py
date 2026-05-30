@@ -90,6 +90,7 @@ from src.runtime.safety_score import (
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
 )
+from src.runtime.snapshot_recorder import SnapshotRecorder
 from src.runtime.strategy_action_snapshot import (
     DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH,
     AppliedStateMap,
@@ -98,12 +99,7 @@ from src.runtime.strategy_action_snapshot import (
     save_snapshot,
 )
 from src.strategy.base import default_max_bars_held
-from src.strategy.performance import (
-    PerformanceRecord,
-    PerformanceTracker,
-    TradeHistory,
-    TradeOutcome,
-)
+from src.strategy.performance import TradeHistory
 from src.strategy.tuning import StrategyAction
 from src.trading.risk_sizing import RiskSizingRejection, compute_risk_budget_size
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
@@ -1941,9 +1937,7 @@ class TradingEngine:
             cycle_id=cycle_id,
             reason=reason,
             details=details,
-            final_state=(
-                ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH
-            ),
+            final_state=(ProposalFinalState.GATE_REJECTED_DAILY_LOSS_KILL_SWITCH),
             advisory_label="Daily-loss kill-switch",
         )
 
@@ -2287,9 +2281,7 @@ class TradingEngine:
             "reason": reason,
             "gate_reason": GateReason.PORTFOLIO_DAILY_LOSS_KILL_SWITCH.value,
             "portfolio_realized_pnl_today": str(portfolio_realized_today),
-            "portfolio_starting_equity_today": str(
-                portfolio_starting_equity_today
-            ),
+            "portfolio_starting_equity_today": str(portfolio_starting_equity_today),
             "portfolio_daily_loss_limit_pct": str(daily_loss_limit),
             "portfolio_daily_loss_threshold": str(threshold),
             "mode": self.mode,
@@ -2859,7 +2851,10 @@ class TradingEngine:
         new_notional = proposal.entry_price * Decimal(str(proposal.quantity))
         symbol_side_notional_total = (
             sum(
-                (trade.entry_price * trade.entry_quantity for trade in symbol_side_trades),
+                (
+                    trade.entry_price * trade.entry_quantity
+                    for trade in symbol_side_trades
+                ),
                 start=Decimal("0"),
             )
             + new_notional
@@ -2958,16 +2953,18 @@ class TradingEngine:
             }
             # Admit this cap iff the proposer STRICTLY outranks some other
             # holder (ties do not count; empty holders => block).
-            admit_for_cap = any(
-                proposer_rank < _rank(holder) for holder in holder_ids
-            )
+            admit_for_cap = any(proposer_rank < _rank(holder) for holder in holder_ids)
             if not admit_for_cap:
                 admit_overall = False
             arbitration_by_cap[cap_name] = {
                 "holders": [
                     {
                         "account": holder,
-                        "rank": (None if _rank(holder) == float("inf") else int(_rank(holder))),
+                        "rank": (
+                            None
+                            if _rank(holder) == float("inf")
+                            else int(_rank(holder))
+                        ),
                     }
                     for holder in sorted(holder_ids, key=_rank)
                 ],
@@ -4225,11 +4222,11 @@ class TradingEngine:
                 str(trade.entry_price) if trade.entry_price is not None else None
             ),
             "entry_quantity": (
-                str(trade.entry_quantity)
-                if trade.entry_quantity is not None
-                else None
+                str(trade.entry_quantity) if trade.entry_quantity is not None else None
             ),
-            "stop_loss": (str(trade.stop_loss) if trade.stop_loss is not None else None),
+            "stop_loss": (
+                str(trade.stop_loss) if trade.stop_loss is not None else None
+            ),
             "take_profit": (
                 str(trade.take_profit) if trade.take_profit is not None else None
             ),
@@ -4787,6 +4784,33 @@ class TradingEngine:
         except Exception:
             return False
 
+    def _make_snapshot_recorder(self) -> SnapshotRecorder:
+        """Build a :class:`SnapshotRecorder` from the engine's live config.
+
+        CAH-15 Slice 1 (ADR 0001): the persistence concern lives in the
+        recorder, but the recorder is **stateless** (it owns none of the
+        six per-cycle caches — quant-confirmed) so it is rebuilt on demand
+        rather than captured at construction. Rebuilding reads the engine's
+        current ``portfolio_tracker`` / ``mode`` / ``quote_currency`` /
+        ``exchange`` so a caller that mutates those attributes after
+        ``__init__`` (tests, future runtime reconfiguration) sees live
+        values with no capture-staleness bug. ``_remember_mark_price`` is
+        passed as the write-through callback so the engine-owned
+        ``_mark_price_cache`` stays the single source of truth (ADR
+        cache-ownership contract + quant CHANGE B — injected directly,
+        never chained).
+        """
+        return SnapshotRecorder(
+            proposal_history=self.proposal_history,
+            activity_log=self.activity_log,
+            proposal_engine=self.proposal_engine,
+            portfolio_tracker=self.portfolio_tracker,
+            default_exchange=self.exchange,
+            remember_mark_price=self._remember_mark_price,
+            mode=self.mode,
+            quote_currency=self.quote_currency,
+        )
+
     async def _record_portfolio_snapshot(
         self,
         cycle_id: str,
@@ -4794,67 +4818,10 @@ class TradingEngine:
         trader: Trader,
         exchange: BaseExchange | None = None,
     ) -> None:
-        """Capture balances + open-position marks into ``AssetSnapshot``.
-
-        Called at the end of every cycle when ``portfolio_tracker`` is
-        wired. Errors (balance fetch network failures, ticker fetches,
-        disk write hiccups) are swallowed and logged so the cycle
-        finishes cleanly — a missed snapshot is recoverable; a crashed
-        cycle is not.
-        """
-        if self.portfolio_tracker is None:
-            return
-
-        try:
-            balances = await trader.get_balances()
-        except Exception as e:  # pragma: no cover - defensive
-            self.activity_log.append(
-                ActivityEventType.MONITOR_ERRORED,
-                f"Snapshot balance fetch failed: {e}",
-                details={"error": str(e), "phase": "balances"},
-                cycle_id=cycle_id,
-            )
-            return
-
-        current_prices: dict[str, Decimal] = {}
-        account_exchange = exchange or self.exchange
-        for trade in trader.get_open_trades():
-            try:
-                ticker = await account_exchange.get_ticker(trade.symbol)
-            except Exception:
-                continue
-            current_prices[trade.symbol] = ticker.price
-            # DEBT-066: write-through to the in-memory mark cache so
-            # cap-rejection events can compute ``unrealized_pnl_percent``
-            # for blocking trades from this same ticker read.
-            self._remember_mark_price(trade.symbol, ticker.price)
-
-        try:
-            sub_account_id = self._sub_account_id(sub_account)
-            tracker = self.portfolio_tracker
-            if (
-                getattr(tracker, "sub_account_id", DEFAULT_SUB_ACCOUNT_ID)
-                != sub_account_id
-            ):
-                from src.trading.portfolio import PortfolioTracker
-
-                tracker = PortfolioTracker(
-                    data_dir=tracker.data_dir,
-                    sub_account_id=sub_account_id,
-                )
-            tracker.record_snapshot(
-                mode=self.mode,
-                quote_currency=self.quote_currency,
-                balances=balances,
-                current_prices=current_prices,
-            )
-        except Exception as e:  # pragma: no cover - defensive
-            self.activity_log.append(
-                ActivityEventType.MONITOR_ERRORED,
-                f"Snapshot persist failed: {e}",
-                details={"error": str(e), "phase": "persist"},
-                cycle_id=cycle_id,
-            )
+        """Delegate to :meth:`SnapshotRecorder.record_portfolio_snapshot`."""
+        await self._make_snapshot_recorder().record_portfolio_snapshot(
+            cycle_id, sub_account, trader, exchange
+        )
 
     def _record_closed_trade(
         self,
@@ -4862,49 +4829,8 @@ class TradingEngine:
         reason: str,
         cycle_id: str,
     ) -> None:
-        """Log a closed trade and write realized P&L back to its proposal."""
-        proposal_record = self._find_proposal_record_for_trade(trade.id)
-        proposal_id = proposal_record.proposal.proposal_id if proposal_record else None
-        pnl_percent = trade.pnl_percent if trade.pnl_percent is not None else 0.0
-        if proposal_id is not None:
-            self.proposal_history.attach_outcome(
-                proposal_id,
-                trade_id=trade.id,
-                pnl_percent=pnl_percent,
-            )
-
-        if proposal_record is not None:
-            self._save_performance_record(proposal_record, trade, reason)
-
-        self.activity_log.append(
-            ActivityEventType.POSITION_CLOSED,
-            f"Closed {trade.symbol} ({reason}) pnl={pnl_percent:.2f}%",
-            details={
-                "trade_id": trade.id,
-                "proposal_id": proposal_id,
-                # proposal-funnel-audit §1 State 7: ``record_id`` is the
-                # canonical funnel-join key. For now each proposal maps
-                # 1:1 to its record so the two ids coincide; the
-                # separate field exists so dashboards can switch joins
-                # without re-tagging events.
-                "record_id": proposal_id,
-                "sub_account_id": trade.sub_account_id,
-                "technique_name": (
-                    proposal_record.proposal.technique_name
-                    if proposal_record is not None
-                    else None
-                ),
-                "symbol": trade.symbol,
-                "side": trade.side,
-                "signal": trade.side,
-                "reason": reason,
-                "pnl_percent": pnl_percent,
-                "exit_price": (
-                    str(trade.exit_price) if trade.exit_price is not None else None
-                ),
-            },
-            cycle_id=cycle_id,
-        )
+        """Delegate to :meth:`SnapshotRecorder.record_closed_trade`."""
+        self._make_snapshot_recorder().record_closed_trade(trade, reason, cycle_id)
 
     def _save_performance_record(
         self,
@@ -4912,87 +4838,14 @@ class TradingEngine:
         trade: TradeHistory,
         reason: str,
     ) -> None:
-        """Write a closed-trade PerformanceRecord so the dashboard sees it.
-
-        The proposal carries the technique/timeframe/signal/prices that
-        were ranked at proposal time; the trade carries the realised
-        outcome. Combine them into a single row under
-        ``data/performance/<technique>/`` so the Analysis Techniques
-        dashboard's per-technique aggregates (win rate, avg P&L, total
-        P&L) actually move.
-
-        Failures are logged and swallowed — a missed performance row
-        is recoverable; a crashed cycle is not.
-        """
-        tracker = getattr(self.proposal_engine, "performance_tracker", None)
-        if tracker is None:
-            return
-        if (
-            isinstance(tracker, PerformanceTracker)
-            and tracker.sub_account_id != trade.sub_account_id
-        ):
-            tracker = PerformanceTracker(
-                data_dir=tracker.data_dir,
-                sub_account_id=trade.sub_account_id,
-            )
-
-        proposal = proposal_record.proposal
-        outcome = self._classify_close_reason(reason)
-        try:
-            record = PerformanceRecord(
-                technique_name=proposal.technique_name,
-                technique_version=proposal.technique_version,
-                symbol=proposal.symbol,
-                timeframe=proposal.timeframe,
-                signal=proposal.signal,
-                entry_price=proposal.entry_price,
-                stop_loss=proposal.stop_loss,
-                take_profit=proposal.take_profit,
-                confidence=proposal.score.confidence,
-                analysis_timestamp=proposal.created_at,
-                outcome=outcome,
-                exit_price=trade.exit_price,
-                exit_timestamp=trade.exit_time,
-                pnl_percent=trade.pnl_percent,
-                quantity=trade.entry_quantity,
-                leverage=trade.leverage,
-                fees=trade.fees,
-                actual_entry_price=trade.entry_price,
-                actual_exit_price=trade.exit_price,
-                mode=trade.mode,
-                trade_id=trade.id,
-                sub_account_id=trade.sub_account_id,
-                profile_name=proposal.profile_name,
-            )
-            tracker.save_record(record)
-        except Exception as e:  # pragma: no cover - defensive
-            logger.warning(
-                "Failed to persist performance record for trade %s: %s",
-                trade.id,
-                e,
-            )
-
-    @staticmethod
-    def _classify_close_reason(reason: str) -> TradeOutcome:
-        """Map an engine close reason onto a ``TradeOutcome`` enum value."""
-        if reason == "take_profit":
-            return TradeOutcome.WIN
-        if reason == "stop_loss":
-            return TradeOutcome.LOSS
-        return TradeOutcome.BREAKEVEN
+        """Delegate to the recorder's per-trade ``PerformanceRecord`` write."""
+        self._make_snapshot_recorder()._save_performance_record(
+            proposal_record, trade, reason
+        )
 
     def _find_proposal_record_for_trade(self, trade_id: str) -> ProposalRecord | None:
-        """Look up the full ``ProposalRecord`` that owns a given trade id.
-
-        ``ProposalHistory`` stores ``trade_id`` on every record; we
-        scan ``list_all`` and return the first match. With realistic
-        proposal volumes (tens to low hundreds) this is cheap; if it
-        ever bites, ``ProposalHistory`` can grow an index.
-        """
-        for record in self.proposal_history.list_all():
-            if record.trade_id == trade_id:
-                return record
-        return None
+        """Delegate to :meth:`SnapshotRecorder.find_proposal_record_for_trade`."""
+        return self._make_snapshot_recorder().find_proposal_record_for_trade(trade_id)
 
     def _run_reconciliation_health_check(self) -> None:
         """Emit ``RECONCILIATION_HEALTH_REPORT`` once at startup.

@@ -365,6 +365,18 @@ complementary moves; do NOT migrate the whole dict.**
   via the `_handle_orphan_trade` extraction from ENG-F6, then the gate chain
   last). Each stage is its own behavior-preserving slice with full-suite gating.
 - **Do not** attempt as one PR.
+- **Progress**:
+  - `[x]` Design ADR — `docs/adr/0001-trading-engine-decomposition.md` (commit 70b7802);
+    quant-reviewed 🟡 → greenlit Slices 1+2, Slice 3 (gate-chain) deferred.
+  - `[x]` **Slice 1 — `SnapshotRecorder`** (2026-05-31): five persistence methods →
+    `src/runtime/snapshot_recorder.py`; stateless collaborator rebuilt on demand from
+    live engine config; ADR CHANGE B (`_remember_mark_price` injected directly).
+    Engine 5343→5196 lines; +11 tests; 2328 passed; black/ruff/mypy clean. Session log
+    `docs/sessions/2026-05-31-clean-architecture-hardening-cah-15-slice-1-snapshot-recorder.md`.
+  - `[ ]` Slice 2 — `PositionMonitor` (+ ENG-F6 `_handle_orphan_trade`); ADR CHANGE A
+    (multi-rung single-pass close-count equality) + CHANGE B; mandatory quant review.
+  - `[ ]` Slice 3 — `ProposalGateChain` — CONDITIONAL, deferred; re-measure coupling
+    after Slice 2 before any go/no-go.
 
 ---
 
