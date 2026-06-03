@@ -491,6 +491,27 @@ def _thin_evidence_perf(name: str) -> TechniquePerformance:
     )
 
 
+def _pause_band_perf(name: str) -> TechniquePerformance:
+    """Deep loss, 20 closed ⇒ recommender returns pause.
+
+    ``closed_pnl_pct`` (= ``total_pnl_percent``) ≤ the default
+    ``pause.closed_pnl_pct_max`` (-5.0) with ``closed_trades`` ≥
+    ``pause.sample_size_min`` (15) trips ``pause_pnl_hit``.
+    """
+    return TechniquePerformance(
+        technique_name=name,
+        technique_version="1.0.0",
+        wins=2,
+        losses=18,
+        breakevens=0,
+        win_rate=0.1,
+        total_pnl_percent=-30.0,
+        gross_win_pct=5.0,
+        gross_loss_pct=35.0,
+        max_drawdown_pct=25.0,
+    )
+
+
 def test_tuning_rows_applied_and_recommended_keep_match() -> None:
     from src.dashboard.pages.strategies import build_strategy_tuning_rows
 
@@ -532,6 +553,91 @@ def test_tuning_rows_recommendation_differs_produces_yaml_diff() -> None:
     assert "rsi:" in row.yaml_diff
     assert "applied: keep" in row.yaml_diff
     assert "was: pause" in row.yaml_diff
+
+
+def test_tuning_rows_pause_triage_evidence_corroborated() -> None:
+    # DEBT-069(f): applied PAUSE that the LIVE recommender also returns ⇒
+    # evidence_corroborated. Non-pause rows + the YAML diff are unaffected.
+    from src.dashboard.pages.strategies import (
+        PAUSE_TRIAGE_EVIDENCE_CORROBORATED,
+        build_strategy_tuning_rows,
+    )
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _pause_band_perf("rsi")})
+    policy = StrategyTuningPolicy(
+        enabled=True,
+        strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
+    )
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.applied == "pause"
+    assert row.recommended == "pause"  # live evidence agrees
+    assert row.pause_triage == PAUSE_TRIAGE_EVIDENCE_CORROBORATED
+    assert row.differs is False
+
+
+def test_tuning_rows_pause_triage_gate_config_only_when_recommender_disagrees() -> None:
+    # DEBT-069(f): applied PAUSE but the live recommender returns keep ⇒
+    # gate_config_only (the over-cautious config worth operator review).
+    from src.dashboard.pages.strategies import (
+        PAUSE_TRIAGE_GATE_CONFIG_ONLY,
+        build_strategy_tuning_rows,
+    )
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+    policy = StrategyTuningPolicy(
+        enabled=True,
+        strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
+    )
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.applied == "pause"
+    assert row.recommended == "keep"
+    assert row.pause_triage == PAUSE_TRIAGE_GATE_CONFIG_ONLY
+
+
+def test_tuning_rows_pause_triage_gate_config_only_on_thin_evidence() -> None:
+    # DEBT-069(f): applied PAUSE with evidence too thin for the live recommender
+    # (returns None) ⇒ gate_config_only — the seed fallback that fills the
+    # Recommended column must NOT count as evidence corroboration.
+    from src.dashboard.pages.strategies import (
+        PAUSE_TRIAGE_GATE_CONFIG_ONLY,
+        build_strategy_tuning_rows,
+    )
+
+    strategies = {"cold": make_strategy(make_info(name="cold"))}
+    tracker = _make_tracker_returning({"cold": _thin_evidence_perf("cold")})
+    policy = StrategyTuningPolicy(
+        enabled=True,
+        strategy_overrides={"cold": StrategyOverride(applied=StrategyAction.PAUSE)},
+    )
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    row = rows[0]
+    assert row.applied == "pause"
+    assert row.recommended == "retune"  # catch-all seed (NOT live evidence)
+    assert row.pause_triage == PAUSE_TRIAGE_GATE_CONFIG_ONLY
+
+
+def test_tuning_rows_pause_triage_blank_for_non_pause() -> None:
+    # DEBT-069(f): non-pause applied rows carry no triage verdict.
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+    policy = StrategyTuningPolicy(enabled=True)  # applied defaults to keep
+
+    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+
+    assert rows[0].applied == "keep"
+    assert rows[0].pause_triage == ""
 
 
 def test_tuning_rows_thin_evidence_falls_back_to_seed() -> None:
@@ -584,9 +690,7 @@ def test_tuning_rows_live_recommendation_supersedes_seed() -> None:
     # seeds to SCOUT, but keep-band evidence recommends KEEP.
     from src.dashboard.pages.strategies import build_strategy_tuning_rows
 
-    strategies = {
-        "rsi_universal": make_strategy(make_info(name="rsi_universal"))
-    }
+    strategies = {"rsi_universal": make_strategy(make_info(name="rsi_universal"))}
     tracker = _make_tracker_returning(
         {"rsi_universal": _keep_band_perf("rsi_universal")}
     )
@@ -650,6 +754,7 @@ def test_tuning_dataframe_columns_and_empty() -> None:
         "Applied",
         "Recommended",
         "Evidence",
+        "Pause Triage",
     ]
     assert empty.empty
 

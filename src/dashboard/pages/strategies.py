@@ -39,6 +39,36 @@ from src.strategy.tuning_recommender import (
 logger = get_logger("crypto_master.dashboard.strategies")
 DEFAULT_COMBINATIONS_DIR = Path("data/backtest/combinations")
 
+# DEBT-069(f): pause-triage labels. The runtime gate stamps every pause event
+# with ``details.pause_reason="gate_config"`` (it fires on the applied/config
+# action, not live evidence). The dashboard upgrades that to a corroboration
+# verdict by joining the APPLIED pause against the LIVE recommender output for the
+# same ``(sub_account, strategy)``: an applied pause the recommender ALSO returns
+# is evidence-corroborated; an applied pause the live recommender does NOT return
+# (incl. evidence too thin to recommend) is config-only and worth operator review
+# (routed to the funnel audit). Empty string for non-pause rows.
+PAUSE_TRIAGE_NONE: str = ""
+PAUSE_TRIAGE_EVIDENCE_CORROBORATED: str = "evidence_corroborated"
+PAUSE_TRIAGE_GATE_CONFIG_ONLY: str = "gate_config_only"
+
+
+def _pause_triage_label(
+    applied: StrategyAction, live_recommendation: StrategyAction | None
+) -> str:
+    """Classify an applied pause as evidence-corroborated vs config-only.
+
+    DEBT-069(f). ``live_recommendation`` is the raw ``recommend_action`` output
+    BEFORE the seed fallback — a seeded pause is operator-config guidance, not
+    live evidence, so it must not count as corroboration. ``None`` (evidence too
+    thin to recommend) is config-only: the live evidence does not currently
+    support the pause, which is exactly the over-cautious case worth surfacing.
+    """
+    if applied != StrategyAction.PAUSE:
+        return PAUSE_TRIAGE_NONE
+    if live_recommendation == StrategyAction.PAUSE:
+        return PAUSE_TRIAGE_EVIDENCE_CORROBORATED
+    return PAUSE_TRIAGE_GATE_CONFIG_ONLY
+
 
 # =============================================================================
 # Pure helpers (importable + testable without Streamlit runtime)
@@ -106,9 +136,7 @@ def build_summary_dataframe(
             # tracker (which doesn't surface ``sub_account_id``)
             # never reach this branch.
             effective_sub_account = (
-                sub_account_id
-                if sub_account_id is not None
-                else tracker.sub_account_id
+                sub_account_id if sub_account_id is not None else tracker.sub_account_id
             )
             counts = fail_closed_tracker.get(
                 strategy.name,
@@ -253,6 +281,12 @@ class StrategyTuningRow(BaseModel):
             pastes into the sub-account config to apply the
             recommendation. Empty string when there is nothing to apply
             (no recommendation, or recommendation already applied).
+        pause_triage: DEBT-069(f) corroboration verdict for an APPLIED
+            pause — ``"evidence_corroborated"`` when the live recommender
+            also returns ``pause``, ``"gate_config_only"`` when it does
+            not (incl. evidence too thin), and ``""`` for non-pause rows.
+            ``gate_config_only`` pauses are the ones operators should
+            revisit (the live evidence no longer supports the block).
     """
 
     sub_account_id: str
@@ -262,14 +296,13 @@ class StrategyTuningRow(BaseModel):
     evidence_summary: str
     differs: bool
     yaml_diff: str
+    pause_triage: str = ""
 
 
 def _format_evidence_summary(evidence: RecommenderEvidence) -> str:
     """One-line digest of the evidence the recommender consumed."""
     pf = (
-        f"{evidence.profit_factor:.2f}"
-        if evidence.profit_factor is not None
-        else "n/a"
+        f"{evidence.profit_factor:.2f}" if evidence.profit_factor is not None else "n/a"
     )
     return (
         f"closed={evidence.closed_trades}, "
@@ -357,9 +390,7 @@ def build_strategy_tuning_rows(
             )
             fail_closed_rate = counts.fail_closed_rate
 
-        evidence = evidence_from_performance(
-            perf, fail_closed_rate=fail_closed_rate
-        )
+        evidence = evidence_from_performance(perf, fail_closed_rate=fail_closed_rate)
         applied = policy.applied_action_for(strategy.name)
         # DEBT-069(b): the live recommender is authoritative; the per-strategy
         # seed is only a fallback when evidence is too thin to recommend
@@ -369,9 +400,13 @@ def build_strategy_tuning_rows(
         # live recommendation. With the catch-all seed, every strategy now
         # gets a non-``None`` recommendation, so there is no insufficient-
         # evidence path left for this builder.
-        recommended = recommend_action(
+        # DEBT-069(f): keep the raw live recommendation (pre-seed-fallback) so
+        # the pause-triage join only counts genuine live evidence as
+        # corroboration — a seeded pause is config guidance, not evidence.
+        live_recommendation = recommend_action(
             evidence, policy.thresholds_for(strategy.name)
-        ) or seed_action_for(strategy.name)
+        )
+        recommended = live_recommendation or seed_action_for(strategy.name)
         differs = recommended != applied
         yaml_diff = build_strategy_tuning_yaml_diff(
             effective_sub_account, strategy.name, applied, recommended
@@ -386,19 +421,27 @@ def build_strategy_tuning_rows(
                 evidence_summary=_format_evidence_summary(evidence),
                 differs=differs,
                 yaml_diff=yaml_diff,
+                pause_triage=_pause_triage_label(applied, live_recommendation),
             )
         )
     return rows
 
 
 def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFrame:
-    """Tabular view of the tuning rows (Applied / Recommended / Evidence)."""
+    """Tabular view of the tuning rows (Applied / Recommended / Evidence).
+
+    The ``Pause Triage`` column (DEBT-069(f)) is populated only for applied
+    pauses — ``evidence_corroborated`` when the live recommender agrees,
+    ``gate_config_only`` when it does not (the operator-review case). Non-pause
+    rows render it blank.
+    """
     columns = [
         "Sub-account",
         "Strategy",
         "Applied",
         "Recommended",
         "Evidence",
+        "Pause Triage",
     ]
     if not rows:
         return pd.DataFrame(columns=columns)
@@ -410,6 +453,7 @@ def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFra
                 "Applied": r.applied,
                 "Recommended": r.recommended,
                 "Evidence": r.evidence_summary,
+                "Pause Triage": r.pause_triage,
             }
             for r in rows
         ],
@@ -457,8 +501,7 @@ def render_strategy_tuning(
     diffs = [r for r in rows if r.differs and r.yaml_diff]
     if not diffs:
         st.caption(
-            "No pending changes — every applied action matches the "
-            "recommendation."
+            "No pending changes — every applied action matches the " "recommendation."
         )
         return
 

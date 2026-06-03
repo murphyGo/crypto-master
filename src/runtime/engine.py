@@ -104,7 +104,7 @@ from src.runtime.strategy_action_snapshot import (
     save_snapshot,
 )
 from src.strategy.performance import TradeHistory
-from src.strategy.tuning import StrategyAction
+from src.strategy.tuning import PAUSE_REASON_GATE_CONFIG, StrategyAction
 from src.trading.risk_sizing import RiskSizingRejection, compute_risk_budget_size
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
@@ -3579,6 +3579,12 @@ class TradingEngine:
                     **_proposal_summary(proposal),
                     "reason": reason,
                     "gate_reason": reason,
+                    # DEBT-069(f): observability-only discriminator. The gate
+                    # fires on the OPERATOR-APPLIED action, so every gate pause
+                    # is config-driven; the evidence-vs-config corroboration is
+                    # computed dashboard-side by joining this against the live
+                    # recommender. Never branches the block decision.
+                    "pause_reason": PAUSE_REASON_GATE_CONFIG,
                 },
                 cycle_id,
             )

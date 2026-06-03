@@ -75,6 +75,17 @@ class StrategyAction(str, Enum):
     RETUNE = "retune"
 
 
+# DEBT-069(f): discriminator written into the strategy-action PAUSE rejection
+# event's ``details.pause_reason``. The runtime gate fires on the OPERATOR-APPLIED
+# action (config / seed YAML), never on live evidence — so the only thing the gate
+# can honestly assert is that the pause is the applied/config action. The
+# evidence-vs-config *corroboration* judgement is computed dashboard-side by
+# joining this against the live recommender output (quant ruling 2026-06-04,
+# Option b: single ``PAUSE`` action + observability-only details discriminator;
+# the funnel terminal / ``gate_reason`` stay a single ``STRATEGY_ACTION_PAUSE``).
+PAUSE_REASON_GATE_CONFIG: str = "gate_config"
+
+
 # Default thresholds mirror the YAML example in the functional spec.
 # Kept as module-level constants (not hard-coded inside
 # ``ThresholdSpec``) so test fixtures can override one knob at a time
@@ -292,6 +303,7 @@ class StrategyTuningPolicy(BaseModel):
 __all__ = [
     "DEFAULT_SCOUT_SIZE_FACTOR",
     "DEFAULT_WINDOW_CLOSED_TRADES",
+    "PAUSE_REASON_GATE_CONFIG",
     "KeepThresholds",
     "PauseThresholds",
     "PromoteThresholds",

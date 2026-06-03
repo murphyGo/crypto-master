@@ -8432,6 +8432,11 @@ def test_strategy_action_gate_pause_rejects_with_dedicated_terminal(
     )
     assert new_record.rejection_reason == "strategy_action_pause"
     assert outcome.events[0].details["gate_reason"] == "strategy_action_pause"
+    # DEBT-069(f): the pause event carries the config-vs-evidence discriminator.
+    # The gate fires on the applied action, so it is always "gate_config"; the
+    # corroboration upgrade is computed dashboard-side. Observability-only — the
+    # rejection terminal / gate_reason are unchanged above.
+    assert outcome.events[0].details["pause_reason"] == "gate_config"
 
 
 def test_strategy_action_gate_disabled_policy_is_no_op(tmp_path: Path) -> None:
