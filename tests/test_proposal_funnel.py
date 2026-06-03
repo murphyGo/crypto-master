@@ -209,58 +209,81 @@ def test_gate_rejected_total_derivation_sums_exactly_the_gate_members() -> None:
     assert expected == 210
 
 
+# Non-gate terminals that sit downstream of (or at) ``score_accepted`` —
+# every proposal in one of these cleared the score gate. ``score_accepted_total``
+# = these + every ``GATE_REJECTED_*`` bucket. Derived from the enum below so a
+# new gate terminal folds in automatically; this explicit set only needs editing
+# when a NON-gate post-score terminal is added (a conscious funnel-shape change).
+_NON_GATE_POST_SCORE_STATES = frozenset(
+    {
+        ProposalFinalState.SCORE_ACCEPTED,
+        ProposalFinalState.SHADOW_RECORDED,
+        ProposalFinalState.PROPOSAL_OPENED,
+        ProposalFinalState.TRADE_OPENED,
+        ProposalFinalState.OUTCOME_LINKED,
+        ProposalFinalState.OPEN_ERRORED,
+    }
+)
+
+# Terminals that do NOT count toward ``score_accepted_total`` — a proposal in one
+# of these never cleared the score gate (still generating / scoring, or rejected
+# at the score gate itself).
+_NON_SCORE_ACCEPTED_STATES = frozenset(
+    {
+        ProposalFinalState.GENERATED,
+        ProposalFinalState.SCORED,
+        ProposalFinalState.SCORE_REJECTED,
+    }
+)
+
+
+def _gate_rejected_states() -> list[ProposalFinalState]:
+    return [s for s in ProposalFinalState if s.name.startswith("GATE_REJECTED_")]
+
+
 def test_gate_rejected_total_sums_every_gate_bucket() -> None:
+    """End-to-end: one record in EVERY ``GATE_REJECTED_*`` bucket sums exactly.
+
+    DEBT-069(i): exercises the full aggregator path (``compute_funnel_counts``
+    → ``_classify`` → ``_STATE_TO_FIELD`` → derived ``gate_rejected_total``) for
+    every gate terminal, not a hand-picked subset — so a routing miss for any
+    bucket (incl. ``GATE_REJECTED_STRATEGY_ACTION_PAUSE``) fails here, end to
+    end, rather than only at the ``FunnelCounts``-field derivation guard.
+    Iterating the enum keeps it exhaustive as new gate terminals are added.
+    """
+    gate_states = _gate_rejected_states()
     records = [
         _record(
-            proposal_id="m",
-            final_state=ProposalFinalState.GATE_REJECTED_MARKET_REGIME,
+            proposal_id=f"gr_{state.value}",
+            final_state=state,
             decision=ProposalDecision.ACCEPTED,
-        ),
-        _record(
-            proposal_id="c",
-            final_state=ProposalFinalState.GATE_REJECTED_CORRELATION,
-            decision=ProposalDecision.ACCEPTED,
-        ),
-        _record(
-            proposal_id="cap",
-            final_state=ProposalFinalState.GATE_REJECTED_TOTAL_CAP,
-            decision=ProposalDecision.ACCEPTED,
-        ),
-        _record(
-            proposal_id="unk",
-            final_state=ProposalFinalState.GATE_REJECTED_UNKNOWN,
-            decision=ProposalDecision.ACCEPTED,
-        ),
+        )
+        for state in gate_states
     ]
     counts = compute_funnel_counts(records)
-    assert counts.gate_rejected_total == 4
+    assert counts.gate_rejected_total == len(gate_states)
+    # Every gate record routed to its own bucket — no leak into non-gate fields.
+    assert counts.total == len(gate_states)
 
 
 def test_score_accepted_total_sums_every_post_score_state() -> None:
     """One record per state downstream of (and including) ``score_accepted``.
 
-    The derived property must equal the count of every proposal that
-    cleared the score gate — that is, the sum across ``score_accepted``
-    plus every ``gate_rejected_*`` bucket plus the four terminal
-    downstream states (``proposal_opened``, ``trade_opened``,
-    ``outcome_linked``, ``open_errored``).
+    DEBT-069(i): the post-score set is derived from the enum — every
+    ``GATE_REJECTED_*`` bucket plus the non-gate post-score terminals
+    (``score_accepted``, ``shadow_recorded``, ``proposal_opened``,
+    ``trade_opened``, ``outcome_linked``, ``open_errored``) — so it stays
+    exhaustive (incl. ``SHADOW_RECORDED``, previously missing) and a new
+    terminal cannot silently slip the assertion.
     """
-    post_score_states = [
-        ProposalFinalState.SCORE_ACCEPTED,
-        ProposalFinalState.GATE_REJECTED_MARKET_REGIME,
-        ProposalFinalState.GATE_REJECTED_CORRELATION,
-        ProposalFinalState.GATE_REJECTED_TREND_FILTER,
-        ProposalFinalState.GATE_REJECTED_SIBLING_FAMILY,
-        ProposalFinalState.GATE_REJECTED_RUNTIME_SAFETY_PAUSE,
-        ProposalFinalState.GATE_REJECTED_TOTAL_CAP,
-        ProposalFinalState.GATE_REJECTED_SYMBOL_CAP,
-        ProposalFinalState.GATE_REJECTED_STALE_QUOTE,
-        ProposalFinalState.GATE_REJECTED_UNKNOWN,
-        ProposalFinalState.PROPOSAL_OPENED,
-        ProposalFinalState.TRADE_OPENED,
-        ProposalFinalState.OUTCOME_LINKED,
-        ProposalFinalState.OPEN_ERRORED,
-    ]
+    post_score_states = set(_gate_rejected_states()) | _NON_GATE_POST_SCORE_STATES
+
+    # Partition guard: every enum member is either post-score or explicitly
+    # non-counting. A new terminal that is neither fails here, forcing a
+    # conscious funnel-shape decision instead of an undercount.
+    assert post_score_states | _NON_SCORE_ACCEPTED_STATES == set(ProposalFinalState)
+    assert post_score_states.isdisjoint(_NON_SCORE_ACCEPTED_STATES)
+
     records = [
         _record(
             proposal_id=f"sa_{state.value}",
