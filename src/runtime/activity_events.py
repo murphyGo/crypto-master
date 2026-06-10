@@ -250,6 +250,13 @@ class ActivityEventType(str, Enum):
     #     performance_record_id (str | None)   synthetic record's id
     RECONCILIATION_CLOSED_UNRECOVERABLE = "reconciliation_closed_unrecoverable"
 
+    # Emitted once per live run (not dry-run) of
+    # ``src.tools.repair_paper_trade_bounds_from_proposals``. This is
+    # separate from ``BACKFILL_PAPER_SL_TP_RAN`` because the source of truth is
+    # proposal history (``ProposalRecord.trade_id`` -> proposal SL/TP), not a
+    # pre-existing ``PerformanceRecord`` link on the trade row.
+    RECONCILIATION_REPAIRED_PAPER_BOUNDS = "reconciliation_repaired_paper_bounds"
+
     # Reconciliation health-check meta-event (Q4 follow-up / DEBT-061
     # silent-disable anti-pattern). Emitted by
     # :meth:`~src.runtime.engine.TradingEngine._run_reconciliation_health_check`

@@ -51,6 +51,26 @@ status banner / drill-through / cash-only suppression rule.
 - [x] `uv run pytest tests/test_tools_backfill_paper_sl_tp.py tests/test_tools_close_unrecoverable_paper_trades.py -q`
 - [x] `uv run pytest tests/test_dashboard_engine.py tests/test_dashboard_trading.py -q`
 
+## 2026-06-11 Operational Repair Follow-up
+
+Fresh Fly paper-lab evidence showed a legacy shape not covered by the original
+two repair tools: open paper trades with no persisted SL/TP and no
+`performance_record_id`, but with a valid `ProposalRecord.trade_id` join back
+to proposal history. These rows remain `degraded`, cannot be rehydrated by
+`PaperTrader`, and keep emitting `monitor_errored` after restart.
+
+- [x] Add `src/tools/repair_paper_trade_bounds_from_proposals.py` to repair
+      missing open-trade SL/TP from linked proposal records without creating
+      pending performance records. The live write path re-reads the latest
+      ledger snapshot and merges only per-trade SL/TP patches; operators should
+      still quiesce the trader before writing Fly `/data`.
+- [x] Add `ActivityEventType.RECONCILIATION_REPAIRED_PAPER_BOUNDS` so live
+      operator repair runs are visible in runtime activity.
+- [x] Add targeted tests in
+      `tests/test_tools_repair_paper_trade_bounds_from_proposals.py`.
+- [x] Verify against the 2026-06-10 Fly snapshot in dry-run mode:
+      44 repaired, 2 already set, 0 skipped proposal joins, 0 failed files.
+
 ## Completion Checklist
 
 - [x] Code implemented.
