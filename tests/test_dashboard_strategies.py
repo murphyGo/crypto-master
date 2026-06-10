@@ -718,6 +718,42 @@ def test_tuning_rows_sub_account_id_override_wins() -> None:
     assert rows[0].sub_account_id == "explicit"
 
 
+def test_tuning_rows_include_persisted_observation_metadata(tmp_path: Path) -> None:
+    from src.dashboard.pages.strategies import build_strategy_tuning_rows
+    from src.strategy.tuning_observations import StrategyTuningObservationStore
+    from src.strategy.tuning_recommender import RecommenderEvidence
+
+    store = StrategyTuningObservationStore(state_dir=tmp_path / "observations")
+    observation = store.record_recommendation(
+        sub_account_id="lab",
+        strategy="rsi",
+        applied=StrategyAction.KEEP,
+        recommended=StrategyAction.KEEP,
+        live_recommendation=StrategyAction.KEEP,
+        evidence=RecommenderEvidence(
+            closed_trades=30,
+            win_rate=0.5,
+            profit_factor=1.5,
+            closed_pnl_pct=5.0,
+            max_drawdown_pct=2.0,
+            fail_closed_rate=0.1,
+        ),
+        evaluated_at=datetime(2026, 6, 10, tzinfo=timezone.utc),
+    )
+    strategies = {"rsi": make_strategy(make_info(name="rsi"))}
+    tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
+
+    rows = build_strategy_tuning_rows(
+        strategies,
+        StrategyTuningPolicy(enabled=True),
+        tracker,
+        observations={("lab", "rsi"): observation},
+    )
+
+    assert rows[0].last_observed_at == "2026-06-10T00:00:00+00:00"
+    assert rows[0].observations_count == 1
+
+
 def test_tuning_yaml_diff_empty_when_recommended_equals_applied() -> None:
     from src.dashboard.pages.strategies import build_strategy_tuning_yaml_diff
 
@@ -755,6 +791,8 @@ def test_tuning_dataframe_columns_and_empty() -> None:
         "Recommended",
         "Evidence",
         "Pause Triage",
+        "Observed",
+        "Observations",
     ]
     assert empty.empty
 
@@ -766,3 +804,5 @@ def test_tuning_dataframe_columns_and_empty() -> None:
     df = build_strategy_tuning_dataframe(rows)
     assert df.iloc[0]["Applied"] == "keep"
     assert df.iloc[0]["Recommended"] == "keep"
+    assert df.iloc[0]["Observed"] == "—"
+    assert df.iloc[0]["Observations"] == 0

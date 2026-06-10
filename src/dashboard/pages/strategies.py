@@ -16,6 +16,9 @@ Related Requirements:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -29,6 +32,10 @@ from src.strategy.base import BaseStrategy
 from src.strategy.loader import DEFAULT_STRATEGIES_DIR, load_all_strategies
 from src.strategy.performance import PerformanceRecord, PerformanceTracker
 from src.strategy.tuning import StrategyAction, StrategyTuningPolicy
+from src.strategy.tuning_observations import (
+    StrategyTuningObservation,
+    StrategyTuningObservationStore,
+)
 from src.strategy.tuning_recommender import (
     RecommenderEvidence,
     evidence_from_performance,
@@ -287,6 +294,10 @@ class StrategyTuningRow(BaseModel):
             not (incl. evidence too thin), and ``""`` for non-pause rows.
             ``gate_config_only`` pauses are the ones operators should
             revisit (the live evidence no longer supports the block).
+        last_observed_at: Most recent persisted recommendation observation
+            timestamp, or ``"—"`` when no observation snapshot exists.
+        observations_count: Number of persisted observations for this
+            ``(sub-account, strategy)`` pair.
     """
 
     sub_account_id: str
@@ -297,6 +308,30 @@ class StrategyTuningRow(BaseModel):
     differs: bool
     yaml_diff: str
     pause_triage: str = ""
+    last_observed_at: str = "—"
+    observations_count: int = 0
+
+
+@dataclass(frozen=True)
+class _StrategyTuningEvaluation:
+    """Internal live evaluation result shared by row building and persistence."""
+
+    sub_account_id: str
+    strategy: str
+    applied: StrategyAction
+    recommended: StrategyAction
+    live_recommendation: StrategyAction | None
+    evidence: RecommenderEvidence
+    differs: bool
+    yaml_diff: str
+    pause_triage: str
+
+
+def _format_observed_at(timestamp: datetime | None) -> str:
+    """Compact timestamp for dashboard tables."""
+    if timestamp is None:
+        return "—"
+    return timestamp.isoformat()
 
 
 def _format_evidence_summary(evidence: RecommenderEvidence) -> str:
@@ -347,6 +382,7 @@ def build_strategy_tuning_rows(
     tracker: PerformanceTracker,
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
+    observations: Mapping[tuple[str, str], StrategyTuningObservation] | None = None,
 ) -> list[StrategyTuningRow]:
     """Build the Applied / Recommended rows for one sub-account.
 
@@ -373,11 +409,56 @@ def build_strategy_tuning_rows(
             documented "never emitted" value).
         sub_account_id: Sub-account label for the rows + YAML diff.
             Defaults to the tracker's ``sub_account_id``.
+        observations: Optional persisted DEBT-069(c) observations keyed by
+            ``(sub_account_id, strategy)``. When supplied, the row surfaces
+            the last observed timestamp and count without changing the live
+            recommendation calculation.
     """
+    evaluations = _evaluate_strategy_tuning(
+        strategies,
+        policy,
+        tracker,
+        fail_closed_tracker=fail_closed_tracker,
+        sub_account_id=sub_account_id,
+    )
+    rows: list[StrategyTuningRow] = []
+    observations = observations or {}
+    for evaluation in evaluations:
+        observation = observations.get((evaluation.sub_account_id, evaluation.strategy))
+
+        rows.append(
+            StrategyTuningRow(
+                sub_account_id=evaluation.sub_account_id,
+                strategy=evaluation.strategy,
+                applied=evaluation.applied.value,
+                recommended=evaluation.recommended.value,
+                evidence_summary=_format_evidence_summary(evaluation.evidence),
+                differs=evaluation.differs,
+                yaml_diff=evaluation.yaml_diff,
+                pause_triage=evaluation.pause_triage,
+                last_observed_at=_format_observed_at(
+                    observation.last_evaluated_at if observation else None
+                ),
+                observations_count=(
+                    observation.observations_count if observation is not None else 0
+                ),
+            )
+        )
+    return rows
+
+
+def _evaluate_strategy_tuning(
+    strategies: dict[str, BaseStrategy],
+    policy: StrategyTuningPolicy,
+    tracker: PerformanceTracker,
+    fail_closed_tracker: FailClosedMetricsTracker | None = None,
+    sub_account_id: str | None = None,
+) -> list[_StrategyTuningEvaluation]:
+    """Evaluate live recommendations without performing any persistence."""
     effective_sub_account = (
         sub_account_id if sub_account_id is not None else tracker.sub_account_id
     )
-    rows: list[StrategyTuningRow] = []
+    evaluations: list[_StrategyTuningEvaluation] = []
     for name in sorted(strategies):
         strategy = strategies[name]
         perf = tracker.get_performance(strategy.name, strategy.version)
@@ -411,20 +492,59 @@ def build_strategy_tuning_rows(
         yaml_diff = build_strategy_tuning_yaml_diff(
             effective_sub_account, strategy.name, applied, recommended
         )
-
-        rows.append(
-            StrategyTuningRow(
+        evaluations.append(
+            _StrategyTuningEvaluation(
                 sub_account_id=effective_sub_account,
                 strategy=strategy.name,
-                applied=applied.value,
-                recommended=recommended.value,
-                evidence_summary=_format_evidence_summary(evidence),
+                applied=applied,
+                recommended=recommended,
+                live_recommendation=live_recommendation,
+                evidence=evidence,
                 differs=differs,
                 yaml_diff=yaml_diff,
                 pause_triage=_pause_triage_label(applied, live_recommendation),
             )
         )
-    return rows
+    return evaluations
+
+
+def record_strategy_tuning_observations(
+    strategies: dict[str, BaseStrategy],
+    policy: StrategyTuningPolicy,
+    tracker: PerformanceTracker,
+    store: StrategyTuningObservationStore,
+    fail_closed_tracker: FailClosedMetricsTracker | None = None,
+    sub_account_id: str | None = None,
+    evaluated_at: datetime | None = None,
+) -> list[StrategyTuningObservation]:
+    """Persist current recommendations for one sub-account.
+
+    DEBT-069(c): this is the side-effecting counterpart to
+    ``build_strategy_tuning_rows``. It records the applied action, the
+    displayed recommendation (including seed fallback), the raw live
+    recommendation, and the exact evidence snapshot that produced it.
+    """
+    evaluations = _evaluate_strategy_tuning(
+        strategies,
+        policy,
+        tracker,
+        fail_closed_tracker=fail_closed_tracker,
+        sub_account_id=sub_account_id,
+    )
+    observations: list[StrategyTuningObservation] = []
+    for evaluation in evaluations:
+        observations.append(
+            store.record_recommendation(
+                sub_account_id=evaluation.sub_account_id,
+                strategy=evaluation.strategy,
+                applied=evaluation.applied,
+                recommended=evaluation.recommended,
+                live_recommendation=evaluation.live_recommendation,
+                evidence=evaluation.evidence,
+                evaluated_at=evaluated_at,
+            )
+        )
+    return observations
 
 
 def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFrame:
@@ -442,6 +562,8 @@ def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFra
         "Recommended",
         "Evidence",
         "Pause Triage",
+        "Observed",
+        "Observations",
     ]
     if not rows:
         return pd.DataFrame(columns=columns)
@@ -454,6 +576,8 @@ def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFra
                 "Recommended": r.recommended,
                 "Evidence": r.evidence_summary,
                 "Pause Triage": r.pause_triage,
+                "Observed": r.last_observed_at,
+                "Observations": r.observations_count,
             }
             for r in rows
         ],
@@ -467,6 +591,7 @@ def render_strategy_tuning(
     tracker: PerformanceTracker,
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
+    observation_store: StrategyTuningObservationStore | None = None,
 ) -> None:
     """Render the strategy-tuning Applied / Recommended section (thin).
 
@@ -484,13 +609,47 @@ def render_strategy_tuning(
             "still computes from evidence, but nothing is enforced."
         )
 
+    effective_sub_account = (
+        sub_account_id if sub_account_id is not None else tracker.sub_account_id
+    )
+    observations_by_key: dict[tuple[str, str], StrategyTuningObservation] = {}
+    if observation_store is not None:
+        observations_by_key = {
+            (observation.sub_account_id, observation.strategy): observation
+            for observation in observation_store.list_observations(
+                sub_account_id=effective_sub_account
+            )
+        }
+
     rows = build_strategy_tuning_rows(
         strategies,
         policy,
         tracker,
         fail_closed_tracker=fail_closed_tracker,
-        sub_account_id=sub_account_id,
+        sub_account_id=effective_sub_account,
+        observations=observations_by_key,
     )
+    if observation_store is not None:
+        observations = record_strategy_tuning_observations(
+            strategies,
+            policy,
+            tracker,
+            observation_store,
+            fail_closed_tracker=fail_closed_tracker,
+            sub_account_id=effective_sub_account,
+        )
+        observations_by_key = {
+            (observation.sub_account_id, observation.strategy): observation
+            for observation in observations
+        }
+        rows = build_strategy_tuning_rows(
+            strategies,
+            policy,
+            tracker,
+            fail_closed_tracker=fail_closed_tracker,
+            sub_account_id=effective_sub_account,
+            observations=observations_by_key,
+        )
     table = build_strategy_tuning_dataframe(rows)
     if table.empty:
         st.info("No strategies to evaluate.")
@@ -528,6 +687,7 @@ def render(
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     tuning_policy: StrategyTuningPolicy | None = None,
     tuning_sub_account_id: str | None = None,
+    tuning_observation_store: StrategyTuningObservationStore | None = None,
 ) -> None:
     """Render the Analysis Techniques page.
 
@@ -546,6 +706,9 @@ def render(
             Recommended column still computes from evidence without
             requiring a registry to be wired into the page.
         tuning_sub_account_id: Sub-account label for the tuning section.
+        tuning_observation_store: Optional DEBT-069(c) store. When supplied,
+            the page persists the recommendation trail and shows observation
+            counts. ``None`` preserves the prior no-write dashboard behavior.
     """
     st.title("📊 Analysis Techniques")
     st.caption("Registered techniques and their performance over time.")
@@ -583,6 +746,7 @@ def render(
         perf_tracker,
         fail_closed_tracker=fc_tracker,
         sub_account_id=tuning_sub_account_id,
+        observation_store=tuning_observation_store,
     )
 
     # ---- Per-technique trend ----
@@ -628,6 +792,7 @@ __all__ = [
     "build_trend_dataframe",
     "latest_combinations_run",
     "load_combinations_report",
+    "record_strategy_tuning_observations",
     "render",
     "render_strategy_tuning",
 ]

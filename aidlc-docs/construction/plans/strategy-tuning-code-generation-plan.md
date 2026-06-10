@@ -34,26 +34,32 @@ recommendation" workflow.
       PF approximation.)
 - [x] Add `strategy_tuning` block to sub-account YAML schema with parsing,
       defaults, and validation; default `enabled: false`. (Slice 1.)
-- [ ] Persist applied/recommended state and evidence snapshots via an
+- [x] Persist applied/recommended state and evidence snapshots via an
       observation store analogous to `PromotionObservationStore`.
-      (Slice 2 — DEBT-069(c).)
+      (Slice 2 — DEBT-069(c), shipped 2026-06-10. Added
+      `StrategyTuningObservationStore` with atomic per-pair snapshots,
+      bounded recommendation history, evidence snapshots, and dashboard
+      observation metadata.)
 - [x] Wire runtime proposal gating: `pause` rejects with structured reason,
       `shadow` records without opening, `scout` applies
       `scout_size_factor`, `retune` and `keep` pass through, `promote`
       mirrors the underlying state. (Slice 1; `_strategy_action_gate` after
       `_correlation_gate`.)
-- [ ] Emit activity events for applied-state changes with operator/system
+- [x] Emit activity events for applied-state changes with operator/system
       attribution and evidence snapshot. (`STRATEGY_ACTION_APPLIED` enum
       reserved at `src/runtime/activity_log.py` but not yet emitted —
-      Slice 2 / DEBT-069(d). `RETUNE_FLAGGED` advisory already emitted.)
-- [ ] Surface applied/recommended state, evidence columns, history, and
+      Slice 2 / DEBT-069(d). `RETUNE_FLAGGED` advisory already emitted.
+      Shipped 2026-05-28.)
+- [x] Surface applied/recommended state, evidence columns, history, and
       the "Apply recommendation" affordance on the Strategies dashboard.
       **Scope-split — Slice 2 (DEBT-069(a)).** Write path explicitly out of
       scope per resolved Open Decision; YAML clipboard helper instead.
-- [ ] Seed initial recommendations for RSI family, `momentum_pinball_orb`,
+      Applied/Recommended/YAML diff shipped 2026-05-28; observation metadata
+      columns shipped 2026-06-10.
+- [x] Seed initial recommendations for RSI family, `momentum_pinball_orb`,
       mean-reversion family, `raschke_holy_grail`, `ma_crossover`,
       `vcp_breakout`, `session_vwap_pullback`, and default/LLM strategies.
-      (Slice 2 — DEBT-069(b).)
+      (Slice 2 — DEBT-069(b), shipped 2026-05-28.)
 - [x] Add tests for recommender, runtime gating, config parsing, activity
       events, and dashboard rendering. (Slice 1 covers recommender +
       runtime gating + config parsing + `RETUNE_FLAGGED` event; dashboard
@@ -64,19 +70,26 @@ recommendation" workflow.
       `tests/test_strategy_performance.py` pins gross win/loss, synthetic
       exclusion, and cumulative drawdown; `tests/test_strategy_tuning_recommender.py`
       pins true gross-win/gross-loss PF input.)
+- [ ] Calibrate thresholds after fresh paper evidence, especially
+      `scout.sample_size_max`, `keep.profit_factor_min`, and the expected
+      retune wall. (DEBT-069(g).)
 
 ## Verification
 
 - [x] `uv run pytest tests/test_strategy_performance.py tests/test_strategy_tuning_recommender.py -q`
       (2026-05-24 DEBT-069(e): 119 passed.)
+- [x] `uv run pytest tests/test_strategy_tuning_observations.py tests/test_dashboard_strategies.py -q`
+      (2026-06-10 DEBT-069(c): 36 passed.)
+- [x] `uv run pytest tests/test_strategy_tuning_recommender.py -q`
+      (2026-06-10 DEBT-069(c) regression: 38 passed.)
 - [ ] `uv run pytest tests/test_runtime_engine.py tests/test_trading_sub_account.py tests/test_proposal_engine.py tests/test_baseline_strategies.py -q`
-- [ ] Targeted dashboard tests for strategy applied/recommended visibility
+- [x] Targeted dashboard tests for strategy applied/recommended visibility
       and the "Apply recommendation" affordance.
-- [ ] Targeted recommender tests covering each action threshold path.
+- [x] Targeted recommender tests covering each action threshold path.
 
 ## Completion Checklist
 
-- [ ] Code implemented.
-- [ ] Tests pass.
-- [ ] Session log and cross-check added.
-- [ ] `aidlc-docs/aidlc-state.md` updated.
+- [ ] Code implemented for all DEBT-069 Slice 2 sub-tasks.
+- [ ] Tests pass for all DEBT-069 Slice 2 sub-tasks.
+- [ ] Session log and cross-check added for all DEBT-069 Slice 2 sub-tasks.
+- [ ] `aidlc-docs/aidlc-state.md` updated for all DEBT-069 Slice 2 sub-tasks.

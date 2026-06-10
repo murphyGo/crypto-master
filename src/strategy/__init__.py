@@ -54,6 +54,12 @@ from src.strategy.trade_history import (
     TradeHistory,
     TradeHistoryTracker,
 )
+from src.strategy.tuning_observations import (
+    StrategyTuningEvidenceSnapshot,
+    StrategyTuningObservation,
+    StrategyTuningObservationStore,
+    StrategyTuningRecommendationPoint,
+)
 
 __all__ = [
     # Base classes
@@ -92,4 +98,8 @@ __all__ = [
     "TradeAutopsy",
     "TradeAutopsyError",
     "TradeAutopsyOutcome",
+    "StrategyTuningEvidenceSnapshot",
+    "StrategyTuningObservation",
+    "StrategyTuningObservationStore",
+    "StrategyTuningRecommendationPoint",
 ]
