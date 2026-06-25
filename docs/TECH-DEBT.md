@@ -41,6 +41,139 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-071: Paper open positions not rehydrated → monitor cannot enforce SL/TP → weeks-stale opens force-closed at stale prices
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | runtime-reconciliation (primary) + proposal-runtime |
+
+**Description:**
+Verified against Fly snapshot `/private/tmp/crypto-master-strategy-snapshots/fly-data-20260625-203554` (app `crypto-master`, machine `6835752b711958`, release 48; last activity `2026-06-25T11:20Z`). The position monitor fails on **60,003** `monitor_errored` events carrying `error=None` (vs only 60 real `ConversionSyntax`), spread over **57 distinct trade ids** that recur every cycle (e.g. `448508b0-…` ma_crossover ~1500×). These are open positions flagged by `_missing_position_state` as orphans (`src/runtime/position_monitor.py:194-211`) — i.e. persisted to `trades/paper/<strategy>/trades.json` but never rehydrated into in-memory position state — so the monitor never reaches the SL/TP check for them. The CAH-15 orphan watchdog (`_handle_orphan_trade`, `ORPHAN_AUTO_CLOSE_THRESHOLD`=5) should force-close after 5 strikes but the same ids persist for weeks, indicating the force-close is not completing (almost certainly because the close path throws the DEBT-072 unlock error). Concrete consequence: `session_vwap_pullback` trade `c82add57-2b6d-4d86-9453-a233cf8c9848` (SOL/USDT long, entry 88.85, **stop_loss 88.06**, take_profit 90.27) sat open 2026-05-07→2026-06-10 (~34 days) and finally closed at **exit_price 62.61** (-29.5%) labeled `close_reason=stop_loss`; `raschke_holy_grail` `f0c7b998-…` (BTC short, TP 79093.77) closed at 64570.1 labeled `take_profit`. Stops/TPs are not enforced at their levels; closes happen far later at stale market prices and are mislabeled. **Verification verdict: verified (bug).** This is a runtime/execution defect, not strategy edge — and it contaminates every strategy's loss tape, so no strategy-logic change may be made until it is fixed (§5 gate). **Sample-size label: 30+ events / 57 trade ids (high confidence).**
+
+**Impact:**
+All 35 currently-open paper positions are at risk of un-enforced stops. Performance metrics (PnL magnitude, profit factor, expectancy) for any strategy holding orphaned positions are contaminated by stale-price force-closes mislabeled as SL/TP hits. `close_reason` is unreliable, so SL/TP-hit-rate analytics carry low confidence.
+
+**Suggested Resolution:**
+Rehydrate persisted open paper trades into in-memory position state on engine/sub-account startup (mirror the live-trader rehydration noted in DEBT-027) so `_missing_position_state` stops mis-flagging real opens; ensure the orphan force-close path is robust to (and not blocked by) DEBT-072; emit a non-null error on `monitor_errored` so the swallowed cause is observable. Add a reconciliation test that a persisted open trade is monitorable (SL/TP enforced) on the next cycle after restart.
+
+**Related:**
+- DEBT-072 (linked — unlock drift breaks the orphan force-close)
+- `src/runtime/position_monitor.py:151-240`
+- CAH-15 Slice 2 PositionMonitor extraction (change-history 2026-05-31)
+
+### DEBT-072: Paper balance lock/unlock accounting drift crashes sub-account cycles
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | runtime-reconciliation (primary) + trading-engine (paper) |
+
+**Description:**
+Verified against the same snapshot. **5,627** `cycle_errored` events of the form `Sub-account <name> cycle failed: Cannot unlock 1000.000… USDT: only 711.0496810523400424872483206 locked` (5,635 `cycle_errored` in June alone; latest `2026-06-25T11:20:42Z`, `weinstein_stage2_filter`). The raise is `PaperBalance.unlock` at `src/trading/paper.py:181-184` (`if amount > self.locked: raise PaperTradingError(...)`). The residual is a *real* accounting drift (e.g. 711.05 locked when 1000 is being released), not just float dust — though earlier samples showed sub-`1E-24` residuals too, implying a Decimal/float round-trip path also exists. Sub-account cycles are failing constantly, which both halts normal cycle progress and (per DEBT-071) blocks orphan force-closes mid-way, leaving the lock ledger increasingly inconsistent. **Verification verdict: verified (bug). Sample-size label: 30+ (high confidence).**
+
+**Impact:**
+The paper lab's core loop is substantially non-functional: thousands of failed cycles, an internally-inconsistent locked-balance ledger, and a feedback loop with DEBT-071 (failed closes leave locks stranded). This invalidates trust in current paper balances and portfolio snapshots until reconciled.
+
+**Suggested Resolution:**
+Make lock/unlock accounting exact: keep amounts in `Decimal` end-to-end (no float round-trips), unlock the *exact* originally-locked amount per position (track per-trade locked quantity rather than recomputing from notional), and clamp/repair to zero with a logged warning when a tiny residual is provable rather than raising. Add a regression test reproducing the open→partial-close→unlock drift. Coordinate with DEBT-071 so the orphan close path releases the correct lock.
+
+**Related:**
+- DEBT-071 (linked)
+- `src/trading/paper.py:169-187`
+- `1c6fcb6` / proposal-linked paper bounds repair tool (`dbd9114`)
+
+### DEBT-073: Strategy edge metrics (profit factor / expectancy) omit realized fee drag
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | strategy-framework (performance) |
+
+**Description:**
+`TradeHistory.calculate_pnl` returns `pnl_pct = gross_pnl / notional * 100` (`src/strategy/trade_history.py:154`) — gross of fees. On adversarial check this is **intentional**: Phase 20.1/20.2 (DEBT-024) deliberately defined `pnl_percent` as a leverage-neutral *price-move* metric, so this is **not** the "bug" the audit lane first proposed. The real, narrower issue: `PerformanceTracker.from_records` aggregates this gross-of-fee percent into `gross_win_pct`/`gross_loss_pct` → `profit_factor` and `total_pnl_percent` (`src/strategy/performance.py:264-279`), which the tuning recommender consumes as edge (`src/strategy/tuning_recommender.py:90-101`). Result: strategy-edge metrics omit realized fee drag (measured ~0.07 pct-pts/trade, one-directional, across 148 closed records; 2 trades' win/loss sign would flip once netted). Because these strategies are ~breakeven (see `[[project_no_ohlcv_edge]]`), a systematic fee omission can tip a marginal `keep` decision. Secondary nit: the inline docstring formula at `:126-129` writes `(pnl / (entry*qty))` (net) while the code uses `gross_pnl` — stale symbol, fix to match intent. **Verification verdict: verified, reclassified bug→code-improvement. Sample-size label: 148 closed records (high confidence).**
+
+**Impact:**
+Profit factor and expectancy used for `keep`/`retune` decisions are biased slightly optimistic by omitted fees — marginal at the per-trade level but decision-relevant for breakeven strategies.
+
+**Suggested Resolution:**
+Add a fee-netted percent (e.g. `net_pnl_pct = pnl / notional * 100`) alongside the price-move `pnl_pct`, and have edge aggregates (PF, expectancy, `closed_pnl_pct`) consume the net figure while charts/price-move displays keep the gross one. Fix the `:126-129` docstring formula. Add a regression test: a fee-only (flat-price) trade reports negative net percent.
+
+**Related:**
+- `src/strategy/trade_history.py:148-156`, `src/strategy/performance.py:264-279`
+- DEBT-024 / Phase 20.1-20.2 (intentional leverage-neutral price-move convention)
+- `[[project_no_ohlcv_edge]]`
+
+### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | proposal-funnel-audit (primary) + strategy-framework |
+
+**Description:**
+Verified against the snapshot: `vcp_breakout` is a registered strategy (`strategies/vcp_breakout.py`) with a configured sub-account ("VCP Breakout Lab", `config/sub_accounts.yaml:109-117`) and its `performance/vcp_breakout/.../fail_closed.json` records `proposals_emitted` ≈ 6,428 with **0 fail-closed**, yet there is **no `trades/paper/vcp_breakout/` directory and no `proposals/vcp_breakout/` directory** in the snapshot, and its portfolio sits flat at 10,000 — i.e. it has never opened a single trade, anomalous against every peer (3–24 opens). Either every proposal is rejected by a gate (and the funnel is the story) or proposals are not being persisted for this account. **Verification verdict: verified (bug/investigate). Sample-size label: ~6,400 emissions (high confidence on the anomaly; root cause unconfirmed).**
+
+**Impact:**
+A configured strategy lab is producing zero executions, wasting a sub-account slot and silently skewing any "which strategy converts" comparison.
+
+**Suggested Resolution:**
+Trace one `vcp_breakout` proposal through the funnel (`src/proposal/funnel.py`) to find the terminating gate; confirm whether proposals are persisted for this account at all; decide config (loosen the binding gate) vs strategy-logic (the VCP setup never qualifies) vs persistence defect. File the concrete follow-up once the terminating cause is identified.
+
+**Related:**
+- `strategies/vcp_breakout.py`, `config/sub_accounts.yaml:109-117`, `src/proposal/funnel.py`
+
+### DEBT-075: No entry-time regime tag on trades → promotion robustness gate can never clear
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | strategy-framework + strategy-tuning |
+
+**Description:**
+Grep across all closed trades and 5,619 proposal JSONs in the snapshot found **zero** `regime`/`market_regime` field. Consequently the §6/§10 regime-confound guard ("forbid keep/promote when all positive expectancy comes from a single regime") can never be cleared by any strategy, capping the entire cohort at `scout` regardless of metrics. The strategies are also directionally lopsided (e.g. `rsi_universal` 11/12 short, `rsi_15m` 17/18 short), so positives may be single-regime artifacts that the gate cannot detect today. **Verification verdict: verified (code-improvement). Sample-size label: cohort-wide (high confidence).**
+
+**Impact:**
+Promotion is structurally impossible — no strategy can ever satisfy the robustness gate — and per-regime expectancy analysis (a §3 requirement) is unavailable, blinding tuning to regime mismatch.
+
+**Suggested Resolution:**
+Stamp each trade (and/or proposal) at decision time with an SMA-derived regime label (bull/bear/sideways/unknown) computed from **pre-entry candles only** (no look-ahead — reuse the trailing-SMA classifier at `src/backtest/validator.py:929-959`). Persist it on the performance record so `from_records` can compute per-regime expectancy and the robustness gate can evaluate real regime diversity. Backfill optional/read-only.
+
+**Related:**
+- `src/backtest/validator.py:929-959` (existing trailing-SMA regime classifier), `src/strategy/performance.py`
+- Skill §3 per-regime metrics, §6/§10 regime-confound guard
+
+### DEBT-076: Regime gate `GateResult.score`/`threshold` describe the wrong branch in average-expectancy mode
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-06-26 |
+| **Phase** | strategy-improvement analysis 2026-06-26 |
+| **Component** | strategy-framework (backtest validator) |
+
+**Description:**
+In `src/backtest/validator.py:713-727`, when `regime_require_positive_in_all=False` the verdict is computed correctly from the per-regime average (`passed = avg >= 0`), but the returned `GateResult.score = evaluable_count - len(evaluable_failures)` and `threshold = evaluable_count` describe the *count*-based (all-positive) path, not the average criterion actually evaluated. The pass/fail decision is correct; only the operator-facing score/threshold are mismatched, and it is latent because the default config uses `require_positive_in_all=True`. Confirmed by reading the source. **Verification verdict: verified (code-improvement). Sample-size label: n/a (pure code, med confidence).**
+
+**Impact:**
+Misleading score/threshold telemetry for any operator who flips `require_positive_in_all=False`; no incorrect gate outcome today.
+
+**Suggested Resolution:**
+In the `else` (average) branch set `score=avg, threshold=0.0` to match the criterion actually evaluated. One-line change plus a unit test asserting the reported score equals the average in that mode.
+
+**Related:**
+- `src/backtest/validator.py:706-732`
+
 ### DEBT-069: `strategy-tuning` Slice 2 umbrella
 
 | Field | Value |
