@@ -12,7 +12,11 @@ import pytest
 from src.exchange.base import BaseExchange
 from src.models import Order, OrderStatus, Position
 from src.runtime.activity_log import ActivityEventType, ActivityLog
-from src.strategy.performance import TradeHistoryTracker
+from src.strategy.performance import (
+    PerformanceRecord,
+    PerformanceTracker,
+    TradeHistoryTracker,
+)
 from src.trading.paper import (
     DEFAULT_FEE_CONFIGS,
     ZERO_FEE_CONFIG,
@@ -1806,6 +1810,146 @@ class TestPaperRehydration:
             "no persisted SL/TP bounds" in rec.getMessage()
             and legacy.id in rec.getMessage()
             for rec in caplog.records
+        )
+
+    async def test_rehydrate_backfills_bounds_from_perf_record(
+        self, tmp_path: Path
+    ) -> None:
+        """DEBT-071: an open trade missing SL/TP but with a resolvable
+        ``performance_record_id`` is backfilled and rehydrated.
+
+        Mirrors the production layout: trades under ``<root>/trades`` and
+        performance records under ``<root>/performance`` so the in-process
+        resolver (``data_dir.parent / "performance"``) finds the bounds.
+        """
+        # Seed a perf record carrying the bounds.
+        perf_tracker = PerformanceTracker(
+            data_dir=tmp_path / "performance",
+            sub_account_id="default",
+        )
+        record = PerformanceRecord(
+            technique_name="tech_a",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            mode="paper",
+            sub_account_id="default",
+        )
+        perf_tracker.save_record(record)
+
+        # Seed an open paper trade WITHOUT SL/TP but linked to the record.
+        trade_tracker = TradeHistoryTracker(data_dir=tmp_path / "trades")
+        legacy = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+            leverage=10,
+            performance_record_id=record.id,
+        )
+        assert legacy.stop_loss is None and legacy.take_profit is None
+
+        revived = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path / "trades",
+        )
+
+        open_pos = revived.get_open_position(legacy.id)
+        assert open_pos is not None
+        assert open_pos.position.stop_loss == Decimal("49000")
+        assert open_pos.position.take_profit == Decimal("52000")
+
+    async def test_rehydrate_skip_unrecoverable_leaves_age_closeable(
+        self, tmp_path: Path
+    ) -> None:
+        """DEBT-071: an open trade missing SL/TP with no perf link stays out of
+        ``_open_positions`` (unmonitorable) — and the runtime age-backstop can
+        then force-close it because the trade is reported via
+        ``get_open_trades``.
+        """
+        from src.runtime.position_monitor import ORPHAN_MAX_AGE, PositionMonitor
+        from src.utils.time import now_utc
+
+        trade_tracker = TradeHistoryTracker(data_dir=tmp_path / "trades")
+        legacy = trade_tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="paper",
+            leverage=10,
+            performance_record_id=None,
+        )
+
+        revived = PaperTrader(
+            initial_balance={"USDT": Decimal("10000")},
+            data_dir=tmp_path / "trades",
+        )
+        # Unrecoverable: not monitorable in-memory.
+        assert revived.get_open_position(legacy.id) is None
+
+        # But the monitor still sees it open and the age-backstop closes it.
+        from datetime import timedelta
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.exchange.base import BaseExchange
+        from src.models import Ticker
+        from src.proposal.engine import ProposalEngine
+        from src.runtime.engine import CycleResult
+
+        old_trade = legacy.model_copy(
+            update={"entry_time": now_utc() - (ORPHAN_MAX_AGE + timedelta(hours=1))}
+        )
+
+        exchange = AsyncMock(spec=BaseExchange)
+        exchange.get_ticker.return_value = Ticker(
+            symbol="BTC/USDT", price=Decimal("50000"), timestamp=now_utc()
+        )
+        activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
+        monitor = PositionMonitor(
+            activity_log=activity_log,
+            proposal_engine=MagicMock(spec=ProposalEngine),
+            default_exchange=exchange,
+            remember_mark_price=lambda *_: None,
+            record_closed_trade=lambda *_: None,
+            find_proposal_record_for_trade=lambda _: None,
+        )
+
+        force_closed: list[str] = []
+
+        async def _force_close(trade_id: str, price: Decimal) -> object:
+            force_closed.append(trade_id)
+            return old_trade.model_copy(
+                update={"status": "closed", "exit_price": price}
+            )
+
+        trader = MagicMock()
+        trader.get_open_trades.return_value = [old_trade]
+        trader.get_open_position.return_value = None
+        trader.force_close_orphan = AsyncMock(side_effect=_force_close)
+
+        result = CycleResult(cycle_id="c1")
+        await monitor.monitor(
+            cycle_id="c1",
+            result=result,
+            sub_account=None,
+            trader=trader,
+        )
+
+        assert force_closed == [legacy.id]
+        assert (
+            len(
+                activity_log.filter(
+                    event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+                )
+            )
+            == 1
         )
 
     async def test_rehydrate_loads_balance_snapshot_without_double_locking(

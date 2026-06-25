@@ -652,6 +652,64 @@ class TestLiveClosePosition:
         )
 
     @pytest.mark.asyncio
+    async def test_live_rehydrate_parity_backfill(
+        self,
+        mock_exchange: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """DEBT-071 parity: a legacy open live trade missing SL/TP but linked to
+        a resolvable ``performance_record_id`` is backfilled and rehydrated
+        into ``_open_positions`` exactly like the paper path.
+        """
+        from src.strategy.performance import (
+            PerformanceRecord,
+            PerformanceTracker,
+            TradeHistoryTracker,
+        )
+
+        perf_tracker = PerformanceTracker(
+            data_dir=tmp_path / "performance",
+            sub_account_id="default",
+        )
+        record = PerformanceRecord(
+            technique_name="tech_a",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=Decimal("50000"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            confidence=0.8,
+            mode="live",
+            sub_account_id="default",
+        )
+        perf_tracker.save_record(record)
+
+        tracker = TradeHistoryTracker(data_dir=tmp_path / "trades")
+        legacy = tracker.open_trade(
+            symbol="BTC/USDT",
+            side="long",
+            entry_price=Decimal("50000"),
+            entry_quantity=Decimal("0.1"),
+            mode="live",
+            leverage=10,
+            performance_record_id=record.id,
+        )
+        assert legacy.stop_loss is None and legacy.take_profit is None
+
+        restarted = LiveTrader(
+            exchange=mock_exchange,
+            data_dir=tmp_path / "trades",
+            confirmation_callback=make_approve(),
+        )
+
+        rehydrated = restarted.get_open_position(legacy.id)
+        assert rehydrated is not None
+        assert rehydrated.stop_loss == Decimal("49000")
+        assert rehydrated.take_profit == Decimal("52000")
+
+    @pytest.mark.asyncio
     async def test_close_falls_back_to_caller_price_when_exchange_omits_average(
         self,
         mock_exchange: MagicMock,

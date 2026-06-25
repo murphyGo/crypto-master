@@ -41,29 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-071: Paper open positions not rehydrated → monitor cannot enforce SL/TP → weeks-stale opens force-closed at stale prices
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-06-26 |
-| **Phase** | strategy-improvement analysis 2026-06-26 |
-| **Component** | runtime-reconciliation (primary) + proposal-runtime |
-
-**Description:**
-Verified against Fly snapshot `/private/tmp/crypto-master-strategy-snapshots/fly-data-20260625-203554` (app `crypto-master`, machine `6835752b711958`, release 48; last activity `2026-06-25T11:20Z`). The position monitor fails on **60,003** `monitor_errored` events carrying `error=None` (vs only 60 real `ConversionSyntax`), spread over **57 distinct trade ids** that recur every cycle (e.g. `448508b0-…` ma_crossover ~1500×). These are open positions flagged by `_missing_position_state` as orphans (`src/runtime/position_monitor.py:194-211`) — i.e. persisted to `trades/paper/<strategy>/trades.json` but never rehydrated into in-memory position state — so the monitor never reaches the SL/TP check for them. The CAH-15 orphan watchdog (`_handle_orphan_trade`, `ORPHAN_AUTO_CLOSE_THRESHOLD`=5) should force-close after 5 strikes but the same ids persist for weeks, indicating the force-close is not completing (almost certainly because the close path throws the DEBT-072 unlock error). Concrete consequence: `session_vwap_pullback` trade `c82add57-2b6d-4d86-9453-a233cf8c9848` (SOL/USDT long, entry 88.85, **stop_loss 88.06**, take_profit 90.27) sat open 2026-05-07→2026-06-10 (~34 days) and finally closed at **exit_price 62.61** (-29.5%) labeled `close_reason=stop_loss`; `raschke_holy_grail` `f0c7b998-…` (BTC short, TP 79093.77) closed at 64570.1 labeled `take_profit`. Stops/TPs are not enforced at their levels; closes happen far later at stale market prices and are mislabeled. **Verification verdict: verified (bug).** This is a runtime/execution defect, not strategy edge — and it contaminates every strategy's loss tape, so no strategy-logic change may be made until it is fixed (§5 gate). **Sample-size label: 30+ events / 57 trade ids (high confidence).**
-
-**Impact:**
-All 35 currently-open paper positions are at risk of un-enforced stops. Performance metrics (PnL magnitude, profit factor, expectancy) for any strategy holding orphaned positions are contaminated by stale-price force-closes mislabeled as SL/TP hits. `close_reason` is unreliable, so SL/TP-hit-rate analytics carry low confidence.
-
-**Suggested Resolution:**
-Rehydrate persisted open paper trades into in-memory position state on engine/sub-account startup (mirror the live-trader rehydration noted in DEBT-027) so `_missing_position_state` stops mis-flagging real opens; ensure the orphan force-close path is robust to (and not blocked by) DEBT-072; emit a non-null error on `monitor_errored` so the swallowed cause is observable. Add a reconciliation test that a persisted open trade is monitorable (SL/TP enforced) on the next cycle after restart.
-
-**Related:**
-- DEBT-072 (linked — unlock drift breaks the orphan force-close)
-- `src/runtime/position_monitor.py:151-240`
-- CAH-15 Slice 2 PositionMonitor extraction (change-history 2026-05-31)
-
 ### DEBT-073: Strategy edge metrics (profit factor / expectancy) omit realized fee drag
 
 | Field | Value |
@@ -150,6 +127,52 @@ In the `else` (average) branch set `score=avg, threshold=0.0` to match the crite
 
 **Related:**
 - `src/backtest/validator.py:706-732`
+
+### DEBT-077: `resolve_bounds_from_performance_record` fail-safe branches lack direct unit tests
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-06-26 |
+| **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
+| **Component** | runtime-reconciliation (performance) |
+
+**Description:**
+DEBT-071 added `resolve_bounds_from_performance_record(...)` in `src/strategy/performance.py` — a raw-JSON walk that fails safe to `None` on a missing file, a malformed/corrupt record, or null bounds on a found record. The fail-safe branches are exercised only **indirectly** by the paper/live rehydrate backfill tests (happy path end-to-end); there is no direct unit coverage asserting each defensive branch returns `None`. The behaviour is correct as shipped (qa-reviewer 🟢, full suite 2369 passed) — this is a coverage gap, not a defect. Flagged by qa + dev during the DEBT-071 cycle.
+
+**Impact:**
+A future refactor of the resolver (e.g. the DEBT-078 consolidation) could regress one of the fail-safe branches into a raise without a test catching it — the resolver feeds rehydration, so a raise there would re-introduce a skip/orphan path.
+
+**Suggested Resolution:**
+Add direct unit tests for `resolve_bounds_from_performance_record` covering: (1) missing file → `None`; (2) found record with null/absent bounds → `None`; (3) corrupt/unparseable JSON → `None`. Pure test-only; no source change.
+
+**Related:**
+- `src/strategy/performance.py::resolve_bounds_from_performance_record`
+- DEBT-071 (introduced the resolver) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
+- DEBT-078 (consolidation that this coverage protects)
+
+### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-06-26 |
+| **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
+| **Component** | runtime-reconciliation (primary) + strategy-framework (performance) |
+
+**Description:**
+DEBT-071's age backstop correctly routes **structurally-unmonitorable** orphans (no recoverable bounds) to `force_close_orphan` with `close_reason=orphan_force_close`. The remaining narrower edge is the **backfilled-monitorable** case: a trade whose SL/TP was restored (by the inline rehydrate backfill or the `dbd9114` proposal-linked repair tool) and which then breaches at a **stale** price fires the **normal** SL/TP monitor with `reason="stop_loss"`/`"take_profit"` at that stale price — i.e. the same mislabel pathology DEBT-071 fixed for structural orphans, but now for rows that re-entered monitorable state. Secondary tidy-up flagged by the dev: there are now **three** near-identical perf/proposal bounds-resolution walks — the new `resolve_bounds_from_performance_record` (`src/strategy/performance.py`) plus the operator tools' `_PerfIndex` and `_proposal_bounds_index` — which drift apart on any future change. **Verification verdict: verified (bug, narrow). Sample-size label: structural case is closed by DEBT-071; this is the residual backfilled-monitorable edge (med confidence).**
+
+**Impact:**
+A backfilled open that breaches at a stale price after a long restart-gap can still record a `close_reason=stop_loss`/`take_profit` at a price far from the level, re-contaminating SL/TP-hit-rate analytics for that narrow class. Lower blast radius than DEBT-071 (only backfilled rows that re-enter monitoring), but the same labeling-trust problem.
+
+**Suggested Resolution:**
+On the normal SL/TP close path, gate the `stop_loss`/`take_profit` label on freshness (e.g. if the trade has been unmonitored beyond a staleness bound, route to `orphan_force_close` rather than stamping a phantom SL/TP). Consolidate the three resolution walks behind the single `resolve_bounds_from_performance_record` resolver (or one shared index) so perf/proposal bounds lookup has one implementation. Add coverage for the stale-backfilled-breach labeling.
+
+**Related:**
+- `src/runtime/position_monitor.py` (normal SL/TP close path vs `force_close_orphan`)
+- `src/strategy/performance.py::resolve_bounds_from_performance_record`, operator tools `_PerfIndex` / `_proposal_bounds_index`
+- DEBT-071 (structural-orphan path, now fixed) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
 
 ### DEBT-069: `strategy-tuning` Slice 2 umbrella
 
@@ -860,24 +883,42 @@ Move resolved items here with resolution date and notes.
 - `src/trading/paper.py` (EPS const, tolerant `unlock`, `_reconcile_locked_to_open_positions`, `force_close_orphan`)
 - `1c6fcb6` / proposal-linked paper bounds repair tool (`dbd9114`)
 
+### DEBT-071: Paper open positions not rehydrated → monitor cannot enforce SL/TP → weeks-stale opens force-closed at stale prices ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-26 |
+| **Component** | runtime-reconciliation (primary) + proposal-runtime |
+| **Evidence** | Fly snapshot `/private/tmp/crypto-master-strategy-snapshots/fly-data-20260625-203554` (app `crypto-master`, machine `6835752b711958`, release 48): **60,003** orphan events, **0** `POSITION_ORPHAN_FORCE_CLOSED` ever, all orphan events at `strike_count=1`, same trade_ids recurring ~1,600×, host restarted **38× in 35 days**. Concrete mislabel: SOL `c82add57` closed 62.61 labeled `close_reason=stop_loss` against a stop of 88.06; 39 orphaned ids were the `state=degraded, missing=[stop_loss,take_profit]` rows from the 2026-06-10 reconciliation report. |
+| **Resolution** | Root cause (quant-trader-expert, review-only): **two** latent defects. **Defect A** — `PositionMonitor._orphan_strike_counts` was in-memory, reset every process start; on a host restarting 38× in 35 days no trade ever reached the 5 consecutive strikes the `ORPHAN_AUTO_CLOSE_THRESHOLD`=5 watchdog needs → **0** force-closes ever, all orphan events stuck at `strike_count=1`. **Defect B** — `PaperTrader._rehydrate_open_positions` (`paper.py:396-402`) skipped open trades lacking **both** SL/TP via a bare `continue`, so the 39 `state=degraded, missing=[stop_loss,take_profit]` ids never entered `_open_positions` → **permanent** orphans; the `dbd9114` proposal-linked repair tool backfilled bounds once on 2026-06-10, after which the normal monitor finally fired but at 34-day-stale prices, producing the mislabeled closes. **Fix (senior-developer):** (1) `src/runtime/position_monitor.py`: new `ORPHAN_MAX_AGE = timedelta(hours=24)`; `_handle_orphan_trade` close gate is now `force_close if (strikes >= ORPHAN_AUTO_CLOSE_THRESHOLD) OR (trade_age >= ORPHAN_MAX_AGE)`, `trade_age = now_utc() - ensure_utc(trade.entry_time)` — **restart-safe** (wall-clock age survives restarts; the strike counter doesn't) and **tz-safe** (naive + aware); the age branch force-closes on the **first** qualifying cycle via `force_close_orphan` (`close_reason=orphan_force_close`, **not** a phantom SL/TP); 5-strike fast-path preserved for young transient orphans; events now carry `trigger`/`age_hours`/`max_age_hours`. (2) `src/strategy/performance.py`: new `resolve_bounds_from_performance_record(...)` raw-JSON resolver, fails safe to `None` on missing/malformed/null-bounds. (3) `src/trading/paper.py` + `src/trading/live.py`: rehydrate attempts inline SL/TP backfill from `performance_record_id` before the skip; unrecoverable → skip + rely on the age backstop (paper/live parity). (4) `src/runtime/engine.py`: re-exports `ORPHAN_MAX_AGE`. **Invariant locked in:** a structurally-unmonitorable open trade is force-closed within a bounded wall-clock age (24h) **regardless of restarts**; a transient young orphan is not. **Tests:** `tests/test_runtime_engine.py` (4 new; `make_trade` got optional `entry_time`, 7 strike-path tests pinned young), `tests/test_paper_trading.py` (2 new), `tests/test_live_trading.py` (1 new). **Verification:** `uv run pytest -q` **2369 passed**, 0 failed; ruff + mypy clean. QA verdict: 🟢 ship (qa-reviewer, independently run). Process: quant-trader-expert (root-cause + design, review-only) → senior-developer (impl + 7 tests) → qa-reviewer 🟢. **DEBT-072 linkage:** DEBT-072 healed the balance side (locked/free reconcile self-heals on restart); DEBT-071 heals the position-state-monitoring side — both now self-heal on restart, closing the orphan-recurrence loop. **Follow-ups filed:** DEBT-077 (Low, direct unit tests for the resolver's fail-safe branches), DEBT-078 (Medium, the residual backfilled-then-stale mislabel edge + consolidation of three duplicate bounds-resolution walks). Session log: `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`. |
+
+**Related:**
+- DEBT-072 (linked — its balance reconcile is the safety net; this cycle is the position-state fix; both now self-heal on restart)
+- DEBT-077, DEBT-078 (follow-ups filed this cycle)
+- `src/runtime/position_monitor.py` (`ORPHAN_MAX_AGE`, age-OR-strike close gate), `src/strategy/performance.py` (`resolve_bounds_from_performance_record`), `src/trading/paper.py` + `src/trading/live.py` (rehydrate backfill), `src/runtime/engine.py` (re-export)
+- proposal-linked paper bounds repair tool (`dbd9114`) — the one-shot backfill whose stale-price closes surfaced this defect
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 7 |
+| Total Active | 8 |
 | Critical | 0 |
-| High | 1 |
-| Medium | 5 |
-| Low | 1 |
-| Resolved (All Time) | 65 |
+| High | 0 |
+| Medium | 6 |
+| Low | 2 |
+| Resolved (All Time) | 66 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-26 | Resolved | DEBT-071 `runtime-reconciliation` shipped — **orphan age-backstop + SL/TP rehydration backfill**. Root cause (quant-trader-expert, review-only): **two** latent defects. **(A)** `PositionMonitor._orphan_strike_counts` was in-memory, reset every process start; on a Fly host restarting **38× in 35 days** no trade ever reached the 5 consecutive strikes the watchdog needs → **0** `POSITION_ORPHAN_FORCE_CLOSED` ever, all **60,003** orphan events at `strike_count=1`, same trade_ids recurring ~1,600×. **(B)** `PaperTrader._rehydrate_open_positions` (`paper.py:396-402`) skipped open trades missing **both** SL/TP via a bare `continue` → the 39 `state=degraded` ids never entered `_open_positions` → permanent orphans; the `dbd9114` one-shot backfill (2026-06-10) then fired the normal monitor at 34-day-stale prices → mislabeled closes (SOL `c82add57` closed 62.61 labeled `stop_loss` vs stop 88.06). **Fix (senior-developer):** (1) `src/runtime/position_monitor.py` new `ORPHAN_MAX_AGE = timedelta(hours=24)`; close gate is `force_close if (strikes >= ORPHAN_AUTO_CLOSE_THRESHOLD) OR (trade_age >= ORPHAN_MAX_AGE)`, `trade_age = now_utc() - ensure_utc(trade.entry_time)` — **restart-safe** + tz-safe; age branch force-closes on the first qualifying cycle via `force_close_orphan` (`close_reason=orphan_force_close`, not a phantom SL/TP); 5-strike fast-path preserved for young orphans; events carry `trigger`/`age_hours`/`max_age_hours`. (2) `src/strategy/performance.py` new `resolve_bounds_from_performance_record(...)` (raw-JSON, fails safe to `None`). (3) `src/trading/paper.py` + `src/trading/live.py` rehydrate attempts inline SL/TP backfill from `performance_record_id` before the skip; unrecoverable → skip + rely on age backstop (paper/live parity). (4) `src/runtime/engine.py` re-exports `ORPHAN_MAX_AGE`. **Invariant:** a structurally-unmonitorable open is force-closed within a bounded wall-clock age (24h) regardless of restarts; a transient young orphan is not. Tests: `tests/test_runtime_engine.py` (4 new, `make_trade` got optional `entry_time`, 7 strike-path tests pinned young), `tests/test_paper_trading.py` (2 new), `tests/test_live_trading.py` (1 new). Process: quant-trader-expert (root-cause + design, review-only) → senior-developer → qa-reviewer 🟢 ship. `uv run pytest -q` **2369 passed**, 0 failed; ruff + mypy clean. **DEBT-072 linkage:** 072 healed the balance side, 071 heals the position-state-monitoring side — both now self-heal on restart. **Follow-ups filed:** DEBT-077 (Low — direct unit tests for the resolver's fail-safe branches), DEBT-078 (Medium — residual backfilled-then-stale mislabel edge + consolidation of three duplicate bounds-resolution walks: the new resolver + operator tools' `_PerfIndex`/`_proposal_bounds_index`). Session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`. |
 | 2026-06-26 | Resolved | DEBT-072 `runtime-reconciliation` shipped — **paper balance lock/unlock accounting drift reconcile**. Root cause (quant-trader-expert, review-only): the invariant `balance.locked == Σ(open_pos.margin)` was violated fleet-wide because `_rehydrate_open_positions` only reconciled `locked` when **no** persisted snapshot existed (old `src/trading/paper.py:442` gate); a drifted snapshot was inherited across restart (`weinstein_stage2_filter` `locked=711.05`, dropping two 1000 margins, drift=2000) → `Cannot unlock … only … locked` → **5,627** `cycle_errored`. Fix (all `src/trading/paper.py`, senior-developer): (1) `PaperBalance.unlock` clamps a sub-EPS overshoot (`EPS=Decimal("1E-9")`, releases `locked`→0 + WARNING) but still **RAISES** on structural overshoot > EPS; (2) new `_reconcile_locked_to_open_positions()` called **unconditionally** after rehydrate, pinning `locked = Σ open_pos.margin` and `free = total - expected` per quote currency, **preserving `total` (DEBT-059)** and **allowing `free<0` (DEBT-027)**, emitting `RECONCILIATION_REPAIRED_PAPER_BOUNDS` + WARNING only on change (legacy no-snapshot reconcile runs first, new reconcile no-ops — no double-lock; parity WARNING when a currency has open positions but no balance entry); (3) `force_close_orphan` docstring/warning tightened (drift self-heals on next reconcile). Tests: new `tests/test_paper_balance_reconcile.py` — **12 tests** (all 7 prescribed scenarios incl. the short-snapshot repro + structural-overshoot-still-raises). Process: quant-trader-expert (root-cause + design, review-only) → senior-developer → qa-reviewer 🟡 ship (parity + `locked==Σmargin` invariant verified; black nit since fixed). `uv run pytest tests/test_paper_balance_reconcile.py -q` 12 passed; full suite `uv run pytest -q` **2362 passed**; ruff + mypy clean; new file black-clean. **DEBT-071 stays OPEN** (linked) — this reconcile is the safety net that makes its stranded-margin scenario self-heal on restart, but the orphan-recurrence root cause (open positions not rehydrated → monitor can't enforce SL/TP) is unchanged. Watch-item (not filed): `RECONCILIATION_REPAIRED_PAPER_BOUNDS` is now dual-producer — a dedicated `RECONCILIATION_REPAIRED_PAPER_LOCKED_SPLIT` event type would be cleaner for dashboard filtering (recorded in the session log, not promoted). Session log `docs/sessions/2026-06-26-strategy-tuning-debt-072-paper-balance-reconcile.md`. |
 | 2026-06-10 | Updated | DEBT-069(c) `strategy-tuning` Slice 2 shipped — **recommendation-history observation store**. Added `src/strategy/tuning_observations.py` with `StrategyTuningObservationStore`, atomic per-`(sub_account_id, strategy)` JSON snapshots, URL-encoded path components, bounded recent-history retention, and persisted evidence snapshots. Dashboard integration is explicit/no-write by default: `record_strategy_tuning_observations(...)` is the side-effecting hook; `build_strategy_tuning_rows(..., observations=...)` surfaces `Observed` + `Observations` metadata without changing live recommendation calculation. Exported the observation models from `src.strategy`. Tests: `uv run pytest tests/test_strategy_tuning_observations.py tests/test_dashboard_strategies.py -q` = 36 passed; `uv run pytest tests/test_strategy_tuning_recommender.py -q` = 38 passed. Session log `docs/sessions/2026-06-10-strategy-tuning-slice-2-observation-store-c.md`. **After (c), the DEBT-069 umbrella's only remaining-open sub-task is (g) post-evidence threshold calibration.** |
 | 2026-06-04 | Updated | DEBT-069(f) `strategy-tuning` Slice 2 shipped — **pause-reason split (evidence vs gate-config)**. Quant ruling chose **Option b** (single `PAUSE` + observability-only `details.pause_reason`), NOT the enum split — `StrategyAction` is the durable operator-intent vocabulary; evidence-vs-config is a gate-time corroboration observation for the event details. **The gate does NOT compute corroboration** (the engine holds no `PerformanceTracker`/`FailClosedMetricsTracker` on the gate path; computing it there would add a tracker-read + recommender call to the hot reject path). `_strategy_action_gate` PAUSE branch stamps `details.pause_reason = "gate_config"` (`PAUSE_REASON_GATE_CONFIG`, new `src/strategy/tuning.py` constant, `__all__`-exported); the dashboard upgrades it by joining the APPLIED pause against the **raw live** `recommend_action` (pre-seed-fallback): live==PAUSE → `evidence_corroborated`, else (incl. thin-evidence `None`) → `gate_config_only`. Dashboard: `PAUSE_TRIAGE_*` constants + pure `_pause_triage_label`, `live_recommendation` captured before the seed fallback, new `StrategyTuningRow.pause_triage` + `Pause Triage` dataframe column. Invariants: pause still hard-rejects regardless of `pause_reason` (never branches the block); funnel terminal + `gate_reason` unchanged; no new tracker/exchange call on the gate path; paper/live identical; `enabled=False` no-op intact. Process: quant design ruling (pre-code) → senior-developer → quant-trader-expert 🟢 ship (6 invariants verified; `_pause_band_perf` non-vacuous). +5 tests; full suite **2334 passed** (+4 from the 2330 (i) baseline), 0 failed; black + ruff + mypy clean (103 files). Incidental: black brought the already-dirty (pre-active-gate) `strategies.py` into compliance. Files: `src/strategy/tuning.py`, `src/runtime/engine.py`, `src/dashboard/pages/strategies.py`, `tests/test_runtime_engine.py`, `tests/test_dashboard_strategies.py`. Session log `docs/sessions/2026-06-04-strategy-tuning-slice-2-pause-reason-split-f.md`. **After (f)+(i), the DEBT-069 umbrella's only remaining-open sub-tasks are (c) observation store + (g) post-evidence threshold calibration.** |

@@ -37,6 +37,64 @@ DEFAULT_PERFORMANCE_DIR = Path("data/performance")
 DEFAULT_SUB_ACCOUNT_ID = "default"
 
 
+def resolve_bounds_from_performance_record(
+    performance_root: Path,
+    sub_account_id: str,
+    record_id: str,
+) -> tuple[Decimal, Decimal] | None:
+    """Resolve ``(stop_loss, take_profit)`` for a perf record id, or ``None``.
+
+    DEBT-071: in-process counterpart to ``backfill_paper_sl_tp._PerfIndex`` —
+    used by ``PaperTrader`` / ``LiveTrader`` rehydration to recover the SL/TP
+    bounds of an open trade whose persisted ledger row predates SL/TP
+    persistence but which carries a ``performance_record_id`` link.
+
+    Reads the on-disk ``records.json`` rows directly (a raw JSON walk) rather
+    than going through :meth:`PerformanceTracker.load_records`, which would
+    raise on legacy rows whose ``stop_loss`` / ``take_profit`` are null — the
+    exact rows we want to skip gracefully. Returns ``None`` when the record is
+    not found or either bound is unset, so the caller can fall back to leaving
+    the trade unmonitorable (the monitor's age-backstop force-closes it).
+
+    Args:
+        performance_root: The ``<data_dir>/performance`` directory.
+        sub_account_id: Sub-account whose perf records to search.
+        record_id: The ``performance_record_id`` to resolve.
+
+    Returns:
+        ``(stop_loss, take_profit)`` as ``Decimal`` when both bounds resolve,
+        else ``None``.
+    """
+    sub_root = performance_root / sub_account_id
+    if not sub_root.exists():
+        return None
+    for technique_dir in sub_root.iterdir():
+        if not technique_dir.is_dir():
+            continue
+        records_path = technique_dir / "records.json"
+        if not records_path.exists():
+            continue
+        try:
+            rows = json.loads(read_text(records_path))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.error("Failed to read perf records at %s: %s", records_path, exc)
+            continue
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or row.get("id") != record_id:
+                continue
+            sl_raw = row.get("stop_loss")
+            tp_raw = row.get("take_profit")
+            if sl_raw is None or tp_raw is None:
+                return None
+            try:
+                return Decimal(str(sl_raw)), Decimal(str(tp_raw))
+            except (ArithmeticError, ValueError):
+                return None
+    return None
+
+
 class TradeOutcome(str, Enum):
     """Outcome of a trade based on analysis."""
 

@@ -28,6 +28,7 @@ from src.proposal.notification import (
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.runtime.engine import (
     ORPHAN_AUTO_CLOSE_THRESHOLD,
+    ORPHAN_MAX_AGE,
     EngineConfig,
     EngineError,
     ErrorCategory,
@@ -122,6 +123,7 @@ def make_trade(
     mode: str = "paper",
     exit_time: datetime | None = None,
     pnl: str | None = None,
+    entry_time: datetime | None = None,
 ) -> TradeHistory:
     return TradeHistory(
         id=trade_id,
@@ -130,7 +132,9 @@ def make_trade(
         mode=mode,  # type: ignore[arg-type]
         entry_price=Decimal(entry),
         entry_quantity=Decimal(quantity),
-        entry_time=datetime(2026, 4, 27, 12, 0, 0),
+        entry_time=(
+            entry_time if entry_time is not None else datetime(2026, 4, 27, 12, 0, 0)
+        ),
         exit_price=Decimal(exit_price) if exit_price is not None else None,
         exit_quantity=Decimal(quantity) if exit_price is not None else None,
         exit_time=exit_time,
@@ -898,7 +902,9 @@ async def test_monitor_pass_uses_sub_account_trader_for_exit_check(
 async def test_monitor_pass_surfaces_orphan_open_trade_state(
     tmp_path: Path,
 ) -> None:
-    open_trade = make_trade(trade_id="orphan")
+    # DEBT-071: pin a young entry_time so the age-backstop does not fire —
+    # this test isolates the single-strike "surface state, don't close" path.
+    open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
     engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
     mocks["trader"].get_open_position.return_value = None
 
@@ -997,7 +1003,9 @@ class TestOrphanAutoClose:
 
     async def test_first_orphan_increment_does_not_close(self, tmp_path: Path) -> None:
         """One orphan strike must not trigger force_close_orphan."""
-        open_trade = make_trade(trade_id="orphan")
+        # DEBT-071: young entry_time keeps the age-backstop dormant so this
+        # test exercises only the consecutive-strike counter.
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
         mocks["trader"].get_open_position.return_value = None
         mocks["trader"].force_close_orphan = AsyncMock()
@@ -1013,7 +1021,7 @@ class TestOrphanAutoClose:
 
     async def test_strike_below_threshold_continues(self, tmp_path: Path) -> None:
         """Cycles 1..K-1 increment but never call force_close_orphan."""
-        open_trade = make_trade(trade_id="orphan")
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
         mocks["trader"].get_open_position.return_value = None
         mocks["trader"].force_close_orphan = AsyncMock()
@@ -1033,7 +1041,9 @@ class TestOrphanAutoClose:
 
     async def test_strike_threshold_triggers_force_close(self, tmp_path: Path) -> None:
         """Cycle K → force_close_orphan called, event emitted, counter pruned."""
-        open_trade = make_trade(trade_id="orphan", side="short", entry="50000")
+        open_trade = make_trade(
+            trade_id="orphan", side="short", entry="50000", entry_time=now_utc()
+        )
         engine, mocks = build_engine(
             tmp_path=tmp_path,
             open_trades=[open_trade],
@@ -1075,7 +1085,7 @@ class TestOrphanAutoClose:
 
     async def test_strike_count_resets_when_trade_closes(self, tmp_path: Path) -> None:
         """Trade no longer in ``open_trades`` → counter pruned."""
-        open_trade = make_trade(trade_id="orphan")
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
         mocks["trader"].get_open_position.return_value = None
         mocks["trader"].force_close_orphan = AsyncMock()
@@ -1095,7 +1105,7 @@ class TestOrphanAutoClose:
         self, tmp_path: Path
     ) -> None:
         """Rehydration on a later cycle drops the strike count."""
-        open_trade = make_trade(trade_id="orphan")
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
         mocks["trader"].get_open_position.return_value = None
         mocks["trader"].force_close_orphan = AsyncMock()
@@ -1116,7 +1126,7 @@ class TestOrphanAutoClose:
         self, tmp_path: Path
     ) -> None:
         """``MONITOR_ERRORED`` payload exposes ``strike_count`` + ``threshold``."""
-        open_trade = make_trade(trade_id="orphan")
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
         mocks["trader"].get_open_position.return_value = None
         mocks["trader"].force_close_orphan = AsyncMock()
@@ -1136,7 +1146,7 @@ class TestOrphanAutoClose:
         self, tmp_path: Path
     ) -> None:
         """Threshold reached but ticker fetch fails → strike count survives."""
-        open_trade = make_trade(trade_id="orphan")
+        open_trade = make_trade(trade_id="orphan", entry_time=now_utc())
         engine, mocks = build_engine(
             tmp_path=tmp_path,
             open_trades=[open_trade],
@@ -1164,6 +1174,148 @@ class TestOrphanAutoClose:
             e for e in errors if e.details.get("phase") == "orphan_ticker_fetch_failed"
         ]
         assert len(ticker_failures) == 1
+
+    # ------------------------------------------------------------------
+    # DEBT-071: age-keyed, restart-safe orphan backstop.
+    # ------------------------------------------------------------------
+
+    async def test_orphan_force_closes_after_max_age_despite_strike_reset(
+        self, tmp_path: Path
+    ) -> None:
+        """Age past ``ORPHAN_MAX_AGE`` force-closes on cycle 1 at strike 1.
+
+        Reproduces the Fly restart scenario: ``_orphan_strike_counts`` is
+        rebuilt empty every process, so the 5-strike consecutive guard never
+        accumulates. The always-on age backstop must close on the FIRST
+        qualifying cycle regardless of strike count.
+        """
+        old_entry = now_utc() - (ORPHAN_MAX_AGE + timedelta(hours=1))
+        open_trade = make_trade(
+            trade_id="orphan", side="short", entry="50000", entry_time=old_entry
+        )
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            open_trades=[open_trade],
+            ticker_price=Decimal("48500"),
+        )
+        mocks["trader"].get_open_position.return_value = None
+        closed = make_trade(
+            trade_id="orphan",
+            side="short",
+            entry="50000",
+            exit_price="48500",
+            pnl_percent=3.0,
+            status="closed",
+        )
+        mocks["trader"].force_close_orphan = AsyncMock(return_value=closed)
+
+        # Simulate a fresh process: counter empty before the pass.
+        engine._position_monitor._orphan_strike_counts = {}
+
+        await engine.run_cycle()
+
+        # Force-closed on the FIRST cycle even though strike == 1.
+        mocks["trader"].force_close_orphan.assert_awaited_once_with(
+            "orphan", Decimal("48500")
+        )
+        assert "orphan" not in engine._orphan_strike_counts
+
+        events = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+        )
+        assert len(events) == 1
+        details = events[0].details
+        assert details["trade_id"] == "orphan"
+        assert details["trigger"] == "age"
+        assert details["strikes"] == 1
+        assert float(details["age_hours"]) >= ORPHAN_MAX_AGE.total_seconds() / 3600
+
+    async def test_young_orphan_not_force_closed_on_single_blip(
+        self, tmp_path: Path
+    ) -> None:
+        """Young orphan at strike 1 is recorded but NOT force-closed."""
+        open_trade = make_trade(
+            trade_id="orphan",
+            entry_time=now_utc() - (ORPHAN_MAX_AGE - timedelta(hours=1)),
+        )
+        engine, mocks = build_engine(tmp_path=tmp_path, open_trades=[open_trade])
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock()
+
+        await engine.run_cycle()
+
+        mocks["trader"].force_close_orphan.assert_not_awaited()
+        assert engine._orphan_strike_counts == {"orphan": 1}
+        assert (
+            mocks["activity_log"].filter(
+                event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+            )
+            == []
+        )
+
+    async def test_young_orphan_still_closes_at_five_strikes(
+        self, tmp_path: Path
+    ) -> None:
+        """The legacy 5-strike fast-path still fires for a young orphan."""
+        open_trade = make_trade(
+            trade_id="orphan",
+            side="short",
+            entry="50000",
+            entry_time=now_utc() - timedelta(minutes=5),
+        )
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            open_trades=[open_trade],
+            ticker_price=Decimal("48500"),
+        )
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock(return_value=open_trade)
+
+        for _ in range(ORPHAN_AUTO_CLOSE_THRESHOLD):
+            await engine.run_cycle()
+
+        mocks["trader"].force_close_orphan.assert_awaited_once_with(
+            "orphan", Decimal("48500")
+        )
+        events = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+        )
+        assert len(events) == 1
+        assert events[0].details["trigger"] == "strike"
+        assert events[0].details["strikes"] == ORPHAN_AUTO_CLOSE_THRESHOLD
+
+    async def test_orphan_strike_counter_reset_does_not_prevent_convergence(
+        self, tmp_path: Path
+    ) -> None:
+        """Resetting the counter every cycle still converges on an old orphan.
+
+        Proves the 60,003-orphan-events-at-strike-1 recurrence cannot happen:
+        even if the in-memory counter is wiped before every pass (the restart
+        signature), the age backstop force-closes within ONE cycle.
+        """
+        old_entry = now_utc() - (ORPHAN_MAX_AGE + timedelta(hours=6))
+        open_trade = make_trade(trade_id="orphan", entry_time=old_entry)
+        engine, mocks = build_engine(
+            tmp_path=tmp_path,
+            open_trades=[open_trade],
+            ticker_price=Decimal("50000"),
+        )
+        mocks["trader"].get_open_position.return_value = None
+        mocks["trader"].force_close_orphan = AsyncMock(return_value=open_trade)
+
+        # Simulate three restarts, each wiping the counter before the pass.
+        for _ in range(3):
+            engine._position_monitor._orphan_strike_counts = {}
+            await engine.run_cycle()
+            # Each pass that still saw the trade open force-closed it.
+
+        assert mocks["trader"].force_close_orphan.await_count >= 1
+        # First cycle already force-closed (age trigger, strike 1).
+        first_event = mocks["activity_log"].filter(
+            event_type=ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED
+        )[0]
+        assert first_event.details["trigger"] == "age"
+        assert first_event.details["strikes"] == 1
 
 
 # =============================================================================

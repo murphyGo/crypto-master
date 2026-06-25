@@ -36,6 +36,7 @@ double-count or double-close.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -97,6 +98,23 @@ def _timeframe_to_seconds(timeframe: str) -> int:
 # while a genuinely stuck trade (the Fly 260h BNB short) is force-closed within a
 # handful of monitor passes rather than drifting indefinitely.
 ORPHAN_AUTO_CLOSE_THRESHOLD = 5
+
+
+# DEBT-071: age-keyed, restart-safe orphan backstop. ``_orphan_strike_counts``
+# is in-memory and rebuilt fresh per process, so on a host that restarts often
+# (the Fly machine restarted 38x in 35 days) the 5-strike *consecutive
+# in-process* counter never accumulates and the watchdog NEVER force-closes —
+# all orphan events sit at ``strike_count=1`` forever. This dedicated cap is an
+# ALWAYS-ON second trigger keyed on the persisted ``trade.entry_time`` (which
+# survives restarts): any orphan older than ``ORPHAN_MAX_AGE`` is force-closed
+# on the FIRST qualifying cycle regardless of strike count. It is deliberately
+# NOT the DEBT-068(e) ``max_time_in_position_hours`` stale-age cap — that one is
+# opt-in (per-sub-account ``RiskPolicy``) and reconciliation-gated, so it can't
+# guarantee convergence; this constant must always apply. The two orphan
+# triggers coexist: a young orphan keeps the 5-strike grace (a genuinely
+# transient single-process rehydration blip), while an orphan older than this
+# cap is force-closed immediately.
+ORPHAN_MAX_AGE = timedelta(hours=24)
 
 
 class PositionMonitor:
@@ -301,13 +319,25 @@ class PositionMonitor:
     ) -> bool:
         """Orphan force-close watchdog for one open trade (ENG-F6 extraction).
 
-        Counts consecutive orphan observations in ``_orphan_strike_counts``
-        (cross-cycle; pruned in :meth:`monitor`, never reset) and force-closes
-        once ``ORPHAN_AUTO_CLOSE_THRESHOLD`` strikes accumulate so a
-        perpetually-orphaned trade (the Fly 260h BNB short) cannot drift
-        indefinitely. Returns ``True`` iff a force-close actually closed the
-        trade (so :meth:`monitor` bumps ``closed_count``); every failure rung
-        returns ``False`` and leaves the strike counter intact so the next cycle
+        Two coexisting force-close triggers:
+
+        - **Strike counter** (DEBT-058): counts consecutive in-process orphan
+          observations in ``_orphan_strike_counts`` (cross-cycle; pruned in
+          :meth:`monitor`, never reset) and force-closes once
+          ``ORPHAN_AUTO_CLOSE_THRESHOLD`` strikes accumulate. This protects a
+          genuinely transient single-process rehydration blip on a young trade.
+        - **Age backstop** (DEBT-071): an always-on, restart-safe trigger keyed
+          on the persisted ``trade.entry_time``. Because the strike counter is
+          in-memory and never accumulates across the frequent host restarts,
+          the 5-strike guard was structurally unreachable — so any orphan older
+          than ``ORPHAN_MAX_AGE`` is force-closed on the FIRST qualifying cycle
+          regardless of strike count. This branch MUST live here (not in
+          :meth:`_maybe_stale_age_action`), because :meth:`monitor` ``continue``s
+          past the stale-age rung the moment a trade is orphaned.
+
+        Returns ``True`` iff a force-close actually closed the trade (so
+        :meth:`monitor` bumps ``closed_count``); every failure rung returns
+        ``False`` and leaves the strike counter intact so the next cycle
         retries. The caller always ``continue``s after an orphan.
         """
         from src.runtime.engine import EngineError, ErrorCategory
@@ -315,10 +345,17 @@ class PositionMonitor:
         strikes = self._orphan_strike_counts.get(trade.id, 0) + 1
         self._orphan_strike_counts[trade.id] = strikes
 
+        # DEBT-071: age is read from the PERSISTED entry time so it survives
+        # process restarts. ``ensure_utc`` normalises the legacy naive rows
+        # (and the ISO-with-offset rows) before the aware-vs-aware subtraction.
+        trade_age = now_utc() - ensure_utc(trade.entry_time)
+        age_force_close = trade_age >= ORPHAN_MAX_AGE
+
         message = (
             f"Open trade {trade.id} has no in-memory position state; "
             f"operator reconciliation required before SL/TP monitoring "
-            f"(strike {strikes}/{ORPHAN_AUTO_CLOSE_THRESHOLD})"
+            f"(strike {strikes}/{ORPHAN_AUTO_CLOSE_THRESHOLD}, "
+            f"age {trade_age.total_seconds() / 3600:.2f}h)"
         )
         self._activity_log.append(
             ActivityEventType.MONITOR_ERRORED,
@@ -328,6 +365,9 @@ class PositionMonitor:
                 "sub_account_id": self._sub_account_id(sub_account),
                 "strike_count": strikes,
                 "threshold": ORPHAN_AUTO_CLOSE_THRESHOLD,
+                "age_hours": f"{trade_age.total_seconds() / 3600:.4f}",
+                "max_age_hours": ORPHAN_MAX_AGE.total_seconds() / 3600,
+                "age_force_close": age_force_close,
             },
             cycle_id=cycle_id,
         )
@@ -339,7 +379,9 @@ class PositionMonitor:
             )
         )
 
-        if strikes < ORPHAN_AUTO_CLOSE_THRESHOLD:
+        # Force-close when EITHER trigger fires: the 5-strike consecutive
+        # in-process grace OR the always-on age backstop.
+        if strikes < ORPHAN_AUTO_CLOSE_THRESHOLD and not age_force_close:
             return False
 
         # Threshold reached — force-close at the latest ticker. Failure to fetch
@@ -408,11 +450,17 @@ class PositionMonitor:
             if closed_trade is not None and closed_trade.pnl_percent is not None
             else 0.0
         )
+        # DEBT-071: record which trigger fired. ``strike`` keeps the legacy
+        # 5-consecutive-strike semantics; ``age`` is the restart-safe backstop
+        # that fires on the first qualifying cycle even at strike 1.
+        trigger = "strike" if strikes >= ORPHAN_AUTO_CLOSE_THRESHOLD else "age"
         self._activity_log.append(
             ActivityEventType.POSITION_ORPHAN_FORCE_CLOSED,
             (
                 f"Orphan force-closed {trade.symbol} {trade.side} "
-                f"after {strikes} strikes at {ticker.price}"
+                f"after {strikes} strikes "
+                f"({trade_age.total_seconds() / 3600:.2f}h, trigger={trigger}) "
+                f"at {ticker.price}"
             ),
             details={
                 "trade_id": trade.id,
@@ -424,6 +472,9 @@ class PositionMonitor:
                 "pnl_percent": pnl_percent,
                 "strikes": strikes,
                 "threshold": ORPHAN_AUTO_CLOSE_THRESHOLD,
+                "age_hours": f"{trade_age.total_seconds() / 3600:.4f}",
+                "max_age_hours": ORPHAN_MAX_AGE.total_seconds() / 3600,
+                "trigger": trigger,
             },
             cycle_id=cycle_id,
         )

@@ -80,6 +80,9 @@ from src.runtime.position_monitor import (
     ORPHAN_AUTO_CLOSE_THRESHOLD as ORPHAN_AUTO_CLOSE_THRESHOLD,  # re-export
 )
 from src.runtime.position_monitor import (
+    ORPHAN_MAX_AGE as ORPHAN_MAX_AGE,  # re-export (DEBT-071)
+)
+from src.runtime.position_monitor import (
     PositionMonitor,
 )
 from src.runtime.reconciliation import (

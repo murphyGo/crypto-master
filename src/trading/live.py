@@ -22,7 +22,11 @@ from typing import TYPE_CHECKING
 
 from src.logger import get_logger
 from src.models import Order, OrderRequest, OrderStatus, Position
-from src.strategy.performance import TradeHistory, TradeHistoryTracker
+from src.strategy.performance import (
+    TradeHistory,
+    TradeHistoryTracker,
+    resolve_bounds_from_performance_record,
+)
 from src.trading.base import exit_condition_for_position, exit_reason_for_position
 from src.trading.strategy import TradingError
 from src.utils.trading_types import (
@@ -530,27 +534,54 @@ class LiveTrader:
     def _rehydrate_open_positions(self) -> None:
         """Rebuild monitorable live positions from persisted open trades.
 
-        Legacy open trades may not carry SL/TP bounds. Those remain visible
-        through ``get_open_trades`` but are intentionally left out of
-        ``_open_positions`` so the runtime orphan guard can require operator
-        reconciliation instead of pretending they are safe to monitor.
+        Legacy open trades may not carry SL/TP bounds. DEBT-071: before
+        leaving such a trade unmonitorable we attempt an inline backfill from
+        the linked ``PerformanceRecord`` (parity with
+        ``PaperTrader._rehydrate_open_positions``). When the bounds resolve we
+        rehydrate normally; when they cannot (no perf link or unset bounds)
+        the trade stays out of ``_open_positions`` and the runtime monitor's
+        age-keyed orphan backstop (``ORPHAN_MAX_AGE``) force-closes it
+        deterministically instead of orphaning it forever.
         """
+        performance_root = self._trade_tracker.data_dir.parent / "performance"
         for trade in self._trade_tracker.get_open_trades(mode="live"):
-            if trade.stop_loss is None and trade.take_profit is None:
-                logger.warning(
-                    "Open live trade %s has no persisted SL/TP bounds; "
-                    "operator reconciliation required before monitoring",
-                    trade.id,
+            stop_loss = trade.stop_loss
+            take_profit = trade.take_profit
+            if stop_loss is None and take_profit is None:
+                recovered = (
+                    resolve_bounds_from_performance_record(
+                        performance_root,
+                        self._trade_tracker.sub_account_id,
+                        trade.performance_record_id,
+                    )
+                    if trade.performance_record_id is not None
+                    else None
                 )
-                continue
+                if recovered is None:
+                    logger.warning(
+                        "Open live trade %s has no persisted SL/TP bounds and "
+                        "none could be recovered from its performance record; "
+                        "operator reconciliation required before monitoring",
+                        trade.id,
+                    )
+                    continue
+                stop_loss, take_profit = recovered
+                logger.info(
+                    "Backfilled SL/TP for open live trade %s from "
+                    "performance record %s: SL=%s TP=%s",
+                    trade.id,
+                    trade.performance_record_id,
+                    stop_loss,
+                    take_profit,
+                )
             self._open_positions[trade.id] = Position(
                 symbol=trade.symbol,
                 side=trade.side,
                 entry_price=trade.entry_price,
                 quantity=trade.entry_quantity,
                 leverage=trade.leverage,
-                stop_loss=trade.stop_loss,
-                take_profit=trade.take_profit,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
             )
 
     async def _submit_order(

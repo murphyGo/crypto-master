@@ -21,7 +21,11 @@ from pydantic import BaseModel, Field
 from src.logger import get_logger
 from src.models import OrderRequest, Position
 from src.runtime.activity_log import ActivityEventType, ActivityLog
-from src.strategy.performance import TradeHistory, TradeHistoryTracker
+from src.strategy.performance import (
+    TradeHistory,
+    TradeHistoryTracker,
+    resolve_bounds_from_performance_record,
+)
 from src.trading.base import exit_condition_for_position
 from src.trading.strategy import TradingError
 from src.utils.io import atomic_write_text
@@ -406,13 +410,17 @@ class PaperTrader:
         fires ``MONITOR_ERRORED:orphan_open_trade`` forever.
 
         Legacy open trades that were persisted before SL/TP was wired
-        through ``open_position`` will lack both bounds. Those are
-        intentionally skipped (with a warning) so the orphan guard can
-        still surface them for operator reconciliation — silently
-        rehydrating a position with no exit bounds would mean the
-        runtime can never auto-close it. Per-strategy backfill from the
-        ``PerformanceRecord`` is intentionally out of scope for this
-        commit (TECH-DEBT follow-up in the engine layer).
+        through ``open_position`` will lack both bounds. DEBT-071: before
+        giving up on such a trade we attempt an inline backfill from the
+        linked ``PerformanceRecord`` (``performance_record_id`` ->
+        ``records.json``) via
+        :func:`resolve_bounds_from_performance_record`, the in-process
+        counterpart of the ``backfill_paper_sl_tp`` operator tool. When the
+        bounds resolve we rehydrate normally; when they cannot (no perf link
+        or unset bounds on the record) we keep the skip-and-warn so the trade
+        stays out of ``_open_positions`` — but the monitor's age-keyed
+        orphan backstop (DEBT-071, ``ORPHAN_MAX_AGE``) will force-close it
+        deterministically rather than orphaning it forever.
 
         DEBT-059: when a persisted balance snapshot exists, this method
         only restores the in-memory ``OpenPosition`` stash because
@@ -421,15 +429,42 @@ class PaperTrader:
         configured initial balance, so rehydration reconciles margin and
         recorded entry fees once and then writes the first snapshot.
         """
+        performance_root = self._trade_tracker.data_dir.parent / "performance"
         rehydrated: list[OpenPosition] = []
         for trade in self._trade_tracker.get_open_trades(mode="paper"):
-            if trade.stop_loss is None and trade.take_profit is None:
-                logger.warning(
-                    "Open paper trade %s has no persisted SL/TP bounds; "
-                    "operator reconciliation required before monitoring",
-                    trade.id,
+            stop_loss = trade.stop_loss
+            take_profit = trade.take_profit
+            if stop_loss is None and take_profit is None:
+                # DEBT-071: attempt an inline backfill from the linked
+                # PerformanceRecord before giving up. If it resolves the
+                # trade becomes monitorable; if not, the monitor's
+                # age-backstop force-closes it deterministically.
+                recovered = (
+                    resolve_bounds_from_performance_record(
+                        performance_root,
+                        self._trade_tracker.sub_account_id,
+                        trade.performance_record_id,
+                    )
+                    if trade.performance_record_id is not None
+                    else None
                 )
-                continue
+                if recovered is None:
+                    logger.warning(
+                        "Open paper trade %s has no persisted SL/TP bounds and "
+                        "none could be recovered from its performance record; "
+                        "operator reconciliation required before monitoring",
+                        trade.id,
+                    )
+                    continue
+                stop_loss, take_profit = recovered
+                logger.info(
+                    "Backfilled SL/TP for open paper trade %s from "
+                    "performance record %s: SL=%s TP=%s",
+                    trade.id,
+                    trade.performance_record_id,
+                    stop_loss,
+                    take_profit,
+                )
 
             position = Position(
                 symbol=trade.symbol,
@@ -437,8 +472,8 @@ class PaperTrader:
                 entry_price=trade.entry_price,
                 quantity=trade.entry_quantity,
                 leverage=trade.leverage,
-                stop_loss=trade.stop_loss,
-                take_profit=trade.take_profit,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
             )
             margin = self._calculate_required_margin(position)
             quote_currency = self._get_quote_currency(trade.symbol)
