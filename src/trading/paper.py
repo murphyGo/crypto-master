@@ -72,6 +72,16 @@ DEFAULT_FEE_CONFIGS: dict[str, FeeConfig] = {
 # Fallback for trading without an exchange reference — no simulated fees.
 ZERO_FEE_CONFIG = FeeConfig()
 
+# DEBT-072: lock/unlock float-residual tolerance. Decimal entry
+# quantities carry sub-1E-24 tails, so ``price * qty / leverage`` margins
+# accumulate a residual that can make a close's ``unlock(margin)`` overshoot
+# the recorded ``locked`` by a provably tiny amount. EPS is comfortably above
+# those 1E-24 tails yet far below any real margin, so an overshoot within EPS
+# is clamped (with a WARNING) while a larger, structural overshoot still
+# raises so the drift surfaces instead of being masked. ``trading_math`` has
+# no project-wide epsilon constant, so it is defined here at the use site.
+EPS = Decimal("1E-9")
+
 
 class PaperTradingError(TradingError):
     """Base exception for paper trading errors."""
@@ -179,6 +189,26 @@ class PaperBalance(BaseModel):
             raise PaperTradingError(f"Unlock amount must be positive: {amount}")
 
         if amount > self.locked:
+            # DEBT-072: tolerate a provably tiny float residual. Decimal
+            # entry quantities carry sub-1E-24 tails, so a close's
+            # ``unlock(margin)`` can overshoot the recorded ``locked`` by
+            # an amount within EPS. Clamp to release exactly what is
+            # locked. A larger overshoot is structural drift and must
+            # surface — keep raising so it is never silently masked.
+            overshoot = amount - self.locked
+            if overshoot <= EPS:
+                logger.warning(
+                    "Tolerating tiny unlock residual on %s: requested %s, "
+                    "only %s locked (overshoot %s <= EPS); releasing locked balance",
+                    self.currency,
+                    amount,
+                    self.locked,
+                    overshoot,
+                )
+                self.free += self.locked
+                self.locked = Decimal("0")
+                return
+
             raise PaperTradingError(
                 f"Cannot unlock {amount} {self.currency}: only {self.locked} locked"
             )
@@ -439,8 +469,22 @@ class PaperTrader:
                 trade.entry_quantity,
             )
 
+        # Legacy no-snapshot path still re-locks margin and re-applies
+        # entry fees once (it then writes the first snapshot). The new
+        # free/locked reconcile below runs in BOTH cases — when this
+        # legacy reconcile has already locked the margin, the reconcile
+        # sees ``locked == expected`` and is a no-op, so the lock is
+        # never double-applied.
         if rehydrated and not self._loaded_balance_snapshot:
             self._reconcile_legacy_rehydrated_balances(rehydrated)
+
+        # DEBT-072: unconditional ledger-invariant repair. Always re-derive
+        # the free/locked SPLIT from the authoritative ``_open_positions``
+        # margins, whether or not a snapshot was loaded. This heals the
+        # fleet-wide drift where a persisted snapshot's ``locked`` was short
+        # some open margins (so a later ``close_position`` would try to
+        # ``unlock`` more than was locked and crash the cycle).
+        self._reconcile_locked_to_open_positions()
 
     def _get_balances_path(self) -> Path:
         """Return the per-sub-account paper balance snapshot path."""
@@ -538,6 +582,121 @@ class PaperTrader:
                     )
 
         if changed:
+            self._save_balances()
+
+    def _reconcile_locked_to_open_positions(self) -> None:
+        """Re-derive the free/locked split from rehydrated open margins.
+
+        DEBT-072: the ledger invariant is
+        ``balance.locked == Σ(open_pos.margin)`` over the rehydrated
+        open positions for that quote currency. A persisted snapshot's
+        ``locked`` can drift short of (or long of) the true open margin,
+        which makes a later ``close_position`` ``unlock`` more than was
+        locked and crash the cycle (or strands free capital). This runs
+        unconditionally on restart and re-derives ONLY the split:
+
+        * ``locked < expected`` → move the shortfall from ``free`` into
+          ``locked`` (set ``locked = expected``, ``free = total -
+          expected`` — ``total`` is preserved).
+        * ``locked > expected`` → release the excess back to ``free``.
+
+        DEBT-059 is preserved: the snapshot still wins for ``total``
+        equity / realised PnL / fees — ``total`` is never changed here,
+        only its free/locked split, and the seed balance is never
+        re-credited.
+
+        DEBT-027 is preserved: ``free`` is NOT clamped to zero. When
+        ``total - expected < 0`` (an under-water account whose open
+        margins exceed equity) ``free`` is allowed to go negative,
+        matching the relaxed ``ge=0`` on :attr:`PaperBalance.free`.
+
+        A WARNING and a ``RECONCILIATION_REPAIRED_PAPER_BOUNDS`` activity
+        event are emitted only when a change actually occurs.
+        """
+        expected_by_currency: dict[str, Decimal] = {}
+        margins_by_currency: dict[str, list[tuple[str, Decimal]]] = {}
+        for open_pos in self._open_positions.values():
+            currency = open_pos.quote_currency
+            expected_by_currency[currency] = (
+                expected_by_currency.get(currency, Decimal("0")) + open_pos.margin
+            )
+            margins_by_currency.setdefault(currency, []).append(
+                (open_pos.trade_id, open_pos.margin)
+            )
+
+        # Every quote currency that has either tracked margin or a
+        # standing ``locked`` balance must be checked so stale-high
+        # ``locked`` (no open positions at all) is also released.
+        currencies = set(expected_by_currency) | {
+            currency
+            for currency, balance in self._balances.items()
+            if balance.locked != Decimal("0")
+        }
+
+        for currency in currencies:
+            balance = self._balances.get(currency)
+            if balance is None:
+                logger.warning(
+                    "Cannot reconcile open-position margin for %s: "
+                    "no balance entry configured",
+                    currency,
+                )
+                continue
+
+            expected_locked = expected_by_currency.get(currency, Decimal("0"))
+            if balance.locked == expected_locked:
+                continue
+
+            old_locked = balance.locked
+            old_free = balance.free
+            total = balance.total
+
+            # Preserve ``total`` exactly; only the split moves. DEBT-027:
+            # do NOT clamp ``free`` — let it go negative when open margin
+            # exceeds equity. ``validate_assignment`` only enforces
+            # ``ge=0`` on ``locked`` (never negative here, ``expected``
+            # is a sum of positive margins) and ``free`` is relaxed.
+            balance.locked = expected_locked
+            balance.free = total - expected_locked
+
+            logger.warning(
+                "DEBT-072 reconcile: repaired %s paper locked split "
+                "%s -> %s (free %s -> %s, total %s preserved) from %d open "
+                "position(s)",
+                currency,
+                old_locked,
+                balance.locked,
+                old_free,
+                balance.free,
+                total,
+                len(margins_by_currency.get(currency, [])),
+            )
+
+            if self._activity_log is not None:
+                self._activity_log.append(
+                    ActivityEventType.RECONCILIATION_REPAIRED_PAPER_BOUNDS,
+                    (
+                        f"Repaired paper balance lock split for {currency}: "
+                        f"locked {old_locked} -> {balance.locked}"
+                    ),
+                    details={
+                        "sub_account": self._trade_tracker.sub_account_id,
+                        "currency": currency,
+                        "old_locked": str(old_locked),
+                        "new_locked": str(balance.locked),
+                        "old_free": str(old_free),
+                        "new_free": str(balance.free),
+                        "total": str(total),
+                        "expected_locked": str(expected_locked),
+                        "margins": [
+                            {"trade_id": trade_id, "margin": str(margin)}
+                            for trade_id, margin in margins_by_currency.get(
+                                currency, []
+                            )
+                        ],
+                    },
+                )
+
             self._save_balances()
 
     @staticmethod
@@ -1016,14 +1175,19 @@ class PaperTrader:
         :meth:`close_position` so the runtime watchdog doesn't crash
         on a transient race.
 
-        Best-effort balance unlock: ``OpenPosition.margin`` is the
-        only authoritative source for the originally-locked margin,
-        and by the time a trade is orphaned that record is gone. The
-        caller (the runtime watchdog) accepts that ``PaperBalance``
-        may drift; an operator can run a rebalance script later.
-        Fees on the persisted trade are left as their existing value
-        — fee inputs are not available here (no order fill to read
-        from), so under-counting is preferable to fabricating numbers.
+        Balance unlock: ``OpenPosition.margin`` is the only authoritative
+        source for the originally-locked margin. When the in-memory
+        position is still present (late-rehydration race) its margin is
+        unlocked via the now-tolerant :meth:`PaperBalance.unlock`
+        (DEBT-072). When it is absent — the genuine orphan case — the
+        record carrying the margin is gone, so ``locked`` is left as-is;
+        the next process restart's rehydrate reconcile
+        (:meth:`_reconcile_locked_to_open_positions`) re-derives the
+        free/locked split from the surviving open positions and heals
+        the drift automatically. Fees on the persisted trade are left
+        as their existing value — fee inputs are not available here (no
+        order fill to read from), so under-counting is preferable to
+        fabricating numbers.
         """
         existing = self._trade_tracker.get_trade(trade_id)
         if existing is None or existing.status != "open":
@@ -1039,7 +1203,11 @@ class PaperTrader:
         # ``_open_positions[trade_id]`` between the watchdog's
         # ``_missing_position_state`` check and now, drop it so the
         # in-memory map doesn't outlive the persisted "closed" row.
-        # Best-effort margin unlock if we still have it.
+        # With the position present its margin is authoritative, so
+        # unlock it (tolerant of tiny residuals per DEBT-072). With the
+        # position absent we deliberately leave ``locked`` untouched —
+        # there is no authoritative margin to unlock, and the next
+        # rehydrate reconcile will self-heal the free/locked split.
         open_pos = self._open_positions.pop(trade_id, None)
         balance_changed = False
         if open_pos is not None:
@@ -1050,8 +1218,8 @@ class PaperTrader:
                     balance_changed = True
                 except PaperTradingError as e:
                     logger.warning(
-                        "force_close_orphan: best-effort margin unlock "
-                        "failed for %s (%s); operator rebalance may be needed",
+                        "force_close_orphan: margin unlock failed for %s "
+                        "(%s); will self-heal on next rehydrate reconcile",
                         trade_id,
                         e,
                     )

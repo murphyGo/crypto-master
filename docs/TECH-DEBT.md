@@ -64,29 +64,6 @@ Rehydrate persisted open paper trades into in-memory position state on engine/su
 - `src/runtime/position_monitor.py:151-240`
 - CAH-15 Slice 2 PositionMonitor extraction (change-history 2026-05-31)
 
-### DEBT-072: Paper balance lock/unlock accounting drift crashes sub-account cycles
-
-| Field | Value |
-|-------|-------|
-| **Priority** | High |
-| **Created** | 2026-06-26 |
-| **Phase** | strategy-improvement analysis 2026-06-26 |
-| **Component** | runtime-reconciliation (primary) + trading-engine (paper) |
-
-**Description:**
-Verified against the same snapshot. **5,627** `cycle_errored` events of the form `Sub-account <name> cycle failed: Cannot unlock 1000.000… USDT: only 711.0496810523400424872483206 locked` (5,635 `cycle_errored` in June alone; latest `2026-06-25T11:20:42Z`, `weinstein_stage2_filter`). The raise is `PaperBalance.unlock` at `src/trading/paper.py:181-184` (`if amount > self.locked: raise PaperTradingError(...)`). The residual is a *real* accounting drift (e.g. 711.05 locked when 1000 is being released), not just float dust — though earlier samples showed sub-`1E-24` residuals too, implying a Decimal/float round-trip path also exists. Sub-account cycles are failing constantly, which both halts normal cycle progress and (per DEBT-071) blocks orphan force-closes mid-way, leaving the lock ledger increasingly inconsistent. **Verification verdict: verified (bug). Sample-size label: 30+ (high confidence).**
-
-**Impact:**
-The paper lab's core loop is substantially non-functional: thousands of failed cycles, an internally-inconsistent locked-balance ledger, and a feedback loop with DEBT-071 (failed closes leave locks stranded). This invalidates trust in current paper balances and portfolio snapshots until reconciled.
-
-**Suggested Resolution:**
-Make lock/unlock accounting exact: keep amounts in `Decimal` end-to-end (no float round-trips), unlock the *exact* originally-locked amount per position (track per-trade locked quantity rather than recomputing from notional), and clamp/repair to zero with a logged warning when a tiny residual is provable rather than raising. Add a regression test reproducing the open→partial-close→unlock drift. Coordinate with DEBT-071 so the orphan close path releases the correct lock.
-
-**Related:**
-- DEBT-071 (linked)
-- `src/trading/paper.py:169-187`
-- `1c6fcb6` / proposal-linked paper bounds repair tool (`dbd9114`)
-
 ### DEBT-073: Strategy edge metrics (profit factor / expectancy) omit realized fee drag
 
 | Field | Value |
@@ -867,24 +844,41 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | 2026-05-01 |
 | **Resolution** | Phase 26.5 ran `black src tests scripts` as a one-shot sweep + commit (lead chose this path over dropping black from `pyproject.toml`). 21 files reformatted (5 src + 1 scripts + 15 tests; the original "47 files" count cited in the audit had reduced through Phase 22-24 cycles which black-formatted some of the affected files inline as part of their touched-file gate). pytest 1361 → 1361 (zero delta — pure formatter, exactly as expected). ruff/mypy clean. `black --check src tests scripts` was **failing pre-sweep** (21 file delta) and is now **passing post-sweep** (115 files clean) — the gate is now enforceable. QA verdict: 🟢 ship — spot-checked 3 random files for logic-change smell, every diff is line-wrapping / paren-style collapse / whitespace; no conditional restructuring, no operator changes, no string-content edits, no parameter reordering. Two adjacent f-string concat warts at `src/trading/live.py:356` and `src/tools/purge_proposals.py` (purge message) noted as cosmetic-only follow-up; behaviour unchanged. Observational note for future planning: project has no `.github/workflows/` or `.pre-commit-config.yaml`, so the gate is *enforceable* (passes when run) but is still a *manual* gate; CI infrastructure is a separate phase if the lead wants automated regression blocking. |
 
+### DEBT-072: Paper balance lock/unlock accounting drift crashes sub-account cycles ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-26 |
+| **Component** | runtime-reconciliation (primary) + trading-engine (paper) |
+| **Evidence** | Fly snapshot `/private/tmp/crypto-master-strategy-snapshots/fly-data-20260625-203554` (app `crypto-master`, machine `6835752b711958`, release 48; **5,627** `cycle_errored`, latest `2026-06-25T11:20:42Z`, `weinstein_stage2_filter`). |
+| **Resolution** | Root cause (quant-trader-expert, review-only): the ledger invariant `balance.locked == Σ(open_pos.margin for open trades)` was violated fleet-wide because `_rehydrate_open_positions` only reconciled `locked` when **no** persisted snapshot existed (gate at old `src/trading/paper.py:442`). With a drifted snapshot present, a restart inherited the drift — `_open_positions` carried the margin but `locked` didn't (e.g. `weinstein_stage2_filter` `locked=711.05`, dropping two 2026-05-08 margins of 1000 each, drift = exactly 2000) → `unlock(1000) > locked=711.05` → `Cannot unlock … only … locked` → 5,627 `cycle_errored`. Earlier samples also showed sub-`1E-24` residuals, implying a Decimal/float round-trip path co-existed. **Fix (all `src/trading/paper.py`, senior-developer):** (1) `PaperBalance.unlock` clamps a sub-EPS overshoot (`EPS = Decimal("1E-9")`; releases all `locked`→0 with a WARNING) but still **RAISES** `PaperTradingError` on structural overshoot > EPS — float dust self-heals, real drift stays loud. (2) New `_reconcile_locked_to_open_positions()` called **unconditionally** after the rehydrate loop (replacing the line-442 no-snapshot-only gate): pins `locked = Σ open_pos.margin`, `free = total - expected` per quote currency, **preserving `total` (DEBT-059)** and **allowing `free < 0` (DEBT-027)`**; emits a `RECONCILIATION_REPAIRED_PAPER_BOUNDS` activity event + WARNING **only on change**; the legacy no-snapshot reconcile runs first and the new reconcile then no-ops (no double-lock); logs a parity WARNING when a currency has open positions but no balance entry. (3) `force_close_orphan` docstring/warning tightened — drift now self-heals on the next rehydrate reconcile (removed the stale "operator rebalance later" caveat). **Tests:** new `tests/test_paper_balance_reconcile.py` — **12 tests** covering all 7 prescribed scenarios incl. the DEBT-072 short-snapshot repro and structural-overshoot-still-raises. **Verification:** `uv run pytest tests/test_paper_balance_reconcile.py -q` 12 passed; full suite `uv run pytest -q` **2362 passed**; ruff + mypy clean; new file black-clean. QA verdict: 🟡 ship (qa-reviewer) — both parity constraints (DEBT-027 `free<0`, DEBT-059 `total` preserved) and the `locked == Σmargin` invariant verified; the only nit was a now-fixed black miss. **Note:** the reconcile is the safety net that makes DEBT-071's stranded-margin scenario self-heal on restart, but **DEBT-071 stays OPEN** — its root cause (persisted open positions not rehydrated → monitor cannot enforce SL/TP) is unchanged. Follow-up watch-item (not filed as debt): `RECONCILIATION_REPAIRED_PAPER_BOUNDS` is now dual-producer (proposal-linked SL/TP repair tool + this free/locked-split reconcile), distinguishable only by `details` keys — a dedicated `RECONCILIATION_REPAIRED_PAPER_LOCKED_SPLIT` event type would be cleaner for dashboard filtering; recorded in the session log, not promoted to a tracked item (pure observability nicety, zero-cost `details`-key workaround). Session log: `docs/sessions/2026-06-26-strategy-tuning-debt-072-paper-balance-reconcile.md`. |
+
+**Related:**
+- DEBT-071 (linked — still open; this reconcile is the safety net, not the fix for orphan-recurrence)
+- `src/trading/paper.py` (EPS const, tolerant `unlock`, `_reconcile_locked_to_open_positions`, `force_close_orphan`)
+- `1c6fcb6` / proposal-linked paper bounds repair tool (`dbd9114`)
+
 ---
 
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 7 |
 | Critical | 0 |
-| High | 0 |
-| Medium | 2 |
-| Low | 0 |
-| Resolved (All Time) | 64 |
+| High | 1 |
+| Medium | 5 |
+| Low | 1 |
+| Resolved (All Time) | 65 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-26 | Resolved | DEBT-072 `runtime-reconciliation` shipped — **paper balance lock/unlock accounting drift reconcile**. Root cause (quant-trader-expert, review-only): the invariant `balance.locked == Σ(open_pos.margin)` was violated fleet-wide because `_rehydrate_open_positions` only reconciled `locked` when **no** persisted snapshot existed (old `src/trading/paper.py:442` gate); a drifted snapshot was inherited across restart (`weinstein_stage2_filter` `locked=711.05`, dropping two 1000 margins, drift=2000) → `Cannot unlock … only … locked` → **5,627** `cycle_errored`. Fix (all `src/trading/paper.py`, senior-developer): (1) `PaperBalance.unlock` clamps a sub-EPS overshoot (`EPS=Decimal("1E-9")`, releases `locked`→0 + WARNING) but still **RAISES** on structural overshoot > EPS; (2) new `_reconcile_locked_to_open_positions()` called **unconditionally** after rehydrate, pinning `locked = Σ open_pos.margin` and `free = total - expected` per quote currency, **preserving `total` (DEBT-059)** and **allowing `free<0` (DEBT-027)**, emitting `RECONCILIATION_REPAIRED_PAPER_BOUNDS` + WARNING only on change (legacy no-snapshot reconcile runs first, new reconcile no-ops — no double-lock; parity WARNING when a currency has open positions but no balance entry); (3) `force_close_orphan` docstring/warning tightened (drift self-heals on next reconcile). Tests: new `tests/test_paper_balance_reconcile.py` — **12 tests** (all 7 prescribed scenarios incl. the short-snapshot repro + structural-overshoot-still-raises). Process: quant-trader-expert (root-cause + design, review-only) → senior-developer → qa-reviewer 🟡 ship (parity + `locked==Σmargin` invariant verified; black nit since fixed). `uv run pytest tests/test_paper_balance_reconcile.py -q` 12 passed; full suite `uv run pytest -q` **2362 passed**; ruff + mypy clean; new file black-clean. **DEBT-071 stays OPEN** (linked) — this reconcile is the safety net that makes its stranded-margin scenario self-heal on restart, but the orphan-recurrence root cause (open positions not rehydrated → monitor can't enforce SL/TP) is unchanged. Watch-item (not filed): `RECONCILIATION_REPAIRED_PAPER_BOUNDS` is now dual-producer — a dedicated `RECONCILIATION_REPAIRED_PAPER_LOCKED_SPLIT` event type would be cleaner for dashboard filtering (recorded in the session log, not promoted). Session log `docs/sessions/2026-06-26-strategy-tuning-debt-072-paper-balance-reconcile.md`. |
 | 2026-06-10 | Updated | DEBT-069(c) `strategy-tuning` Slice 2 shipped — **recommendation-history observation store**. Added `src/strategy/tuning_observations.py` with `StrategyTuningObservationStore`, atomic per-`(sub_account_id, strategy)` JSON snapshots, URL-encoded path components, bounded recent-history retention, and persisted evidence snapshots. Dashboard integration is explicit/no-write by default: `record_strategy_tuning_observations(...)` is the side-effecting hook; `build_strategy_tuning_rows(..., observations=...)` surfaces `Observed` + `Observations` metadata without changing live recommendation calculation. Exported the observation models from `src.strategy`. Tests: `uv run pytest tests/test_strategy_tuning_observations.py tests/test_dashboard_strategies.py -q` = 36 passed; `uv run pytest tests/test_strategy_tuning_recommender.py -q` = 38 passed. Session log `docs/sessions/2026-06-10-strategy-tuning-slice-2-observation-store-c.md`. **After (c), the DEBT-069 umbrella's only remaining-open sub-task is (g) post-evidence threshold calibration.** |
 | 2026-06-04 | Updated | DEBT-069(f) `strategy-tuning` Slice 2 shipped — **pause-reason split (evidence vs gate-config)**. Quant ruling chose **Option b** (single `PAUSE` + observability-only `details.pause_reason`), NOT the enum split — `StrategyAction` is the durable operator-intent vocabulary; evidence-vs-config is a gate-time corroboration observation for the event details. **The gate does NOT compute corroboration** (the engine holds no `PerformanceTracker`/`FailClosedMetricsTracker` on the gate path; computing it there would add a tracker-read + recommender call to the hot reject path). `_strategy_action_gate` PAUSE branch stamps `details.pause_reason = "gate_config"` (`PAUSE_REASON_GATE_CONFIG`, new `src/strategy/tuning.py` constant, `__all__`-exported); the dashboard upgrades it by joining the APPLIED pause against the **raw live** `recommend_action` (pre-seed-fallback): live==PAUSE → `evidence_corroborated`, else (incl. thin-evidence `None`) → `gate_config_only`. Dashboard: `PAUSE_TRIAGE_*` constants + pure `_pause_triage_label`, `live_recommendation` captured before the seed fallback, new `StrategyTuningRow.pause_triage` + `Pause Triage` dataframe column. Invariants: pause still hard-rejects regardless of `pause_reason` (never branches the block); funnel terminal + `gate_reason` unchanged; no new tracker/exchange call on the gate path; paper/live identical; `enabled=False` no-op intact. Process: quant design ruling (pre-code) → senior-developer → quant-trader-expert 🟢 ship (6 invariants verified; `_pause_band_perf` non-vacuous). +5 tests; full suite **2334 passed** (+4 from the 2330 (i) baseline), 0 failed; black + ruff + mypy clean (103 files). Incidental: black brought the already-dirty (pre-active-gate) `strategies.py` into compliance. Files: `src/strategy/tuning.py`, `src/runtime/engine.py`, `src/dashboard/pages/strategies.py`, `tests/test_runtime_engine.py`, `tests/test_dashboard_strategies.py`. Session log `docs/sessions/2026-06-04-strategy-tuning-slice-2-pause-reason-split-f.md`. **After (f)+(i), the DEBT-069 umbrella's only remaining-open sub-tasks are (c) observation store + (g) post-evidence threshold calibration.** |
 | 2026-06-04 | Updated | DEBT-069(i) `strategy-tuning` Slice 2 shipped — **exhaustive enum-iterating funnel coverage tests** (test-only; the QA follow-up). Both end-to-end funnel tests in `tests/test_proposal_funnel.py` rewritten to iterate `ProposalFinalState`: the gate-bucket test builds a record in EVERY `GATE_REJECTED_*` bucket (all 20, incl. `GATE_REJECTED_STRATEGY_ACTION_PAUSE`) asserting the derived total + no leak; the post-score test derives `{all GATE_REJECTED_*} ∪ _NON_GATE_POST_SCORE_STATES` (incl. the previously-missing `SHADOW_RECORDED`) + a partition-completeness guard so a future terminal that is neither post-score nor explicitly non-counting fails loudly. Strictly stronger than the specced subset-append; production totals were already enum-derived/correct since CAH-12. Net 0 test count (2 rewritten in place); full suite 2330 passed, ruff clean. Session log `docs/sessions/2026-06-04-strategy-tuning-slice-2-funnel-test-coverage-i.md`. |

@@ -12,7 +12,7 @@ when debt is added or resolved, then refresh this map.
 |------|-------------|--------------|-------|
 | `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
 | `strategy-tuning` | DEBT-069, DEBT-075 | Medium | Slice 2 umbrella; remaining (g) threshold calibration. DEBT-075 adds entry-time regime tagging (shared with strategy-framework) to unblock the promotion robustness gate. |
-| `runtime-reconciliation` | DEBT-071, DEBT-072 | High | From 2026-06-26 Fly strategy-improvement analysis: paper open-position rehydration / SL-TP enforcement (071) and paper lock/unlock accounting drift (072) — linked; both gate strategy-logic work per §5. |
+| `runtime-reconciliation` | DEBT-071 | High | From 2026-06-26 Fly strategy-improvement analysis: paper open-position rehydration / SL-TP enforcement (071) gates strategy-logic work per §5. The linked DEBT-072 (paper lock/unlock accounting drift) was resolved 2026-06-26; its reconcile is the safety net that lets DEBT-071's stranded-margin scenario self-heal on restart, but DEBT-071's orphan-recurrence root cause is still open. |
 | `strategy-framework` | DEBT-073, DEBT-076 | Medium/Low | Fee-inclusive edge metrics (073) and regime-gate score/threshold observability (076). |
 | `proposal-funnel-audit` | DEBT-074 | Medium | Investigate why `vcp_breakout` emits ~6,400 proposals but opens zero trades. |
 
@@ -22,8 +22,7 @@ when debt is added or resolved, then refresh this map.
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-068 | Medium | `cross-account-risk-policy` | `proposal-runtime`, `runtime-safety-score`, `dashboard-operator-ui` | Implement opt-in global symbol/side caps with default-disabled config, paper advisory pass-through, live hard-block, and targeted runtime/config tests. |
 | DEBT-069 | Medium | `strategy-tuning` | `proposal-runtime`, `dashboard-operator-ui`, `strategy-framework` | Implement Slice 2 dashboard/recommendation-history pass, then pause-reason and threshold-calibration follow-ups. |
-| DEBT-071 | High | `runtime-reconciliation` | `proposal-runtime` | Rehydrate persisted open paper positions into in-memory state so the monitor enforces SL/TP; stop weeks-long orphan opens force-closed at stale prices. Linked to DEBT-072. |
-| DEBT-072 | High | `runtime-reconciliation` | `trading-engine` | Fix paper lock/unlock accounting drift (`Cannot unlock … only … locked`, 5.6k cycle failures); exact-Decimal per-trade locked tracking. Linked to DEBT-071. |
+| DEBT-071 | High | `runtime-reconciliation` | `proposal-runtime` | Rehydrate persisted open paper positions into in-memory state so the monitor enforces SL/TP; stop weeks-long orphan opens force-closed at stale prices. (DEBT-072 resolved 2026-06-26 — its restart reconcile lets the stranded-margin scenario self-heal, but does not rehydrate positions.) |
 | DEBT-073 | Medium | `strategy-framework` | `strategy-tuning` | Add a fee-netted percent and route PF/expectancy/closed_pnl_pct through it; fix stale `pnl_percent` docstring formula. |
 | DEBT-074 | Medium | `proposal-funnel-audit` | `strategy-framework` | Trace one `vcp_breakout` proposal through the funnel; identify the terminating gate / persistence gap; file the concrete follow-up. |
 | DEBT-075 | Medium | `strategy-framework` | `strategy-tuning` | Stamp each trade/proposal with a pre-entry SMA regime label so per-regime expectancy and the promotion robustness gate work. |
