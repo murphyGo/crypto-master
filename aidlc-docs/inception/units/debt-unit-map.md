@@ -12,7 +12,7 @@ when debt is added or resolved, then refresh this map.
 |------|-------------|--------------|-------|
 | `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
 | `strategy-tuning` | DEBT-069, DEBT-075 | Medium | Slice 2 umbrella; remaining (g) threshold calibration. DEBT-075 adds entry-time regime tagging (shared with strategy-framework) to unblock the promotion robustness gate. |
-| `runtime-reconciliation` | DEBT-077, DEBT-078 | Low/Medium | DEBT-071 (paper open-position rehydration / SL-TP enforcement) and its linked DEBT-072 (paper lock/unlock accounting drift) both resolved 2026-06-26 — the orphan age-backstop + SL/TP rehydration backfill closed the orphan-recurrence root cause; both balance and position-state now self-heal on restart. Residual follow-ups from that cycle: DEBT-077 (direct unit tests for the new `resolve_bounds_from_performance_record` fail-safe branches) and DEBT-078 (residual backfilled-then-stale SL/TP mislabel edge + consolidation of three duplicate bounds-resolution walks). |
+| `runtime-reconciliation` | DEBT-078 | Medium | DEBT-071/072 resolved 2026-06-26 (orphan age-backstop + SL/TP rehydration backfill + balance reconcile — both balance and position-state self-heal on restart). DEBT-077 (resolver fail-safe unit tests) resolved 2026-06-26. Residual: DEBT-078 (backfilled-then-stale SL/TP mislabel edge + consolidation of three duplicate bounds-resolution walks). |
 | `strategy-framework` | DEBT-076 | Low | Regime-gate score/threshold observability (076). DEBT-073 (fee-inclusive edge metrics) resolved 2026-06-26 — `net_*` aggregates on `TechniquePerformance` now feed the recommender's PF/closed-PnL. |
 | `proposal-funnel-audit` | DEBT-074 | Medium | Investigate why `vcp_breakout` emits ~6,400 proposals but opens zero trades. |
 
@@ -25,7 +25,6 @@ when debt is added or resolved, then refresh this map.
 | DEBT-074 | Medium | `proposal-funnel-audit` | `strategy-framework` | Trace one `vcp_breakout` proposal through the funnel; identify the terminating gate / persistence gap; file the concrete follow-up. |
 | DEBT-075 | Medium | `strategy-framework` | `strategy-tuning` | Stamp each trade/proposal with a pre-entry SMA regime label so per-regime expectancy and the promotion robustness gate work. |
 | DEBT-076 | Low | `strategy-framework` | — | Set `score=avg, threshold=0` in the average-expectancy branch of the regime gate; add a test. |
-| DEBT-077 | Low | `runtime-reconciliation` | — | Add direct unit tests for `resolve_bounds_from_performance_record` fail-safe branches (missing file / null-bounds-on-found-record / corrupt JSON → `None`); only the happy path is covered end-to-end today. Test-only. |
 | DEBT-078 | Medium | `runtime-reconciliation` | `strategy-framework` | Route a backfilled-then-stale SL/TP breach to `orphan_force_close` instead of stamping a phantom `stop_loss`/`take_profit` at a stale price; consolidate the three duplicate bounds-resolution walks (new resolver + operator tools' `_PerfIndex` / `_proposal_bounds_index`) behind one implementation. |
 
 ## Promotion Candidates

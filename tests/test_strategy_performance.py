@@ -20,6 +20,7 @@ from src.strategy.performance import (
     TradeHistory,
     TradeHistoryTracker,
     TradeOutcome,
+    resolve_bounds_from_performance_record,
 )
 
 
@@ -67,6 +68,153 @@ def sample_performance_record() -> PerformanceRecord:
 def tracker(tmp_path: Path) -> PerformanceTracker:
     """Create a PerformanceTracker with temporary directory."""
     return PerformanceTracker(data_dir=tmp_path)
+
+
+class TestResolveBoundsFromPerformanceRecord:
+    """DEBT-077: direct fail-safe coverage for the rehydration bounds resolver.
+
+    The happy path is exercised end-to-end by the paper/live rehydrate-backfill
+    tests; these pin each defensive branch returns ``None`` (never raises) so
+    the caller can safely fall back to the monitor's age-backstop.
+    """
+
+    @staticmethod
+    def _write_records(
+        performance_root: Path,
+        sub_account_id: str,
+        technique: str,
+        rows: object,
+    ) -> None:
+        """Write a raw ``records.json`` under <root>/<sub>/<technique>/."""
+        records_dir = performance_root / sub_account_id / technique
+        records_dir.mkdir(parents=True, exist_ok=True)
+        (records_dir / "records.json").write_text(
+            json.dumps(rows) if not isinstance(rows, str) else rows,
+            encoding="utf-8",
+        )
+
+    def test_happy_path_resolves_both_bounds(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": "100.5", "take_profit": "120"}],
+        )
+        result = resolve_bounds_from_performance_record(root, "lab", "rec-1")
+        assert result == (Decimal("100.5"), Decimal("120"))
+
+    def test_missing_sub_account_dir_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        root.mkdir()
+        # No "lab" sub-account directory at all.
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_missing_performance_root_returns_none(self, tmp_path: Path) -> None:
+        # performance_root itself does not exist.
+        root = tmp_path / "performance"
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_record_id_not_found_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "other", "stop_loss": "1", "take_profit": "2"}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_null_stop_loss_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": None, "take_profit": "2"}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_null_take_profit_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": "1", "take_profit": None}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_corrupt_json_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(root, "lab", "rsi", "{not valid json")
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_rows_not_a_list_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        # A dict instead of the expected list of rows.
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            {"id": "rec-1", "stop_loss": "1", "take_profit": "2"},
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_malformed_decimal_value_returns_none(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": "not-a-number", "take_profit": "2"}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") is None
+
+    def test_non_dict_row_is_skipped(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            ["a string row", {"id": "rec-1", "stop_loss": "1", "take_profit": "2"}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") == (
+            Decimal("1"),
+            Decimal("2"),
+        )
+
+    def test_stray_file_in_sub_root_is_skipped(self, tmp_path: Path) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": "1", "take_profit": "2"}],
+        )
+        # A non-directory entry directly under the sub-account root.
+        (root / "lab" / "stray.txt").write_text("noise", encoding="utf-8")
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") == (
+            Decimal("1"),
+            Decimal("2"),
+        )
+
+    def test_technique_dir_without_records_json_is_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        root = tmp_path / "performance"
+        # First technique dir has no records.json; second holds the record.
+        (root / "lab" / "empty").mkdir(parents=True)
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [{"id": "rec-1", "stop_loss": "1", "take_profit": "2"}],
+        )
+        assert resolve_bounds_from_performance_record(root, "lab", "rec-1") == (
+            Decimal("1"),
+            Decimal("2"),
+        )
 
 
 class TestTradeOutcome:
