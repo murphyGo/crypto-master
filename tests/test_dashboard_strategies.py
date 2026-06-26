@@ -468,7 +468,11 @@ def _make_tracker_returning(
 
 
 def _keep_band_perf(name: str) -> TechniquePerformance:
-    """Healthy band: PF 1.5, win 50%, 30 closed ⇒ recommends keep."""
+    """Healthy band: PF 1.5, win 50%, 30 closed ⇒ recommends keep.
+
+    DEBT-073: edge metrics read the net aggregates. This is a zero-fee
+    scenario, so net mirrors gross.
+    """
     return TechniquePerformance(
         technique_name=name,
         technique_version="1.0.0",
@@ -479,6 +483,9 @@ def _keep_band_perf(name: str) -> TechniquePerformance:
         total_pnl_percent=10.0,
         gross_win_pct=30.0,
         gross_loss_pct=20.0,
+        net_total_pnl_percent=10.0,
+        net_win_pct=30.0,
+        net_loss_pct=20.0,
         max_drawdown_pct=3.0,
     )
 
@@ -508,6 +515,10 @@ def _pause_band_perf(name: str) -> TechniquePerformance:
         total_pnl_percent=-30.0,
         gross_win_pct=5.0,
         gross_loss_pct=35.0,
+        # DEBT-073: zero-fee scenario, net mirrors gross.
+        net_total_pnl_percent=-30.0,
+        net_win_pct=5.0,
+        net_loss_pct=35.0,
         max_drawdown_pct=25.0,
     )
 

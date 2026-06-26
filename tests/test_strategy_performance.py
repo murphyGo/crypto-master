@@ -417,6 +417,116 @@ class TestTechniquePerformance:
         assert perf.max_drawdown_pct == 6.0
 
 
+class TestNetFeeInclusiveMetrics:
+    """DEBT-073: fee-inclusive net aggregates on TechniquePerformance."""
+
+    @staticmethod
+    def _record(
+        outcome: TradeOutcome,
+        pnl_percent: float,
+        *,
+        entry_price: Decimal = Decimal("100"),
+        quantity: Decimal | None = Decimal("10"),
+        fees: Decimal = Decimal("0"),
+        exit_price: Decimal = Decimal("110"),
+    ) -> PerformanceRecord:
+        return PerformanceRecord(
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            signal="long",
+            entry_price=entry_price,
+            stop_loss=Decimal("90"),
+            take_profit=Decimal("120"),
+            confidence=0.8,
+            outcome=outcome,
+            exit_price=exit_price,
+            pnl_percent=pnl_percent,
+            quantity=quantity,
+            fees=fees,
+        )
+
+    def test_net_subtracts_fee_drag_from_gross(self) -> None:
+        """net = gross - fees/notional*100. notional=100*10=1000, fees=5 -> 0.5%."""
+        records = [
+            self._record(TradeOutcome.WIN, 4.0, fees=Decimal("5")),  # net 3.5
+            self._record(TradeOutcome.LOSS, -2.0, fees=Decimal("5")),  # net -2.5
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        # Gross aggregates are unchanged (display path).
+        assert perf.gross_win_pct == 4.0
+        assert perf.gross_loss_pct == 2.0
+        assert perf.total_pnl_percent == 2.0
+        # Net aggregates subtract the 0.5%/trade fee drag.
+        assert abs(perf.net_win_pct - 3.5) < 1e-9
+        assert abs(perf.net_loss_pct - 2.5) < 1e-9
+        assert abs(perf.net_total_pnl_percent - 1.0) < 1e-9
+        assert abs(perf.net_avg_pnl_percent - 0.5) < 1e-9
+
+    def test_fee_only_flat_price_trade_reports_negative_net(self) -> None:
+        """A flat-price trade (gross 0) with fees reports a negative net percent."""
+        records = [
+            self._record(
+                TradeOutcome.BREAKEVEN,
+                0.0,
+                fees=Decimal("3"),  # 3/1000*100 = 0.3%
+                exit_price=Decimal("100"),
+            )
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        assert perf.total_pnl_percent == 0.0  # gross unchanged
+        assert abs(perf.net_total_pnl_percent - (-0.3)) < 1e-9
+        assert abs(perf.net_loss_pct - 0.3) < 1e-9
+        assert perf.net_win_pct == 0.0
+
+    def test_gross_winner_becomes_net_loser_flips_pf_bucket(self) -> None:
+        """A small gross winner eaten by fees lands in the net loss bucket."""
+        records = [
+            # gross +0.2%, fee 0.5% -> net -0.3% (gross winner, net loser)
+            self._record(TradeOutcome.WIN, 0.2, fees=Decimal("5")),
+            # gross +4.0%, fee 0.5% -> net +3.5%
+            self._record(TradeOutcome.WIN, 4.0, fees=Decimal("5")),
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        # Gross: both winners, zero gross loss.
+        assert perf.gross_win_pct == 4.2
+        assert perf.gross_loss_pct == 0.0
+        # Net: the 0.2% trade flips to the loss bucket.
+        assert abs(perf.net_win_pct - 3.5) < 1e-9
+        assert abs(perf.net_loss_pct - 0.3) < 1e-9
+
+    def test_missing_quantity_falls_back_to_gross(self) -> None:
+        """No quantity -> no notional -> net cannot be derived, falls back to gross."""
+        records = [
+            self._record(TradeOutcome.WIN, 4.0, quantity=None, fees=Decimal("5")),
+            self._record(TradeOutcome.LOSS, -2.0, quantity=None, fees=Decimal("5")),
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        assert perf.net_win_pct == perf.gross_win_pct == 4.0
+        assert perf.net_loss_pct == perf.gross_loss_pct == 2.0
+        assert perf.net_total_pnl_percent == perf.total_pnl_percent == 2.0
+
+    def test_zero_fees_net_equals_gross(self) -> None:
+        """With no fees, net aggregates equal gross aggregates."""
+        records = [
+            self._record(TradeOutcome.WIN, 4.0),
+            self._record(TradeOutcome.LOSS, -2.0),
+        ]
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+        assert perf.net_win_pct == perf.gross_win_pct == 4.0
+        assert perf.net_loss_pct == perf.gross_loss_pct == 2.0
+        assert perf.net_total_pnl_percent == perf.total_pnl_percent == 2.0
+
+    def test_old_summary_without_net_fields_defaults_to_zero(self) -> None:
+        """Pre-DEBT-073 summaries lack net_* fields; they load as 0.0."""
+        perf = TechniquePerformance(technique_name="t", technique_version="1.0.0")
+        assert perf.net_total_pnl_percent == 0.0
+        assert perf.net_avg_pnl_percent == 0.0
+        assert perf.net_win_pct == 0.0
+        assert perf.net_loss_pct == 0.0
+
+
 class TestPerformanceTracker:
     """Tests for PerformanceTracker class."""
 

@@ -78,9 +78,11 @@ def evidence_from_performance(
 
     Args:
         perf: Per-technique aggregate snapshot. ``wins / losses /
-            breakevens`` count toward the window; ``total_pnl_percent``
-            and the gross win/loss aggregates map to the
-            recommender's inputs.
+            breakevens`` count toward the window. DEBT-073: profit
+            factor and closed-PnL are taken from the fee-inclusive
+            ``net_*`` aggregates (not the gross price-move ones the
+            dashboard displays) so a marginal recommendation is not
+            granted on fees-omitted optimism.
         fail_closed_rate: ``proposals_fail_closed / proposals_emitted``
             from :class:`~src.proposal.fail_closed_metrics.\
 StrategyFailClosedCounts`.
@@ -90,15 +92,19 @@ StrategyFailClosedCounts`.
     closed = perf.wins + perf.losses + perf.breakevens
     if max_drawdown_pct is None:
         max_drawdown_pct = perf.max_drawdown_pct
+    # DEBT-073: edge metrics are fee-inclusive. ``net_loss_pct`` can be
+    # non-zero even when ``gross_loss_pct`` is zero (an all-gross-winners
+    # window where fees push a trade net-negative), so PF is defined on the
+    # net split.
     profit_factor = None
-    if perf.gross_loss_pct > 0.0:
-        profit_factor = perf.gross_win_pct / perf.gross_loss_pct
+    if perf.net_loss_pct > 0.0:
+        profit_factor = perf.net_win_pct / perf.net_loss_pct
 
     return RecommenderEvidence(
         closed_trades=closed,
         win_rate=perf.win_rate,
         profit_factor=profit_factor,
-        closed_pnl_pct=perf.total_pnl_percent,
+        closed_pnl_pct=perf.net_total_pnl_percent,
         max_drawdown_pct=max_drawdown_pct,
         fail_closed_rate=fail_closed_rate,
     )

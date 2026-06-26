@@ -356,7 +356,11 @@ def test_promote_overrides_keep_when_promote_thresholds_clear() -> None:
 
 
 def test_evidence_from_performance_reconstructs_inputs() -> None:
-    """Constructor wraps true PF/drawdown metrics + a fail-closed rate."""
+    """Constructor wraps fee-inclusive PF/closed-PnL + a fail-closed rate.
+
+    DEBT-073: edge metrics read the ``net_*`` aggregates, not the gross
+    price-move ones the dashboard displays.
+    """
     perf = TechniquePerformance(
         technique_name="rsi_universal",
         technique_version="1.0",
@@ -372,22 +376,51 @@ def test_evidence_from_performance_reconstructs_inputs() -> None:
         worst_trade_pnl=-4.0,
         gross_win_pct=12.0,
         gross_loss_pct=8.0,
+        net_total_pnl_percent=11.0,
+        net_avg_pnl_percent=0.917,
+        net_win_pct=11.5,
+        net_loss_pct=8.5,
         max_drawdown_pct=6.5,
     )
     evidence = evidence_from_performance(perf, fail_closed_rate=0.2)
     assert evidence.closed_trades == 12
     assert evidence.win_rate == pytest.approx(0.5)
-    assert evidence.closed_pnl_pct == pytest.approx(12.0)
     assert evidence.max_drawdown_pct == pytest.approx(6.5)
     assert evidence.fail_closed_rate == pytest.approx(0.2)
-    # True profit factor is gross win / gross loss. It intentionally
-    # ignores the old best/worst-trade approximation.
+    # DEBT-073: closed_pnl_pct and profit_factor come from the net (fee-
+    # inclusive) aggregates, NOT the gross display ones (12.0 / 1.5).
+    assert evidence.closed_pnl_pct == pytest.approx(11.0)
     assert evidence.profit_factor is not None
-    assert evidence.profit_factor == pytest.approx(1.5)
+    assert evidence.profit_factor == pytest.approx(11.5 / 8.5)
+
+
+def test_evidence_from_performance_uses_net_not_gross() -> None:
+    """DEBT-073: when net and gross diverge, evidence follows net."""
+    perf = TechniquePerformance(
+        technique_name="x",
+        technique_version="1.0",
+        total_trades=10,
+        wins=10,
+        losses=0,
+        breakevens=0,
+        pending=0,
+        win_rate=1.0,
+        # Gross says all winners, no losses => PF undefined, +20% closed.
+        gross_win_pct=20.0,
+        gross_loss_pct=0.0,
+        total_pnl_percent=20.0,
+        # Net says fees pushed some trades negative => PF defined, less PnL.
+        net_win_pct=18.0,
+        net_loss_pct=1.0,
+        net_total_pnl_percent=17.0,
+    )
+    evidence = evidence_from_performance(perf, fail_closed_rate=0.0)
+    assert evidence.profit_factor == pytest.approx(18.0)
+    assert evidence.closed_pnl_pct == pytest.approx(17.0)
 
 
 def test_evidence_from_performance_returns_none_profit_factor_without_losses() -> None:
-    """No losses => profit factor undefined."""
+    """No NET losses => profit factor undefined."""
     perf = TechniquePerformance(
         technique_name="x",
         technique_version="1.0",
@@ -401,6 +434,8 @@ def test_evidence_from_performance_returns_none_profit_factor_without_losses() -
         worst_trade_pnl=0.0,
         gross_win_pct=15.0,
         gross_loss_pct=0.0,
+        net_win_pct=15.0,
+        net_loss_pct=0.0,
     )
     evidence = evidence_from_performance(perf, fail_closed_rate=0.0)
     assert evidence.profit_factor is None
@@ -429,9 +464,7 @@ def test_evidence_from_performance_returns_none_profit_factor_without_losses() -
         ("weinstein_stage2_filter", StrategyAction.RETUNE),
     ],
 )
-def test_seed_action_for_named_families(
-    name: str, expected: StrategyAction
-) -> None:
+def test_seed_action_for_named_families(name: str, expected: StrategyAction) -> None:
     """Every named family returns its quant-validated seed action."""
     assert seed_action_for(name) == expected
 

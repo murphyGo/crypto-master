@@ -239,6 +239,22 @@ class TechniquePerformance(BaseModel):
     gross_win_pct: float = 0.0
     gross_loss_pct: float = 0.0
     max_drawdown_pct: float = 0.0
+    # DEBT-073: fee-inclusive ("net") counterparts of the percent aggregates
+    # above. ``pnl_percent`` is intentionally a leverage-neutral *price-move*
+    # percent, gross of fees (DEBT-024 / Phase 20.1-20.2), so the gross fields
+    # above stay correct for display/charts. These ``net_*`` fields subtract
+    # realized fee drag (round-trip fees as a percent of notional) per closed
+    # real trade and are what edge/decision consumers (profit factor,
+    # expectancy, closed-PnL) should read so a marginal ``keep`` is not granted
+    # on fees-omitted optimism. Default ``0.0`` so pre-DEBT-073 on-disk
+    # summaries load unchanged; the gating path always recomputes via
+    # ``from_records`` so these are populated whenever the recommender reads
+    # them. A trade that is a gross winner but a net loser after fees correctly
+    # lands in ``net_loss_pct`` because the split is computed on the net value.
+    net_total_pnl_percent: float = 0.0
+    net_avg_pnl_percent: float = 0.0
+    net_win_pct: float = 0.0
+    net_loss_pct: float = 0.0
     last_updated: datetime = Field(default_factory=now_utc)
     # Q2 follow-up: number of ``synthetic=True`` records excluded from
     # the money-relevant aggregations above. Reported separately so
@@ -323,6 +339,19 @@ class TechniquePerformance(BaseModel):
         gross_loss_pct = abs(sum(pnl for pnl in pnl_values if pnl < 0.0))
         max_drawdown_pct = _max_drawdown_pct(pnl_values)
 
+        # DEBT-073: fee-inclusive aggregates over the same closed real records.
+        # Split winners/losers on the *net* value so a gross winner that turns
+        # into a net loser after fees lands in the loss bucket for net PF.
+        net_values = [
+            net
+            for net in (_net_pnl_pct_for_record(r) for r in closed_real_records)
+            if net is not None
+        ]
+        net_total_pnl = sum(net_values) if net_values else 0.0
+        net_avg_pnl = net_total_pnl / len(net_values) if net_values else 0.0
+        net_win_pct = sum(net for net in net_values if net > 0.0)
+        net_loss_pct = abs(sum(net for net in net_values if net < 0.0))
+
         return cls(
             sub_account_id=records[-1].sub_account_id,
             technique_name=technique_name,
@@ -340,6 +369,10 @@ class TechniquePerformance(BaseModel):
             gross_win_pct=gross_win_pct,
             gross_loss_pct=gross_loss_pct,
             max_drawdown_pct=max_drawdown_pct,
+            net_total_pnl_percent=net_total_pnl,
+            net_avg_pnl_percent=net_avg_pnl,
+            net_win_pct=net_win_pct,
+            net_loss_pct=net_loss_pct,
             last_updated=now_utc(),
             synthetic_count=synthetic_count,
         )
@@ -354,6 +387,34 @@ def _max_drawdown_pct(pnl_values: list[float]) -> float:
         peak = max(peak, cumulative)
         max_drawdown = max(max_drawdown, peak - cumulative)
     return max_drawdown
+
+
+def _net_pnl_pct_for_record(record: PerformanceRecord) -> float | None:
+    """Fee-netted price-move percent for a closed record (DEBT-073).
+
+    ``record.pnl_percent`` is the gross, leverage-neutral price-move percent
+    (DEBT-024). This subtracts realized round-trip fee drag expressed in the
+    same unit — fees as a percent of notional (``entry_price * quantity``).
+
+    Returns ``None`` when the record has no gross percent. Falls back to the
+    gross percent when the notional cannot be derived (``quantity`` missing or
+    ``notional <= 0``) — fees cannot be expressed as a percent without a
+    notional (backtest rows often omit ``quantity``), and over-counting is
+    worse than under-counting an unknown fee.
+    """
+    if record.pnl_percent is None:
+        return None
+
+    gross = record.pnl_percent
+    if record.quantity is None or record.fees == 0:
+        return gross
+
+    notional = record.entry_price * record.quantity
+    if notional <= 0:
+        return gross
+
+    fee_pct = float(record.fees / notional) * 100
+    return gross - fee_pct
 
 
 class PerformanceTracker:
@@ -859,5 +920,3 @@ __all__ = [
     "TradeHistory",
     "TradeHistoryTracker",
 ]
-
-

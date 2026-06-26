@@ -13,7 +13,7 @@ when debt is added or resolved, then refresh this map.
 | `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
 | `strategy-tuning` | DEBT-069, DEBT-075 | Medium | Slice 2 umbrella; remaining (g) threshold calibration. DEBT-075 adds entry-time regime tagging (shared with strategy-framework) to unblock the promotion robustness gate. |
 | `runtime-reconciliation` | DEBT-077, DEBT-078 | Low/Medium | DEBT-071 (paper open-position rehydration / SL-TP enforcement) and its linked DEBT-072 (paper lock/unlock accounting drift) both resolved 2026-06-26 — the orphan age-backstop + SL/TP rehydration backfill closed the orphan-recurrence root cause; both balance and position-state now self-heal on restart. Residual follow-ups from that cycle: DEBT-077 (direct unit tests for the new `resolve_bounds_from_performance_record` fail-safe branches) and DEBT-078 (residual backfilled-then-stale SL/TP mislabel edge + consolidation of three duplicate bounds-resolution walks). |
-| `strategy-framework` | DEBT-073, DEBT-076 | Medium/Low | Fee-inclusive edge metrics (073) and regime-gate score/threshold observability (076). |
+| `strategy-framework` | DEBT-076 | Low | Regime-gate score/threshold observability (076). DEBT-073 (fee-inclusive edge metrics) resolved 2026-06-26 — `net_*` aggregates on `TechniquePerformance` now feed the recommender's PF/closed-PnL. |
 | `proposal-funnel-audit` | DEBT-074 | Medium | Investigate why `vcp_breakout` emits ~6,400 proposals but opens zero trades. |
 
 ## Debt Details
@@ -22,7 +22,6 @@ when debt is added or resolved, then refresh this map.
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-068 | Medium | `cross-account-risk-policy` | `proposal-runtime`, `runtime-safety-score`, `dashboard-operator-ui` | Implement opt-in global symbol/side caps with default-disabled config, paper advisory pass-through, live hard-block, and targeted runtime/config tests. |
 | DEBT-069 | Medium | `strategy-tuning` | `proposal-runtime`, `dashboard-operator-ui`, `strategy-framework` | Implement Slice 2 dashboard/recommendation-history pass, then pause-reason and threshold-calibration follow-ups. |
-| DEBT-073 | Medium | `strategy-framework` | `strategy-tuning` | Add a fee-netted percent and route PF/expectancy/closed_pnl_pct through it; fix stale `pnl_percent` docstring formula. |
 | DEBT-074 | Medium | `proposal-funnel-audit` | `strategy-framework` | Trace one `vcp_breakout` proposal through the funnel; identify the terminating gate / persistence gap; file the concrete follow-up. |
 | DEBT-075 | Medium | `strategy-framework` | `strategy-tuning` | Stamp each trade/proposal with a pre-entry SMA regime label so per-regime expectancy and the promotion robustness gate work. |
 | DEBT-076 | Low | `strategy-framework` | — | Set `score=avg, threshold=0` in the average-expectancy branch of the regime gate; add a test. |

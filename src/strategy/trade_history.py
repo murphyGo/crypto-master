@@ -123,14 +123,18 @@ class TradeHistory(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
         of leverage, so the price-move PnL ``(Δp) * qty`` is already
         the correct levered figure.
 
-        ``pnl_pct`` is the unleveraged return on notional —
-        ``(pnl / (entry * qty)) * 100`` — i.e. the percentage move on
-        price. Leverage does not scale a price move and therefore is
-        not multiplied in here either.
+        ``pnl_pct`` is the unleveraged price-move return on notional —
+        ``(gross_pnl / (entry * qty)) * 100`` — i.e. the percentage move
+        on price, **gross of fees** (DEBT-024 / Phase 20.1-20.2). Leverage
+        does not scale a price move and therefore is not multiplied in
+        here either. Fee-inclusive ("net") edge metrics are derived
+        separately at the aggregation layer (DEBT-073,
+        ``TechniquePerformance.from_records``); this method intentionally
+        does not net fees into ``pnl_pct``.
 
         Returns:
             Tuple of (absolute P&L net of fees, percentage P&L on
-            price-move), or (None, None) if not closed.
+            price-move gross of fees), or (None, None) if not closed.
         """
         if self.exit_price is None or self.exit_quantity is None:
             return None, None
