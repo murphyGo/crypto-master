@@ -42,6 +42,7 @@ from src.strategy.loader import (
 from src.strategy.performance import (
     PerformanceRecord,
     PerformanceTracker,
+    RegimePerformance,
     TechniquePerformance,
     TradeOutcome,
 )
@@ -90,6 +91,7 @@ __all__ = [
     # Performance tracking
     "TradeOutcome",
     "PerformanceRecord",
+    "RegimePerformance",
     "TechniquePerformance",
     "PerformanceTracker",
     # Trade history tracking (NFR-007)

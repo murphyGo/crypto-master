@@ -273,6 +273,7 @@ class TestPerformanceRecord:
         assert record.outcome == TradeOutcome.PENDING
         assert record.exit_price is None
         assert record.pnl_percent is None
+        assert record.market_regime == "unknown"
 
     def test_record_id_is_unique(self) -> None:
         """Test each record gets a unique ID."""
@@ -509,6 +510,63 @@ class TestTechniquePerformance:
         assert perf.gross_win_pct == 7.85
         assert perf.gross_loss_pct == 2.0
         assert perf.max_drawdown_pct == 2.0
+
+    def test_from_records_computes_regime_expectancy(self) -> None:
+        """DEBT-075: per-regime expectancy is available for tuning gates."""
+        records = [
+            PerformanceRecord(
+                technique_name="test",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49000"),
+                take_profit=Decimal("52000"),
+                confidence=0.8,
+                outcome=TradeOutcome.WIN,
+                exit_price=Decimal("52000"),
+                pnl_percent=4.0,
+                market_regime="bull",
+            ),
+            PerformanceRecord(
+                technique_name="test",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("51000"),
+                stop_loss=Decimal("50000"),
+                take_profit=Decimal("53000"),
+                confidence=0.7,
+                outcome=TradeOutcome.LOSS,
+                exit_price=Decimal("50000"),
+                pnl_percent=-2.0,
+                market_regime="bear",
+            ),
+            PerformanceRecord(
+                technique_name="test",
+                technique_version="1.0.0",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                signal="long",
+                entry_price=Decimal("52000"),
+                stop_loss=Decimal("51000"),
+                take_profit=Decimal("54000"),
+                confidence=0.8,
+                outcome=TradeOutcome.BREAKEVEN,
+                exit_price=Decimal("52000"),
+                pnl_percent=0.0,
+                market_regime="bull",
+            ),
+        ]
+
+        perf = TechniquePerformance.from_records("test", "1.0.0", records)
+
+        assert perf.regime_performance["bull"].trades == 2
+        assert perf.regime_performance["bull"].expectancy == pytest.approx(2.0)
+        assert perf.regime_performance["bear"].trades == 1
+        assert perf.regime_performance["bear"].expectancy == pytest.approx(-2.0)
 
     def test_from_records_with_pending(self) -> None:
         """Test from_records counts pending correctly."""

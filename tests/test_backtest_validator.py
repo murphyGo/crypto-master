@@ -19,6 +19,7 @@ from src.backtest.validator import (
     RobustnessReport,
     _classify_regimes,
     _sharpe_from_trades,
+    classify_entry_regime,
 )
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
@@ -244,6 +245,14 @@ class TestRegimeClassifier:
         out = _classify_regimes(candles, sma_period=20, band_pct=0.005)
         late = [out[c.timestamp] for c in candles[-5:]]
         assert all(r == "bull" for r in late)
+
+    def test_classify_entry_regime_uses_latest_pre_entry_candle(self) -> None:
+        candles = make_candles(50, pattern="rising")
+        assert classify_entry_regime(candles, sma_period=20, band_pct=0.005) == "bull"
+
+    def test_classify_entry_regime_unknown_when_too_short(self) -> None:
+        candles = make_candles(10, pattern="flat")
+        assert classify_entry_regime(candles, sma_period=20) == "unknown"
 
 
 # =============================================================================

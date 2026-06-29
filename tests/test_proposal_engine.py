@@ -42,12 +42,16 @@ def make_info(
     )
 
 
-def make_ohlcv(n: int = 30, base_price: float = 50_000) -> list[OHLCV]:
+def make_ohlcv(
+    n: int = 30,
+    base_price: float = 50_000,
+    step: float = 10,
+) -> list[OHLCV]:
     """Build a simple ascending OHLCV series."""
     start = datetime(2026, 1, 1)
     out: list[OHLCV] = []
     for i in range(n):
-        price = Decimal(str(base_price + i * 10))
+        price = Decimal(str(base_price + i * step))
         out.append(
             OHLCV(
                 timestamp=start + timedelta(hours=i),
@@ -338,6 +342,22 @@ async def test_propose_bitcoin_returns_full_proposal() -> None:
     exchange.get_ohlcv.assert_awaited_once()
     args = exchange.get_ohlcv.await_args
     assert args.kwargs["symbol"] == "BTC/USDT"
+
+
+async def test_propose_bitcoin_stamps_entry_market_regime() -> None:
+    strategy = make_strategy(
+        info=make_info("tech_a", symbols=["BTC/USDT"]),
+        analysis=make_analysis(signal="long", confidence=0.8),
+    )
+    engine, _ = make_engine(
+        strategies={"tech_a": strategy},
+        ohlcv=make_ohlcv(n=220, base_price=50_000, step=50),
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT", balance=Decimal("10000"))
+
+    assert proposal is not None
+    assert proposal.market_regime == "bull"
 
 
 async def test_propose_bitcoin_uses_per_call_leverage_override() -> None:

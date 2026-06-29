@@ -41,6 +41,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.ai.exceptions import ClaudeTimeoutError
+from src.backtest.validator import classify_entry_regime
 from src.exchange.base import BaseExchange, ExchangeError
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult, Position
@@ -130,6 +131,7 @@ class Proposal(UtcTimestampMixin, BaseModel):
         quantity / leverage: Sizing from ``TradingStrategy.create_position``.
         risk_reward_ratio: ``|tp − entry| / |entry − sl|``.
         score: Why this proposal ranks where it does.
+        market_regime: Entry-time market regime from the primary OHLCV stream.
         reasoning: Free-form analysis reasoning from the technique.
     """
 
@@ -149,6 +151,7 @@ class Proposal(UtcTimestampMixin, BaseModel):
     leverage: int
     risk_reward_ratio: float
     score: ProposalScore
+    market_regime: Literal["bull", "bear", "sideways", "unknown"] = "unknown"
     reasoning: str = ""
 
 
@@ -759,6 +762,7 @@ class ProposalEngine:
 
         rr = analysis.risk_reward_ratio or 0.0
         score = self._score(analysis, perf)
+        market_regime = classify_entry_regime(primary_ohlcv)
 
         return Proposal(
             symbol=symbol,
@@ -774,6 +778,7 @@ class ProposalEngine:
             leverage=position.leverage,
             risk_reward_ratio=rr,
             score=score,
+            market_regime=market_regime,
             reasoning=analysis.reasoning,
         )
 

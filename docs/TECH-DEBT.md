@@ -87,12 +87,14 @@ Trace one `vcp_breakout` proposal through the funnel (`src/proposal/funnel.py`) 
 **Related:**
 - `strategies/vcp_breakout.py`, `config/sub_accounts.yaml:109-117`, `src/proposal/funnel.py`
 
-### DEBT-075: No entry-time regime tag on trades → promotion robustness gate can never clear
+### DEBT-075: No entry-time regime tag on trades → promotion robustness gate can never clear ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | `Proposal.market_regime` now defaults to `unknown` for legacy payload compatibility and is stamped at proposal decision time from the primary pre-entry OHLCV stream via `classify_entry_regime`, a public no-look-ahead wrapper around the existing trailing-SMA robustness classifier. `SnapshotRecorder` copies that label onto closed-trade `PerformanceRecord.market_regime`, and `TechniquePerformance.from_records` now emits `regime_performance` with per-regime closed-trade count, fee-aware expectancy, and total PnL percent. Legacy performance records without the field load as `unknown`. Targeted coverage pins entry-regime classification, proposal stamping, runtime persistence, legacy defaults, and per-regime aggregation. Verification: targeted pytest 15 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-075-entry-regime-tag.md`; cross-check `docs/cross-checks/2026-06-30-strategy-framework-debt-075.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
 | **Component** | strategy-framework + strategy-tuning |
 
@@ -912,18 +914,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 4 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 5 |
+| Medium | 3 |
 | Low | 1 |
-| Resolved (All Time) | 68 |
+| Resolved (All Time) | 69 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-30 | Resolved | DEBT-075 `strategy-framework` shipped (via `/dev-crypto`) — entry-time regime tagging. `ProposalEngine` stamps `Proposal.market_regime` from pre-entry primary OHLCV using the trailing-SMA robustness classifier; `SnapshotRecorder` persists it onto `PerformanceRecord`; `TechniquePerformance.regime_performance` now exposes per-regime closed-trade count, fee-aware expectancy, and total PnL percent. Legacy records default to `unknown`. Targeted pytest 15 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-075-entry-regime-tag.md`. |
 | 2026-06-26 | Resolved | DEBT-077 `runtime-reconciliation` shipped (via `/dev-crypto`) — test-only. Added `TestResolveBoundsFromPerformanceRecord` (12 tests) directly covering every fail-safe branch of `resolve_bounds_from_performance_record` (missing root/sub-dir, id-not-found, null SL/TP, corrupt JSON, rows-not-a-list, malformed Decimal, non-dict/stray-file/missing-records.json skips, happy path) — each asserts `None`/skip, never raises. No source change. `tests/test_strategy_performance.py` 117 passed; ruff + black clean. Session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-077-resolver-failsafe-tests.md`. |
 | 2026-06-26 | Resolved | DEBT-073 `strategy-framework` shipped (via `/dev-crypto`) — **fee-inclusive edge metrics**. `pnl_percent` stays an intentional leverage-neutral gross price-move (DEBT-024); the fix adds `net_*` aggregates to `TechniquePerformance.from_records` (`net = pnl_percent - fees/notional*100` per closed real record, gross fallback when notional is unknown) and switches `evidence_from_performance` to consume them (`profit_factor = net_win_pct/net_loss_pct`, `closed_pnl_pct = net_total_pnl_percent`). Gross/display fields untouched; a gross-winner-turned-net-loser lands in the net loss bucket. Only consumer is the dashboard Recommended column (live `_strategy_action_gate` reads applied YAML — gating unchanged). `trade_history.py:126-129` docstring corrected. 6+3 new/updated tests; full suite 2376 passed; ruff + mypy + black clean. Session log `docs/sessions/2026-06-26-strategy-framework-fee-inclusive-edge-metrics.md`. |
 | 2026-06-26 | Resolved | DEBT-071 `runtime-reconciliation` shipped — **orphan age-backstop + SL/TP rehydration backfill**. Root cause (quant-trader-expert, review-only): **two** latent defects. **(A)** `PositionMonitor._orphan_strike_counts` was in-memory, reset every process start; on a Fly host restarting **38× in 35 days** no trade ever reached the 5 consecutive strikes the watchdog needs → **0** `POSITION_ORPHAN_FORCE_CLOSED` ever, all **60,003** orphan events at `strike_count=1`, same trade_ids recurring ~1,600×. **(B)** `PaperTrader._rehydrate_open_positions` (`paper.py:396-402`) skipped open trades missing **both** SL/TP via a bare `continue` → the 39 `state=degraded` ids never entered `_open_positions` → permanent orphans; the `dbd9114` one-shot backfill (2026-06-10) then fired the normal monitor at 34-day-stale prices → mislabeled closes (SOL `c82add57` closed 62.61 labeled `stop_loss` vs stop 88.06). **Fix (senior-developer):** (1) `src/runtime/position_monitor.py` new `ORPHAN_MAX_AGE = timedelta(hours=24)`; close gate is `force_close if (strikes >= ORPHAN_AUTO_CLOSE_THRESHOLD) OR (trade_age >= ORPHAN_MAX_AGE)`, `trade_age = now_utc() - ensure_utc(trade.entry_time)` — **restart-safe** + tz-safe; age branch force-closes on the first qualifying cycle via `force_close_orphan` (`close_reason=orphan_force_close`, not a phantom SL/TP); 5-strike fast-path preserved for young orphans; events carry `trigger`/`age_hours`/`max_age_hours`. (2) `src/strategy/performance.py` new `resolve_bounds_from_performance_record(...)` (raw-JSON, fails safe to `None`). (3) `src/trading/paper.py` + `src/trading/live.py` rehydrate attempts inline SL/TP backfill from `performance_record_id` before the skip; unrecoverable → skip + rely on age backstop (paper/live parity). (4) `src/runtime/engine.py` re-exports `ORPHAN_MAX_AGE`. **Invariant:** a structurally-unmonitorable open is force-closed within a bounded wall-clock age (24h) regardless of restarts; a transient young orphan is not. Tests: `tests/test_runtime_engine.py` (4 new, `make_trade` got optional `entry_time`, 7 strike-path tests pinned young), `tests/test_paper_trading.py` (2 new), `tests/test_live_trading.py` (1 new). Process: quant-trader-expert (root-cause + design, review-only) → senior-developer → qa-reviewer 🟢 ship. `uv run pytest -q` **2369 passed**, 0 failed; ruff + mypy clean. **DEBT-072 linkage:** 072 healed the balance side, 071 heals the position-state-monitoring side — both now self-heal on restart. **Follow-ups filed:** DEBT-077 (Low — direct unit tests for the resolver's fail-safe branches), DEBT-078 (Medium — residual backfilled-then-stale mislabel edge + consolidation of three duplicate bounds-resolution walks: the new resolver + operator tools' `_PerfIndex`/`_proposal_bounds_index`). Session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`. |

@@ -273,6 +273,7 @@ class SnapshotRecorder:
                 mode=trade.mode,
                 trade_id=trade.id,
                 sub_account_id=trade.sub_account_id,
+                market_regime=proposal.market_regime,
                 profile_name=proposal.profile_name,
             )
             tracker.save_record(record)

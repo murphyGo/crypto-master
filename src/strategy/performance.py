@@ -160,6 +160,7 @@ class PerformanceRecord(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
         actual_exit_price: Actual exit fill price.
         mode: Trading mode (backtest/paper/live).
         trade_id: Link to TradeHistory record if executed.
+        market_regime: Entry-time market regime label for per-regime expectancy.
     """
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -186,6 +187,7 @@ class PerformanceRecord(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     mode: Literal["backtest", "paper", "live"] = "backtest"
     trade_id: str | None = None
     sub_account_id: str = DEFAULT_SUB_ACCOUNT_ID
+    market_regime: Literal["bull", "bear", "sideways", "unknown"] = "unknown"
     # Profile dimension for FR-005 technique+profile combinations
     profile_name: str | None = None
     # Reconciliation markers (Q2 follow-up — CON-003 promotion gating).
@@ -223,6 +225,14 @@ class PerformanceRecord(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
             return ((exit_p - entry) / entry) * 100
         else:  # short
             return ((entry - exit_p) / entry) * 100
+
+
+class RegimePerformance(BaseModel):
+    """Per-regime closed-trade expectancy snapshot."""
+
+    trades: int = 0
+    expectancy: float = 0.0
+    total_pnl_percent: float = 0.0
 
 
 class TechniquePerformance(BaseModel):
@@ -288,6 +298,7 @@ class TechniquePerformance(BaseModel):
     # analytics can still surface "this many rows were reconciliation-
     # closed" without polluting win-rate / Sharpe / expectancy.
     synthetic_count: int = 0
+    regime_performance: dict[str, "RegimePerformance"] = Field(default_factory=dict)
 
     @property
     def real_trade_count(self) -> int:
@@ -378,6 +389,7 @@ class TechniquePerformance(BaseModel):
         net_avg_pnl = net_total_pnl / len(net_values) if net_values else 0.0
         net_win_pct = sum(net for net in net_values if net > 0.0)
         net_loss_pct = abs(sum(net for net in net_values if net < 0.0))
+        regime_performance = _regime_performance_from_records(closed_real_records)
 
         return cls(
             sub_account_id=records[-1].sub_account_id,
@@ -402,6 +414,7 @@ class TechniquePerformance(BaseModel):
             net_loss_pct=net_loss_pct,
             last_updated=now_utc(),
             synthetic_count=synthetic_count,
+            regime_performance=regime_performance,
         )
 
 
@@ -442,6 +455,31 @@ def _net_pnl_pct_for_record(record: PerformanceRecord) -> float | None:
 
     fee_pct = float(record.fees / notional) * 100
     return gross - fee_pct
+
+
+def _regime_performance_from_records(
+    records: list[PerformanceRecord],
+) -> dict[str, RegimePerformance]:
+    """Aggregate fee-aware expectancy by entry-time market regime."""
+    grouped: dict[str, list[float]] = {}
+    for record in records:
+        regime = record.market_regime or "unknown"
+        if regime not in {"bull", "bear", "sideways", "unknown"}:
+            regime = "unknown"
+        net = _net_pnl_pct_for_record(record)
+        if net is None:
+            continue
+        grouped.setdefault(regime, []).append(net)
+
+    return {
+        regime: RegimePerformance(
+            trades=len(values),
+            expectancy=sum(values) / len(values),
+            total_pnl_percent=sum(values),
+        )
+        for regime, values in sorted(grouped.items())
+        if values
+    }
 
 
 class PerformanceTracker:
@@ -942,6 +980,7 @@ __all__ = [
     "DEFAULT_TRADES_DIR",
     "TradeOutcome",
     "PerformanceRecord",
+    "RegimePerformance",
     "TechniquePerformance",
     "PerformanceTracker",
     "TradeHistory",

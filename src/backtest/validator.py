@@ -44,7 +44,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
@@ -71,6 +71,7 @@ StrategyFactory = Callable[..., BaseStrategy]
 # Async variants are also accepted (LLM-backed strategies may need
 # to do I/O during construction).
 AsyncStrategyFactory = Callable[..., Awaitable[BaseStrategy]]
+EntryRegime = Literal["bull", "bear", "sideways", "unknown"]
 
 
 # =============================================================================
@@ -959,10 +960,32 @@ def _classify_regimes(
     return out
 
 
+def classify_entry_regime(
+    ohlcv: list[OHLCV],
+    *,
+    sma_period: int = 200,
+    band_pct: float = 0.02,
+) -> EntryRegime:
+    """Classify the latest candle's entry regime without look-ahead.
+
+    DEBT-075 helper for proposal/performance stamping. It reuses the same
+    trailing-SMA classifier as the robustness regime gate and returns
+    ``"unknown"`` when the supplied pre-entry candles are insufficient.
+    """
+    if not ohlcv:
+        return "unknown"
+    regimes = _classify_regimes(ohlcv, sma_period=sma_period, band_pct=band_pct)
+    regime = regimes.get(ohlcv[-1].timestamp)
+    if regime in {"bull", "bear", "sideways"}:
+        return cast(EntryRegime, regime)
+    return "unknown"
+
+
 __all__ = [
     "GateStatus",
     "GateResult",
     "RobustnessReport",
     "RobustnessConfig",
     "RobustnessGate",
+    "classify_entry_regime",
 ]

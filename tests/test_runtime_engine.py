@@ -1017,7 +1017,7 @@ def test_closed_trade_performance_record_uses_trade_sub_account_path(
     tracker = PerformanceTracker(data_dir=tmp_path / "performance")
     mocks["proposal_engine"].performance_tracker = tracker
     proposal = make_proposal(proposal_id="p-beta").model_copy(
-        update={"sub_account_id": "beta"}
+        update={"sub_account_id": "beta", "market_regime": "bear"}
     )
     record = ProposalRecord(proposal=proposal, decision=ProposalDecision.ACCEPTED)
     closed_trade = make_trade(
@@ -1035,6 +1035,11 @@ def test_closed_trade_performance_record_uses_trade_sub_account_path(
     assert not (
         tmp_path / "performance" / "default" / proposal.technique_name / "records.json"
     ).exists()
+    records = PerformanceTracker(
+        data_dir=tmp_path / "performance",
+        sub_account_id="beta",
+    ).load_records(proposal.technique_name)
+    assert records[0].market_regime == "bear"
 
 
 async def test_monitor_pass_skips_when_ticker_fails(tmp_path: Path) -> None:
