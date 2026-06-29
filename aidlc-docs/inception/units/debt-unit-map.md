@@ -11,18 +11,16 @@ when debt is added or resolved, then refresh this map.
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
 | `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
-| `strategy-tuning` | DEBT-069 | Medium | Slice 2 umbrella; remaining (g) threshold calibration. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-068 | Medium | `cross-account-risk-policy` | `proposal-runtime`, `runtime-safety-score`, `dashboard-operator-ui` | Implement opt-in global symbol/side caps with default-disabled config, paper advisory pass-through, live hard-block, and targeted runtime/config tests. |
-| DEBT-069 | Medium | `strategy-tuning` | `proposal-runtime`, `dashboard-operator-ui`, `strategy-framework` | Implement Slice 2 dashboard/recommendation-history pass, then pause-reason and threshold-calibration follow-ups. |
 
 ## Promotion Candidates
 
-No additional promotion candidates beyond DEBT-068 and DEBT-069.
+No additional promotion candidates beyond DEBT-068.
 
 ## Update Rules
 

@@ -125,7 +125,7 @@ class ScoutThresholds(BaseModel):
 
     profit_factor_min: float = 1.0
     profit_factor_max: float = 1.5
-    sample_size_max: int = Field(default=10, ge=0)
+    sample_size_max: int = Field(default=15, ge=0)
 
     model_config = ConfigDict(frozen=True)
 

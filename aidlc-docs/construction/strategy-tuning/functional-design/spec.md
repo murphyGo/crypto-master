@@ -110,7 +110,7 @@ strategy_tuning:
   scout:
     profit_factor_min: 1.0
     profit_factor_max: 1.5     # positive but not strong
-    sample_size_max: 10        # under-sampled
+    sample_size_max: 15        # under-sampled; aligned with keep.sample_size_min
   keep:
     profit_factor_min: 1.3
     win_rate_min: 0.40

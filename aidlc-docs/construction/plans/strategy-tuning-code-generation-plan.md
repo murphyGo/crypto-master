@@ -70,9 +70,12 @@ recommendation" workflow.
       `tests/test_strategy_performance.py` pins gross win/loss, synthetic
       exclusion, and cumulative drawdown; `tests/test_strategy_tuning_recommender.py`
       pins true gross-win/gross-loss PF input.)
-- [ ] Calibrate thresholds after fresh paper evidence, especially
+- [x] Calibrate thresholds after fresh paper evidence, especially
       `scout.sample_size_max`, `keep.profit_factor_min`, and the expected
-      retune wall. (DEBT-069(g).)
+      retune wall. (DEBT-069(g), shipped 2026-06-30. Fly evidence showed no
+      active 11-14 sample rows, but the structural scout/keep sample gap was
+      closed by aligning `scout.sample_size_max` to 15; `keep` PF/win-rate
+      defaults were retained.)
 
 ## Verification
 
@@ -89,7 +92,7 @@ recommendation" workflow.
 
 ## Completion Checklist
 
-- [ ] Code implemented for all DEBT-069 Slice 2 sub-tasks.
-- [ ] Tests pass for all DEBT-069 Slice 2 sub-tasks.
-- [ ] Session log and cross-check added for all DEBT-069 Slice 2 sub-tasks.
-- [ ] `aidlc-docs/aidlc-state.md` updated for all DEBT-069 Slice 2 sub-tasks.
+- [x] Code implemented for all DEBT-069 Slice 2 sub-tasks.
+- [x] Tests pass for all DEBT-069 Slice 2 sub-tasks.
+- [x] Session log and cross-check added for all DEBT-069 Slice 2 sub-tasks.
+- [x] `aidlc-docs/aidlc-state.md` updated for all DEBT-069 Slice 2 sub-tasks.

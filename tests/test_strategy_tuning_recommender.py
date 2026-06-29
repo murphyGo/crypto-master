@@ -120,10 +120,10 @@ def test_shadow_requires_low_profit_factor_AND_loss() -> None:
 
 
 def test_scout_fires_for_under_sampled_positive_edge() -> None:
-    """``profit_factor in [1.0, 1.5]`` with ``closed_trades <= 10``."""
+    """``profit_factor in [1.0, 1.5]`` with ``closed_trades <= 15``."""
     thresholds = ThresholdSpec()
     evidence = _evidence(
-        closed_trades=8,
+        closed_trades=15,
         profit_factor=1.2,
         win_rate=0.55,
         closed_pnl_pct=2.0,
@@ -136,13 +136,13 @@ def test_scout_does_not_fire_above_sample_size_cap() -> None:
     """Scout is *under-sampled*; with enough samples, keep takes precedence."""
     thresholds = ThresholdSpec()
     evidence = _evidence(
-        closed_trades=20,
+        closed_trades=16,
         profit_factor=1.2,
         win_rate=0.55,
         closed_pnl_pct=2.0,
         fail_closed_rate=0.1,
     )
-    # 20 closed trades exceeds the scout sample_size_max of 10 — should
+    # 16 closed trades exceeds the scout sample_size_max of 15 — should
     # not be scout. It also fails keep's profit_factor_min=1.3, so the
     # recommender returns None (insufficient evidence) for this band.
     assert recommend_action(evidence, thresholds) != StrategyAction.SCOUT
