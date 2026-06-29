@@ -13,7 +13,6 @@ when debt is added or resolved, then refresh this map.
 | `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
 | `strategy-tuning` | DEBT-069 | Medium | Slice 2 umbrella; remaining (g) threshold calibration. |
 | `strategy-framework` | DEBT-076 | Low | Regime-gate score/threshold observability (076). DEBT-073 (fee-inclusive edge metrics) resolved 2026-06-26 — `net_*` aggregates on `TechniquePerformance` now feed the recommender's PF/closed-PnL. |
-| `proposal-funnel-audit` | DEBT-079 | Medium | Candidate-level deselection observability follow-up from DEBT-074. |
 
 ## Debt Details
 
@@ -21,7 +20,6 @@ when debt is added or resolved, then refresh this map.
 |------|----------|--------------|----------------|-----------------------|
 | DEBT-068 | Medium | `cross-account-risk-policy` | `proposal-runtime`, `runtime-safety-score`, `dashboard-operator-ui` | Implement opt-in global symbol/side caps with default-disabled config, paper advisory pass-through, live hard-block, and targeted runtime/config tests. |
 | DEBT-069 | Medium | `strategy-tuning` | `proposal-runtime`, `dashboard-operator-ui`, `strategy-framework` | Implement Slice 2 dashboard/recommendation-history pass, then pause-reason and threshold-calibration follow-ups. |
-| DEBT-079 | Medium | `proposal-funnel-audit` | `proposal-runtime` | Persist or emit candidate-level deselection evidence before per-symbol dedup so emitted-but-unselected strategies are visible. |
 | DEBT-076 | Low | `strategy-framework` | — | Set `score=avg, threshold=0` in the average-expectancy branch of the regime gate; add a test. |
 
 ## Promotion Candidates

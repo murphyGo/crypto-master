@@ -51,6 +51,14 @@ class ActivityEventType(str, Enum):
     # Scan + propose
     SCAN_ERRORED = "scan_errored"
     PROPOSAL_GENERATED = "proposal_generated"
+    # Candidate-level proposal selection observability (DEBT-079).
+    # Emitted by ProposalEngine after multi-technique per-symbol dedup drops a
+    # valid candidate before it can enter RuntimeEngine._handle_proposal and
+    # ProposalHistory.save. This is intentionally NOT a proposal_rejected event:
+    # the candidate never entered the runtime gate chain. Payload:
+    # losing proposal/technique/sub-account/symbol/composite, winning
+    # proposal/technique/composite, reason, and score_delta.
+    PROPOSAL_CANDIDATE_DESELECTED = "proposal_candidate_deselected"
     PROPOSAL_ACCEPTED = "proposal_accepted"
     PROPOSAL_REJECTED = "proposal_rejected"
 

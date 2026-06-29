@@ -463,6 +463,7 @@ class ProposalEngine:
         if not candidates:
             return None
         deduped = _dedup_by_symbol(candidates)
+        self._record_deselected_candidates(candidates, deduped)
         return deduped.get(symbol)
 
     async def propose_altcoins(
@@ -544,7 +545,9 @@ class ProposalEngine:
         # change the K-th selection — see the dev plan for FR-012's
         # diversification semantic.
         if self.config.multi_technique_per_symbol:
-            deduped = list(_dedup_by_symbol(candidates).values())
+            deduped_by_symbol = _dedup_by_symbol(candidates)
+            self._record_deselected_candidates(candidates, deduped_by_symbol)
+            deduped = list(deduped_by_symbol.values())
         else:
             # Legacy path already returns ≤ 1 per symbol from
             # ``_propose_for_symbol`` — nothing to dedup.
@@ -651,6 +654,53 @@ class ProposalEngine:
             if proposal is not None:
                 proposals.append(proposal)
         return proposals
+
+    def _record_deselected_candidates(
+        self,
+        candidates: list[Proposal],
+        selected_by_symbol: dict[str, Proposal],
+    ) -> None:
+        """Emit candidate-level evidence for proposals dropped by dedup.
+
+        DEBT-079: fail-closed metrics count every strategy candidate that
+        reaches analysis, but only the per-symbol winner enters the persisted
+        runtime funnel. These events make non-winning candidates visible without
+        changing the one-position-per-symbol risk contract.
+        """
+        if self.activity_log is None:
+            return
+
+        for candidate in candidates:
+            winner = selected_by_symbol.get(candidate.symbol)
+            if winner is None or winner.proposal_id == candidate.proposal_id:
+                continue
+            reason = (
+                "per_symbol_dedup_tie_breaker"
+                if candidate.score.composite == winner.score.composite
+                else "per_symbol_dedup_lower_composite"
+            )
+            score_delta = winner.score.composite - candidate.score.composite
+            self.activity_log.append(
+                ActivityEventType.PROPOSAL_CANDIDATE_DESELECTED,
+                (
+                    f"Candidate deselected for {candidate.symbol}: "
+                    f"{candidate.technique_name} lost to {winner.technique_name}"
+                ),
+                details={
+                    "proposal_id": candidate.proposal_id,
+                    "symbol": candidate.symbol,
+                    "signal": candidate.signal,
+                    "sub_account_id": candidate.sub_account_id,
+                    "technique_name": candidate.technique_name,
+                    "technique_version": candidate.technique_version,
+                    "composite": candidate.score.composite,
+                    "winner_proposal_id": winner.proposal_id,
+                    "winner_technique_name": winner.technique_name,
+                    "winner_composite": winner.score.composite,
+                    "score_delta": score_delta,
+                    "reason": reason,
+                },
+            )
 
     async def _build_proposal_for_strategy(
         self,

@@ -471,6 +471,77 @@ async def test_propose_altcoins_ranks_and_returns_top_k() -> None:
     assert all(p.technique_name == "strong" for p in proposals)
 
 
+async def test_propose_altcoins_emits_candidate_deselection_events(
+    tmp_path: Path,
+) -> None:
+    """DEBT-079: dedup losers are visible before they leave the funnel."""
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    strong = make_strategy(
+        info=make_info("strong", symbols=["ETH/USDT"], version="1.0.0"),
+        analysis=make_analysis(confidence=0.9),
+    )
+    weak = make_strategy(
+        info=make_info("vcp_breakout", symbols=["ETH/USDT"], version="1.0.0"),
+        analysis=make_analysis(confidence=0.4),
+    )
+    activity = ActivityLog(path=tmp_path / "activity.jsonl")
+    engine, _ = make_engine(
+        strategies={"strong": strong, "vcp_breakout": weak},
+        perf_records={
+            "strong": make_perf("strong", total_trades=30, avg_pnl_percent=3.0),
+            "vcp_breakout": make_perf(
+                "vcp_breakout",
+                total_trades=30,
+                avg_pnl_percent=0.5,
+            ),
+        },
+        activity_log=activity,
+    )
+
+    proposals = await engine.propose_altcoins(symbols=["ETH/USDT"], top_k=1)
+
+    assert len(proposals) == 1
+    assert proposals[0].technique_name == "strong"
+    events = activity.filter(event_type=ActivityEventType.PROPOSAL_CANDIDATE_DESELECTED)
+    assert len(events) == 1
+    event = events[0]
+    assert event.details["technique_name"] == "vcp_breakout"
+    assert event.details["winner_technique_name"] == "strong"
+    assert event.details["symbol"] == "ETH/USDT"
+    assert event.details["reason"] == "per_symbol_dedup_lower_composite"
+    assert event.details["score_delta"] > 0
+
+
+async def test_propose_bitcoin_single_candidate_emits_no_deselection(
+    tmp_path: Path,
+) -> None:
+    """No noise when there is no candidate loser."""
+    from src.runtime.activity_log import ActivityEventType, ActivityLog
+
+    strategy = make_strategy(
+        info=make_info("solo", symbols=["BTC/USDT"]),
+        analysis=make_analysis(),
+    )
+    activity = ActivityLog(path=tmp_path / "activity.jsonl")
+    engine, _ = make_engine(
+        strategies={"solo": strategy},
+        perf_records={
+            "solo": make_perf("solo", total_trades=30, avg_pnl_percent=1.0),
+        },
+        activity_log=activity,
+    )
+
+    proposal = await engine.propose_bitcoin(symbol="BTC/USDT")
+
+    assert proposal is not None
+    assert proposal.technique_name == "solo"
+    assert (
+        activity.filter(event_type=ActivityEventType.PROPOSAL_CANDIDATE_DESELECTED)
+        == []
+    )
+
+
 async def test_propose_altcoins_top_k_truncates() -> None:
     strategy = make_strategy(
         info=make_info("tech_a", symbols=["ETH/USDT", "SOL/USDT", "ADA/USDT"]),

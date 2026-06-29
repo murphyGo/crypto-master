@@ -90,12 +90,14 @@ Trace one `vcp_breakout` proposal through the funnel (`src/proposal/funnel.py`) 
 - `strategies/vcp_breakout.py`, `config/sub_accounts.yaml:109-117`, `src/proposal/funnel.py`
 - DEBT-079 (candidate-level deselection observability)
 
-### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel
+### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-30 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | Added `ActivityEventType.PROPOSAL_CANDIDATE_DESELECTED` and wired `ProposalEngine` to emit one structured event for each non-winning candidate dropped by per-symbol dedup in both `propose_bitcoin` and `propose_altcoins`. Payload includes losing proposal id, symbol, signal, sub-account, losing technique/version/composite, winning proposal id, winning technique/composite, score delta, and reason (`per_symbol_dedup_lower_composite` or `per_symbol_dedup_tie_breaker`). This preserves the existing one-proposal-per-symbol risk contract and does not mark deselected candidates as runtime gate rejections. Tests pin lower-composite deselection and no-event single-candidate behavior. Verification: targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-079-candidate-deselection.md`; cross-check `docs/cross-checks/2026-06-30-proposal-funnel-audit-debt-079.md`. |
 | **Phase** | DEBT-074 follow-up |
 | **Component** | proposal-funnel-audit + proposal-runtime |
 
@@ -939,18 +941,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 4 |
+| Total Active | 3 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 3 |
+| Medium | 2 |
 | Low | 1 |
-| Resolved (All Time) | 70 |
+| Resolved (All Time) | 71 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-30 | Resolved | DEBT-079 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added `proposal_candidate_deselected` activity events for valid candidates dropped by per-symbol dedup before runtime funnel persistence. Payload includes loser/winner proposal ids, techniques, composites, score delta, sub-account, symbol, and reason. Targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-079-candidate-deselection.md`. |
 | 2026-06-30 | Added | DEBT-079 `proposal-funnel-audit` follow-up — candidate-level proposal deselection is not persisted in the funnel. Filed from DEBT-074 after audit tooling showed emitted/no-fail-closed/no-proposal/no-open is a pre-funnel candidate-selection/history gap, not a downstream gate rejection. |
 | 2026-06-30 | Resolved | DEBT-074 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added read-only `src.tools.audit_strategy_funnel_gap` to classify strategy-level emitted/proposal/opened gaps. The vcp-shaped pattern now resolves to `pre_funnel_candidate_selection_or_history_gap`; concrete follow-up DEBT-079 filed. Targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`. |
 | 2026-06-30 | Resolved | DEBT-075 `strategy-framework` shipped (via `/dev-crypto`) — entry-time regime tagging. `ProposalEngine` stamps `Proposal.market_regime` from pre-entry primary OHLCV using the trailing-SMA robustness classifier; `SnapshotRecorder` persists it onto `PerformanceRecord`; `TechniquePerformance.regime_performance` now exposes per-regime closed-trade count, fee-aware expectancy, and total PnL percent. Legacy records default to `unknown`. Targeted pytest 15 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-075-entry-regime-tag.md`. |
