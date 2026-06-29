@@ -31,7 +31,7 @@ from pathlib import Path
 
 from src.config import get_settings
 from src.logger import get_logger
-from src.proposal.interaction import ProposalRecord
+from src.proposal.bounds import ProposalBounds, load_proposal_trade_bounds_index
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.utils.io import atomic_write_text
 
@@ -65,15 +65,6 @@ class ProposalBoundsRepairSummary:
 
 
 @dataclass(frozen=True)
-class _ProposalBounds:
-    stop_loss: str | None
-    take_profit: str | None
-    proposal_id: str
-    sub_account_id: str
-    technique_name: str
-
-
-@dataclass(frozen=True)
 class _TradeBoundsPatch:
     stop_loss: str
     take_profit: str
@@ -90,43 +81,10 @@ def _iter_sub_account_dirs(
     return sorted(d for d in paper_root.iterdir() if d.is_dir())
 
 
-def _proposal_bounds_index(data_dir: Path) -> dict[str, _ProposalBounds]:
-    """Build ``trade_id -> proposal bounds`` from proposal history files."""
-
-    proposal_root = data_dir / "proposals"
-    if not proposal_root.exists():
-        return {}
-
-    index: dict[str, _ProposalBounds] = {}
-    for path in sorted(proposal_root.rglob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            record = ProposalRecord(**payload)
-        except (json.JSONDecodeError, OSError, ValueError) as exc:
-            logger.warning("Skipping unreadable proposal file %s: %s", path, exc)
-            continue
-
-        if not record.trade_id:
-            continue
-        proposal = record.proposal
-        index[record.trade_id] = _ProposalBounds(
-            stop_loss=(
-                str(proposal.stop_loss) if proposal.stop_loss is not None else None
-            ),
-            take_profit=(
-                str(proposal.take_profit) if proposal.take_profit is not None else None
-            ),
-            proposal_id=proposal.proposal_id,
-            sub_account_id=proposal.sub_account_id,
-            technique_name=proposal.technique_name,
-        )
-    return index
-
-
 def _repair_one_file(
     trades_path: Path,
     sub_account_id: str,
-    bounds_by_trade_id: dict[str, _ProposalBounds],
+    bounds_by_trade_id: dict[str, ProposalBounds],
     dry_run: bool,
 ) -> ProposalBoundsRepairSummary:
     summary = ProposalBoundsRepairSummary()
@@ -269,7 +227,7 @@ def repair_paper_trade_bounds_from_proposals(
     """Repair missing SL/TP on open paper trades from proposal records."""
 
     paper_root = data_dir / "trades" / "paper"
-    bounds_by_trade_id = _proposal_bounds_index(data_dir)
+    bounds_by_trade_id = load_proposal_trade_bounds_index(data_dir)
     totals = ProposalBoundsRepairSummary()
 
     for sub_dir in _iter_sub_account_dirs(paper_root, sub_account):

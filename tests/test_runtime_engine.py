@@ -810,7 +810,7 @@ async def test_run_cycle_altcoin_scan_error_logged(tmp_path: Path) -> None:
 
 async def test_monitor_pass_closes_position_on_sl_hit(tmp_path: Path) -> None:
     """SL hit: paper_trader closes, attach_outcome writes realized P&L."""
-    open_trade = make_trade(trade_id="t-existing")
+    open_trade = make_trade(trade_id="t-existing", entry_time=now_utc())
     closed_trade = make_trade(
         trade_id="t-existing",
         exit_price="49500",
@@ -855,7 +855,7 @@ async def test_monitor_pass_uses_sub_account_trader_for_exit_check(
     tmp_path: Path,
 ) -> None:
     """Non-default accounts must evaluate exits against their own trader state."""
-    open_trade = make_trade(trade_id="beta-open")
+    open_trade = make_trade(trade_id="beta-open", entry_time=now_utc())
     closed_trade = make_trade(
         trade_id="beta-open",
         exit_price="51500",
@@ -897,6 +897,91 @@ async def test_monitor_pass_uses_sub_account_trader_for_exit_check(
     )
     closed = mocks["activity_log"].filter(event_type=ActivityEventType.POSITION_CLOSED)
     assert len(closed) == 1
+
+
+async def test_monitor_pass_relabels_stale_weak_provenance_sl_hit(
+    tmp_path: Path,
+) -> None:
+    """DEBT-078: old backfilled/repaired rows don't get fresh SL labels."""
+    old_entry = now_utc() - (ORPHAN_MAX_AGE + timedelta(hours=2))
+    open_trade = make_trade(
+        trade_id="stale-repaired",
+        entry_time=old_entry,
+        performance_record_id=None,
+    )
+    closed_trade = make_trade(
+        trade_id="stale-repaired",
+        exit_price="47000",
+        pnl_percent=-6.0,
+        status="closed",
+        entry_time=old_entry,
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[open_trade],
+        ticker_price=Decimal("47000"),
+    )
+    mocks["trader"].get_open_position.return_value = MagicMock()
+    mocks["trader"].check_exit_conditions.return_value = (True, "stop_loss")
+    mocks["trader"].close_position.return_value = closed_trade
+
+    result = await engine.run_cycle()
+
+    assert result.positions_closed == 1
+    mocks["trader"].close_position.assert_awaited_once_with(
+        "stale-repaired",
+        Decimal("47000"),
+        reason="orphan_force_close",
+    )
+    closed = mocks["activity_log"].filter(event_type=ActivityEventType.POSITION_CLOSED)
+    assert len(closed) == 1
+    assert closed[0].details["reason"] == "orphan_force_close"
+
+
+async def test_monitor_pass_keeps_fresh_sl_label_for_healthy_old_trade(
+    tmp_path: Path,
+) -> None:
+    """A healthy tracked old trade keeps the normal SL/TP analytics label."""
+    old_entry = now_utc() - (ORPHAN_MAX_AGE + timedelta(hours=2))
+    open_trade = make_trade(
+        trade_id="healthy-old",
+        entry_time=old_entry,
+        performance_record_id="perf-1",
+    ).model_copy(
+        update={
+            "stop_loss": Decimal("49000"),
+            "take_profit": Decimal("52000"),
+        }
+    )
+    closed_trade = make_trade(
+        trade_id="healthy-old",
+        exit_price="47000",
+        pnl_percent=-6.0,
+        status="closed",
+        entry_time=old_entry,
+        performance_record_id="perf-1",
+    ).model_copy(
+        update={
+            "stop_loss": Decimal("49000"),
+            "take_profit": Decimal("52000"),
+        }
+    )
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        open_trades=[open_trade],
+        ticker_price=Decimal("47000"),
+    )
+    mocks["trader"].get_open_position.return_value = MagicMock()
+    mocks["trader"].check_exit_conditions.return_value = (True, "stop_loss")
+    mocks["trader"].close_position.return_value = closed_trade
+
+    await engine.run_cycle()
+
+    mocks["trader"].close_position.assert_awaited_once_with(
+        "healthy-old",
+        Decimal("47000"),
+        reason="stop_loss",
+    )
 
 
 async def test_monitor_pass_surfaces_orphan_open_trade_state(

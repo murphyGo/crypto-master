@@ -44,6 +44,7 @@ from pathlib import Path
 from src.config import get_settings
 from src.logger import get_logger
 from src.runtime.activity_log import ActivityEventType, ActivityLog
+from src.strategy.performance import load_performance_record_bounds_index
 from src.utils.io import atomic_write_text
 
 logger = get_logger("crypto_master.tools.backfill_paper_sl_tp")
@@ -106,44 +107,10 @@ class _PerfIndex:
         return self._by_id.get(record_id)
 
     def _build(self) -> dict[str, tuple[str | None, str | None]]:
-        # Read the on-disk JSON directly rather than going through
-        # ``PerformanceTracker.load_records``: the latter parses every
-        # row into a strict ``PerformanceRecord`` (non-null SL/TP), so
-        # any legacy record with null bounds — exactly the case the
-        # operator wants to surface as ``skipped_perf_unset`` — would
-        # raise ValidationError and abort the whole pass. We only need
-        # three fields per record, so a raw JSON walk is both safer
-        # and cheaper.
-        index: dict[str, tuple[str | None, str | None]] = {}
-        sub_root = self.data_dir / "performance" / self.sub_account_id
-        if not sub_root.exists():
-            return index
-        for technique_dir in sub_root.iterdir():
-            if not technique_dir.is_dir():
-                continue
-            records_path = technique_dir / "records.json"
-            if not records_path.exists():
-                continue
-            try:
-                with open(records_path, encoding="utf-8") as f:
-                    rows = json.load(f)
-            except (json.JSONDecodeError, OSError) as exc:
-                logger.error("Failed to read perf records at %s: %s", records_path, exc)
-                continue
-            if not isinstance(rows, list):
-                continue
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                rec_id = row.get("id")
-                if not isinstance(rec_id, str):
-                    continue
-                sl_raw = row.get("stop_loss")
-                tp_raw = row.get("take_profit")
-                sl = str(sl_raw) if sl_raw is not None else None
-                tp = str(tp_raw) if tp_raw is not None else None
-                index[rec_id] = (sl, tp)
-        return index
+        return load_performance_record_bounds_index(
+            self.data_dir / "performance",
+            self.sub_account_id,
+        )
 
 
 def _iter_sub_account_dirs(

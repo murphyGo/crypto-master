@@ -254,14 +254,15 @@ class PositionMonitor:
 
             should_exit, reason = trader.check_exit_conditions(trade.id, ticker.price)
             if should_exit and reason is not None:
+                close_reason = self._close_reason_for_bound_exit(trade, reason)
                 closed_trade = await trader.close_position(
-                    trade.id, ticker.price, reason=reason
+                    trade.id, ticker.price, reason=close_reason
                 )
                 if closed_trade is None:
                     continue
 
                 closed_count += 1
-                self._record_closed_trade(closed_trade, reason, cycle_id)
+                self._record_closed_trade(closed_trade, close_reason, cycle_id)
                 continue
 
             # SL/TP not hit — evaluate the per-strategy time-stop. The SL/TP
@@ -586,6 +587,31 @@ class PositionMonitor:
             return get_open_position(trade_id) is None
         except Exception:
             return False
+
+    @staticmethod
+    def _close_reason_for_bound_exit(trade: TradeHistory, reason: str) -> str:
+        """Return a conservative close reason for stale SL/TP hits.
+
+        DEBT-078: when an old row only became monitorable via reconciliation
+        backfill/repair, the first observed SL/TP breach can be far past the
+        actual bound-touch moment. In that case recording ``stop_loss`` or
+        ``take_profit`` would pollute hit-rate analytics, so use the existing
+        reconciliation label instead. Healthy rows with both persisted bounds
+        and a performance link keep the normal SL/TP label.
+        """
+        if reason not in {"stop_loss", "take_profit"}:
+            return reason
+        trade_age = now_utc() - ensure_utc(trade.entry_time)
+        if trade_age < ORPHAN_MAX_AGE:
+            return reason
+        weak_reconciliation_provenance = (
+            trade.stop_loss is None
+            or trade.take_profit is None
+            or trade.performance_record_id is None
+        )
+        if not weak_reconciliation_provenance:
+            return reason
+        return "orphan_force_close"
 
     async def _maybe_stale_age_action(
         self,

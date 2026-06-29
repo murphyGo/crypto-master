@@ -20,6 +20,7 @@ from src.strategy.performance import (
     TradeHistory,
     TradeHistoryTracker,
     TradeOutcome,
+    load_performance_record_bounds_index,
     resolve_bounds_from_performance_record,
 )
 
@@ -103,6 +104,25 @@ class TestResolveBoundsFromPerformanceRecord:
         )
         result = resolve_bounds_from_performance_record(root, "lab", "rec-1")
         assert result == (Decimal("100.5"), Decimal("120"))
+
+    def test_shared_raw_index_preserves_null_and_string_bounds(
+        self, tmp_path: Path
+    ) -> None:
+        root = tmp_path / "performance"
+        self._write_records(
+            root,
+            "lab",
+            "rsi",
+            [
+                {"id": "rec-full", "stop_loss": "100.50", "take_profit": "120"},
+                {"id": "rec-null", "stop_loss": None, "take_profit": "120"},
+            ],
+        )
+
+        index = load_performance_record_bounds_index(root, "lab")
+
+        assert index["rec-full"] == ("100.50", "120")
+        assert index["rec-null"] == (None, "120")
 
     def test_missing_sub_account_dir_returns_none(self, tmp_path: Path) -> None:
         root = tmp_path / "performance"

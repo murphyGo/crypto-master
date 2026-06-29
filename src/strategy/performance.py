@@ -65,9 +65,36 @@ def resolve_bounds_from_performance_record(
         ``(stop_loss, take_profit)`` as ``Decimal`` when both bounds resolve,
         else ``None``.
     """
+    bounds = load_performance_record_bounds_index(
+        performance_root,
+        sub_account_id,
+    ).get(record_id)
+    if bounds is None:
+        return None
+    sl_raw, tp_raw = bounds
+    if sl_raw is None or tp_raw is None:
+        return None
+    try:
+        return Decimal(str(sl_raw)), Decimal(str(tp_raw))
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def load_performance_record_bounds_index(
+    performance_root: Path,
+    sub_account_id: str,
+) -> dict[str, tuple[str | None, str | None]]:
+    """Load raw ``record_id -> (stop_loss, take_profit)`` bounds.
+
+    Shared raw-JSON index for rehydration and operator backfill tooling.
+    ``PerformanceTracker.load_records`` intentionally is not used here because
+    it parses strict ``PerformanceRecord`` rows and would raise on the legacy
+    null-bound records that reconciliation tools need to skip safely.
+    """
+    index: dict[str, tuple[str | None, str | None]] = {}
     sub_root = performance_root / sub_account_id
     if not sub_root.exists():
-        return None
+        return index
     for technique_dir in sub_root.iterdir():
         if not technique_dir.is_dir():
             continue
@@ -82,17 +109,17 @@ def resolve_bounds_from_performance_record(
         if not isinstance(rows, list):
             continue
         for row in rows:
-            if not isinstance(row, dict) or row.get("id") != record_id:
+            if not isinstance(row, dict):
+                continue
+            rec_id = row.get("id")
+            if not isinstance(rec_id, str):
                 continue
             sl_raw = row.get("stop_loss")
             tp_raw = row.get("take_profit")
-            if sl_raw is None or tp_raw is None:
-                return None
-            try:
-                return Decimal(str(sl_raw)), Decimal(str(tp_raw))
-            except (ArithmeticError, ValueError):
-                return None
-    return None
+            sl = str(sl_raw) if sl_raw is not None else None
+            tp = str(tp_raw) if tp_raw is not None else None
+            index[rec_id] = (sl, tp)
+    return index
 
 
 class TradeOutcome(str, Enum):

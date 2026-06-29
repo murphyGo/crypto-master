@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
+from src.proposal.bounds import load_proposal_trade_bounds_index
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
@@ -84,6 +85,24 @@ def _seed_proposal_record(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(record.model_dump_json(indent=2))
     return record
+
+
+def test_shared_proposal_bounds_index_uses_trade_id(tmp_path: Path) -> None:
+    _seed_proposal_record(
+        tmp_path,
+        trade_id="trade-1",
+        sub_account_id="lab",
+        proposal_id="proposal-1",
+    )
+
+    index = load_proposal_trade_bounds_index(tmp_path)
+
+    assert set(index) == {"trade-1"}
+    bounds = index["trade-1"]
+    assert bounds.proposal_id == "proposal-1"
+    assert bounds.sub_account_id == "lab"
+    assert bounds.stop_loss == "49500"
+    assert bounds.take_profit == "51500"
 
 
 def _seed_paper_trade(

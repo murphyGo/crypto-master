@@ -155,12 +155,14 @@ Add direct unit tests for `resolve_bounds_from_performance_record` covering: (1)
 - DEBT-071 (introduced the resolver) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
 - DEBT-078 (consolidation that this coverage protects)
 
-### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks
+### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | Stale weak-provenance SL/TP hits now close with `orphan_force_close` instead of `stop_loss` / `take_profit`: `PositionMonitor` relabels bound exits older than the always-on reconciliation age wall when the row lacks persisted bounds or a performance link, while healthy old rows with both bounds + performance provenance keep normal SL/TP analytics labels. The duplicate bounds walks were consolidated: `load_performance_record_bounds_index` in `src/strategy/performance.py` feeds both the runtime resolver and `backfill_paper_sl_tp`; `load_proposal_trade_bounds_index` in new `src/proposal/bounds.py` feeds `repair_paper_trade_bounds_from_proposals`. Targeted tests added for stale relabeling, healthy old-row preservation, shared perf index null/string preservation, and shared proposal index. Targeted pytest 45 passed; ruff scoped checks passed. Session log `docs/sessions/2026-06-30-runtime-reconciliation-debt-078-stale-bound-label.md`; cross-check `docs/cross-checks/2026-06-30-runtime-reconciliation-debt-078.md`. |
 | **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
 | **Component** | runtime-reconciliation (primary) + strategy-framework (performance) |
 
