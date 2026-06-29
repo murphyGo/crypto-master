@@ -706,6 +706,8 @@ class RobustnessGate:
 
         if cfg.regime_require_positive_in_all:
             passed = not evaluable_failures
+            score = float(evaluable_count - len(evaluable_failures))
+            threshold = float(evaluable_count)
             reason = (
                 "All evaluable regimes have non-negative expectancy"
                 if passed
@@ -717,6 +719,8 @@ class RobustnessGate:
                 / evaluable_count
             )
             passed = avg >= 0
+            score = avg
+            threshold = 0.0
             reason = (
                 f"Average expectancy across {evaluable_count} regimes: " f"{avg:.4f}"
             )
@@ -724,8 +728,8 @@ class RobustnessGate:
         return GateResult(
             name="regime",
             status=GateStatus.PASSED if passed else GateStatus.FAILED,
-            score=float(evaluable_count - len(evaluable_failures)),
-            threshold=float(evaluable_count),
+            score=score,
+            threshold=threshold,
             reason=reason,
             details={
                 "per_regime": per_regime,

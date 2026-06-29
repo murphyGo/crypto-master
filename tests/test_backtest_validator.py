@@ -578,6 +578,91 @@ class TestRegimeGate:
         assert result.details["evaluable_count"] == 1
         assert "at least 2 evaluable regimes" in result.reason
 
+    @pytest.mark.asyncio
+    async def test_average_mode_reports_average_score_and_zero_threshold(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """DEBT-076: average mode telemetry must match its pass criterion."""
+        gate = make_gate(
+            config=RobustnessConfig(
+                regime_sma_period=20,
+                regime_min_trades_per_regime=1,
+                regime_require_positive_in_all=False,
+            )
+        )
+        candles = make_candles(30, pattern="flat")
+        trades = [
+            BacktestTrade(
+                trade_id="bull-win",
+                symbol="BTC/USDT",
+                side="long",
+                entry_time=candles[20].timestamp,
+                exit_time=candles[21].timestamp,
+                entry_price=Decimal("50000"),
+                exit_price=Decimal("50010"),
+                quantity=Decimal("1"),
+                leverage=1,
+                stop_loss=None,
+                take_profit=None,
+                entry_fee=Decimal("0"),
+                exit_fee=Decimal("0"),
+                pnl=Decimal("10"),
+                close_reason="take_profit",
+            ),
+            BacktestTrade(
+                trade_id="bear-loss",
+                symbol="BTC/USDT",
+                side="long",
+                entry_time=candles[22].timestamp,
+                exit_time=candles[23].timestamp,
+                entry_price=Decimal("50000"),
+                exit_price=Decimal("49996"),
+                quantity=Decimal("1"),
+                leverage=1,
+                stop_loss=None,
+                take_profit=None,
+                entry_fee=Decimal("0"),
+                exit_fee=Decimal("0"),
+                pnl=Decimal("-4"),
+                close_reason="stop_loss",
+            ),
+        ]
+        monkeypatch.setattr(
+            "src.backtest.validator._classify_regimes",
+            lambda *args, **kwargs: {
+                trades[0].entry_time: "bull",
+                trades[1].entry_time: "bear",
+            },
+        )
+        baseline = BacktestResult(
+            run_id="bt-regime-average",
+            technique_name="test",
+            technique_version="1.0.0",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            start_time=candles[0].timestamp,
+            end_time=candles[-1].timestamp,
+            initial_balance=Decimal("10000"),
+            final_balance=Decimal("10006"),
+            total_trades=2,
+            wins=1,
+            losses=1,
+            breakevens=0,
+            total_pnl=Decimal("6"),
+            total_fees=Decimal("0"),
+            win_rate=0.5,
+            return_percent=0.06,
+            trades=trades,
+        )
+
+        result = await gate._gate_regime(baseline, candles)
+
+        assert result.status == GateStatus.PASSED
+        assert result.score == pytest.approx(3.0)
+        assert result.threshold == 0.0
+        assert "Average expectancy" in result.reason
+
 
 # =============================================================================
 # Sensitivity gate

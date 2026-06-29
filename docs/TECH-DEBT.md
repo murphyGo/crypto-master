@@ -138,12 +138,14 @@ Stamp each trade (and/or proposal) at decision time with an SMA-derived regime l
 - `src/backtest/validator.py:929-959` (existing trailing-SMA regime classifier), `src/strategy/performance.py`
 - Skill §3 per-regime metrics, §6/§10 regime-confound guard
 
-### DEBT-076: Regime gate `GateResult.score`/`threshold` describe the wrong branch in average-expectancy mode
+### DEBT-076: Regime gate `GateResult.score`/`threshold` describe the wrong branch in average-expectancy mode ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Low |
 | **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | `_gate_regime` now reports telemetry from the branch it actually evaluates: all-positive mode still reports the evaluable-pass count over evaluable count, while average-expectancy mode reports `score=avg` and `threshold=0.0`. The pass/fail decision was unchanged. Added `test_average_mode_reports_average_score_and_zero_threshold` with two mocked evaluable regimes (`+10`, `-4`) proving the average-mode result passes with `score=3.0` and `threshold=0.0`. Verification: targeted pytest 1 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-076-regime-score.md`; cross-check `docs/cross-checks/2026-06-30-strategy-framework-debt-076.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
 | **Component** | strategy-framework (backtest validator) |
 
@@ -941,18 +943,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 3 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 1 |
-| Resolved (All Time) | 71 |
+| Low | 0 |
+| Resolved (All Time) | 72 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-30 | Resolved | DEBT-076 `strategy-framework` shipped (via `/dev-crypto`) — average-expectancy regime gate telemetry now reports `score=avg`, `threshold=0.0`, while all-positive mode keeps count/count reporting. Targeted pytest 1 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-076-regime-score.md`. |
 | 2026-06-30 | Resolved | DEBT-079 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added `proposal_candidate_deselected` activity events for valid candidates dropped by per-symbol dedup before runtime funnel persistence. Payload includes loser/winner proposal ids, techniques, composites, score delta, sub-account, symbol, and reason. Targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-079-candidate-deselection.md`. |
 | 2026-06-30 | Added | DEBT-079 `proposal-funnel-audit` follow-up — candidate-level proposal deselection is not persisted in the funnel. Filed from DEBT-074 after audit tooling showed emitted/no-fail-closed/no-proposal/no-open is a pre-funnel candidate-selection/history gap, not a downstream gate rejection. |
 | 2026-06-30 | Resolved | DEBT-074 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added read-only `src.tools.audit_strategy_funnel_gap` to classify strategy-level emitted/proposal/opened gaps. The vcp-shaped pattern now resolves to `pre_funnel_candidate_selection_or_history_gap`; concrete follow-up DEBT-079 filed. Targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`. |
