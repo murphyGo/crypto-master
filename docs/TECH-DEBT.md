@@ -248,12 +248,14 @@ Complete. Future strategy-tuning work should be filed as a new debt item or unit
 - `src/strategy/tuning_recommender.py`
 - `src/runtime/engine.py::_strategy_action_gate`
 
-### DEBT-068: `cross-account-risk-policy` Slice 2 umbrella
+### DEBT-068: `cross-account-risk-policy` Slice 2 umbrella ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-05-13 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | Closed the umbrella after verifying every substantive DEBT-068 Slice 2 sub-task had already shipped: (a) risk-budget sizing wire-in, (b) opt-in global caps, (c) per-account/global kill switches, (c-arb) priority arbitration, (d) operator-freeze runtime read, (e) stale-position actions, (f) Cross-Account Risk dashboard plus freeze toggle write side, (g) dedicated risk event types, and (h) runtime-safety-score kill-switch integration. The remaining notes are explicitly non-blocking follow-ups or documented design tradeoffs, not active umbrella blockers. Updated the AI-DLC state, debt-unit map, construction plan, session log, and cross-check so DEBT-068 no longer keeps the queue active. |
 | **Phase** | cross-account-risk-policy Slice 2 |
 | **Component** | proposal-runtime + runtime-safety-score + dashboard-operator-ui |
 
@@ -286,10 +288,10 @@ Complete. Future strategy-tuning work should be filed as a new debt item or unit
 - **(h) `runtime-safety-score` kill-switch integration — SHIPPED 2026-05-25. COMPLETES the DEBT-068 umbrella SUBSTANCE.** LIVE kill-switch trips now feed the operator-facing runtime-safety-score. All in `src/runtime/safety_score.py`: new `RuntimeSafetyInputs.kill_switch_conditions` field (`Field(default=0, ge=0)`); new `_count_kill_switch_conditions` extractor that counts DISTINCT `(cycle_id, gate_reason, sub_account_id)` tuples of NON-advisory `RISK_KILL_SWITCH_TRIPPED` events (paper advisories with truthy `details.advisory` EXCLUDED — the score measures live money-safety health; missing/None `sub_account_id` normalizes to `"__global__"` so a portfolio-level gate counts once per cycle, not once per proposal); new penalty in `compute_runtime_safety_score` = `min(kill_switch_conditions * 25, 60)` (per-condition 25, cap 60). Band math: 1 live condition → score 75 = DEGRADED (satisfies the spec line-367 mandate that a portfolio kill-switch trip bumps the band to at least degraded), 2 → 50 = RISKY, ≥3 capped at 60 penalty. Scope is kill switches ONLY — stale-position `auto_close` (correct-behaviour housekeeping) and operator-freeze (the manual analogue of `pause_recommended`) are DELIBERATELY EXCLUDED. **Bug caught + fixed in review before ship**: the two GLOBAL/portfolio kill-switch gates (`_global_kill_switch_gate` / `_portfolio_daily_loss_check`, gate_reasons `portfolio_kill_switch` / `portfolio_daily_loss_kill_switch`) emit with the PROPOSING account's `sub_account_id` via `_proposal_summary`, so one portfolio condition counted once PER DISTINCT PROPOSER per cycle (3 accounts → over-count → wrong band instead of one condition → 75/DEGRADED), and the `"__global__"` branch was dead. Fix (Option A, engine-side in `src/runtime/engine.py`): both portfolio emit sites now `details.pop("sub_account_id", None)` AFTER the `_proposal_summary` spread for the two portfolio gate_reasons — the pop must REMOVE the key (not null it) because the f-1 dataframe relies on `.get(..., "—")` defaulting; this also fixed an f-1 mis-attribution (a portfolio trip no longer lights the proposer's per-account kill-switch state; renders "—"). Account-level gates untouched (stable literal account id; distinct conditions still count separately). +14 tests (10 original + 4 regression); full suite 2195 passed (+14), 0 failed; ruff + mypy clean; quant-trader-expert 🔴→🟢 (first pass found the over-count; re-review after fix: sound — both portfolio emit sites drop the key, no third global path, account gates unaffected, no f-1 regression, band math correct), qa-reviewer 🟢 on the original full suite 2191 (note: qa's fixtures did NOT exercise the multi-proposer global trip, so QA did not catch the over-count — the quant did). With (h) shipped, EVERY substantive DEBT-068 sub-task (a, b, c, c-arb, d, e, f, g, h) is COMPLETE; only the six minor follow-up notes remain. Session log `docs/sessions/2026-05-25-cross-account-risk-policy-kill-switch-safety-score-h.md`.
 
 **Impact:**
-Slice 1 plus the 2026-05-15 DEBT-068(a) wire-in is operator-meaningful for paper-mode per-account aggregate-cap observability and opt-in risk-budget sizing. The live-mode promotion path is still incomplete without explicitly enabled global symbol/side caps and kill switches. Paper-lab throughput must remain unblocked by default so account-level strategy evidence stays comparable.
+Resolved. Cross-account risk policy now has operator-meaningful paper-mode observability, opt-in risk-budget sizing, explicitly enabled live global caps, kill switches, operator freeze, stale-position handling, dashboard surfacing, and safety-score integration. Paper-lab throughput remains unblocked by default where the design requires advisory-only behavior.
 
 **Suggested Resolution:**
-Sequential cycles — (b) opt-in global caps shipped 2026-05-24; (c-1) stateless kill-switch gates shipped 2026-05-24; (c-2) stateful daily-loss kill switch shipped 2026-05-24, completing DEBT-068(c); (d) operator-freeze RUNTIME READ side shipped 2026-05-24; (e) stale `auto_close` / `alert_only` actions shipped 2026-05-24; (g) dedicated `RISK_CAP_ADVISORY` / `RISK_KILL_SWITCH_TRIPPED` event types shipped 2026-05-24 (event-type migration only); (c-arb) `lowest_priority_loses` cap arbitration shipped 2026-05-24 (closes the last open-cap v1-arbitration gap left by (b)); (f-1) read-only Cross-Account Risk dashboard panel shipped 2026-05-24 (also resolved the (g-note-dashboard-undercount) "Rejected"-column undercount); (f-2) operator-freeze toggle WRITE side shipped 2026-05-25 (read-merge-write `write_trading_freeze` + `RuntimeFlagsWriteError` via the canonical `atomic_write_text` + confirmation-gated `render_operator_freeze_toggle`), **completing DEBT-068(f)**; (h) runtime-safety-score kill-switch integration shipped 2026-05-25 (feed LIVE kill-switch trips into the operator-facing safety score — `kill_switch_conditions` input + `_count_kill_switch_conditions` distinct-condition extractor + per-condition-25 / cap-60 penalty; 1 live condition → 75/DEGRADED, kill-switch-only scope; over-count bug caught by the quant and fixed engine-side). **With (h) shipped, the DEBT-068 umbrella SUBSTANCE is COMPLETE — all of (a), (b), (c) [(c-1)+(c-2)], (c-arb), (d), (e), (f) [(f-1)+(f-2)], (g), (h) are shipped.** The umbrella's ONLY residue is the six minor ride-along follow-up NOTES — (c-2-note-fee-timing), (e-note-close-stale-quote), (f-1-note-snapshot-event), (c-arb-note-overshoot-units), (f-2-note-test-gap), (f-2-note-broad-except) — none blocking, none money-safety defects. **STATUS RECOMMENDATION (for the lead to decide):** the core scope is unambiguously done; the lead should choose whether to flip the umbrella's top-level status from Active to Resolved (re-filing the six residual notes as their own small DEBT items) or keep it Active but SLIMMED to just those notes. Left Active pending that decision.
+Done. Sequential cycles shipped (b) opt-in global caps on 2026-05-24; (c-1) stateless kill-switch gates on 2026-05-24; (c-2) stateful daily-loss kill switch on 2026-05-24, completing DEBT-068(c); (d) operator-freeze runtime read on 2026-05-24; (e) stale `auto_close` / `alert_only` actions on 2026-05-24; (g) dedicated `RISK_CAP_ADVISORY` / `RISK_KILL_SWITCH_TRIPPED` event types on 2026-05-24; (c-arb) `lowest_priority_loses` cap arbitration on 2026-05-24; (f-1) read-only Cross-Account Risk dashboard panel on 2026-05-24; (f-2) operator-freeze toggle write side on 2026-05-25, completing DEBT-068(f); and (h) runtime-safety-score kill-switch integration on 2026-05-25. The umbrella is resolved on 2026-06-30 by status closeout; residual notes remain documented as non-blocking future refinements, not active DEBT-068 blockers.
 
 **Related:**
 - quant-trader-expert Q1/Q2 review (`docs/sessions/2026-05-13-cross-account-risk-policy-slice-1-shipped.md`)
@@ -945,18 +947,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
+| Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 73 |
+| Resolved (All Time) | 74 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-30 | Resolved | DEBT-068 `cross-account-risk-policy` Slice 2 umbrella closed (via `/dev-crypto`) — all substantive slices (a), (b), (c), (c-arb), (d), (e), (f), (g), and (h) were already shipped; this closeout flips the umbrella to resolved and updates AI-DLC state, debt-unit map, construction plan, session log, and cross-check. No code change. |
 | 2026-06-30 | Resolved | DEBT-069 `strategy-tuning` Slice 2 umbrella completed (via `/dev-crypto`) — final (g) threshold calibration. Fresh Fly `/data/performance` evidence reviewed; `scout.sample_size_max` widened 10 → 15 to align with `keep.sample_size_min`; keep PF/win-rate thresholds retained. Targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-tuning-debt-069g-threshold-calibration.md`. |
 | 2026-06-30 | Resolved | DEBT-076 `strategy-framework` shipped (via `/dev-crypto`) — average-expectancy regime gate telemetry now reports `score=avg`, `threshold=0.0`, while all-positive mode keeps count/count reporting. Targeted pytest 1 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-076-regime-score.md`. |
 | 2026-06-30 | Resolved | DEBT-079 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added `proposal_candidate_deselected` activity events for valid candidates dropped by per-symbol dedup before runtime funnel persistence. Payload includes loser/winner proposal ids, techniques, composites, score delta, sub-account, symbol, and reason. Targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-079-candidate-deselection.md`. |

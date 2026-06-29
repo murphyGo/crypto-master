@@ -10,17 +10,17 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
-| `cross-account-risk-policy` | DEBT-068 | Medium | Slice 2 umbrella; next slice is opt-in global exposure caps with default-disabled, paper-advisory, live-hard-block semantics. |
+| _None_ | _None_ | _None_ | No active technical debt remains after DEBT-068 closeout on 2026-06-30. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
-| DEBT-068 | Medium | `cross-account-risk-policy` | `proposal-runtime`, `runtime-safety-score`, `dashboard-operator-ui` | Implement opt-in global symbol/side caps with default-disabled config, paper advisory pass-through, live hard-block, and targeted runtime/config tests. |
+| _None_ | _None_ | _None_ | _None_ | No active debt-unit mapping. |
 
 ## Promotion Candidates
 
-No additional promotion candidates beyond DEBT-068.
+No additional promotion candidates.
 
 ## Update Rules
 

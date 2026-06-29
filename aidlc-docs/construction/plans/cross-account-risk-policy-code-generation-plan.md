@@ -29,7 +29,7 @@ freeze, and the dashboard exposure panel.
       fields; add `GlobalRiskPolicy` and operator freeze flag.
       (Slice 1 — 2026-05-13: all new RiskPolicy fields, GlobalRiskPolicy
       block + registry parsing.)
-- [ ] Add `RuntimeRiskPolicy` resolver and a pure sizing helper.
+- [x] Add `RuntimeRiskPolicy` resolver and a pure sizing helper.
       (Slice 1 partial — `src/trading/risk_sizing.py` pure
       `compute_risk_budget_size` helper landed with 5 structured
       `RiskSizingRejection` modes and full unit-test coverage. Slice 2a
@@ -38,10 +38,12 @@ freeze, and the dashboard exposure panel.
       `proposal.quantity` before downstream gates, rejects structured
       sizing failures with `gate_rejected_risk_sizing`, and removed the
       temporary config-time `_reject_risk_budget_mode_until_wired_in`
-      validator. The `RuntimeRiskPolicy` resolver is still deferred
-      with the global-cap / kill-switch gate wiring it backs; current
-      gates read off the frozen `SubAccount.risk_policy` directly.)
-- [ ] **DEBT-068(c) — per-account + global kill switches.** Wire the kill-switch
+      validator. The separate `RuntimeRiskPolicy` resolver was retired at
+      closeout: global-cap / kill-switch gates read the frozen
+      `SubAccount.risk_policy` / `GlobalRiskPolicy` directly, matching the
+      shipped runtime shape. Future resolver extraction should be a new
+      architecture/refactor unit, not an open DEBT-068 blocker.)
+- [x] **DEBT-068(c) — per-account + global kill switches.** Wire the kill-switch
       gates documented in the spec §"Kill Switches" into `_handle_proposal`,
       reading off the frozen `SubAccount.risk_policy` / `GlobalRiskPolicy`
       (model fields already shipped Slice 1). Established paper-advisory /
@@ -102,7 +104,7 @@ freeze, and the dashboard exposure panel.
         single existing `list_active()` pass. v1 single-quote-currency: a
         sub-account whose quote currency differs from the first active
         account's is skipped with a one-line warning.)
-  - [ ] New `ProposalFinalState` terminals for each kill-switch reject
+  - [x] New `ProposalFinalState` terminals for each kill-switch reject
         (mirroring the Slice 1 `gate_rejected_account_aggregate_cap` /
         `gate_rejected_stale_position_block` pattern) + funnel label/count
         wiring. Paper-mode advisories reused `PROPOSAL_REJECTED +
@@ -192,7 +194,7 @@ freeze, and the dashboard exposure panel.
       (advisory DISPLAY-only, never read by any decision path), tied to (f).
       Session log
       `docs/sessions/2026-05-24-cross-account-risk-policy-cap-arbitration-c-arb.md`.
-- [ ] Wire the new gates into `_handle_proposal` in the order documented in
+- [x] Wire the new gates into `_handle_proposal` in the order documented in
       the spec. (Slice 1 partial — 2 of 5 planned gates shipped:
       `_account_aggregate_cap_gate` (notional + stop-risk) and
       `_stale_position_block_gate`, both wired after the symbol-cap
@@ -204,7 +206,9 @@ freeze, and the dashboard exposure panel.
       `ensure_utc()` at the stale-block gate per Q5 UTC defense.
       Opt-in global symbol/side caps, per-account + portfolio kill switches,
       and operator freeze toggle deferred under DEBT-068(b)/(c)/(d).
-      Risk-sizing gate shipped 2026-05-15 under DEBT-068(a).)
+      Risk-sizing gate shipped 2026-05-15 under DEBT-068(a). Global-cap,
+      kill-switch, operator-freeze, and stale-position gates have since shipped
+      in the documented order across DEBT-068(b)/(c)/(d)/(e).)
 - [x] Implement DEBT-068(b) as an opt-in global exposure cap gate.
       (2026-05-24: `GlobalRiskPolicy.enabled`/`paper_mode`/`live_mode`
       fields added; new `_global_aggregate_cap_gate` wired into
@@ -245,7 +249,7 @@ freeze, and the dashboard exposure panel.
       full suite 2142 passed (+8); ruff + mypy clean; quant-trader-expert
       "sound — ship", qa-reviewer 🟢. Session log
       `docs/sessions/2026-05-24-cross-account-risk-policy-stale-actions.md`.
-- [ ] Surface the new `ActivityEventType` values on the dashboard command
+- [x] Surface the new `ActivityEventType` values on the dashboard command
       center and through runtime-safety-score inputs.
       (Deferred to Slice 2. The DEBT-068(e) stale event types
       `STALE_POSITION_DETECTED` / `STALE_POSITION_AUTO_CLOSED` are EMITTED to
@@ -269,7 +273,7 @@ freeze, and the dashboard exposure panel.
       condition-25 / cap-60 penalty; kill-switch-only scope — the (e) stale
       event types are surfaced on the dashboard, NOT fed into the score, by
       design). With (h) shipped, the DEBT-068 umbrella SUBSTANCE is COMPLETE;
-      only the minor ride-along notes remain.)
+      DEBT-068 was resolved by status closeout on 2026-06-30.)
 - [x] **DEBT-068(d) — operator-freeze RUNTIME READ side. SHIPPED 2026-05-24.**
       (Split out from the originally-bundled dashboard-panel checkbox below so
       the runtime-shipped half and the dashboard-pending half are unambiguous.)
@@ -343,7 +347,7 @@ freeze, and the dashboard exposure panel.
       priority; (f-2-note-broad-except) — dashboard reader wrapped in broad
       `except Exception` (~L1543), justified, no fix needed. Session log
       `docs/sessions/2026-05-25-cross-account-risk-policy-operator-freeze-toggle-f-2.md`.
-- [ ] Add tests for sizing math, config parsing, gate ordering, kill-switch
+- [x] Add tests for sizing math, config parsing, gate ordering, kill-switch
       lifecycle, stale-position actions, and dashboard rendering.
       (Slice 1 partial — sizing-math, config-parsing, per-account
       aggregate cap gate (live + paper advisory + over-stop-risk +
@@ -393,7 +397,7 @@ freeze, and the dashboard exposure panel.
 - [x] Code implemented. (Slice 2 SUBSTANCE complete — (a), (b), (c) [(c-1)+(c-2)],
       (c-arb), (d), (e), (f) [(f-1)+(f-2)], (g), (h) all shipped as of 2026-05-25.
       DEBT-068(h) kill-switch → runtime-safety-score integration completed the
-      umbrella substance; only six minor ride-along follow-up notes remain.)
+      umbrella substance; DEBT-068 resolved by status closeout on 2026-06-30.)
 - [x] Tests pass. (Full suite 2195 passed as of the DEBT-068(h) cycle 2026-05-25;
       ruff + mypy clean.)
 - [x] Session log and cross-check added. (Per-slice session logs under
