@@ -66,12 +66,14 @@ Add a fee-netted percent (e.g. `net_pnl_pct = pnl / notional * 100`) alongside t
 - DEBT-024 / Phase 20.1-20.2 (intentional leverage-neutral price-move convention)
 - `[[project_no_ohlcv_edge]]`
 
-### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades
+### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
+| **Resolved** | 2026-06-30 |
+| **Resolution** | Added read-only operator audit `src.tools.audit_strategy_funnel_gap` to distinguish fail-closed emissions, persisted proposal records, and opened/linked funnel states for one `(sub_account, technique)` pair. The DEBT-074 shape (`proposals_emitted > 0`, `proposals_fail_closed == 0`, `proposal_records == 0`, `opened_or_linked == 0`) is now classified as `pre_funnel_candidate_selection_or_history_gap`, not a downstream gate rejection. Code inspection confirms why: with `multi_technique_per_symbol=True`, multiple strategy candidates can be built and counted by fail-closed metrics, but `_dedup_by_symbol` returns only the highest-composite candidate to runtime; only that survivor reaches `_handle_proposal` and `ProposalHistory.save`. Deselected candidates have no `ProposalRecord` or `final_state` today. Concrete follow-up filed as DEBT-079. Tests: `tests/test_tools_audit_strategy_funnel_gap.py` covers the vcp-shaped gap, a healthy opened record, and CLI wrapper. Verification: targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`; cross-check `docs/cross-checks/2026-06-30-proposal-funnel-audit-debt-074.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
 | **Component** | proposal-funnel-audit (primary) + strategy-framework |
 
@@ -86,6 +88,29 @@ Trace one `vcp_breakout` proposal through the funnel (`src/proposal/funnel.py`) 
 
 **Related:**
 - `strategies/vcp_breakout.py`, `config/sub_accounts.yaml:109-117`, `src/proposal/funnel.py`
+- DEBT-079 (candidate-level deselection observability)
+
+### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-06-30 |
+| **Phase** | DEBT-074 follow-up |
+| **Component** | proposal-funnel-audit + proposal-runtime |
+
+**Description:**
+DEBT-074 showed that `proposals_emitted` is counted when a strategy candidate reaches `analyze()`, but only the per-symbol winner returned by `_dedup_by_symbol` reaches `_handle_proposal` and `ProposalHistory.save`. A strategy can therefore emit thousands of valid candidates, lose candidate selection every time, and still have zero `ProposalRecord` files, zero `final_state`, and zero dashboard funnel visibility. This is distinct from fail-closed and downstream gate rejection.
+
+**Impact:**
+Operators cannot tell whether a configured strategy is silent because it never signals, fails validation, loses candidate ranking, is score-rejected, or is blocked by a runtime gate. Strategy labs like `vcp_breakout` can consume runtime analysis budget while remaining invisible in the proposal funnel.
+
+**Suggested Resolution:**
+Persist or emit candidate-level deselection evidence before per-symbol dedup. The record/event should include the losing technique, winning technique, symbol, both composite scores, tie-break reason, and sub-account. Either add a funnel terminal such as `candidate_deselected` or a sibling candidate-selection audit surface that the dashboard can count without implying the deselected candidate entered the runtime gate chain.
+
+**Related:**
+- `src/proposal/engine.py::_propose_all_for_symbol`, `_dedup_by_symbol`, `src.proposal.fail_closed_metrics`
+- DEBT-074
 
 ### DEBT-075: No entry-time regime tag on trades → promotion robustness gate can never clear ✅
 
@@ -919,13 +944,15 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 3 |
 | Low | 1 |
-| Resolved (All Time) | 69 |
+| Resolved (All Time) | 70 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-06-30 | Added | DEBT-079 `proposal-funnel-audit` follow-up — candidate-level proposal deselection is not persisted in the funnel. Filed from DEBT-074 after audit tooling showed emitted/no-fail-closed/no-proposal/no-open is a pre-funnel candidate-selection/history gap, not a downstream gate rejection. |
+| 2026-06-30 | Resolved | DEBT-074 `proposal-funnel-audit` shipped (via `/dev-crypto`) — added read-only `src.tools.audit_strategy_funnel_gap` to classify strategy-level emitted/proposal/opened gaps. The vcp-shaped pattern now resolves to `pre_funnel_candidate_selection_or_history_gap`; concrete follow-up DEBT-079 filed. Targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`. |
 | 2026-06-30 | Resolved | DEBT-075 `strategy-framework` shipped (via `/dev-crypto`) — entry-time regime tagging. `ProposalEngine` stamps `Proposal.market_regime` from pre-entry primary OHLCV using the trailing-SMA robustness classifier; `SnapshotRecorder` persists it onto `PerformanceRecord`; `TechniquePerformance.regime_performance` now exposes per-regime closed-trade count, fee-aware expectancy, and total PnL percent. Legacy records default to `unknown`. Targeted pytest 15 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-framework-debt-075-entry-regime-tag.md`. |
 | 2026-06-26 | Resolved | DEBT-077 `runtime-reconciliation` shipped (via `/dev-crypto`) — test-only. Added `TestResolveBoundsFromPerformanceRecord` (12 tests) directly covering every fail-safe branch of `resolve_bounds_from_performance_record` (missing root/sub-dir, id-not-found, null SL/TP, corrupt JSON, rows-not-a-list, malformed Decimal, non-dict/stray-file/missing-records.json skips, happy path) — each asserts `None`/skip, never raises. No source change. `tests/test_strategy_performance.py` 117 passed; ruff + black clean. Session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-077-resolver-failsafe-tests.md`. |
 | 2026-06-26 | Resolved | DEBT-073 `strategy-framework` shipped (via `/dev-crypto`) — **fee-inclusive edge metrics**. `pnl_percent` stays an intentional leverage-neutral gross price-move (DEBT-024); the fix adds `net_*` aggregates to `TechniquePerformance.from_records` (`net = pnl_percent - fees/notional*100` per closed real record, gross fallback when notional is unknown) and switches `evidence_from_performance` to consume them (`profit_factor = net_win_pct/net_loss_pct`, `closed_pnl_pct = net_total_pnl_percent`). Gross/display fields untouched; a gross-winner-turned-net-loser lands in the net loss bucket. Only consumer is the dashboard Recommended column (live `_strategy_action_gate` reads applied YAML — gating unchanged). `trade_history.py:126-129` docstring corrected. 6+3 new/updated tests; full suite 2376 passed; ruff + mypy + black clean. Session log `docs/sessions/2026-06-26-strategy-framework-fee-inclusive-edge-metrics.md`. |
