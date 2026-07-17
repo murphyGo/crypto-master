@@ -1578,8 +1578,20 @@ class TestTimeStopGate:
 
     async def test_time_stop_respects_higher_priority_sl(self, tmp_path: Path) -> None:
         """SL fires on the same monitor pass → close reason is ``stop_loss``."""
-        # Trade is well past the time-stop window AND the SL hits.
-        aged_trade = _make_aged_trade(trade_id="t-sl", age_seconds=1_000_000)
+        # Trade is well past the time-stop window AND the SL hits. It must
+        # carry full reconciliation provenance: DEBT-078 relabels a bound exit
+        # on an ORPHAN_MAX_AGE-old row to ``orphan_force_close`` when SL/TP or
+        # the perf link is missing, and this rung asserts the healthy aged
+        # row keeps the honest ``stop_loss`` label.
+        aged_trade = _make_aged_trade(
+            trade_id="t-sl", age_seconds=1_000_000
+        ).model_copy(
+            update={
+                "stop_loss": Decimal("49500"),
+                "take_profit": Decimal("52000"),
+                "performance_record_id": "perf-t-sl",
+            }
+        )
         sl_closed = aged_trade.model_copy(
             update={
                 "status": "closed",
@@ -2655,13 +2667,17 @@ async def test_close_writes_performance_record_for_dashboard(
 
     tracker = PerformanceTracker(data_dir=tmp_path / "performance")
 
-    # Open trade primed with TP-hit prices so monitor closes it.
+    # Open trade primed with TP-hit prices so monitor closes it. Fresh
+    # entry_time: an ORPHAN_MAX_AGE-old row without persisted SL/TP would
+    # get its ``take_profit`` reason relabeled to ``orphan_force_close``
+    # by DEBT-078, which classifies as BREAKEVEN instead of WIN.
     open_trade = make_trade(
         trade_id="t-close-1",
         entry="50000",
         exit_price="50000",
         pnl_percent=2.0,
         status="open",
+        entry_time=now_utc() - timedelta(hours=1),
     )
 
     pre_proposal = make_proposal(proposal_id="p-close-1", composite=1.6)
@@ -6359,7 +6375,16 @@ async def test_monitor_multi_rung_single_pass_closes_each_exactly_once(
     extraction, so it is asserted explicitly across all four rungs at once.
     """
     # A: SL/TP hit (check_exit_conditions returns an exit before time-stop).
-    trade_sl = make_trade(trade_id="A-sl", symbol="BTC/USDT", side="long")
+    # Entry must be fresh: DEBT-078 relabels a bound exit on a row older than
+    # ORPHAN_MAX_AGE with weak reconciliation provenance (no persisted SL/TP /
+    # perf link, as make_trade builds) to ``orphan_force_close`` — this rung
+    # asserts the healthy-row ``stop_loss`` label.
+    trade_sl = make_trade(
+        trade_id="A-sl",
+        symbol="BTC/USDT",
+        side="long",
+        entry_time=now_utc() - timedelta(hours=1),
+    )
     # B: aged far beyond its default 1h/48-bar time-stop window (make_trade's
     # default entry_time is weeks old) and NOT orphaned -> time-stop.
     trade_ts = make_trade(trade_id="B-ts", symbol="SOL/USDT", side="long")

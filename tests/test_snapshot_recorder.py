@@ -248,6 +248,10 @@ def test_save_performance_record_routes_to_trade_sub_account(tmp_path: Path) -> 
     proposal.score.confidence = 0.8
     proposal.created_at = now_utc()
     proposal.profile_name = None
+    # DEBT-075 threads the proposal's entry-time regime into the perf record;
+    # a bare MagicMock attribute fails the Literal validation and the record
+    # is silently dropped by the defensive except.
+    proposal.market_regime = "bull"
     record = MagicMock()
     record.proposal = proposal
 
