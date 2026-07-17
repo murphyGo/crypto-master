@@ -41,6 +41,76 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data)
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-07-17 |
+| **Phase** | strategy-gen analysis 2026-07-17 |
+| **Component** | backtesting-validation (`scripts/backtest_baselines.py`) |
+
+**Description:**
+`fetch_ohlcv_window` (`scripts/backtest_baselines.py:200`) pages backwards with
+`since = earliest_ts - candle_ms * page_size` where `page_size` is up to
+`BINANCE_MAX_LIMIT = 1500`, assuming the venue returns the full requested count
+for a `since`-anchored page. Binance returns at most 1000 bars on those pages
+(the first, non-`since` page does honor 1500), so each backward page covers only
+`since .. since+1000` and leaves a ~500-bar hole immediately before the
+previously-fetched earliest bar. Verified empirically 2026-07-17 during the
+first `/strategy-gen` run: a 270d 1h window (6,480 bars requested, 6,480
+returned) actually spanned 373 days with 5 holes of ~480-500 bars (~28% of the
+span missing); a 120d 15m window had 10 holes of exactly 500 bars. Hole
+timestamps were identical across BTC/ETH/SOL/BNB — three independent analysis
+lanes confirmed the periodic, symbol-identical stride that rules out exchange
+downtime. The returned list is chronologically sorted and de-duplicated, so
+nothing downstream notices: bar *count* matches the request while calendar
+coverage silently shrinks, and rolling indicators (ATR/RSI/SMA) treat a
+multi-day hole as two adjacent candles. Note `total_candles ≤ 1500` single-page
+fetches and 4h windows ≤ ~2000 bars are unaffected (the second page fits under
+the real cap).
+
+Reproduction: fetch >1500 bars of 1h via `fetch_ohlcv_window` and assert
+consecutive timestamps differ by exactly `TIMEFRAME_MS["1h"]` — 5 violations of
+~500 bars appear per 6,480-bar request.
+
+**Impact:**
+- `scripts/run_robustness_gate.py --live` uses this paginator: any 1h window
+  > 62 days or 15m window > 15.6 days runs OOS / walk-forward / regime /
+  sensitivity gates over data with multi-day holes. Past `--live` gate verdicts
+  on such windows (e.g. `--window-days 90` on 1h/15m strategies) were computed
+  on ~28% missing history and should be considered unreliable until re-run.
+- `scripts/backtest_baselines.py --refresh-snapshot`: the committed baseline
+  specs `3mo 1h` (2,160 bars) and `1mo 15m` (2,880 bars) both exceed 1,500, so
+  refreshed snapshot datasets inherit the holes and the "reference numbers" the
+  LLM strategies must beat get computed on gapped data. 4h specs (540 bars) are
+  clean.
+- Any future consumer trusting `len(result) == total_candles` as a coverage
+  check is silently misled (the count matches; the calendar span does not).
+
+**Suggested Resolution:**
+1. Advance pagination by bars actually received, not bars requested: after each
+   page, set the next `since` from the page's actual earliest timestamp and
+   request the span still missing (or simply clamp backward pages to 1000 bars,
+   the size Binance honors with `since`). A hole-free variant was validated
+   during the 2026-07-17 session (12/12 windows contiguous).
+2. Add a post-fetch contiguity assertion to `fetch_ohlcv_window` (consecutive
+   timestamps must differ by exactly `TIMEFRAME_MS[timeframe]`) that fails
+   loudly instead of returning silently gapped data.
+3. Regression test in `tests/test_scripts_backtest_baselines.py`: fake exchange
+   that honors `limit` without `since` but caps `since`-anchored pages at 1000 —
+   current code produces holes, fixed code must not.
+4. After the fix, re-run `scripts/run_robustness_gate.py --live` for any
+   strategy previously gated on >1500-bar 1h/15m windows, and refresh + recommit
+   the baseline snapshot dataset.
+
+**Related:**
+- Consumers: `scripts/run_robustness_gate.py` (imports `fetch_ohlcv_window`),
+  `scripts/backtest_baselines.py` snapshot refresh path
+- Discovery context: 2026-07-17 `/strategy-gen` sweep (three chartist lanes
+  independently flagged the periodic 500-bar stride; lead verified the
+  mechanism against `src/exchange/ccxt_base.py:306`'s per-venue cap handling)
+
 ### DEBT-073: Strategy edge metrics (profit factor / expectancy) omit realized fee drag ✅
 
 | Field | Value |
