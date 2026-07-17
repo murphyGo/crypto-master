@@ -62,7 +62,7 @@ methods, no new dependencies; vendor integration deferred to a v2 design.
 - (b) Binance + one freemium vendor (adds liquidations/long-short/MVRV)
 - (c) Vendor-first (Coinglass as the primary source)
 
-[Answer]:
+[Answer]: (a) Binance-only v1 — confirmed by operator 2026-07-17.
 
 ### Q2 — strategy consumption contract
 
@@ -82,7 +82,7 @@ keeps raw series available so strategies compute their own features
 - (c) Extend `ohlcv_by_timeframe`-style dict with pseudo-timeframe keys
   ("funding", "oi") — no new types but abuses the OHLCV shape
 
-[Answer]:
+[Answer]: (a) optional `market_context` object — confirmed by operator 2026-07-17.
 
 ### Q3 — backtest reproducibility for funding/OI
 
@@ -101,7 +101,7 @@ no-look-ahead guarantee as `slice_multi_tf_by_index`.
 - (c) v1 runtime-only (no backtest support): strategies can use the data
   live/paper but gated promotion stays OHLCV-only until v2
 
-[Answer]:
+[Answer]: (a) snapshot schema v2 — confirmed by operator 2026-07-17.
 
 ### Q4 — first consumer to build after the wiring
 
@@ -119,16 +119,16 @@ the historical series.
   portfolio-wide benefit)
 - (c) Both in one slice (larger, but one review cycle)
 
-[Answer]:
+[Answer]: (a) regime filter first, then Funding-Extreme MR strategy — confirmed by operator 2026-07-17.
 
 ## Plan Steps
 
-- [ ] Q1-Q4 answered; ambiguities resolved (follow-ups if any answer is
-      vague).
+- [x] Q1-Q4 answered; ambiguities resolved (all four recommended options
+      confirmed by operator 2026-07-17; no vague answers).
 - [ ] Requirements addendum: file the new derivatives-data FR via
       product-planner flow (`docs/requirements.md` +
       `aidlc-docs/inception/requirements/requirements.md`).
-- [ ] Generate `aidlc-docs/construction/exchange-integration/functional-design/`
+- [x] Generate `aidlc-docs/construction/exchange-integration/functional-design/`
       artifacts per the AI-DLC rule: `business-logic-model.md`
       (fetch/pagination/alignment flows, DEBT-080-style contiguity rules),
       `domain-entities.md` (`FundingRate`, `OpenInterestPoint`,
