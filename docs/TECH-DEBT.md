@@ -41,12 +41,14 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data)
+### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data) ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | High |
 | **Created** | 2026-07-17 |
+| **Resolved** | 2026-07-17 |
+| **Resolution** | Backward pagination in `scripts/backtest_baselines.py::fetch_ohlcv_window` now fills each target span by walking forward from the span start by bars **actually received** (no assumption that a `since`-anchored request is honored in full), and a new `_assert_contiguous` helper raises `ValueError` (symbol, timeframe, gap count, first hole) on both the single-page and paginated return paths. No signature change — all four consumers (`backtest_baselines`, `run_robustness_gate`, `backtest_combinations`, `auto_research_candidates`) inherit the fix. Regression tests: `_SinceCappedBinanceExchange` fake mirroring the real venue's 1000-bar anchored-page cap (full contiguous window required), short-history pass-through, venue-side-hole raise; `auto_research` test fakes corrected to serve per-timeframe candle spacing (they had been feeding 1h-spaced bars for 4h requests — caught by the new check). Live verification: `fetch_ohlcv_window(BTC/USDT, 1h, 2200)` against real Binance returned 2,200 bars with a single 3,600,000 ms delta — the exact request shape that previously produced a 500-bar hole. Targeted suites 54 passed; full `uv run pytest` 2401 passed with 2 pre-existing failures (`test_runtime_engine.py::test_monitor_multi_rung_single_pass_closes_each_exactly_once`, `test_snapshot_recorder.py::test_save_performance_record_routes_to_trade_sub_account`) verified failing before this change via git-stash check — unrelated subsystems, not introduced here. 3 pre-existing mypy `Literal` arg-type errors in the script likewise predate the change. Operator follow-up (open, tracked here): re-run `run_robustness_gate --live` for any strategy previously gated on >1500-bar 1h/15m windows, and treat the first `--refresh-snapshot` as producing the first trustworthy 1h/15m snapshot. Session log `docs/sessions/2026-07-17-backtesting-validation-debt-080-pagination-fix.md`. |
 | **Phase** | strategy-gen analysis 2026-07-17 |
 | **Component** | backtesting-validation (`scripts/backtest_baselines.py`) |
 

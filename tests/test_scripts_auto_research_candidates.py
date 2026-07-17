@@ -11,7 +11,7 @@ Backtester / RobustnessGate behavior has its own tests.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -67,6 +67,21 @@ class _FailingConnectExchange(_FakeExchange):
     async def connect(self) -> None:
         self.connected = True
         raise RuntimeError("connect failed")
+
+
+def _make_tf_exchange() -> _FakeExchange:
+    """Fake exchange with correctly-spaced candles per timeframe.
+
+    DEBT-080: ``fetch_ohlcv_window`` now fails loudly when bar spacing
+    does not match the requested timeframe, so the 4h stream must be
+    4h-spaced rather than sharing the 1h list.
+    """
+    return _FakeExchange(
+        {
+            "1h": _synthetic_ohlcv(300),
+            "4h": _synthetic_ohlcv(300, delta=timedelta(hours=4)),
+        }
+    )
 
 
 def _make_picks() -> list[Pick]:
@@ -163,8 +178,7 @@ def _make_mock_loop(tmp_path: Path, audit_path: Path) -> FeedbackLoop:
 async def test_run_picks_orchestrates_each_candidate(tmp_path: Path) -> None:
     """Each pick produces one PickResult; passing picks land in
     AWAITING_APPROVAL with their saved technique path."""
-    candles = _synthetic_ohlcv(300)
-    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    exchange = _make_tf_exchange()
     loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
 
     results = await run_picks(
@@ -182,8 +196,7 @@ async def test_run_picks_orchestrates_each_candidate(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_run_picks_threads_sub_account_id(tmp_path: Path) -> None:
-    candles = _synthetic_ohlcv(300)
-    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    exchange = _make_tf_exchange()
     loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
 
     results = await run_picks(
@@ -203,8 +216,7 @@ async def test_dry_run_skips_backtest(tmp_path: Path) -> None:
     the gate. The result status reflects this. Files must land under
     a ``dry_runs/`` subdir of the experimental dir so a subsequent
     real pass doesn't mix ungated and gated candidates."""
-    candles = _synthetic_ohlcv(300)
-    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    exchange = _make_tf_exchange()
     loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
     real_experimental = loop.improver.experimental_dir
 
@@ -238,8 +250,7 @@ async def test_dry_run_skips_backtest(tmp_path: Path) -> None:
 async def test_pick_failure_captured_not_raised(tmp_path: Path) -> None:
     """If one pick errors, the others still run; the error is recorded
     on the result rather than aborting the whole batch."""
-    candles = _synthetic_ohlcv(300)
-    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    exchange = _make_tf_exchange()
     loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
 
     # Make the first pick raise during generate_idea (Claude error path)
@@ -468,8 +479,7 @@ def test_default_results_dir_follows_data_dir(
 async def test_run_async_uses_caller_built_loop_and_exchange(
     tmp_path: Path,
 ) -> None:
-    candles = _synthetic_ohlcv(300)
-    exchange = _FakeExchange({"1h": candles, "4h": candles})
+    exchange = _make_tf_exchange()
     loop = _make_mock_loop(tmp_path, audit_path=tmp_path / "audit.jsonl")
 
     rc = await script.run_async(

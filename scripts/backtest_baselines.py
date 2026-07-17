@@ -216,22 +216,29 @@ async def fetch_ohlcv_window(
         symbol: Trading pair (e.g. ``"BTC/USDT"``).
         timeframe: Candle timeframe label.
         total_candles: Approximate number of bars wanted. The actual
-            length may be slightly less if the exchange returns fewer
-            bars than requested for a page.
+            length may be less only when the venue's history is shorter
+            than the requested window (e.g. a freshly listed symbol).
 
     Returns:
-        List of :class:`OHLCV`, ascending by timestamp.
-    """
-    if total_candles <= BINANCE_MAX_LIMIT:
-        return await exchange.get_ohlcv(
-            symbol=symbol, timeframe=timeframe, limit=total_candles
-        )
+        List of :class:`OHLCV`, ascending by timestamp, contiguous at
+        ``timeframe`` spacing.
 
+    Raises:
+        ValueError: If the assembled window has timestamp holes
+            (DEBT-080 — silently gapped data corrupted every downstream
+            gate/backtest; now it fails loudly instead).
+    """
     candle_ms = TIMEFRAME_MS[timeframe]
 
-    # Page back from "now": fetch the most-recent page first, then
-    # repeatedly request the page that ends just before that one's
-    # earliest timestamp.
+    if total_candles <= BINANCE_MAX_LIMIT:
+        page = await exchange.get_ohlcv(
+            symbol=symbol, timeframe=timeframe, limit=total_candles
+        )
+        _assert_contiguous(page, candle_ms, symbol, timeframe)
+        return page
+
+    # Page back from "now": fetch the most-recent page first, then fill
+    # the span that ends just before that page's earliest timestamp.
     pages: list[list[OHLCV]] = []
     recent = await exchange.get_ohlcv(
         symbol=symbol, timeframe=timeframe, limit=BINANCE_MAX_LIMIT
@@ -243,25 +250,44 @@ async def fetch_ohlcv_window(
     fetched = len(recent)
 
     while fetched < total_candles:
-        page_size = min(BINANCE_MAX_LIMIT, total_candles - fetched)
-        # Request the window ending just before the earliest bar we
-        # already have. ccxt's ``since`` is inclusive on the start.
-        since = earliest_ts - candle_ms * page_size
-        page = await exchange.get_ohlcv(
-            symbol=symbol,
-            timeframe=timeframe,
-            limit=page_size,
-            since=since,
-        )
-        if not page:
+        span_bars = min(BINANCE_MAX_LIMIT, total_candles - fetched)
+        # DEBT-080: a ``since``-anchored page may come back with fewer
+        # bars than requested (Binance serves at most 1000 on anchored
+        # pages despite honoring 1500 on the no-``since`` page). The
+        # old code assumed the request was honored and jumped ``since``
+        # by the *requested* size, leaving a silent ~500-bar hole per
+        # page. Walk the target span forward by the bars actually
+        # received until it meets the data we already hold.
+        cursor = earliest_ts - candle_ms * span_bars
+        span: list[OHLCV] = []
+        while cursor < earliest_ts:
+            remaining = int((earliest_ts - cursor) // candle_ms)
+            page = await exchange.get_ohlcv(
+                symbol=symbol,
+                timeframe=timeframe,
+                limit=min(remaining, BINANCE_MAX_LIMIT),
+                since=cursor,
+            )
+            # Keep strictly-older bars only; a venue-side gap could
+            # otherwise leak bars we already hold into the span.
+            page = [
+                c for c in page if int(c.timestamp.timestamp() * 1000) < earliest_ts
+            ]
+            if not page:
+                break
+            span.extend(page)
+            next_cursor = int(page[-1].timestamp.timestamp() * 1000) + candle_ms
+            if next_cursor <= cursor:
+                # Defensive: the venue returned nothing past the
+                # cursor; bail to avoid an infinite loop.
+                break
+            cursor = next_cursor
+        if not span:
+            # No data older than what we already hold — history start.
             break
-        pages.append(page)
-        new_earliest = int(page[0].timestamp.timestamp() * 1000)
-        if new_earliest >= earliest_ts:
-            # No older data available; bail to avoid an infinite loop.
-            break
-        earliest_ts = new_earliest
-        fetched += len(page)
+        pages.append(span)
+        earliest_ts = int(span[0].timestamp.timestamp() * 1000)
+        fetched += len(span)
 
     # Flatten + dedupe (pages may overlap by a candle at the boundary).
     seen: set[int] = set()
@@ -274,7 +300,34 @@ async def fetch_ohlcv_window(
             seen.add(ts)
             flat.append(candle)
     flat.sort(key=lambda c: c.timestamp)
+    _assert_contiguous(flat, candle_ms, symbol, timeframe)
     return flat
+
+
+def _assert_contiguous(
+    candles: list[OHLCV], candle_ms: int, symbol: str, timeframe: str
+) -> None:
+    """Fail loudly when a fetched window has timestamp holes.
+
+    DEBT-080: a silently gapped window makes every downstream consumer
+    (robustness gate, baseline snapshot refresh, combination backtests,
+    auto-research candidates) compute rolling indicators across
+    multi-day holes as if they were adjacent candles. Raising here
+    turns silent data corruption into a visible operator error.
+    """
+    gaps = [
+        (candles[i].timestamp, candles[i + 1].timestamp)
+        for i in range(len(candles) - 1)
+        if int((candles[i + 1].timestamp - candles[i].timestamp).total_seconds() * 1000)
+        != candle_ms
+    ]
+    if gaps:
+        first_from, first_to = gaps[0]
+        raise ValueError(
+            f"fetch_ohlcv_window: non-contiguous OHLCV for {symbol} "
+            f"{timeframe}: {len(gaps)} gap(s); first hole "
+            f"{first_from.isoformat()} -> {first_to.isoformat()}"
+        )
 
 
 def serialize_result(result: BacktestResult) -> dict:

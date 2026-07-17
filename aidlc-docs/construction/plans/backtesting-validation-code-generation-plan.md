@@ -52,3 +52,25 @@ of unfinished historical tasks.
 
 Add future backtest, reproducibility, baseline, robustness, or validation work
 as new unchecked steps here.
+
+### DEBT-080: `fetch_ohlcv_window` pagination holes (2026-07-17)
+
+Related: DEBT-080 (`docs/TECH-DEBT.md`), FR-025/FR-026/FR-034, NFR-006.
+Discovery: 2026-07-17 `/strategy-gen` sweep — `since`-anchored Binance pages
+return at most 1000 bars while the paginator assumes the full 1500-bar request
+is honored, leaving ~500-bar holes per backward page on >1500-bar windows.
+
+- [x] Fix backward pagination in `scripts/backtest_baselines.py::fetch_ohlcv_window`
+      to advance by bars actually received (span-fill walk), so >1500-bar
+      windows come back contiguous. Verify:
+      `uv run pytest tests/test_scripts_backtest_baselines.py -q`.
+- [x] Add a loud contiguity check (`ValueError` naming symbol/timeframe/first
+      hole) applied to both the single-page and paginated return paths.
+- [x] Regression tests in `tests/test_scripts_backtest_baselines.py`: a fake
+      exchange capping `since` pages at 1000 (mirrors real Binance) must yield
+      a full contiguous window; venue-side data holes must raise; short
+      history must return all available bars without raising.
+- [x] Consumer regression: `uv run pytest tests/test_run_robustness_gate.py
+      tests/test_scripts_backtest_combinations.py tests/test_scripts_auto_research_candidates.py -q`.
+- [x] Docs/debt closeout: TECH-DEBT resolution entry, debt-unit-map cleanup,
+      session log `docs/sessions/2026-07-17-backtesting-validation-debt-080-pagination-fix.md`.

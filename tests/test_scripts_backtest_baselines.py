@@ -293,6 +293,82 @@ async def test_fetch_ohlcv_window_short_window_uses_get_ohlcv(
     assert all(out[i].timestamp <= out[i + 1].timestamp for i in range(len(out) - 1))
 
 
+class _SinceCappedBinanceExchange(_FakeBinanceExchange):
+    """Fake mirroring real Binance paging: ``since`` pages cap at 1000.
+
+    DEBT-080: the real venue honors up to 1500 bars only on the
+    no-``since`` most-recent page; ``since``-anchored pages serve at
+    most 1000. The idealized parent fake honors the full request —
+    exactly the assumption that hid the pagination-hole bug.
+    """
+
+    async def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int = 100,
+        since: int | None = None,
+    ) -> list[OHLCV]:
+        if since is not None:
+            limit = min(limit, 1000)
+        return await super().get_ohlcv(symbol, timeframe, limit=limit, since=since)
+
+
+async def test_fetch_ohlcv_window_survives_since_page_cap() -> None:
+    """DEBT-080 regression: venue caps ``since`` pages below the request.
+
+    2,200 bars of 1h span two backward pages; with the anchored-page
+    cap the old pagination jumped ``since`` by the requested 1,500 bars
+    while receiving 1,000, leaving a ~500-bar hole yet still returning
+    a full-looking count. The fixed paginator must return the exact
+    window, contiguous.
+    """
+    exchange = _SinceCappedBinanceExchange(
+        {"1h": _synthetic_ohlcv(2200, seed=7, delta=timedelta(hours=1))}
+    )
+    out = await backtest_baselines.fetch_ohlcv_window(
+        exchange=exchange,  # type: ignore[arg-type]
+        symbol="BTC/USDT",
+        timeframe="1h",
+        total_candles=2200,
+    )
+    assert len(out) == 2200
+    deltas = {out[i + 1].timestamp - out[i].timestamp for i in range(len(out) - 1)}
+    assert deltas == {timedelta(hours=1)}
+
+
+async def test_fetch_ohlcv_window_short_history_returns_all_available() -> None:
+    """Requesting more bars than the venue holds returns the full
+    (shorter) contiguous history without tripping the contiguity check.
+    """
+    exchange = _SinceCappedBinanceExchange(
+        {"1h": _synthetic_ohlcv(1200, seed=8, delta=timedelta(hours=1))}
+    )
+    out = await backtest_baselines.fetch_ohlcv_window(
+        exchange=exchange,  # type: ignore[arg-type]
+        symbol="BTC/USDT",
+        timeframe="1h",
+        total_candles=3000,
+    )
+    assert len(out) == 1200
+    deltas = {out[i + 1].timestamp - out[i].timestamp for i in range(len(out) - 1)}
+    assert deltas == {timedelta(hours=1)}
+
+
+async def test_fetch_ohlcv_window_raises_on_venue_side_hole() -> None:
+    """A genuine hole in the venue's own data fails loudly (DEBT-080)."""
+    candles = _synthetic_ohlcv(1200, seed=9, delta=timedelta(hours=1))
+    del candles[600:605]
+    exchange = _FakeBinanceExchange({"1h": candles})
+    with pytest.raises(ValueError, match="non-contiguous"):
+        await backtest_baselines.fetch_ohlcv_window(
+            exchange=exchange,  # type: ignore[arg-type]
+            symbol="BTC/USDT",
+            timeframe="1h",
+            total_candles=len(candles),
+        )
+
+
 # ---------------------------------------------------------------------------
 # End-to-end smoke: run_all writes every artefact
 # ---------------------------------------------------------------------------
