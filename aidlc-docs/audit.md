@@ -444,3 +444,19 @@ dependency, live network, or runtime `data/` action occurred.
   separate next slices.
 - **Status:** Awaiting operator approval
 - **Recorded at:** 2026-07-22T20:13:48+09:00
+
+## 2026-07-22T20:23:27+09:00 — Slice 4 Operator Approval; LC-11 Sealed; Operations N/A
+
+- **Primary unit:** `backtesting-validation`
+- **Exact operator response:** `남은 단계 진행` (in reply to the presented
+  Build & Test results and the explicit approve-to-seal prompt)
+- **Decision:** Slice 4 LC-11 Build & Test approved. LC-11 sealed;
+  FR-046 and US-025 recorded Complete across Slices 1-4. Operations
+  disposition N/A — no deployment/configuration/process/migration surface
+  changed; production snapshot refresh remains a separate explicit operator
+  action.
+- **Next construction:** `market-regime` (primary) Funding+OI combo regime
+  filter — functional design stage entered; hypothesis-first evidence gate
+  required before any enforcement per business-rules R7.
+- **Status:** Sealed
+- **Recorded at:** 2026-07-22T20:23:27+09:00
