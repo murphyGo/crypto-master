@@ -1,4 +1,30 @@
-# Build Instructions: backtesting-validation Derivatives Data Slice 4
+# Build Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Current scope
+
+Build the in-process classifier, per-account policy, runtime shadow event, and
+dashboard read models without enabling a veto, exchange request, deployment,
+or runtime-data write.
+
+## Commands
+
+```bash
+uv lock --check
+uv run python -m compileall -q src/runtime src/trading src/dashboard
+uv run black --check <12 changed Python files>
+uv run ruff check <12 changed Python files>
+uv run mypy src
+```
+
+Verified with Python 3.13.0: 91 locked packages, compilation and
+socket-guarded imports pass, all 12 changed Python files pass Black/Ruff, and
+`mypy` reports zero issues across 114 source files. Python source is the only
+artifact; no dependency, package, service, migration, or deployment artifact
+is added.
+
+---
+
+# Prior Build Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Current scope
 

@@ -216,6 +216,12 @@ class ActivityEventType(str, Enum):
     #     policy_decision (str)    "pass_through_degraded"
     MARKET_REGIME_DEGRADED = "market_regime_degraded"
 
+    # Shadow-first Funding/OI crowding filter. OBSERVED is emitted for every
+    # successfully classified enabled-account proposal; it is explicitly not
+    # a rejection event. SKIPPED records fail-open missing/short/stale context.
+    FUNDING_OI_CROWDING_OBSERVED = "funding_oi_crowding_observed"
+    FUNDING_OI_CROWDING_SKIPPED = "funding_oi_crowding_skipped"
+
     # Runtime reconciliation (runtime-reconciliation unit). Emitted once
     # per engine startup, after open-position rehydration and before
     # the cycle loop, carrying the per-sub-account taxonomy breakdown

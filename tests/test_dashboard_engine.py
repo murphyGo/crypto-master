@@ -14,6 +14,8 @@ from src.dashboard.pages.engine import (
     build_cycle_duration_dataframe,
     build_cycles_dataframe,
     build_freeze_toggle_plan,
+    build_funding_oi_crowding_events_dataframe,
+    build_funding_oi_crowding_summary,
     build_market_regime_account_dataframe,
     build_market_regime_account_rows,
     build_market_regime_degraded_events_dataframe,
@@ -639,6 +641,61 @@ def _make_regime_event(
         message=f"regime {regime} blocked",
         details=details,
     )
+
+
+def _make_crowding_event(
+    *,
+    timestamp: datetime,
+    would_block: bool | None,
+) -> ActivityEvent:
+    skipped = would_block is None
+    return make_event(
+        event_type=(
+            ActivityEventType.FUNDING_OI_CROWDING_SKIPPED
+            if skipped
+            else ActivityEventType.FUNDING_OI_CROWDING_OBSERVED
+        ),
+        timestamp=timestamp,
+        details={
+            "sub_account_id": "crowding",
+            "symbol": "BTC/USDT",
+            "signal": "long",
+            "crowding_state": "unavailable" if skipped else "crowded_long",
+            "funding_rate": "0.01",
+            "oi_delta": "25",
+            "would_block": would_block,
+            "reason": (
+                "missing_market_context"
+                if skipped
+                else "positive_funding_high_extreme_with_rising_oi"
+            ),
+        },
+    )
+
+
+def test_funding_oi_crowding_summary_separates_shadow_and_skip() -> None:
+    base = datetime(2026, 7, 22, tzinfo=timezone.utc)
+    events = [
+        _make_crowding_event(timestamp=base, would_block=True),
+        _make_crowding_event(timestamp=base + timedelta(minutes=1), would_block=False),
+        _make_crowding_event(timestamp=base + timedelta(minutes=2), would_block=None),
+    ]
+    summary = build_funding_oi_crowding_summary(events)
+    assert (summary.evaluated, summary.would_block, summary.skipped) == (2, 1, 1)
+
+
+def test_funding_oi_crowding_dataframe_is_newest_first_and_honest() -> None:
+    base = datetime(2026, 7, 22, tzinfo=timezone.utc)
+    df = build_funding_oi_crowding_events_dataframe(
+        [
+            _make_crowding_event(timestamp=base, would_block=True),
+            _make_crowding_event(
+                timestamp=base + timedelta(minutes=1), would_block=None
+            ),
+        ]
+    )
+    assert list(df["Crowding State"]) == ["unavailable", "crowded_long"]
+    assert set(df["Mode"]) == {"SHADOW — NOT ENFORCING"}
 
 
 def test_market_regime_status_rows_keep_latest_per_symbol_timeframe() -> None:
@@ -1328,9 +1385,7 @@ def test_kill_switch_state_window_is_latest_cycle() -> None:
         cycle_id="cyc-new",
         timestamp=now_utc(),
     )
-    state = kill_switch_state_for_account(
-        [old, newer_other], "acc", cycle_id="cyc-new"
-    )
+    state = kill_switch_state_for_account([old, newer_other], "acc", cycle_id="cyc-new")
     assert state == "none"
     state_other = kill_switch_state_for_account(
         [old, newer_other], "other", cycle_id="cyc-new"

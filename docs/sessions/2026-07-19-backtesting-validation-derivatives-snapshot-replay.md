@@ -9,7 +9,7 @@
 
 **Stage:** Construction Build and Test
 
-**Status:** Build & Test PASS; explicit operator review pending
+**Status:** Sealed; Build & Test approved; Operations N/A
 
 ## Scope
 
@@ -120,6 +120,9 @@ LC-11 and the full FR-046/US-025 chain are independently verified Complete
 across Slices 1-4. Proposal filtering and Funding-Extreme MR remain separate
 later slices.
 
-Build & Test now awaits explicit operator review. No Operations, production
+Build & Test was explicitly approved on 2026-07-22. LC-11 and the full
+FR-046/US-025 chain are sealed Complete across Slices 1-4. Operations is N/A
+under the repository placeholder rule because this slice changes no deployment,
+configuration, process, migration, or production-data surface. No production
 refresh, deployment, credential, live network, order, or runtime `data/`
-action has occurred.
+action occurred.

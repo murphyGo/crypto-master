@@ -23,6 +23,7 @@ from src.strategy.tuning import (
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
+    FundingOiFilterPolicy,
     MarketRegimePolicy,
     ProposalPolicy,
     RiskOverrides,
@@ -285,6 +286,33 @@ def test_market_regime_policy_rejects_unknown_regime_values() -> None:
     100% rejection rate. Reject at the config boundary instead."""
     with pytest.raises(ValidationError, match="invalid label"):
         MarketRegimePolicy(enabled=True, allowed_regimes=["bull", "trending"])
+
+
+def test_funding_oi_filter_policy_defaults_are_disabled_shadow() -> None:
+    sub = SubAccount(id="crowding", name="Crowding", mode="paper")
+    assert sub.funding_oi_filter == FundingOiFilterPolicy()
+    assert sub.funding_oi_filter.enabled is False
+    assert sub.funding_oi_filter.action == "shadow"
+
+
+def test_funding_oi_filter_policy_validates_bounds_and_is_frozen() -> None:
+    policy = FundingOiFilterPolicy(
+        enabled=True,
+        funding_window_days=14,
+        funding_low_percentile=Decimal("0.1"),
+        funding_high_percentile=Decimal("0.9"),
+        oi_lookback_hours=48,
+    )
+    assert policy.enabled is True
+    with pytest.raises(ValidationError):
+        policy.enabled = False  # type: ignore[misc]
+    with pytest.raises(ValidationError):
+        FundingOiFilterPolicy(funding_window_days=31)
+
+
+def test_funding_oi_filter_policy_rejects_veto_before_evidence_slice() -> None:
+    with pytest.raises(ValidationError):
+        FundingOiFilterPolicy(action="veto")  # type: ignore[arg-type]
 
 
 def test_dual_source_root_and_policy_fields_raise_clear_conflict() -> None:

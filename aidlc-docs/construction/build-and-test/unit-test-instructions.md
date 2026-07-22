@@ -1,4 +1,29 @@
-# Unit Test Instructions: backtesting-validation Derivatives Data Slice 4
+# Unit Test Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Focused command
+
+```bash
+uv run pytest -q \
+  tests/test_runtime_funding_oi_filter.py \
+  tests/test_runtime_gate_reason.py \
+  tests/test_trading_sub_account.py \
+  tests/test_runtime_engine.py \
+  tests/test_dashboard_engine.py
+```
+
+Verified result: 317 passed in 3.75 seconds. The same set with
+`--cov=src.runtime.funding_oi_filter --cov-report=term-missing` passed in 5.62
+seconds and measured 91% statement coverage for the classifier module.
+
+Primary assertions cover deterministic long/short/neutral/unavailable
+classification, predicted-Funding exclusion, evidence qualification, frozen
+shadow-only policy, disabled zero work, unchanged fill/rejection outcome,
+exact safe event fields, provider-error sanitization, and honest dashboard
+counts/order/labels.
+
+---
+
+# Prior Unit Test Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Focused command
 

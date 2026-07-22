@@ -39,7 +39,7 @@ For active technical debt grouped by these units, see
 | `runtime-reconciliation` | Repair and monitor deployed paper-runtime state so open trades, persisted bounds, balances, and dashboard positions stay reconciled | `src/trading/`, `src/runtime/`, `src/tools/`, `src/dashboard/`, `tests/test_paper_trading.py`, `tests/test_runtime_*`, `tests/test_tools_*` |
 | `proposal-funnel-audit` | Operator-visible proposal funnel from generated proposal through post-approval gates and opened trades | `src/proposal/`, `src/runtime/`, `src/dashboard/`, `tests/test_proposal_*`, `tests/test_runtime_*`, `tests/test_dashboard_*` |
 | `cross-account-risk-policy` | Cross-sub-account exposure, risk sizing, stale-position, and kill-switch policies for strategy labs | `src/runtime/`, `src/trading/sub_account*.py`, `config/sub_accounts.yaml`, `tests/test_runtime_*`, `tests/test_trading_sub_account*` |
-| `market-regime` | Current market regime classification and per-sub-account regime gating policy | `src/runtime/`, `src/trading/sub_account*.py`, `src/dashboard/`, `tests/test_runtime_*`, `tests/test_trading_sub_account*`, `tests/test_dashboard_*` |
+| `market-regime` | Current OHLCV regime classification plus Funding/OI crowding classification and per-sub-account proposal-gating policy | `src/runtime/`, `src/trading/sub_account*.py`, `src/dashboard/`, `src/proposal/`, `tests/test_runtime_*`, `tests/test_trading_sub_account*`, `tests/test_dashboard_*` |
 | `strategy-tuning` | Data-driven tuning, pausing, and promotion policy for live paper-lab strategy families | `strategies/`, `config/sub_accounts.yaml`, `src/proposal/`, `src/dashboard/`, `tests/test_baseline_strategies.py`, `tests/test_runtime_*`, `tests/test_dashboard_*` |
 | `clean-architecture-hardening` | Guide-driven, behavior-preserving SOLID/clean-architecture refactor from the 2026-05-28 eleven-subagent review (port extraction, long-function/God-object decomposition, adapter dedup, typed contracts) | `src/`, `tests/`, `aidlc-docs/construction/plans/clean-architecture-hardening-code-generation-plan.md`, `docs/TECH-DEBT.md`, `docs/sessions/` |
 
@@ -369,17 +369,18 @@ For active technical debt grouped by these units, see
 ### `market-regime`
 
 - **Responsibilities**: Shared bull / bear / sideways / unknown market-regime
-  classification, per-sub-account regime-gating policy, runtime proposal
-  allow/block decisions, and operator dashboard visibility.
-- **Related Requirements**: FR-045, FR-036, FR-029, FR-031, NFR-003, NFR-007,
-  NFR-008.
+  classification, side-aware Funding/OI crowding classification,
+  per-sub-account regime/crowding policy, runtime proposal allow/block
+  decisions, evidence-gated enforcement, and operator dashboard visibility.
+- **Related Requirements**: FR-045, FR-046, FR-036, FR-011, FR-012, FR-014,
+  FR-029, FR-031, NFR-003, NFR-006, NFR-007, NFR-008.
 - **Existing Status**: New product unit; functional specification created.
-- **Future Change Triggers**: Regime classifier behavior, sub-account policy
-  schema, proposal gating semantics, dashboard regime status, account-level
-  strategy experiment routing.
-- **Suggested Tests**: regime classifier unit tests, sub-account policy
+- **Future Change Triggers**: Regime or crowding classifier behavior,
+  sub-account policy schema, proposal gating semantics, replay evidence rules,
+  dashboard regime/crowding status, account-level strategy experiment routing.
+- **Suggested Tests**: regime/crowding classifier unit tests, sub-account policy
   validation tests, runtime proposal-gating tests, activity event tests,
-  dashboard rendering tests.
+  snapshot/replay evidence tests, dashboard rendering tests.
 
 ### `strategy-tuning`
 

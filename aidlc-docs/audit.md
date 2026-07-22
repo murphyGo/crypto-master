@@ -460,3 +460,52 @@ dependency, live network, or runtime `data/` action occurred.
   required before any enforcement per business-rules R7.
 - **Status:** Sealed
 - **Recorded at:** 2026-07-22T20:23:27+09:00
+
+## 2026-07-22T20:29:09+09:00 — Funding+OI Filter Autonomous Continuation
+
+- **Primary unit:** `market-regime`
+- **Stage:** Functional Design
+- **Exact operator response:** `내 허락 묻지말고 계속 작`
+- **Interpretation:** Continue the already-selected Funding+OI crowding-filter
+  slice without repeated stage approval prompts, using every recommended
+  option while remaining inside the bounded product scope and preserving live
+  trading safeguards.
+- **Decisions:** Shadow-first; relative 30-day Funding p95/p05 plus rising 24h
+  OI; side-aware per-account policy; proposal replay and pinned Snapshot-v2
+  evidence both required before veto.
+- **Status:** Functional Design complete; NFR Requirements entered
+- **Recorded at:** 2026-07-22T20:29:09+09:00
+
+## 2026-07-22T20:57:20+09:00 — Funding+OI Shadow Construction Completed
+
+- **Primary unit:** `market-regime`
+- **Secondary units:** `proposal-runtime`, `exchange-integration`,
+  `dashboard-operator-ui`, `quality-governance`
+- **Operator authorization:** `내 허락 묻지말고 계속 작`
+- **Applied scope:** Continue the already bounded Funding+OI crowding-filter
+  work through the remaining recommended construction stages without repeated
+  approval pauses. Live trading, deployment, credentials, production config,
+  and runtime-data mutation remained outside authorization.
+- **NFR Requirements:** Complete; CFO-NFR-001..012 recorded.
+- **NFR Design:** Complete; pure classifier, policy, runtime observation,
+  telemetry, dashboard, and evidence-qualification boundaries recorded.
+- **Infrastructure Design:** N/A; no topology, service, storage, credential,
+  migration, or deployment change.
+- **Code Generation:** Complete; shadow-only classifier/policy/runtime/event/UI
+  implementation and tests generated. Configuration rejects veto.
+- **Build status:** Success.
+- **Test status:** Pass — 317 focused; classifier 91% coverage; p95 0.000064s
+  at 90 Funding/500 OI; 2604 complete repository tests; mypy 114 source files;
+  changed-file Black/Ruff, lock, compile, offline import, diff, dependency,
+  deployment, credential, and runtime-data scope checks pass.
+- **Cross-check:** PASS at
+  `docs/cross-checks/2026-07-22-market-regime-funding-oi-crowding-shadow.md`.
+- **Debt:** No new debt. DEBT-081 remains unrelated (16 global Black
+  candidates, 22 Ruff findings).
+- **Operations:** N/A under the placeholder rule; no operational action was
+  executed.
+- **Release boundary:** US-026 shadow observation complete and sealed.
+  Enforcement remains unavailable until later proposal replay plus pinned
+  Snapshot-v2 evidence qualifies it.
+- **Status:** Complete; workflow ended after Construction Build & Test
+- **Recorded at:** 2026-07-22T20:57:20+09:00

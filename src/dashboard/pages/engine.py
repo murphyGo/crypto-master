@@ -54,8 +54,11 @@ from src.dashboard.pages.engine_cross_account_risk import (
 )
 from src.dashboard.pages.engine_market_regime import (
     MARKET_REGIME_RECENT_LIMIT,
+    FundingOiCrowdingSummary,
     MarketRegimeAccountPolicyRow,
     MarketRegimeStatusRow,
+    build_funding_oi_crowding_events_dataframe,
+    build_funding_oi_crowding_summary,
     build_market_regime_account_dataframe,
     build_market_regime_account_rows,
     build_market_regime_degraded_events_dataframe,
@@ -653,9 +656,19 @@ def render(
     regime_degraded_df = build_market_regime_degraded_events_dataframe(events)
     if not regime_degraded_df.empty:
         st.caption("Recent regime-gate degraded (fail-open) events")
-        st.dataframe(
-            regime_degraded_df, hide_index=True, use_container_width=True
-        )
+        st.dataframe(regime_degraded_df, hide_index=True, use_container_width=True)
+
+    st.caption("Funding+OI Crowding — SHADOW — NOT ENFORCING")
+    crowding_summary = build_funding_oi_crowding_summary(events)
+    f1, f2, f3 = st.columns(3)
+    f1.metric("Evaluated", crowding_summary.evaluated)
+    f2.metric("Would block", crowding_summary.would_block)
+    f3.metric("Skipped", crowding_summary.skipped)
+    crowding_df = build_funding_oi_crowding_events_dataframe(events)
+    if crowding_df.empty:
+        st.info("No Funding/OI crowding shadow observations recorded yet.")
+    else:
+        st.dataframe(crowding_df, hide_index=True, use_container_width=True)
 
     # ---- Recent cycles table ----
     st.subheader("Recent Cycles")
@@ -703,6 +716,7 @@ def render(
 
 
 __all__ = [
+    "FundingOiCrowdingSummary",
     "CapBand",
     "CycleSummary",
     "EngineSummaryMetrics",
@@ -729,6 +743,8 @@ __all__ = [
     "build_market_regime_events_dataframe",
     "build_market_regime_status_dataframe",
     "build_market_regime_status_rows",
+    "build_funding_oi_crowding_events_dataframe",
+    "build_funding_oi_crowding_summary",
     "build_reconciliation_drilldown_dataframe",
     "build_reconciliation_status_banner",
     "build_runtime_safety_score",

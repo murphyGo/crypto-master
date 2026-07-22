@@ -1,4 +1,26 @@
-# Security Test Instructions: backtesting-validation Derivatives Data Slice 4
+# Security Test Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Security assertions
+
+- Disabled policy performs zero context work and emits no event.
+- The proposal hot path reads only the existing in-memory service cache; it
+  performs no exchange/network/filesystem refresh.
+- Missing or failed context passes through. Provider exceptions retain only
+  `error_type`; raw messages, payloads, paths, URLs, signed query material, and
+  credentials are absent.
+- Predicted Funding is ignored and every settled record is at or before
+  `proposal.created_at` through the sealed `MarketContext` contract.
+- No dependency/lock, deployment, infrastructure, credential, migration,
+  production configuration, or repository `data/` change exists.
+
+Changed-file Black/Ruff, repository mypy, compile, offline import,
+`git diff --check`, and scope scans pass. Repository-wide Black/Ruff reproduces
+only existing DEBT-081 (16 Black candidates and 22 Ruff findings), with no
+overlap in this slice.
+
+---
+
+# Prior Security Test Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Security assertions
 

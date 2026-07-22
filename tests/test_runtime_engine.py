@@ -37,6 +37,7 @@ from src.runtime.engine import (
     PolicyResolver,
     TradingEngine,
 )
+from src.runtime.funding_oi_filter import FundingOiCrowdingClassification
 from src.runtime.reconciliation import OpenTradeState
 from src.strategy.base import BaseStrategy, TechniqueInfo
 from src.strategy.performance import (
@@ -52,6 +53,7 @@ from src.strategy.tuning import (
 from src.trading.sub_account import (
     CapitalPolicy,
     ExecutionPolicy,
+    FundingOiFilterPolicy,
     GlobalRiskPolicy,
     MarketRegimePolicy,
     ProposalPolicy,
@@ -4518,6 +4520,125 @@ def _make_regime_ohlcv(
             )
         )
     return candles
+
+
+def _crowded_long_classification(proposal: Proposal) -> FundingOiCrowdingClassification:
+    return FundingOiCrowdingClassification(
+        state="crowded_long",
+        as_of=proposal.created_at,
+        funding_rate=Decimal("0.01"),
+        funding_low_threshold=Decimal("-0.001"),
+        funding_high_threshold=Decimal("0.005"),
+        funding_point_count=90,
+        oi_latest=Decimal("125"),
+        oi_reference=Decimal("100"),
+        oi_delta=Decimal("25"),
+        reason="positive_funding_high_extreme_with_rising_oi",
+    )
+
+
+async def test_funding_oi_shadow_observes_would_block_without_blocking_fill(
+    tmp_path: Path,
+) -> None:
+    proposal = make_proposal(proposal_id="crowding-shadow", signal="long")
+    service = MagicMock(spec=DerivativesContextService)
+    service.refresh_cycle = AsyncMock(return_value=None)
+    service.close = AsyncMock(return_value=None)
+    service.context_for.return_value = MagicMock(context=object(), unmet_reasons=())
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        derivatives_context_service=service,
+    )
+    sub_account = SubAccount(
+        id="crowding",
+        name="Crowding",
+        mode="paper",
+        initial_balance={"USDT": Decimal("10000")},
+        funding_oi_filter=FundingOiFilterPolicy(enabled=True),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [sub_account],
+        {sub_account.id: mocks["trader"]},
+    )  # type: ignore[assignment]
+
+    with patch(
+        "src.runtime.engine.classify_funding_oi_crowding",
+        return_value=_crowded_long_classification(proposal),
+    ):
+        result = await engine.run_cycle()
+
+    assert result.positions_opened == 1
+    assert result.proposals_rejected == 0
+    observed = mocks["activity_log"].filter(
+        event_type=ActivityEventType.FUNDING_OI_CROWDING_OBSERVED
+    )
+    assert len(observed) == 1
+    assert observed[0].details["would_block"] is True
+    assert observed[0].details["enforcing"] is False
+    assert observed[0].details["policy_decision"] == "shadow_would_block"
+    assert set(observed[0].details) == {
+        "proposal_id",
+        "record_id",
+        "sub_account_id",
+        "symbol",
+        "signal",
+        "technique_name",
+        "as_of",
+        "policy_action",
+        "crowding_state",
+        "reason",
+        "funding_rate",
+        "funding_low_threshold",
+        "funding_high_threshold",
+        "funding_point_count",
+        "oi_latest",
+        "oi_reference",
+        "oi_delta",
+        "would_block",
+        "policy_decision",
+        "enforcing",
+    }
+    service.context_for.assert_called_once()
+
+
+def test_funding_oi_disabled_policy_is_zero_work(tmp_path: Path) -> None:
+    engine, _ = build_engine(tmp_path=tmp_path)
+    service = MagicMock(spec=DerivativesContextService)
+    engine.derivatives_context_service = service
+    proposal = make_proposal()
+    sub_account = SubAccount(id="disabled", name="Disabled", mode="paper")
+
+    event = engine._funding_oi_shadow_event(proposal, sub_account, "cycle")
+
+    assert event is None
+    service.context_for.assert_not_called()
+
+
+def test_funding_oi_provider_error_skips_without_serializing_message(
+    tmp_path: Path,
+) -> None:
+    engine, _ = build_engine(tmp_path=tmp_path)
+    service = MagicMock(spec=DerivativesContextService)
+    service.context_for.side_effect = RuntimeError(
+        "secret=/private/tmp/key?signature=top-secret"
+    )
+    engine.derivatives_context_service = service
+    proposal = make_proposal(proposal_id="crowding-error")
+    sub_account = SubAccount(
+        id="crowding",
+        name="Crowding",
+        mode="paper",
+        funding_oi_filter=FundingOiFilterPolicy(enabled=True),
+    )
+
+    event = engine._funding_oi_shadow_event(proposal, sub_account, "cycle")
+
+    assert event is not None
+    assert event.event_type is ActivityEventType.FUNDING_OI_CROWDING_SKIPPED
+    assert event.details["gate_reason"] == "gate_skipped_missing_market_context"
+    assert event.details["error_type"] == "RuntimeError"
+    assert "top-secret" not in str(event.details)
 
 
 class TestMarketRegimeGate:

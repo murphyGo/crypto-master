@@ -1,8 +1,72 @@
-# Build and Test Summary: backtesting-validation Derivatives Data Slice 4
+# Build and Test Summary: market-regime Funding+OI Crowding Shadow Filter
 
 ## Current outcome
 
-**Slice 4 status: PASS; explicit operator review pending.**
+**Funding+OI shadow release: PASS and sealed; Operations N/A.**
+
+The disabled-by-default proposal-layer observer builds and passes all
+applicable verification. It classifies settled Funding extremes confirmed by
+rising OI, emits side-aware sanitized shadow telemetry, and renders an honest
+dashboard projection. The policy schema makes veto structurally unavailable,
+and a `would_block` observation cannot change a proposal, fill, position,
+order, balance, or counter.
+
+## Build and test evidence
+
+| Check | Result |
+|-------|--------|
+| Lock/compile/offline import | Pass; 91 packages, no lock mutation or network-at-import |
+| Focused unit/contract/security/integration | 317 passed in 3.75s |
+| Classifier coverage | 317 passed in 5.62s; 91% for `funding_oi_filter.py` |
+| Performance | 90 Funding/500 OI, 100 runs, p95 0.000064s; target <=0.005s |
+| Complete repository regression | 2604 passed in 45.09s |
+| Type safety | `mypy src`: 114 source files, zero issues |
+| Slice formatting/lint | Black/Ruff pass on 12 changed Python files |
+| Integrity/scope | diff, dependency, deployment, credential, runtime `data/`, duplicate/TODO scans pass |
+
+## Requirement and risk coverage
+
+- FR-045/US-024: existing OHLCV regime behavior is preserved; Funding/OI is a
+  separate per-account shadow signal.
+- FR-046/US-025: consumes the sealed time-bounded in-memory `MarketContext`
+  with no look-ahead or predicted Funding.
+- FR-011/012/014 and US-026: symbol/side-aware observation, fail-open safe
+  telemetry, and operator visibility pass while veto remains unavailable.
+- CFO-NFR-001..012: hot-path I/O, latency, disabled/shadow invariants,
+  determinism, security, evidence, UI honesty, and lifecycle gates pass.
+
+## Applicability and boundary
+
+- **Infrastructure Design:** N/A; no service/topology/storage/credential change.
+- **Live endpoint/order E2E:** N/A; no acquisition or execution path changed.
+- **Deployment/production enablement:** Not performed.
+- **Operations:** N/A under the repository placeholder rule.
+- **Future veto:** Not part of this release. It requires real shadow data plus
+  qualifying proposal replay and pinned Snapshot-v2 evidence in a new slice.
+
+## Existing baseline issue
+
+DEBT-081 remains unrelated: repository-wide Black lists 16 existing candidates
+and Ruff reports 22 findings in four existing scripts. No current slice file
+appears in either set.
+
+## Overall status
+
+- **Build:** Success
+- **All applicable tests:** Pass
+- **Cross-check:** PASS for US-026 shadow observation
+- **New technical debt:** None
+- **Network/data/deployment action:** None
+- **Operations:** N/A
+- **Release status:** Sealed as disabled-by-default shadow observer
+
+---
+
+# Prior Build and Test Summary: backtesting-validation Derivatives Data Slice 4
+
+## Current outcome
+
+**Slice 4 status: PASS; operator-approved and sealed; Operations N/A.**
 
 Pinned Snapshot v1/v2 replay, no-lookahead Funding/OI context, backtest and
 robustness propagation, deterministic provenance, explicit collector-to-v2
@@ -70,7 +134,7 @@ collector-to-report flow. No deferred debt was required.
 - **Live endpoint smoke:** Not run; opt-in and not a CI prerequisite.
 - **Live trading E2E:** N/A; no order path or strategy threshold changed.
 - **Deployment/production refresh:** Not authorized and not performed.
-- **Operations:** Pending operator disposition; expected N/A because no
+- **Operations:** N/A under the repository placeholder rule; no
   deployment/configuration/process/migration surface changed.
 
 ## Existing baseline issue
@@ -87,8 +151,9 @@ pass.
 - **Cross-check:** PASS for LC-11 and the completed FR-046/US-025 chain
 - **New technical debt:** None
 - **Network/data/deployment action:** None
-- **Operator Build & Test approval:** Pending
-- **Next boundary:** Explicit review, then Operations applicability disposition
+- **Operator Build & Test approval:** Approved on 2026-07-22
+- **Operations:** N/A; no operational action executed
+- **Slice status:** Sealed; FR-046/US-025/LC-11 Complete across Slices 1-4
 
 ---
 

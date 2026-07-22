@@ -304,6 +304,38 @@ class MarketRegimePolicy(BaseModel):
         return value
 
 
+class FundingOiFilterPolicy(BaseModel):
+    """Shadow-first per-account Funding/OI crowding-filter policy.
+
+    The initial contract intentionally accepts only ``action="shadow"``.
+    A veto action is a later schema extension after the dual-lane evidence
+    gate qualifies; configuration alone cannot opt into enforcement.
+    """
+
+    enabled: bool = False
+    action: Literal["shadow"] = "shadow"
+    funding_window_days: int = Field(default=30, ge=7, le=30)
+    funding_low_percentile: Decimal = Field(
+        default=Decimal("0.05"),
+        gt=Decimal("0"),
+        lt=Decimal("0.5"),
+    )
+    funding_high_percentile: Decimal = Field(
+        default=Decimal("0.95"),
+        gt=Decimal("0.5"),
+        lt=Decimal("1"),
+    )
+    oi_lookback_hours: int = Field(default=24, ge=1, le=168)
+
+    model_config = ConfigDict(frozen=True)
+
+    @model_validator(mode="after")
+    def _validate_percentile_order(self) -> FundingOiFilterPolicy:
+        if self.funding_low_percentile >= self.funding_high_percentile:
+            raise ValueError("funding percentiles must be strictly ordered")
+        return self
+
+
 class GlobalRiskPolicy(BaseModel):
     """Top-level cross-account exposure caps and kill switches.
 
@@ -442,6 +474,9 @@ class SubAccount(BaseModel):
     execution_policy: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
     notification_policy: NotificationPolicy = Field(default_factory=NotificationPolicy)
     market_regime: MarketRegimePolicy = Field(default_factory=MarketRegimePolicy)
+    funding_oi_filter: FundingOiFilterPolicy = Field(
+        default_factory=FundingOiFilterPolicy
+    )
     # strategy-tuning §"Account Policy": opt-in per-account block
     # carrying applied/recommended action overrides per strategy plus
     # the recommender's evidence thresholds. Default
@@ -570,6 +605,7 @@ class SubAccount(BaseModel):
 __all__ = [
     "CapitalPolicy",
     "ExecutionPolicy",
+    "FundingOiFilterPolicy",
     "GlobalRiskPolicy",
     "MarketRegimePolicy",
     "NotificationPolicy",

@@ -75,6 +75,11 @@ class GateReason(str, Enum):
     # Market-regime gate.
     MARKET_REGIME_BLOCKED = "market_regime_blocked"
 
+    # Funding/OI crowding shadow observer could not classify because the
+    # proposal-time market context was missing, stale, short, or invalid.
+    # This is a fail-open skip, never a proposal rejection.
+    MISSING_MARKET_CONTEXT_SKIPPED = "gate_skipped_missing_market_context"
+
     # Strategy-action gate (shadow records the proposal; pause rejects it).
     STRATEGY_ACTION_SHADOW = "strategy_action_shadow"
     STRATEGY_ACTION_PAUSE = "strategy_action_pause"

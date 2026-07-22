@@ -101,8 +101,8 @@ New Build & Test regressions pin the previously missing boundaries:
 
 ## Recommendations
 
-**PASS.** Seal LC-11 and mark FR-046/US-025 Complete after operator approval of
-this Build & Test result. Treat Operations as N/A unless a later approval
-explicitly authorizes production snapshot refresh or deployment. Plan the
-proposal Funding+OI regime filter as a separate next slice; do not fold it into
-this completed replay boundary.
+**PASS.** Operator approval was recorded on 2026-07-22; LC-11 and
+FR-046/US-025 are sealed Complete across Slices 1-4. Operations is N/A unless a
+later, separate approval explicitly authorizes production snapshot refresh or
+deployment. Plan the proposal Funding+OI regime filter as a separate next
+slice; do not fold it into this completed replay boundary.

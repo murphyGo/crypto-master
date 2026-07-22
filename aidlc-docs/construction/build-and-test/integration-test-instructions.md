@@ -1,4 +1,28 @@
-# Integration Test Instructions: backtesting-validation Derivatives Data Slice 4
+# Integration Test Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Current boundary
+
+```text
+existing cycle derivatives refresh/cache
+  -> context_for(proposal.symbol, as_of=proposal.created_at)
+  -> pure Funding/OI classifier
+  -> shadow observed/skipped activity event
+  -> unchanged proposal fill/rejection outcome
+  -> Engine Market Regime dashboard projection
+```
+
+The focused 317-test run verifies this boundary, including one cache read and
+no hot-path refresh. A `would_block=true` long still opens in paper mode and
+does not increment rejection counters. Disabled policy performs no lookup or
+event. Provider failure emits a sanitized fail-open skip.
+
+The complete repository regression passed 2604 tests in 45.09 seconds. All
+tests use typed fixtures/mocks and local temporary state; no live endpoint,
+credential, order, deployment, or repository `data/` path is involved.
+
+---
+
+# Prior Integration Test Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Current boundaries under test
 

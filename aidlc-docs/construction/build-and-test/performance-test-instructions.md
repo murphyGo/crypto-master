@@ -1,4 +1,22 @@
-# Performance Test Instructions: backtesting-validation Derivatives Data Slice 4
+# Performance Test Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Requirement and command
+
+CFO-NFR-002 requires pure classification p95 <=0.005 seconds at 90 settled
+Funding and 500 OI observations.
+
+```bash
+uv run pytest -q -s \
+  tests/test_runtime_funding_oi_filter.py::test_classifier_p95_is_within_five_milliseconds_at_design_envelope
+```
+
+Verified result over 100 local deterministic runs: p95 0.000064 seconds,
+PASS. This measures only the I/O-free classifier. Exchange/network latency is
+not part of the hot-path classifier and no production latency claim is made.
+
+---
+
+# Prior Performance Test Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Applicability
 

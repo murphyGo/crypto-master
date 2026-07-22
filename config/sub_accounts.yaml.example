@@ -59,4 +59,15 @@ sub_accounts:
     execution_policy:
       reject_if_past_stop_loss: false
       reject_if_stale_quote: false
+    # Funding/OI crowding starts disabled and shadow-only. Enabling this block
+    # records would-block observations but cannot reject or resize a proposal.
+    # The global derivatives context service must also be enabled separately;
+    # missing context fails open and is recorded as a skip.
+    funding_oi_filter:
+      enabled: false
+      action: shadow
+      funding_window_days: 30
+      funding_low_percentile: 0.05
+      funding_high_percentile: 0.95
+      oi_lookback_hours: 24
     enabled: true

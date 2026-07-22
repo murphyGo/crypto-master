@@ -1,4 +1,27 @@
-# Contract Test Instructions: backtesting-validation Derivatives Data Slice 4
+# Contract Test Instructions: market-regime Funding+OI Crowding Shadow Filter
+
+## Contract assertions
+
+- Policy defaults disabled and accepts only `action="shadow"`; veto cannot be
+  enabled through configuration.
+- Classification uses settled Funding nearest-rank p05/p95 plus strictly rising
+  24h OI; Funding sign determines the crowded side.
+- Only same-side entries calculate `would_block`; this field is observational.
+- Runtime evaluates after correlation/OHLCV regime gates and before sizing/risk
+  while preserving all existing terminal decisions.
+- Missing/stale/short/error context emits a stable fail-open skip.
+- Observed events use the exact safe derived-field allowlist and explicitly
+  carry `enforcing=false`.
+- Future veto evidence fails closed unless both replay lanes, identity, digest,
+  seed, samples, non-negative expectancy, and regime diversity qualify.
+- Dashboard labels every row `SHADOW — NOT ENFORCING` and never counts a
+  would-block as an actual rejection.
+
+Verified by 317 focused tests and 2604 complete repository tests.
+
+---
+
+# Prior Contract Test Instructions: backtesting-validation Derivatives Data Slice 4
 
 ## Contract assertions
 

@@ -70,6 +70,11 @@ from src.runtime.correlation_governor import (
     evaluate_correlation_gate,
 )
 from src.runtime.derivatives_context import DerivativesContextService
+from src.runtime.funding_oi_filter import (
+    FundingOiCrowdingClassification,
+    classify_funding_oi_crowding,
+    crowding_would_block,
+)
 from src.runtime.gate_reason import GateReason
 from src.runtime.market_regime import (
     DEFAULT_BEAR_BAND,
@@ -1347,6 +1352,14 @@ class TradingEngine:
                     result=result,
                 )
                 return
+
+            crowding_event = self._funding_oi_shadow_event(
+                proposal,
+                sub_account,
+                cycle_id,
+            )
+            if crowding_event is not None:
+                events.append(crowding_event)
 
             # cross-account-risk-policy §"Runtime Behavior" / DEBT-068(c):
             # the kill switches run BEFORE sizing and BEFORE the cap gates,
@@ -3513,6 +3526,101 @@ class TradingEngine:
                 )
             ],
             rejected_record,
+        )
+
+    def _funding_oi_shadow_event(
+        self,
+        proposal: Proposal,
+        sub_account: SubAccount | None,
+        cycle_id: str,
+    ) -> GateActivityEvent | None:
+        """Observe side-aware Funding/OI crowding without changing behavior."""
+        if sub_account is None or not sub_account.funding_oi_filter.enabled:
+            return None
+        policy = sub_account.funding_oi_filter
+        evaluation_reasons: tuple[str, ...] = ()
+        error_type: str | None = None
+        if self.derivatives_context_service is None:
+            classification = classify_funding_oi_crowding(
+                None,
+                as_of=proposal.created_at,
+                funding_window_days=policy.funding_window_days,
+                funding_low_percentile=policy.funding_low_percentile,
+                funding_high_percentile=policy.funding_high_percentile,
+                oi_lookback_hours=policy.oi_lookback_hours,
+            )
+        else:
+            try:
+                evaluation = self.derivatives_context_service.context_for(
+                    proposal.symbol,
+                    as_of=proposal.created_at,
+                )
+                evaluation_reasons = tuple(evaluation.unmet_reasons)
+                classification = classify_funding_oi_crowding(
+                    evaluation.context,
+                    as_of=proposal.created_at,
+                    funding_window_days=policy.funding_window_days,
+                    funding_low_percentile=policy.funding_low_percentile,
+                    funding_high_percentile=policy.funding_high_percentile,
+                    oi_lookback_hours=policy.oi_lookback_hours,
+                )
+            except Exception as exc:
+                error_type = type(exc).__name__
+                classification = FundingOiCrowdingClassification(
+                    state="unavailable",
+                    as_of=proposal.created_at,
+                    reason="context_provider_error",
+                )
+
+        base_details: dict[str, Any] = {
+            "proposal_id": proposal.proposal_id,
+            "record_id": proposal.proposal_id,
+            "sub_account_id": sub_account.id,
+            "symbol": proposal.symbol,
+            "signal": proposal.signal,
+            "technique_name": proposal.technique_name,
+            "as_of": classification.as_of.isoformat(),
+            "policy_action": policy.action,
+            "crowding_state": classification.state,
+            "reason": classification.reason,
+        }
+        if classification.state == "unavailable":
+            base_details["gate_reason"] = (
+                GateReason.MISSING_MARKET_CONTEXT_SKIPPED.value
+            )
+            base_details["unmet_reasons"] = list(evaluation_reasons)
+            if error_type is not None:
+                base_details["error_type"] = error_type
+            return GateActivityEvent(
+                ActivityEventType.FUNDING_OI_CROWDING_SKIPPED,
+                f"Funding/OI crowding filter skipped for {proposal.symbol}",
+                base_details,
+                cycle_id,
+            )
+
+        would_block = crowding_would_block(
+            classification.state,
+            proposal.signal,
+        )
+        base_details.update(
+            {
+                "funding_rate": str(classification.funding_rate),
+                "funding_low_threshold": str(classification.funding_low_threshold),
+                "funding_high_threshold": str(classification.funding_high_threshold),
+                "funding_point_count": classification.funding_point_count,
+                "oi_latest": str(classification.oi_latest),
+                "oi_reference": str(classification.oi_reference),
+                "oi_delta": str(classification.oi_delta),
+                "would_block": would_block,
+                "policy_decision": "shadow_would_block" if would_block else "pass",
+                "enforcing": False,
+            }
+        )
+        return GateActivityEvent(
+            ActivityEventType.FUNDING_OI_CROWDING_OBSERVED,
+            f"Funding/OI crowding shadow evaluated {proposal.symbol}",
+            base_details,
+            cycle_id,
         )
 
     def _strategy_action_gate(

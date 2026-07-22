@@ -31,6 +31,7 @@ HISTORICAL_GATE_REASON_VALUES: dict[GateReason, str] = {
     GateReason.RUNTIME_SAFETY_PAUSED: "runtime_safety_paused",
     GateReason.TREND_FILTER_BLOCKED: "trend_filter_blocked",
     GateReason.MARKET_REGIME_BLOCKED: "market_regime_blocked",
+    GateReason.MISSING_MARKET_CONTEXT_SKIPPED: "gate_skipped_missing_market_context",
     GateReason.STRATEGY_ACTION_SHADOW: "strategy_action_shadow",
     GateReason.STRATEGY_ACTION_PAUSE: "strategy_action_pause",
     GateReason.CORRELATION_BLOCKED: "correlation_blocked",

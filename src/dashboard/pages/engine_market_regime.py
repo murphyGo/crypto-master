@@ -52,6 +52,87 @@ class MarketRegimeAccountPolicyRow:
     last_decision: str
 
 
+@dataclass(frozen=True)
+class FundingOiCrowdingSummary:
+    """Shadow-only aggregate; would-block is never an actual rejection."""
+
+    evaluated: int
+    would_block: int
+    skipped: int
+
+
+def build_funding_oi_crowding_summary(
+    events: list[ActivityEvent],
+) -> FundingOiCrowdingSummary:
+    observed = [
+        event
+        for event in events
+        if event.event_type == ActivityEventType.FUNDING_OI_CROWDING_OBSERVED.value
+    ]
+    skipped = sum(
+        event.event_type == ActivityEventType.FUNDING_OI_CROWDING_SKIPPED.value
+        for event in events
+    )
+    return FundingOiCrowdingSummary(
+        evaluated=len(observed),
+        would_block=sum(bool(event.details.get("would_block")) for event in observed),
+        skipped=skipped,
+    )
+
+
+def build_funding_oi_crowding_events_dataframe(
+    events: list[ActivityEvent],
+    *,
+    limit: int = MARKET_REGIME_RECENT_LIMIT,
+) -> pd.DataFrame:
+    """Newest shadow observations/skips with an explicit non-enforcing label."""
+    columns = [
+        "Timestamp",
+        "Sub-account",
+        "Symbol",
+        "Signal",
+        "Crowding State",
+        "Funding",
+        "OI Delta",
+        "Would Block",
+        "Mode",
+        "Reason",
+    ]
+    selected = [
+        event
+        for event in events
+        if event.event_type
+        in {
+            ActivityEventType.FUNDING_OI_CROWDING_OBSERVED.value,
+            ActivityEventType.FUNDING_OI_CROWDING_SKIPPED.value,
+        }
+    ]
+    selected.sort(key=lambda event: event.timestamp, reverse=True)
+    selected = selected[:limit]
+    if not selected:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame(
+        [
+            {
+                "Timestamp": event.timestamp.isoformat(timespec="seconds"),
+                "Sub-account": str(event.details.get("sub_account_id", "—")),
+                "Symbol": str(event.details.get("symbol", "—")),
+                "Signal": str(event.details.get("signal", "—")),
+                "Crowding State": str(
+                    event.details.get("crowding_state", "unavailable")
+                ),
+                "Funding": str(event.details.get("funding_rate", "—")),
+                "OI Delta": str(event.details.get("oi_delta", "—")),
+                "Would Block": bool(event.details.get("would_block", False)),
+                "Mode": "SHADOW — NOT ENFORCING",
+                "Reason": str(event.details.get("reason", "—")),
+            }
+            for event in selected
+        ],
+        columns=columns,
+    )
+
+
 def build_market_regime_status_rows(
     events: list[ActivityEvent],
 ) -> list[MarketRegimeStatusRow]:
@@ -262,6 +343,7 @@ def build_market_regime_degraded_events_dataframe(
 
 
 __all__ = [
+    "FundingOiCrowdingSummary",
     "MARKET_REGIME_RECENT_LIMIT",
     "MarketRegimeAccountPolicyRow",
     "MarketRegimeStatusRow",
@@ -271,4 +353,6 @@ __all__ = [
     "build_market_regime_events_dataframe",
     "build_market_regime_status_dataframe",
     "build_market_regime_status_rows",
+    "build_funding_oi_crowding_events_dataframe",
+    "build_funding_oi_crowding_summary",
 ]
