@@ -13,6 +13,7 @@ import pytest
 from src.config import BybitConfig
 from src.exchange.base import ExchangeAPIError, ExchangeConnectionError, ExchangeError
 from src.exchange.bybit import BybitExchange
+from src.exchange.derivatives import DerivativesDataNotSupportedError
 from src.models import OHLCV, Order, OrderRequest, OrderStatus, Ticker
 
 
@@ -60,6 +61,18 @@ class TestBybitExchangeInit:
         assert exchange.config is bybit_config
         assert exchange.testnet is True
         assert exchange.name == "bybit"
+
+    @pytest.mark.asyncio
+    async def test_derivatives_data_is_explicitly_unsupported(
+        self, bybit_config: BybitConfig
+    ) -> None:
+        exchange = BybitExchange(config=bybit_config)
+
+        assert exchange.supports_derivatives_data is False
+        with pytest.raises(DerivativesDataNotSupportedError) as exc_info:
+            await exchange.get_funding_rate("BTC/USDT")
+
+        assert exc_info.value.code == "unsupported_venue"
 
     def test_client_is_none_before_connect(self, bybit_config: BybitConfig) -> None:
         """Test client is None before connect() is called."""

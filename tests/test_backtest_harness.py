@@ -10,6 +10,10 @@ from typing import Any
 import pytest
 
 from src.backtest.harness import BacktestHarness
+from src.backtest.reproducibility import ReplayIdentity
+from src.backtest.snapshot import Snapshot, SnapshotMetadata
+from src.backtest.snapshot_replay import SnapshotReplaySource
+from src.backtest.snapshot_v2 import VersionedSnapshot
 from src.backtest.validator import RobustnessReport
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
@@ -117,6 +121,7 @@ class RecordingGate:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, str]] = []
         self.multi_tf_keys: list[list[str]] = []
+        self.snapshot_calls: list[tuple[str, str | None]] = []
 
     async def evaluate(
         self,
@@ -131,6 +136,21 @@ class RecordingGate:
         self.multi_tf_keys.append(sorted(kwargs["ohlcv_by_timeframe"].keys()))
         return RobustnessReport(overall_passed=True, gates=[], summary="passed")
 
+    async def evaluate_snapshot(
+        self,
+        strategy: BaseStrategy,
+        replay: SnapshotReplaySource,
+        **kwargs: Any,
+    ) -> RobustnessReport:
+        self.snapshot_calls.append((strategy.name, replay.generation_id))
+        self.multi_tf_keys.append(sorted(kwargs["ohlcv_by_timeframe"].keys()))
+        return RobustnessReport(
+            overall_passed=True,
+            gates=[],
+            summary="passed",
+            replay_identity=replay.identity,
+        )
+
 
 def _sub_account(account_id: str, strategy_name: str) -> SubAccount:
     return SubAccount(
@@ -140,6 +160,27 @@ def _sub_account(account_id: str, strategy_name: str) -> SubAccount:
         capital_policy=CapitalPolicy(initial_balance={"USDT": Decimal("10000")}),
         strategy_policy=StrategyPolicy(strategy_filter=[strategy_name]),
         risk_policy=RiskPolicy(risk_percent=Decimal("1")),
+    )
+
+
+def _legacy_replay(candles: list[OHLCV]) -> SnapshotReplaySource:
+    return SnapshotReplaySource(
+        VersionedSnapshot(
+            schema_version=1,
+            legacy_snapshot=Snapshot(
+                metadata=SnapshotMetadata(
+                    symbol="BTC/USDT",
+                    timeframe="1h",
+                    source="binance",
+                    fetched_at=candles[-1].timestamp,
+                    candle_count=len(candles),
+                    first_timestamp=candles[0].timestamp,
+                    last_timestamp=candles[-1].timestamp,
+                    fetcher_version="test",
+                ),
+                ohlcv=candles,
+            ),
+        )
     )
 
 
@@ -217,3 +258,96 @@ async def test_multi_timeframe_strategy_receives_timeframe_context(
     assert gate.calls == [("mtf", "BTC/USDT", "1h")]
     assert gate.multi_tf_keys == [["1h", "4h"]]
     assert report.robustness_by_strategy == {"suba": {"mtf": True}}
+
+
+@pytest.mark.asyncio
+async def test_harness_propagates_one_pinned_replay_to_backtest_and_gate(
+    tmp_path: Path,
+) -> None:
+    candles = _candles(32)
+    replay = _legacy_replay(candles)
+    gate = RecordingGate()
+    harness = BacktestHarness(data_dir=tmp_path, gate=gate)  # type: ignore[arg-type]
+
+    report = await harness.run_sub_accounts(
+        [_sub_account("suba", "alpha")],
+        {("BTC/USDT", "1h"): candles},
+        {"alpha": LongEveryBarStrategy("alpha")},
+        replay_sources={("BTC/USDT", "1h"): replay},
+    )
+
+    assert gate.snapshot_calls == [("alpha", None)]
+    assert report.robustness_by_strategy == {"suba": {"alpha": True}}
+
+
+@pytest.mark.asyncio
+async def test_harness_rejects_primary_data_that_differs_from_replay(
+    tmp_path: Path,
+) -> None:
+    candles = _candles(32)
+    replay = _legacy_replay(candles)
+    mismatched = list(candles)
+    mismatched[-1] = mismatched[-1].model_copy(
+        update={"close": mismatched[-1].close + Decimal("1")}
+    )
+
+    with pytest.raises(ValueError, match="must match the pinned replay"):
+        await BacktestHarness(data_dir=tmp_path).run_sub_accounts(
+            [_sub_account("suba", "alpha")],
+            {("BTC/USDT", "1h"): mismatched},
+            {"alpha": LongEveryBarStrategy("alpha")},
+            replay_sources={("BTC/USDT", "1h"): replay},
+        )
+
+
+def test_harness_rejects_conflicting_generation_results(tmp_path: Path) -> None:
+    candles = _candles(2)
+    base = {
+        "run_id": "one",
+        "technique_name": "alpha",
+        "technique_version": "1.0.0",
+        "symbol": "BTC/USDT",
+        "timeframe": "1h",
+        "start_time": candles[0].timestamp,
+        "end_time": candles[-1].timestamp,
+        "initial_balance": Decimal("10000"),
+        "final_balance": Decimal("10000"),
+        "total_trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "breakevens": 0,
+        "total_pnl": Decimal("0"),
+        "total_fees": Decimal("0"),
+        "win_rate": 0.0,
+        "return_percent": 0.0,
+    }
+    from src.backtest.engine import BacktestResult
+
+    first = BacktestResult(
+        **base,
+        replay_identity=ReplayIdentity(
+            schema_version=2,
+            generation_id="a" * 64,
+            source="binance",
+            symbol="BTC/USDT",
+            timeframe="1h",
+        ),
+    )
+    second = BacktestResult(
+        **{**base, "run_id": "two", "technique_name": "beta"},
+        replay_identity=ReplayIdentity(
+            schema_version=2,
+            generation_id="b" * 64,
+            source="binance",
+            symbol="BTC/USDT",
+            timeframe="1h",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="conflicting replay generations"):
+        BacktestHarness(data_dir=tmp_path)._combine_results(
+            _sub_account("suba", "alpha"),
+            [first, second],
+            "BTC/USDT",
+            "1h",
+        )

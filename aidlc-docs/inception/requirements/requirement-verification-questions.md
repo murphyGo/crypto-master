@@ -49,6 +49,9 @@ They convert the brownfield requirements into practical verification prompts.
 | Would adding Tapbit require only an adapter and narrow tests? | FR-018, FR-019, NFR-009 |
 | Are exchange credentials kept out of source and logs? | NFR-004, NFR-011 |
 | Does deployment or startup behavior keep live trading conservative by default? | FR-009, NFR-012 |
+| Does derivatives-history pagination advance from records actually received and reject silent gaps or unexplained truncation? | FR-046, CON-002 |
+| Is every derivatives `MarketContext` bounded to records at or before the decision time, including snapshot replay? | FR-046, NFR-006 |
+| Does missing or unsupported funding/OI data follow an explicit consumer policy without crashing the runtime cycle or producing a vacuous robustness pass? | FR-046, NFR-006, NFR-009 |
 
 ## Dashboard and Operator Visibility
 

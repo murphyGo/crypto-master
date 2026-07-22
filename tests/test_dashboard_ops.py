@@ -11,6 +11,7 @@ from src.dashboard.pages.ops import (
     build_ops_diagnostic_dataframe,
     build_ops_diagnostic_rows,
 )
+from src.runtime.activity_events import ActivityEvent, ActivityEventType
 
 APP_PATH = str(Path(__file__).resolve().parents[1] / "src" / "dashboard" / "app.py")
 
@@ -63,6 +64,69 @@ def test_build_ops_diagnostic_dataframe_empty_has_columns() -> None:
 
     assert df.empty
     assert list(df.columns) == ["Check", "Status", "Detail", "Next Step"]
+
+
+def test_derivatives_events_fold_to_newest_health_row(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    events = [
+        ActivityEvent(
+            timestamp=datetime(2026, 7, 19, 0, tzinfo=timezone.utc),
+            event_type=ActivityEventType.DERIVATIVES_DATA_DEGRADED,
+            details={
+                "exchange": "binance",
+                "symbol": "BTC/USDT",
+                "series": "funding",
+                "status": "cached",
+                "error_code": "network_transient",
+                "data_age_seconds": 100,
+                "circuit_state": "closed",
+            },
+        ),
+        ActivityEvent(
+            timestamp=datetime(2026, 7, 19, 1, tzinfo=timezone.utc),
+            event_type=ActivityEventType.DERIVATIVES_DATA_RECOVERED,
+            details={
+                "exchange": "binance",
+                "symbol": "BTC/USDT",
+                "series": "funding",
+                "status": "fresh",
+                "error_code": None,
+                "data_age_seconds": 0,
+                "circuit_state": "closed",
+            },
+        ),
+    ]
+    rows = build_ops_diagnostic_rows(
+        data_dir=data_dir,
+        activity_path=data_dir / "runtime" / "activity.jsonl",
+        activity_events=events,
+    )
+
+    assert len(rows) == 4
+    assert rows[-1].check == "Derivatives binance BTC/USDT funding"
+    assert rows[-1].status == "pass"
+    assert "network_transient" not in rows[-1].detail
+
+
+def test_derivatives_open_circuit_maps_to_stop(tmp_path: Path) -> None:
+    event = ActivityEvent(
+        event_type=ActivityEventType.DERIVATIVES_DATA_DEGRADED,
+        details={
+            "exchange": "binance",
+            "symbol": "ETH/USDT",
+            "series": "open_interest",
+            "status": "cached",
+            "error_code": "circuit_open",
+            "data_age_seconds": 100,
+            "circuit_state": "open",
+        },
+    )
+    rows = build_ops_diagnostic_rows(
+        data_dir=tmp_path,
+        activity_path=tmp_path / "activity.jsonl",
+        activity_events=[event],
+    )
+    assert rows[-1].status == "stop"
 
 
 def test_app_runs_with_ops_page_registered() -> None:

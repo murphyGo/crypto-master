@@ -17,7 +17,7 @@ For active technical debt grouped by these units, see
 
 | Unit | Purpose | Primary Paths |
 |------|---------|---------------|
-| `exchange-integration` | Exchange adapters and market/order API abstraction | `src/exchange/`, `src/config.py`, `tests/test_exchange_*` |
+| `exchange-integration` | Exchange adapters plus OHLCV, derivatives-market, and order API abstraction | `src/exchange/`, `src/config.py`, `tests/test_exchange_*` |
 | `strategy-framework` | Strategy definition, loading, indicators, multi-timeframe support | `src/strategy/`, `strategies/`, `tests/test_strategy_*`, `tests/test_rsi_*` |
 | `trading-core` | Paper/live trading, portfolio, risk math, profiles, PnL conventions | `src/trading/`, `src/utils/trading_math.py`, `trading_profiles/`, `tests/test_trading_*`, `tests/test_portfolio.py` |
 | `backtesting-validation` | Backtest engine, snapshots, robustness gates, baseline reports | `src/backtest/`, `scripts/backtest_*`, `data/backtest/`, `docs/baselines.md`, `tests/test_backtest_*` |
@@ -48,14 +48,15 @@ For active technical debt grouped by these units, see
 ### `exchange-integration`
 
 - **Responsibilities**: Exchange abstraction, Binance/Bybit implementations,
-  OHLCV/ticker/balance/order methods, testnet/live credentials, rate-limit-safe
-  API behavior.
-- **Related Requirements**: FR-016, FR-017, FR-018, FR-019, FR-020, NFR-009,
-  NFR-011.
+  OHLCV/ticker/funding/open-interest/balance/order methods, testnet/live
+  credentials, rate-limit-safe API behavior, and time-bounded derivatives
+  market-context sourcing.
+- **Related Requirements**: FR-016, FR-017, FR-018, FR-019, FR-020, FR-046,
+  NFR-006, NFR-009, NFR-011.
 - **Legacy Phases**: 2, 10.1, 13.3.
 - **Existing Status**: Complete.
-- **Future Change Triggers**: New exchange, credential model change, OHLCV
-  contract change, live order behavior change.
+- **Future Change Triggers**: New exchange, credential model change, OHLCV or
+  derivatives-data contract change, live order behavior change.
 - **Suggested Tests**: `tests/test_exchange_base.py`,
   `tests/test_exchange_binance.py`, `tests/test_exchange_bybit.py`,
   credential/config tests.

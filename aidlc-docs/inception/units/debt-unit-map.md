@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority Mix | Notes |
 |------|-------------|--------------|-------|
-| _None_ | _None_ | _None_ | No active technical debt remains after DEBT-080 closeout on 2026-07-17. |
+| `quality-governance` | DEBT-081 | 1 Low | Restore the repository-wide Black/Ruff gate without mixing mechanical cleanup into trading-feature slices. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
 |------|----------|--------------|----------------|-----------------------|
-| _None_ | _None_ | _None_ | _None_ | No active debt-unit mapping. |
+| DEBT-081 | Low | `quality-governance` | All Python-owning units | Run a bounded formatter/lint restoration unit, then verify full pytest, Black, Ruff, and mypy. |
 
 ## Promotion Candidates
 

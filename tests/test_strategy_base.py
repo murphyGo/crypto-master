@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from src.exchange.derivatives import MarketContextRequirements
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import (
     BaseStrategy,
@@ -95,6 +96,31 @@ class TestTechniqueInfo:
         # ``Settings.claude_cli_timeout_seconds`` unchanged.
         assert info.claude_timeout_seconds is None
         assert info.prompt_trigger == "none"
+        assert info.requires_market_context is False
+        assert info.market_context_requirements is None
+
+    def test_required_market_context_needs_non_empty_typed_requirements(self) -> None:
+        with pytest.raises(ValidationError, match="non-empty"):
+            TechniqueInfo(
+                name="context_required",
+                version="1.0.0",
+                description="Test",
+                technique_type="code",
+                requires_market_context=True,
+            )
+
+        info = TechniqueInfo(
+            name="context_required",
+            version="1.0.0",
+            description="Test",
+            technique_type="code",
+            requires_market_context=True,
+            market_context_requirements=MarketContextRequirements(
+                funding_required=True
+            ),
+        )
+        assert info.market_context_requirements is not None
+        assert info.market_context_requirements.funding_required is True
 
     def test_prompt_trigger_accepts_context_filters(self) -> None:
         info = TechniqueInfo(

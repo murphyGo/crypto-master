@@ -4,7 +4,7 @@
 
 | Component | Responsibility | Primary Paths | Related Units |
 |-----------|----------------|---------------|---------------|
-| Exchange Adapters | Fetch market data, query balances, and execute orders behind a common interface | `src/exchange/`, `src/config.py` | `exchange-integration` |
+| Exchange Adapters | Fetch OHLCV, ticker, perpetual funding/open-interest market data, query balances, and execute orders behind a common interface | `src/exchange/`, `src/config.py` | `exchange-integration` |
 | Strategy Framework | Load prompt/Python strategies, indicators, factories, and performance metadata | `src/strategy/`, `strategies/` | `strategy-framework` |
 | Backtesting and Validation | Run historical simulations, snapshot validation, robustness gates, and reports | `src/backtest/`, `scripts/backtest_*`, `data/backtest/` | `backtesting-validation` |
 | Claude AI Integration | Execute Claude CLI calls and strategy-improvement workflows | `src/ai/` | `ai-feedback-loop` |

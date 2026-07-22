@@ -154,6 +154,31 @@ class CCXTClient(Protocol):
         limit: int | None = ...,
         params: dict[str, Any] = ...,
     ) -> list[dict[str, Any]]: ...
+    async def fetch_funding_rate(
+        self,
+        symbol: str,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def fetch_funding_rate_history(
+        self,
+        symbol: str | None = ...,
+        since: int | None = ...,
+        limit: int | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> list[dict[str, Any]]: ...
+    async def fetch_open_interest(
+        self,
+        symbol: str,
+        params: dict[str, Any] = ...,
+    ) -> dict[str, Any]: ...
+    async def fetch_open_interest_history(
+        self,
+        symbol: str,
+        timeframe: str = ...,
+        since: int | None = ...,
+        limit: int | None = ...,
+        params: dict[str, Any] = ...,
+    ) -> list[dict[str, Any]]: ...
 
 
 class CcxtExchange(BaseExchange):

@@ -20,6 +20,8 @@ from src.backtest.engine import (
 )
 from src.backtest.harness import BacktestHarness
 from src.backtest.multi_account_report import MultiAccountReport
+from src.backtest.reproducibility import ReplayIdentity
+from src.backtest.snapshot_replay import ReplayCoverage, SnapshotReplaySource
 
 __all__ = [
     "Backtester",
@@ -32,4 +34,7 @@ __all__ = [
     "MultiAccountReport",
     "PerformanceAnalyzer",
     "PerformanceMetrics",
+    "ReplayCoverage",
+    "ReplayIdentity",
+    "SnapshotReplaySource",
 ]

@@ -111,6 +111,16 @@ def test_append_then_read_all_round_trip(tmp_path: Path) -> None:
     assert all(event.schema_version == 1 for event in events)
 
 
+def test_derivatives_activity_event_values_are_stable() -> None:
+    assert (
+        ActivityEventType.DERIVATIVES_DATA_DEGRADED.value == "derivatives_data_degraded"
+    )
+    assert (
+        ActivityEventType.DERIVATIVES_DATA_RECOVERED.value
+        == "derivatives_data_recovered"
+    )
+
+
 def test_read_all_legacy_record_defaults_schema_version(tmp_path: Path) -> None:
     log = ActivityLog(path=tmp_path / "activity.jsonl")
     rotated = tmp_path / "activity.2026-04.jsonl"

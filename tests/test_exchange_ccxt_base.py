@@ -101,13 +101,21 @@ class TestToyAdapterWiring:
         with pytest.raises(ExchangeError, match="Not connected"):
             ToyExchange(config=toy_config)._ensure_connected()
 
+    def test_ccxt_protocol_declares_only_used_derivatives_calls(self) -> None:
+        expected = {
+            "fetch_funding_rate",
+            "fetch_funding_rate_history",
+            "fetch_open_interest",
+            "fetch_open_interest_history",
+        }
+
+        assert expected <= set(CCXTClient.__dict__)
+
 
 class TestToyAdapterConnect:
     """connect() uses the _build_client hook and validates via load_markets."""
 
-    async def test_connect_uses_build_client_hook(
-        self, toy_config: _ToyConfig
-    ) -> None:
+    async def test_connect_uses_build_client_hook(self, toy_config: _ToyConfig) -> None:
         exchange = ToyExchange(config=toy_config, testnet=True)
         await exchange.connect()
 
@@ -236,7 +244,9 @@ class TestToyAdapterOrders:
         exchange = await _connected(toy_config, mock_client)
 
         order = await exchange.create_order(
-            OrderRequest(symbol="BTC/USDT", side="buy", type="market", quantity=Decimal("0.1"))
+            OrderRequest(
+                symbol="BTC/USDT", side="buy", type="market", quantity=Decimal("0.1")
+            )
         )
 
         assert isinstance(order, Order)

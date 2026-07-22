@@ -163,6 +163,34 @@ class ExchangeCredential(BaseModel):
         )
 
 
+class DerivativesDataConfig(BaseModel):
+    """Disabled-by-default public Funding/OI runtime configuration."""
+
+    enabled: bool = False
+    max_symbols: int = Field(default=20, ge=1, le=20)
+    max_concurrency: int = Field(default=4, ge=1, le=4)
+    deadline_4_symbols_seconds: float = Field(default=5.0, gt=0)
+    deadline_20_symbols_seconds: float = Field(default=15.0, gt=0)
+    funding_max_age_seconds: int = Field(default=32400, gt=0, le=32400)
+    oi_max_age_seconds: int = Field(default=7200, gt=0, le=7200)
+    retry_count: int = Field(default=2, ge=0, le=2)
+    retry_base_seconds: float = Field(default=0.25, ge=0)
+    funding_budget_5m: int = Field(default=250, ge=1, le=250)
+    oi_history_budget_5m: int = Field(default=500, ge=1, le=500)
+    funding_interval_hours: Literal[8] = 8
+    oi_timeframe: Literal["1h"] = "1h"
+
+    model_config = {"frozen": True}
+
+    @model_validator(mode="after")
+    def _validate_deadline_order(self) -> "DerivativesDataConfig":
+        if self.deadline_20_symbols_seconds < self.deadline_4_symbols_seconds:
+            raise ValueError(
+                "deadline_20_symbols_seconds must be at least the 4-symbol deadline"
+            )
+        return self
+
+
 class Settings(BaseSettings):
     """Main application settings.
 
@@ -398,10 +426,14 @@ class Settings(BaseSettings):
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     bybit: BybitConfig = Field(default_factory=BybitConfig)
     exchange_credentials: dict[str, ExchangeCredential] = Field(default_factory=dict)
+    derivatives_data: DerivativesDataConfig = Field(
+        default_factory=DerivativesDataConfig
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_nested_delimiter="__",
         extra="ignore",
     )
 

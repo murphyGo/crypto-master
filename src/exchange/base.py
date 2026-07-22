@@ -7,8 +7,15 @@ Related Requirements:
 """
 
 from abc import ABC, abstractmethod
-from typing import Literal
+from typing import ClassVar, Literal
 
+from src.exchange.derivatives import (
+    CurrentFundingRate,
+    DerivativesDataNotSupportedError,
+    FundingRate,
+    OpenInterestHistory,
+    OpenInterestPoint,
+)
 from src.models import OHLCV, Balance, Order, OrderRequest, Ticker
 
 
@@ -61,6 +68,7 @@ class BaseExchange(ABC):
     """
 
     name: str  # Exchange name (e.g., "binance", "bybit")
+    supports_derivatives_data: ClassVar[bool] = False
 
     def __init__(self, testnet: bool = False) -> None:
         """Initialize base exchange.
@@ -209,6 +217,47 @@ class BaseExchange(ABC):
             ExchangeAPIError: If API request fails
         """
         pass
+
+    async def get_funding_rate(self, symbol: str) -> CurrentFundingRate:
+        """Return the venue's current funding view for ``symbol``.
+
+        Existing exchange adapters remain source compatible: venues opt in by
+        setting ``supports_derivatives_data`` and overriding this method.
+        """
+        raise self._derivatives_not_supported()
+
+    async def get_funding_rate_history(
+        self,
+        symbol: str,
+        since: int,
+        limit: int = 1000,
+        *,
+        until: int | None = None,
+    ) -> list[FundingRate]:
+        """Return settled funding observations for the requested UTC bounds."""
+        raise self._derivatives_not_supported()
+
+    async def get_open_interest(self, symbol: str) -> OpenInterestPoint:
+        """Return the venue's current open-interest observation."""
+        raise self._derivatives_not_supported()
+
+    async def get_open_interest_history(
+        self,
+        symbol: str,
+        timeframe: Literal["1h"] = "1h",
+        since: int | None = None,
+        limit: int = 500,
+        *,
+        until: int | None = None,
+    ) -> OpenInterestHistory:
+        """Return retained open-interest observations and coverage metadata."""
+        raise self._derivatives_not_supported()
+
+    def _derivatives_not_supported(self) -> DerivativesDataNotSupportedError:
+        return DerivativesDataNotSupportedError(
+            f"{self.name} does not support derivatives context data",
+            code="unsupported_venue",
+        )
 
     async def __aenter__(self) -> "BaseExchange":
         """Enter async context manager."""

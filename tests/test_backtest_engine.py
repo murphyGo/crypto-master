@@ -1,6 +1,6 @@
 """Tests for the Backtester engine."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -12,9 +12,22 @@ from src.backtest.engine import (
     BacktestError,
     BacktestResult,
     BacktestTrade,
+    serialize_backtest_result,
+)
+from src.backtest.reproducibility import ReplayIdentity
+from src.exchange.derivatives import (
+    ContextEvaluation,
+    FundingRate,
+    MarketContext,
+    MarketContextRequirements,
+    OpenInterestPoint,
+    SeriesKind,
+    SeriesSnapshot,
+    SeriesStatus,
 )
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
+from src.strategy.market_context import MarketContextBuilder
 from src.trading.profiles import TradingProfile
 
 # =============================================================================
@@ -144,6 +157,166 @@ class ControllableStrategy(BaseStrategy):
         index = len(ohlcv) - 1
         self.calls.append(index)
         return self.signals.get(index, self.default)
+
+
+class ContextAwareNeutralStrategy(BaseStrategy):
+    def __init__(self) -> None:
+        super().__init__(
+            TechniqueInfo(
+                name="context_aware",
+                version="1.0.0",
+                description="context-aware engine test",
+                technique_type="code",
+                requires_market_context=True,
+                market_context_requirements=MarketContextRequirements(
+                    funding_required=True,
+                    funding_min_points=2,
+                    open_interest_required=True,
+                    open_interest_min_points=2,
+                ),
+            )
+        )
+        self.contexts: list[MarketContext] = []
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        market_context: MarketContext | None = None,
+    ) -> AnalysisResult:
+        del ohlcv, symbol, timeframe
+        assert market_context is not None
+        self.contexts.append(market_context)
+        return neutral_analysis()
+
+
+class StaticContextProvider:
+    def __init__(self, start: datetime) -> None:
+        funding = tuple(
+            FundingRate(
+                symbol="BTC/USDT",
+                timestamp=start + timedelta(hours=8 * index),
+                rate=Decimal("0.0001"),
+            )
+            for index in range(2)
+        )
+        oi = tuple(
+            OpenInterestPoint(
+                symbol="BTC/USDT",
+                timestamp=start + timedelta(hours=index),
+                open_interest=Decimal("1000") + index,
+            )
+            for index in range(12)
+        )
+        self.builder = MarketContextBuilder()
+        self.funding = SeriesSnapshot(
+            venue="binance",
+            symbol="BTC/USDT",
+            series=SeriesKind.FUNDING,
+            records=funding,
+            fetched_at=start + timedelta(hours=12),
+            status=SeriesStatus.FRESH,
+        )
+        self.oi = SeriesSnapshot(
+            venue="binance",
+            symbol="BTC/USDT",
+            series=SeriesKind.OPEN_INTEREST,
+            records=oi,
+            fetched_at=start + timedelta(hours=12),
+            status=SeriesStatus.FRESH,
+        )
+
+    def context_for(
+        self,
+        symbol: str,
+        *,
+        as_of: datetime,
+        requirements: MarketContextRequirements | None = None,
+    ) -> ContextEvaluation:
+        return self.builder.build(
+            symbol,
+            as_of=as_of,
+            funding=self.funding,
+            open_interest=self.oi,
+            requirements=requirements,
+        )
+
+
+@pytest.mark.asyncio
+async def test_required_context_skips_prefix_and_records_replay_provenance(
+    tmp_path: Path,
+) -> None:
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    candles = make_flat_candles(12, start=start)
+    strategy = ContextAwareNeutralStrategy()
+    identity = ReplayIdentity(
+        schema_version=2,
+        generation_id="a" * 64,
+        source="binance",
+        symbol="BTC/USDT",
+        timeframe="1h",
+    )
+
+    result = await make_backtester(tmp_path, warmup_candles=2).run(
+        strategy,
+        candles,
+        "BTC/USDT",
+        market_context_provider=StaticContextProvider(start),
+        replay_identity=identity,
+        seed=7,
+    )
+
+    assert len(strategy.contexts) == 4
+    assert strategy.contexts[0].as_of == start + timedelta(hours=8)
+    assert result.market_context_unmet_bars == 7
+    assert result.market_context_eligible_bars == 4
+    assert result.replay_identity == identity
+    assert result.seed == 7
+    assert result.configuration_digest is not None
+    assert len(result.configuration_digest) == 64
+    payload = serialize_backtest_result(result)
+    assert payload["replay_identity"]["generation_id"] == "a" * 64
+    assert payload["configuration_digest"] == result.configuration_digest
+    assert payload["market_context_unmet_bars"] == 7
+
+
+@pytest.mark.asyncio
+async def test_required_context_without_provider_never_calls_strategy(
+    tmp_path: Path,
+) -> None:
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strategy = ContextAwareNeutralStrategy()
+
+    result = await make_backtester(tmp_path, warmup_candles=2).run(
+        strategy,
+        make_flat_candles(12, start=start),
+        "BTC/USDT",
+    )
+
+    assert strategy.contexts == []
+    assert result.market_context_unmet_bars == 11
+    assert result.market_context_eligible_bars == 0
+
+
+@pytest.mark.asyncio
+async def test_optional_legacy_signature_is_unchanged_with_context_provider(
+    tmp_path: Path,
+) -> None:
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    strategy = ControllableStrategy()
+
+    result = await make_backtester(tmp_path, warmup_candles=2).run(
+        strategy,
+        make_flat_candles(12, start=start),
+        "BTC/USDT",
+        market_context_provider=StaticContextProvider(start),
+    )
+
+    assert strategy.calls == list(range(1, 12))
+    assert result.market_context_eligible_bars == 11
+    assert result.market_context_unmet_bars == 0
 
 
 def make_backtester(
@@ -2075,9 +2248,7 @@ class TestRunMultiTimeframeParity:
         # tests instantiate fresh ones to avoid shared mutable state.
         def _build_strategy(requires_multi_tf: bool) -> ControllableStrategy:
             return ControllableStrategy(
-                signals={
-                    2: long_analysis(entry="50000", stop="45000", take="60000")
-                },
+                signals={2: long_analysis(entry="50000", stop="45000", take="60000")},
                 info=TechniqueInfo(
                     name="liquidation_parity_strategy",
                     version="1.0.0",

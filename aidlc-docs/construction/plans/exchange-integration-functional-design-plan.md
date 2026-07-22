@@ -16,10 +16,9 @@ Combo Regime Filter, composite 19; Funding Rate Extreme MR, 18).
   `backtesting-validation` (historical replay + snapshot reproducibility),
   `proposal-runtime` (regime-gate consumption), `persistence-data-integrity`
   (snapshot schema)
-- **Related Requirements**: FR-016..FR-020, NFR-009, NFR-011 (exchange
-  scope); NFR-006 (reproducibility). A requirements addendum (new FR for
-  derivatives data) should be filed via product-planner before code
-  generation.
+- **Related Requirements**: FR-016..FR-020, FR-046, NFR-009, NFR-011
+  (exchange scope); NFR-006 (reproducibility). FR-046 is the derivatives-data
+  addendum filed 2026-07-18 before code generation.
 - **Related Debt/History**: `auto_research_candidates.py` docstring and
   Phase 5.3a policy both defer funding/OI/on-chain techniques to "later
   data wiring" — this design is that wiring.
@@ -125,9 +124,10 @@ the historical series.
 
 - [x] Q1-Q4 answered; ambiguities resolved (all four recommended options
       confirmed by operator 2026-07-17; no vague answers).
-- [ ] Requirements addendum: file the new derivatives-data FR via
+- [x] Requirements addendum: file FR-046 via
       product-planner flow (`docs/requirements.md` +
-      `aidlc-docs/inception/requirements/requirements.md`).
+      `aidlc-docs/inception/requirements/requirements.md`), with US-025 and
+      unit/story/verification traceability (completed 2026-07-18).
 - [x] Generate `aidlc-docs/construction/exchange-integration/functional-design/`
       artifacts per the AI-DLC rule: `business-logic-model.md`
       (fetch/pagination/alignment flows, DEBT-080-style contiguity rules),
@@ -135,10 +135,10 @@ the historical series.
       `MarketContext`, snapshot schema v2), `business-rules.md` (freshness
       windows, missing-data semantics = neutral/fail-closed per consumer,
       no-look-ahead alignment rules, venue-retention limits).
-- [ ] NFR requirements/design pass: rate-limit budget, caching TTLs,
+- [x] NFR requirements/design pass: rate-limit budget, caching TTLs,
       backoff, partial-outage behavior (funding available / OI down).
-- [ ] Hand off to code generation with a bounded slice list (exchange
+- [x] Hand off to code generation with a bounded slice list (exchange
       methods → snapshot v2 → market_context plumbing → first consumer per
       Q4).
-- [ ] Completion checklist: aidlc-state stage row, session log,
+- [x] Completion checklist: aidlc-state stage row, session log,
       cross-check on unit completion, debt entries for any deferred edges.

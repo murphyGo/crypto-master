@@ -16,9 +16,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.exceptions import StrategyError
+from src.exchange.derivatives import MarketContext, MarketContextRequirements
 from src.models import OHLCV, AnalysisResult
 from src.utils.time import now_utc
 
@@ -270,7 +271,27 @@ class TechniqueInfo(BaseModel):
         ),
     )
 
+    requires_market_context: bool = Field(
+        default=False,
+        description=(
+            "When true, proposal generation returns neutral before analysis "
+            "unless the typed Funding/OI requirements are satisfied."
+        ),
+    )
+    market_context_requirements: MarketContextRequirements | None = None
+
     model_config = {"frozen": True}
+
+    @model_validator(mode="after")
+    def _validate_market_context_declaration(self) -> "TechniqueInfo":
+        if self.requires_market_context and (
+            self.market_context_requirements is None
+            or not self.market_context_requirements.requires_any
+        ):
+            raise ValueError(
+                "required market context needs non-empty typed requirements"
+            )
+        return self
 
 
 # =============================================================================
@@ -406,6 +427,7 @@ class BaseStrategy(ABC):
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
         current_price: Decimal | None = None,
+        market_context: MarketContext | None = None,
     ) -> AnalysisResult:
         """Analyze chart data and produce trading signal.
 
@@ -428,6 +450,8 @@ class BaseStrategy(ABC):
                 primary timeframe's last candle). Provided for templates
                 that reference the live price separately from the candle
                 stream. Single-TF strategies ignore this kwarg.
+            market_context: Optional normalized Funding/OI context at the
+                primary candle's final timestamp.
 
         Returns:
             AnalysisResult with signal, confidence, entry/exit prices.

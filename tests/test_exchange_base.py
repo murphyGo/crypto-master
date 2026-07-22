@@ -13,6 +13,7 @@ from src.exchange.base import (
     ExchangeConnectionError,
     ExchangeError,
 )
+from src.exchange.derivatives import DerivativesDataNotSupportedError
 from src.exchange.factory import (
     _exchange_registry,
     create_exchange,
@@ -193,6 +194,31 @@ class TestBaseExchangeImplementation:
         """Test that complete implementation can be instantiated."""
         exchange = MockExchange()
         assert exchange.name == "mock"
+
+    def test_derivatives_capability_defaults_to_false(self) -> None:
+        exchange = MockExchange()
+        assert exchange.supports_derivatives_data is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "method_name,args",
+        [
+            ("get_funding_rate", ("BTC/USDT",)),
+            ("get_funding_rate_history", ("BTC/USDT", 0)),
+            ("get_open_interest", ("BTC/USDT",)),
+            ("get_open_interest_history", ("BTC/USDT",)),
+        ],
+    )
+    async def test_default_derivatives_methods_raise_typed_unsupported(
+        self, method_name: str, args: tuple[object, ...]
+    ) -> None:
+        exchange = MockExchange()
+
+        with pytest.raises(DerivativesDataNotSupportedError) as exc_info:
+            await getattr(exchange, method_name)(*args)
+
+        assert exc_info.value.code == "unsupported_venue"
+        assert "mock" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_connect_sets_connected(self) -> None:

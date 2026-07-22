@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from src.config import (
     BinanceConfig,
     BybitConfig,
+    DerivativesDataConfig,
     ExchangeCredential,
     Settings,
     get_settings,
@@ -302,6 +303,30 @@ class TestSettings:
         assert settings.max_leverage == 10
         assert settings.max_position_size_pct == 10.0
         assert settings.default_stop_loss_pct == 2.0
+        assert settings.derivatives_data == DerivativesDataConfig()
+
+    def test_derivatives_nested_environment_and_bounds(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "DERIVATIVES_DATA__ENABLED": "true",
+                "DERIVATIVES_DATA__MAX_CONCURRENCY": "2",
+                "DERIVATIVES_DATA__RETRY_COUNT": "1",
+            },
+            clear=True,
+        ):
+            settings = Settings(_env_file=None)
+        assert settings.derivatives_data.enabled is True
+        assert settings.derivatives_data.max_concurrency == 2
+        assert settings.derivatives_data.retry_count == 1
+
+        with pytest.raises(ValidationError):
+            DerivativesDataConfig(max_symbols=21)
+        with pytest.raises(ValidationError, match="at least"):
+            DerivativesDataConfig(
+                deadline_4_symbols_seconds=10,
+                deadline_20_symbols_seconds=5,
+            )
 
     def test_trading_mode_validation(self) -> None:
         """Test trading_mode only accepts valid values."""

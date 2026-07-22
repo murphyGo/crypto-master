@@ -26,6 +26,7 @@ from src.proposal.notification import (
     NotificationLevel,
 )
 from src.runtime.activity_log import ActivityEventType, ActivityLog
+from src.runtime.derivatives_context import DerivativesContextService
 from src.runtime.engine import (
     ORPHAN_AUTO_CLOSE_THRESHOLD,
     ORPHAN_MAX_AGE,
@@ -156,6 +157,7 @@ def build_engine(
     ticker_error: Exception | None = None,
     ticker_timestamp: datetime | None = None,
     ticker_timestamp_none: bool = False,
+    derivatives_context_service: object | None = None,
 ) -> tuple[TradingEngine, dict[str, MagicMock]]:
     """Build a TradingEngine with mock dependencies wired together."""
     exchange = AsyncMock(spec=BaseExchange)
@@ -233,6 +235,7 @@ def build_engine(
         notification_dispatcher=notification_dispatcher,
         activity_log=activity_log,
         config=config or EngineConfig(auto_approve_threshold=1.0),
+        derivatives_context_service=derivatives_context_service,  # type: ignore[arg-type]
     )
     return engine, {
         "exchange": exchange,
@@ -243,6 +246,70 @@ def build_engine(
         "notification_dispatcher": notification_dispatcher,
         "activity_log": activity_log,
     }
+
+
+async def test_derivatives_prefetch_runs_once_before_scan_with_stable_union(
+    tmp_path: Path,
+) -> None:
+    service = MagicMock(spec=DerivativesContextService)
+    service.refresh_cycle = AsyncMock(return_value=None)
+    service.close = AsyncMock(return_value=None)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        config=EngineConfig(
+            bitcoin_symbol="BTC/USDT",
+            altcoin_symbols=["ETH/USDT", "BTC/USDT"],
+        ),
+        derivatives_context_service=service,
+    )
+
+    await engine.run_cycle()
+
+    service.refresh_cycle.assert_awaited_once()
+    assert service.refresh_cycle.await_args.kwargs["symbols"] == [
+        "BTC/USDT",
+        "ETH/USDT",
+    ]
+    assert mocks["proposal_engine"].propose_bitcoin.await_count == 1
+
+
+async def test_derivatives_prefetch_outage_fails_open_for_existing_cycle(
+    tmp_path: Path,
+) -> None:
+    service = MagicMock(spec=DerivativesContextService)
+    service.refresh_cycle = AsyncMock(side_effect=RuntimeError("private detail"))
+    service.close = AsyncMock(return_value=None)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        derivatives_context_service=service,
+    )
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_generated == 0
+    assert mocks["proposal_engine"].propose_bitcoin.await_count == 1
+    events = mocks["activity_log"].filter(
+        event_type=ActivityEventType.DERIVATIVES_DATA_DEGRADED
+    )
+    assert events
+    assert "private detail" not in str(events[0].details)
+
+
+async def test_run_forever_closes_derivatives_service_exactly_once(
+    tmp_path: Path,
+) -> None:
+    service = MagicMock(spec=DerivativesContextService)
+    service.refresh_cycle = AsyncMock(return_value=None)
+    service.close = AsyncMock(return_value=None)
+    engine, _ = build_engine(
+        tmp_path=tmp_path,
+        derivatives_context_service=service,
+    )
+    await engine.stop()
+
+    await engine.run_forever()
+
+    service.close.assert_awaited_once()
 
 
 class FakeSubAccountRegistry:

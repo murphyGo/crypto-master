@@ -18,7 +18,7 @@ change history.
 | Chart analysis and strategy framework | FR-001 - FR-005, FR-033 - FR-035, NFR-005, NFR-010 | `strategy-framework`, `backtesting-validation`, `ai-feedback-loop` |
 | Trading strategy and execution | FR-006 - FR-010, NFR-007, NFR-008, NFR-012 | `trading-core`, `proposal-runtime`, `persistence-data-integrity` |
 | Trading proposal lifecycle | FR-011 - FR-015 | `proposal-runtime`, `notifications-ops` |
-| Exchange integration | FR-016 - FR-020, NFR-009, NFR-011 | `exchange-integration`, `notifications-ops` |
+| Exchange integration and derivatives market data | FR-016 - FR-020, FR-046, NFR-006, NFR-009, NFR-011 | `exchange-integration`, `strategy-framework`, `backtesting-validation`, `proposal-runtime`, `persistence-data-integrity`, `notifications-ops` |
 | Feedback loop and validation | FR-021 - FR-027, FR-034, FR-035, NFR-002, NFR-006 | `ai-feedback-loop`, `backtesting-validation`, `strategy-framework` |
 | Sub-account capital segmentation | FR-036 - FR-038 | `sub-account-capital-segmentation`, `trading-core`, `backtesting-validation`, `dashboard-operator-ui` |
 | Product intelligence expansion | FR-039 - FR-045 | `strategy-promotion-lab`, `sub-account-experiment-marketplace`, `trade-quality-autopsy`, `runtime-safety-score`, `proposal-replay-simulator`, `strategy-correlation-governor`, `market-regime` |
@@ -74,6 +74,7 @@ change history.
 | FR-043 | Replay historical proposals under alternate approval and exit assumptions | Medium | `proposal-replay-simulator` |
 | FR-044 | Govern runtime exposure using strategy and asset correlation constraints | High | `strategy-correlation-governor` |
 | FR-045 | Classify current market regime and allow per-sub-account regime gating | Medium | `market-regime`, `sub-account-capital-segmentation`, `proposal-runtime`, `dashboard-operator-ui` |
+| FR-046 | Collect and replay time-aligned perpetual funding-rate and open-interest market context | High | `exchange-integration`, `strategy-framework`, `backtesting-validation`, `proposal-runtime`, `persistence-data-integrity` |
 
 ## Non-Functional Requirement Index
 

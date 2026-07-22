@@ -33,21 +33,24 @@ Related Requirements:
 
 from __future__ import annotations
 
+import inspect
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field
 
 from src.ai.exceptions import ClaudeTimeoutError
 from src.backtest.validator import classify_entry_regime
 from src.exchange.base import BaseExchange, ExchangeError
+from src.exchange.derivatives import ContextEvaluation, MarketContext
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult, Position
 from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
+from src.strategy.market_context import MarketContextBuilder, MarketContextProvider
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
 from src.strategy.prompt_filters import should_run_prompt_strategy
 from src.trading.strategy import TradingStrategy, TradingValidationError
@@ -60,6 +63,7 @@ logger = get_logger("crypto_master.proposal.engine")
 
 
 Timeframe = Literal["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+_REQUIRED_CONTEXT_UNMET = object()
 
 
 # =============================================================================
@@ -297,6 +301,7 @@ class ProposalEngine:
         config: ProposalEngineConfig | None = None,
         activity_log: ActivityLog | None = None,
         fail_closed_tracker: FailClosedMetricsTracker | None = None,
+        market_context_provider: MarketContextProvider | None = None,
     ) -> None:
         """Initialize the engine.
 
@@ -334,6 +339,8 @@ class ProposalEngine:
         self.config = config or ProposalEngineConfig()
         self.activity_log = activity_log
         self.fail_closed_tracker = fail_closed_tracker
+        self.market_context_provider = market_context_provider
+        self._market_context_builder = MarketContextBuilder()
         self._prompt_strategy_last_run_at: dict[tuple[str, str], datetime] = {}
 
     # ------------------------------------------------------------------
@@ -434,6 +441,7 @@ class ProposalEngine:
         # the next call gets a fresh dict so strategies always see
         # current candles.
         cache: dict[tuple[str, str], list[OHLCV]] = {}
+        market_context_cache: dict[tuple[str, datetime], ContextEvaluation] = {}
 
         if not self.config.multi_technique_per_symbol:
             return await self._propose_for_symbol(
@@ -445,6 +453,7 @@ class ProposalEngine:
                 risk_percent=risk_percent,
                 leverage=leverage,
                 sub_account_id=sub_account_id,
+                market_context_cache=market_context_cache,
             )
 
         # Multi-technique path: run every applicable technique, dedup
@@ -459,6 +468,7 @@ class ProposalEngine:
             risk_percent=risk_percent,
             leverage=leverage,
             sub_account_id=sub_account_id,
+            market_context_cache=market_context_cache,
         )
         if not candidates:
             return None
@@ -503,6 +513,7 @@ class ProposalEngine:
         # every symbol in this scan so a multi-TF strategy that overlaps
         # symbols doesn't refetch the same ``(symbol, tf)`` pair.
         cache: dict[tuple[str, str], list[OHLCV]] = {}
+        market_context_cache: dict[tuple[str, datetime], ContextEvaluation] = {}
 
         candidates: list[Proposal] = []
         for symbol in symbols:
@@ -517,6 +528,7 @@ class ProposalEngine:
                         risk_percent=risk_percent,
                         leverage=leverage,
                         sub_account_id=sub_account_id,
+                        market_context_cache=market_context_cache,
                     )
                     candidates.extend(per_symbol)
                 else:
@@ -529,6 +541,7 @@ class ProposalEngine:
                         risk_percent=risk_percent,
                         leverage=leverage,
                         sub_account_id=sub_account_id,
+                        market_context_cache=market_context_cache,
                     )
                     if proposal is not None:
                         candidates.append(proposal)
@@ -570,6 +583,9 @@ class ProposalEngine:
         risk_percent: float | None = None,
         leverage: int | None = None,
         sub_account_id: str = "default",
+        market_context_cache: (
+            dict[tuple[str, datetime], ContextEvaluation] | None
+        ) = None,
     ) -> Proposal | None:
         """Build a proposal for one symbol, or return None if unfit.
 
@@ -603,6 +619,7 @@ class ProposalEngine:
             risk_percent=risk_percent,
             leverage=leverage,
             sub_account_id=sub_account_id,
+            market_context_cache=market_context_cache,
         )
 
     async def _propose_all_for_symbol(
@@ -615,6 +632,9 @@ class ProposalEngine:
         risk_percent: float | None = None,
         leverage: int | None = None,
         sub_account_id: str = "default",
+        market_context_cache: (
+            dict[tuple[str, datetime], ContextEvaluation] | None
+        ) = None,
     ) -> list[Proposal]:
         """Phase 10.6: run every applicable technique for ``symbol``.
 
@@ -650,6 +670,7 @@ class ProposalEngine:
                 risk_percent=risk_percent,
                 leverage=leverage,
                 sub_account_id=sub_account_id,
+                market_context_cache=market_context_cache,
             )
             if proposal is not None:
                 proposals.append(proposal)
@@ -714,6 +735,9 @@ class ProposalEngine:
         risk_percent: float | None = None,
         leverage: int | None = None,
         sub_account_id: str = "default",
+        market_context_cache: (
+            dict[tuple[str, datetime], ContextEvaluation] | None
+        ) = None,
     ) -> Proposal | None:
         """Run ``strategy`` against fresh OHLCV and build a Proposal.
 
@@ -745,6 +769,20 @@ class ProposalEngine:
             return None
         primary_timeframe, primary_ohlcv, ohlcv_by_tf, current_price = ohlcv_context
 
+        market_context = self._context_for_strategy(
+            strategy,
+            symbol=symbol,
+            as_of=ensure_utc(primary_ohlcv[-1].timestamp),
+            cache=(market_context_cache if market_context_cache is not None else {}),
+        )
+        if market_context is _REQUIRED_CONTEXT_UNMET:
+            logger.info(
+                "%s requires unavailable derivatives context on %s; no proposal",
+                strategy.name,
+                symbol,
+            )
+            return None
+
         if not self._prompt_trigger_allows(
             strategy,
             symbol,
@@ -764,20 +802,15 @@ class ProposalEngine:
         # silent-throughput-collapse needs.
         self._record_emitted(strategy, sub_account_id)
         try:
-            if ohlcv_by_tf is not None:
-                analysis = await strategy.analyze(
-                    primary_ohlcv,
-                    symbol,
-                    primary_timeframe,
-                    ohlcv_by_timeframe=ohlcv_by_tf,
-                    current_price=current_price,
-                )
-            else:
-                analysis = await strategy.analyze(
-                    primary_ohlcv,
-                    symbol,
-                    primary_timeframe,
-                )
+            analysis = await self._analyze_strategy(
+                strategy,
+                primary_ohlcv,
+                symbol,
+                primary_timeframe,
+                ohlcv_by_timeframe=ohlcv_by_tf,
+                current_price=current_price,
+                market_context=cast(MarketContext | None, market_context),
+            )
         except StrategyError as e:
             self._handle_strategy_error(e, strategy, symbol)
             # DEBT-061: seed pointer fail-closed site. The strategy
@@ -831,6 +864,66 @@ class ProposalEngine:
             market_regime=market_regime,
             reasoning=analysis.reasoning,
         )
+
+    def _context_for_strategy(
+        self,
+        strategy: BaseStrategy,
+        *,
+        symbol: str,
+        as_of: datetime,
+        cache: dict[tuple[str, datetime], ContextEvaluation],
+    ) -> MarketContext | object | None:
+        """Resolve one provider read per symbol/decision and evaluate metadata."""
+        key = (symbol, as_of)
+        evaluation = cache.get(key)
+        if evaluation is None:
+            if self.market_context_provider is None:
+                evaluation = ContextEvaluation(
+                    context=None,
+                    requirements_satisfied=True,
+                )
+            else:
+                evaluation = self.market_context_provider.context_for(
+                    symbol,
+                    as_of=as_of,
+                )
+            cache[key] = evaluation
+
+        requirements = strategy.info.market_context_requirements
+        checked = self._market_context_builder.evaluate(
+            evaluation.context,
+            requirements,
+        )
+        if strategy.info.requires_market_context and not checked.requirements_satisfied:
+            return _REQUIRED_CONTEXT_UNMET
+        return checked.context
+
+    async def _analyze_strategy(
+        self,
+        strategy: BaseStrategy,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str,
+        *,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None,
+        current_price: Decimal | None,
+        market_context: MarketContext | None,
+    ) -> AnalysisResult:
+        """Call legacy/context-aware strategies without TypeError fallback."""
+        parameters = inspect.signature(strategy.analyze).parameters.values()
+        accepts_context = any(
+            parameter.name == "market_context"
+            or parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters
+        )
+        kwargs: dict[str, object] = {}
+        if ohlcv_by_timeframe is not None:
+            kwargs["ohlcv_by_timeframe"] = ohlcv_by_timeframe
+            kwargs["current_price"] = current_price
+        if accepts_context:
+            kwargs["market_context"] = market_context
+        analysis = await cast(Any, strategy.analyze)(ohlcv, symbol, timeframe, **kwargs)
+        return cast(AnalysisResult, analysis)
 
     def _apply_sl_floor(
         self,

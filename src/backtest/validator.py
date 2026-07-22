@@ -56,9 +56,15 @@ from src.backtest.engine import (
     slice_multi_tf_by_index,
 )
 from src.backtest.metrics import sharpe_from_trade_pnls
+from src.backtest.reproducibility import (
+    ReplayIdentity,
+    canonical_configuration_digest,
+)
+from src.backtest.snapshot_replay import ReplayCoverage, SnapshotReplaySource
 from src.logger import get_logger
 from src.models import OHLCV
 from src.strategy.base import BaseStrategy
+from src.strategy.market_context import MarketContextProvider
 from src.trading.profiles import TradingProfile
 
 logger = get_logger("crypto_master.backtest.validator")
@@ -85,6 +91,7 @@ class GateStatus(str, Enum):
     PASSED = "passed"
     FAILED = "failed"
     SKIPPED = "skipped"
+    INSUFFICIENT_DATA = "insufficient_data"
 
 
 class GateResult(BaseModel):
@@ -130,6 +137,12 @@ class RobustnessReport(BaseModel):
     summary: str
     baseline_sharpe: float | None = None
     baseline_trades: int = 0
+    replay_identity: ReplayIdentity | None = None
+    configuration_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    seed: int | None = None
+    context_ignored_prefix_bars: int = Field(default=0, ge=0)
+    context_eligible_bars: int = Field(default=0, ge=0)
+    context_unmet_bars: int = Field(default=0, ge=0)
 
 
 class RobustnessConfig(BaseModel):
@@ -283,6 +296,10 @@ class RobustnessGate:
         param_grid: dict[str, list[Any]] | None = None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
+        replay_coverage: ReplayCoverage | None = None,
     ) -> RobustnessReport:
         """Run all four gates and produce an aggregate verdict.
 
@@ -317,6 +334,30 @@ class RobustnessGate:
         Returns:
             A ``RobustnessReport`` with one ``GateResult`` per gate.
         """
+        configuration_digest = self._configuration_digest(
+            strategy=strategy,
+            symbol=symbol,
+            timeframe=timeframe,
+            profile=profile,
+            param_grid=param_grid,
+            replay_identity=replay_identity,
+            seed=seed,
+        )
+        if strategy.info.requires_market_context and (
+            market_context_provider is None or replay_identity is None
+        ):
+            return self._insufficient_report(
+                reason=(
+                    "Context-required robustness evaluation needs one pinned "
+                    "snapshot replay source."
+                ),
+                details={"source": "missing_or_unpinned"},
+                replay_identity=replay_identity,
+                configuration_digest=configuration_digest,
+                seed=seed,
+                coverage=replay_coverage,
+            )
+
         # Baseline run — used by gates for context (e.g. baseline Sharpe
         # for sensitivity comparison) and surfaced in the summary.
         baseline = await self._run_subset(
@@ -326,6 +367,9 @@ class RobustnessGate:
             timeframe,
             profile,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+            market_context_provider=market_context_provider,
+            replay_identity=replay_identity,
+            seed=seed,
         )
         baseline_sharpe = _sharpe_from_trades(baseline.trades, baseline.initial_balance)
 
@@ -337,6 +381,9 @@ class RobustnessGate:
                 timeframe,
                 profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             ),
             await self._gate_walk_forward(
                 strategy,
@@ -345,6 +392,9 @@ class RobustnessGate:
                 timeframe,
                 profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             ),
             await self._gate_regime(baseline, ohlcv),
             await self._gate_sensitivity(
@@ -356,16 +406,127 @@ class RobustnessGate:
                 param_grid,
                 baseline_sharpe,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             ),
         ]
 
-        overall = all(g.status != GateStatus.FAILED for g in gates)
+        overall = all(
+            g.status not in {GateStatus.FAILED, GateStatus.INSUFFICIENT_DATA}
+            for g in gates
+        )
         return RobustnessReport(
             overall_passed=overall,
             gates=gates,
             summary=self._build_summary(gates, baseline_sharpe, baseline),
             baseline_sharpe=baseline_sharpe,
             baseline_trades=baseline.total_trades,
+            replay_identity=replay_identity,
+            configuration_digest=configuration_digest,
+            seed=seed,
+            context_ignored_prefix_bars=(
+                0 if replay_coverage is None else replay_coverage.ignored_prefix_bars
+            ),
+            context_eligible_bars=(
+                0 if replay_coverage is None else replay_coverage.eligible_bars
+            ),
+            context_unmet_bars=(
+                0 if replay_coverage is None else replay_coverage.unmet_bars
+            ),
+        )
+
+    async def evaluate_snapshot(
+        self,
+        strategy: BaseStrategy,
+        replay: SnapshotReplaySource,
+        *,
+        profile: TradingProfile | None = None,
+        strategy_factory: StrategyFactory | AsyncStrategyFactory | None = None,
+        param_grid: dict[str, list[Any]] | None = None,
+        ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        seed: int = 0,
+    ) -> RobustnessReport:
+        """Evaluate one strategy from a single pinned snapshot source."""
+
+        primary = list(replay.ohlcv)
+        if ohlcv_by_timeframe is not None:
+            supplied = ohlcv_by_timeframe.get(replay.timeframe)
+            if supplied is None or supplied != primary:
+                raise ValueError(
+                    "primary multi-timeframe OHLCV must match the replay generation"
+                )
+
+        coverage: ReplayCoverage | None = None
+        if strategy.info.requires_market_context:
+            requirements = strategy.info.market_context_requirements
+            assert requirements is not None
+            coverage = replay.assess_coverage(
+                requirements,
+                warmup_candles=self.backtester.effective_warmup_candles(strategy),
+            )
+            configuration_digest = self._configuration_digest(
+                strategy=strategy,
+                symbol=replay.symbol,
+                timeframe=replay.timeframe,
+                profile=profile,
+                param_grid=param_grid,
+                replay_identity=replay.identity,
+                seed=seed,
+            )
+            if coverage.first_eligible_index is None:
+                return self._insufficient_report(
+                    reason="Snapshot replay never satisfies required market context.",
+                    details={"unmet_reasons": list(coverage.unmet_reasons)},
+                    replay_identity=replay.identity,
+                    configuration_digest=configuration_digest,
+                    seed=seed,
+                    coverage=coverage,
+                )
+            if coverage.post_eligibility_unmet_bars:
+                return self._insufficient_report(
+                    reason="Required market context has a gap after coverage begins.",
+                    details={"unmet_reasons": list(coverage.unmet_reasons)},
+                    replay_identity=replay.identity,
+                    configuration_digest=configuration_digest,
+                    seed=seed,
+                    coverage=coverage,
+                )
+            start = coverage.first_eligible_index
+            primary, sliced_mtf = slice_multi_tf_by_index(
+                primary,
+                ohlcv_by_timeframe,
+                start,
+                len(primary),
+            )
+            ohlcv_by_timeframe = sliced_mtf
+            warmup = self.backtester.effective_warmup_candles(strategy)
+            if len(primary) <= warmup:
+                return self._insufficient_report(
+                    reason=(
+                        "Context-covered replay suffix is too short for strategy "
+                        f"warmup ({len(primary)} candles, requires > {warmup})."
+                    ),
+                    details={"covered_candles": len(primary), "warmup": warmup},
+                    replay_identity=replay.identity,
+                    configuration_digest=configuration_digest,
+                    seed=seed,
+                    coverage=coverage,
+                )
+
+        return await self.evaluate(
+            strategy=strategy,
+            ohlcv=primary,
+            symbol=replay.symbol,
+            timeframe=replay.timeframe,
+            profile=profile,
+            strategy_factory=strategy_factory,
+            param_grid=param_grid,
+            ohlcv_by_timeframe=ohlcv_by_timeframe,
+            market_context_provider=replay,
+            replay_identity=replay.identity,
+            seed=seed,
+            replay_coverage=coverage,
         )
 
     # ------------------------------------------------------------------
@@ -381,6 +542,9 @@ class RobustnessGate:
         profile: TradingProfile | None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> GateResult:
         """In-sample / out-of-sample split (chronological).
 
@@ -415,6 +579,9 @@ class RobustnessGate:
             timeframe,
             profile,
             ohlcv_by_timeframe=is_mtf,
+            market_context_provider=market_context_provider,
+            replay_identity=replay_identity,
+            seed=seed,
         )
         oos_run = await self._run_subset(
             strategy,
@@ -423,6 +590,9 @@ class RobustnessGate:
             timeframe,
             profile,
             ohlcv_by_timeframe=oos_mtf,
+            market_context_provider=market_context_provider,
+            replay_identity=replay_identity,
+            seed=seed,
         )
 
         if (
@@ -521,6 +691,9 @@ class RobustnessGate:
         profile: TradingProfile | None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> GateResult:
         """N consecutive non-overlapping windows.
 
@@ -561,6 +734,9 @@ class RobustnessGate:
                 timeframe,
                 profile,
                 ohlcv_by_timeframe=window_mtf,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             )
             results.append(result)
 
@@ -749,6 +925,9 @@ class RobustnessGate:
         baseline_sharpe: float | None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> GateResult:
         """Sweep the parameter grid; require a robust hill, not a peak.
 
@@ -811,6 +990,9 @@ class RobustnessGate:
                 timeframe,
                 profile,
                 ohlcv_by_timeframe=ohlcv_by_timeframe,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             )
             sharpe = _sharpe_from_trades(run.trades, run.initial_balance)
             sharpes.append(sharpe if sharpe is not None else 0.0)
@@ -872,6 +1054,9 @@ class RobustnessGate:
         profile: TradingProfile | None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> BacktestResult:
         """Run a backtest on a candle subset.
 
@@ -888,6 +1073,70 @@ class RobustnessGate:
             timeframe=timeframe,
             profile=profile,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+            market_context_provider=market_context_provider,
+            replay_identity=replay_identity,
+            seed=seed,
+        )
+
+    def _configuration_digest(
+        self,
+        *,
+        strategy: BaseStrategy,
+        symbol: str,
+        timeframe: str,
+        profile: TradingProfile | None,
+        param_grid: dict[str, list[Any]] | None,
+        replay_identity: ReplayIdentity | None,
+        seed: int | None,
+    ) -> str | None:
+        if replay_identity is None and seed is None:
+            return None
+        return canonical_configuration_digest(
+            {
+                "strategy": {
+                    "name": strategy.name,
+                    "version": strategy.version,
+                },
+                "backtest_config": self.backtester.config,
+                "robustness_config": self.config,
+                "profile": profile,
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "param_grid": param_grid,
+                "seed": seed,
+                "replay_identity": replay_identity,
+            }
+        )
+
+    @staticmethod
+    def _insufficient_report(
+        *,
+        reason: str,
+        details: dict[str, Any],
+        replay_identity: ReplayIdentity | None,
+        configuration_digest: str | None,
+        seed: int | None,
+        coverage: ReplayCoverage | None,
+    ) -> RobustnessReport:
+        return RobustnessReport(
+            overall_passed=False,
+            gates=[
+                GateResult(
+                    name="market_context",
+                    status=GateStatus.INSUFFICIENT_DATA,
+                    reason=reason,
+                    details=details,
+                )
+            ],
+            summary=f"Robustness verdict: INSUFFICIENT_DATA. {reason}",
+            replay_identity=replay_identity,
+            configuration_digest=configuration_digest,
+            seed=seed,
+            context_ignored_prefix_bars=(
+                0 if coverage is None else coverage.ignored_prefix_bars
+            ),
+            context_eligible_bars=(0 if coverage is None else coverage.eligible_bars),
+            context_unmet_bars=(0 if coverage is None else coverage.unmet_bars),
         )
 
     @staticmethod
@@ -900,9 +1149,16 @@ class RobustnessGate:
         passed = [g.name for g in gates if g.status == GateStatus.PASSED]
         failed = [g.name for g in gates if g.status == GateStatus.FAILED]
         skipped = [g.name for g in gates if g.status == GateStatus.SKIPPED]
+        insufficient = [
+            g.name for g in gates if g.status == GateStatus.INSUFFICIENT_DATA
+        ]
 
         sharpe_str = f"{baseline_sharpe:.3f}" if baseline_sharpe is not None else "n/a"
-        verdict = "PASSED" if not failed else "FAILED"
+        verdict = (
+            "INSUFFICIENT_DATA"
+            if insufficient
+            else ("PASSED" if not failed else "FAILED")
+        )
         return (
             f"Robustness verdict: {verdict}. "
             f"Baseline Sharpe={sharpe_str}, trades={baseline.total_trades}, "
@@ -910,6 +1166,7 @@ class RobustnessGate:
             f"Passed: {passed or 'none'}. "
             f"Failed: {failed or 'none'}. "
             f"Skipped: {skipped or 'none'}."
+            f" Insufficient: {insufficient or 'none'}."
         )
 
 

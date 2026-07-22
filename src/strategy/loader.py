@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from src.exchange.derivatives import MarketContext
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import (
     BaseStrategy,
@@ -29,6 +30,7 @@ from src.strategy.base import (
     StrategyValidationError,
     TechniqueInfo,
 )
+from src.strategy.market_context import market_context_prompt_json
 
 if TYPE_CHECKING:
     # Annotation-only import. Imported eagerly it forms a cycle:
@@ -124,6 +126,7 @@ class PromptStrategy(BaseStrategy):
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
         current_price: Decimal | None = None,
+        market_context: MarketContext | None = None,
     ) -> str:
         """Format the prompt template with actual data.
 
@@ -187,6 +190,11 @@ class PromptStrategy(BaseStrategy):
             # a literal price.
             result = result.replace("{current_price}", f"{current_price:f}")
 
+        if "{market_context}" in result:
+            result = result.replace(
+                "{market_context}", market_context_prompt_json(market_context)
+            )
+
         # Any leftover ``{identifier}`` is a template hole the
         # framework didn't know how to fill. Match identifier-like
         # names only so JSON examples in the template (which contain
@@ -200,7 +208,8 @@ class PromptStrategy(BaseStrategy):
                 f"placeholders: {placeholders}. "
                 "PromptStrategy.format_prompt fills {symbol}, {timeframe}, "
                 "{ohlcv_data}, {ohlcv_<tf>} (per timeframe key in "
-                "ohlcv_by_timeframe), and {current_price}; the template "
+                "ohlcv_by_timeframe), {current_price}, and {market_context}; "
+                "the template "
                 "appears to expect data the engine did not provide.",
                 field="prompt_content",
             )
@@ -233,6 +242,7 @@ class PromptStrategy(BaseStrategy):
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
         current_price: Decimal | None = None,
+        market_context: MarketContext | None = None,
     ) -> AnalysisResult:
         """Analyze using Claude CLI with the prompt template.
 
@@ -263,6 +273,7 @@ class PromptStrategy(BaseStrategy):
             timeframe,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
             current_price=current_price,
+            market_context=market_context,
         )
 
         # LAYER-F1 / DIP: prefer an injected ``LLMClient`` so the domain

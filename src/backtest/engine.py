@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import bisect
+import inspect
 import json
 import uuid
 from dataclasses import dataclass
@@ -30,6 +31,10 @@ from pydantic import BaseModel, Field
 
 from src.ai.exceptions import ClaudeParseError
 from src.backtest.metrics import count_trade_outcomes, return_percent
+from src.backtest.reproducibility import (
+    ReplayIdentity,
+    canonical_configuration_digest,
+)
 from src.config import get_settings
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult, Position
@@ -38,6 +43,7 @@ from src.strategy.base import (
     StrategyDataInsufficient,
     StrategyError,
 )
+from src.strategy.market_context import MarketContextProvider
 from src.trading.profiles import TradingProfile, create_strategy_from_profile
 from src.trading.strategy import (
     TradingStrategy,
@@ -326,6 +332,11 @@ class BacktestResult(BaseModel):
     trades: list[BacktestTrade] = Field(default_factory=list)
     equity_curve: list[EquityPoint] = Field(default_factory=list)
     liquidated: bool = False
+    replay_identity: ReplayIdentity | None = None
+    configuration_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    seed: int | None = None
+    market_context_eligible_bars: int = Field(default=0, ge=0)
+    market_context_unmet_bars: int = Field(default=0, ge=0)
 
 
 def serialize_backtest_result(result: BacktestResult) -> dict:
@@ -381,6 +392,8 @@ class _BacktestLoopState:
     consecutive_failures: int = 0
     analyzed_bars: int = 0
     cumulative_failures: int = 0
+    market_context_eligible_bars: int = 0
+    market_context_unmet_bars: int = 0
 
 
 def slice_multi_tf_by_index(
@@ -477,6 +490,10 @@ class Backtester:
         symbol: str,
         timeframe: str = "1h",
         profile: TradingProfile | None = None,
+        *,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> BacktestResult:
         """Execute a backtest.
 
@@ -523,6 +540,7 @@ class Backtester:
                 candle_index=i,
                 can_analyze=i + 1 >= warmup_candles,
                 failure_context="backtest",
+                market_context_provider=market_context_provider,
             )
 
         # End of data: force-close any lingering position at the last close.
@@ -541,6 +559,10 @@ class Backtester:
             profile=profile,
             trades=state.trades,
             final_balance=state.balance,
+            replay_identity=replay_identity,
+            seed=seed,
+            market_context_eligible_bars=state.market_context_eligible_bars,
+            market_context_unmet_bars=state.market_context_unmet_bars,
         )
 
     async def run_multi_timeframe(
@@ -550,6 +572,10 @@ class Backtester:
         symbol: str,
         primary_timeframe: str,
         profile: TradingProfile | None = None,
+        *,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> BacktestResult:
         """Walk-forward backtest for multi-timeframe strategies.
 
@@ -638,6 +664,7 @@ class Backtester:
                     len(slice_dict[tf]) >= warmup_candles for tf in slice_dict
                 ),
                 failure_context="multi-TF backtest",
+                market_context_provider=market_context_provider,
             )
 
         # End of data: force-close any lingering position.
@@ -656,6 +683,10 @@ class Backtester:
             profile=profile,
             trades=state.trades,
             final_balance=state.balance,
+            replay_identity=replay_identity,
+            seed=seed,
+            market_context_eligible_bars=state.market_context_eligible_bars,
+            market_context_unmet_bars=state.market_context_unmet_bars,
         )
 
     async def run_for_strategy(
@@ -667,6 +698,9 @@ class Backtester:
         profile: TradingProfile | None = None,
         *,
         ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+        market_context_provider: MarketContextProvider | None = None,
+        replay_identity: ReplayIdentity | None = None,
+        seed: int | None = None,
     ) -> BacktestResult:
         """Dispatcher: picks single- or multi-TF run from strategy metadata.
 
@@ -692,8 +726,20 @@ class Backtester:
                 symbol=symbol,
                 primary_timeframe=timeframe,
                 profile=profile,
+                market_context_provider=market_context_provider,
+                replay_identity=replay_identity,
+                seed=seed,
             )
-        return await self.run(strategy, ohlcv, symbol, timeframe, profile)
+        return await self.run(
+            strategy,
+            ohlcv,
+            symbol,
+            timeframe,
+            profile,
+            market_context_provider=market_context_provider,
+            replay_identity=replay_identity,
+            seed=seed,
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -776,6 +822,7 @@ class Backtester:
         candle_index: int,
         can_analyze: bool,
         failure_context: str,
+        market_context_provider: MarketContextProvider | None,
     ) -> None:
         """Execute one walk-forward bar for single-TF and multi-TF backtests."""
         state.open_trade, state.balance = self._close_open_trade_if_exit_hit(
@@ -789,6 +836,27 @@ class Backtester:
             return
         if state.open_trade is not None and not self.config.allow_concurrent_positions:
             return
+
+        analyze_kwargs = dict(analyze_kwargs)
+        accepts_context = self._accepts_analyze_keyword(strategy, "market_context")
+        if market_context_provider is None:
+            if strategy.info.requires_market_context:
+                state.market_context_unmet_bars += 1
+                return
+        else:
+            evaluation = market_context_provider.context_for(
+                symbol,
+                as_of=current_candle.timestamp,
+                requirements=strategy.info.market_context_requirements,
+            )
+            if strategy.info.requires_market_context and (
+                not evaluation.requirements_satisfied or not accepts_context
+            ):
+                state.market_context_unmet_bars += 1
+                return
+            state.market_context_eligible_bars += 1
+            if accepts_context:
+                analyze_kwargs["market_context"] = evaluation.context
 
         try:
             analysis = await asyncio.wait_for(
@@ -862,6 +930,14 @@ class Backtester:
         if filled is None:
             return
         state.open_trade, state.balance = filled
+
+    @staticmethod
+    def _accepts_analyze_keyword(strategy: BaseStrategy, keyword: str) -> bool:
+        parameters = inspect.signature(strategy.analyze).parameters.values()
+        return any(
+            parameter.name == keyword or parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters
+        )
 
     def _apply_slippage(
         self,
@@ -1217,6 +1293,10 @@ class Backtester:
         profile: TradingProfile | None,
         trades: list[BacktestTrade],
         final_balance: Decimal,
+        replay_identity: ReplayIdentity | None,
+        seed: int | None,
+        market_context_eligible_bars: int,
+        market_context_unmet_bars: int,
     ) -> BacktestResult:
         """Build the final BacktestResult summary."""
         info = strategy.info
@@ -1225,6 +1305,24 @@ class Backtester:
         total_fees = sum((t.entry_fee + t.exit_fee for t in trades), Decimal("0"))
         initial = self.config.initial_balance
         return_pct = return_percent(initial, final_balance)
+        configuration_digest = (
+            canonical_configuration_digest(
+                {
+                    "backtest_config": self.config,
+                    "profile": profile,
+                    "strategy": {
+                        "name": info.name,
+                        "version": info.version,
+                    },
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "seed": seed,
+                    "replay_identity": replay_identity,
+                }
+            )
+            if replay_identity is not None or seed is not None
+            else None
+        )
 
         # Phase 24.1 / DEBT-030: per-bar mark-to-market equity curve so
         # the analyzer can compute intra-trade-aware MDD / Sharpe.
@@ -1263,6 +1361,11 @@ class Backtester:
             trades=trades,
             equity_curve=equity_curve,
             liquidated=liquidated,
+            replay_identity=replay_identity,
+            configuration_digest=configuration_digest,
+            seed=seed,
+            market_context_eligible_bars=market_context_eligible_bars,
+            market_context_unmet_bars=market_context_unmet_bars,
         )
 
     # ------------------------------------------------------------------

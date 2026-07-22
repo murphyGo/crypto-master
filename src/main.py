@@ -30,7 +30,7 @@ import asyncio
 import signal
 from decimal import Decimal
 
-from src.config import Settings, get_settings
+from src.config import BinanceConfig, Settings, get_settings
 from src.exchange.base import BaseExchange
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
@@ -49,6 +49,7 @@ from src.proposal.notification import (
     TelegramNotifier,
 )
 from src.runtime.activity_log import ActivityLog
+from src.runtime.derivatives_context import DerivativesContextService
 from src.runtime.engine import EngineConfig, TradingEngine
 from src.strategy.loader import load_all_strategies
 from src.strategy.performance import PerformanceTracker
@@ -240,6 +241,7 @@ def _engine_config_from_settings(settings: Settings) -> EngineConfig:
         ),
         # Phase 22.2 / DEBT-027 paper-mode liquidation visibility.
         paper_auto_deposit_on_liquidation=(settings.paper_auto_deposit_on_liquidation),
+        derivatives_data=settings.derivatives_data,
     )
 
 
@@ -340,6 +342,7 @@ def build_engine(
     registry: SubAccountRegistry | None = None,
     trader: Trader | None = None,
     activity_log: ActivityLog | None = None,
+    derivatives_context_service: DerivativesContextService | None = None,
 ) -> TradingEngine:
     """Wire all the components and return a ready-to-run ``TradingEngine``.
 
@@ -373,6 +376,29 @@ def build_engine(
     # (Phase 12.3 / DEBT-027 dashboard event surface).
     activity = activity_log if activity_log is not None else ActivityLog()
 
+    # Dedicated public-data client: mainnet USD-M, no credential fallback,
+    # and no construction at all while the feature remains disabled.
+    if config.derivatives_data.enabled:
+        if derivatives_context_service is None:
+            public_source = BinanceExchange(
+                BinanceConfig(
+                    api_key="",
+                    api_secret="",
+                    testnet_api_key="",
+                    testnet_api_secret="",
+                    market_type="futures",
+                    testnet=False,
+                ),
+                testnet=False,
+            )
+            derivatives_context_service = DerivativesContextService(
+                public_source,
+                config.derivatives_data,
+                event_sink=activity,
+            )
+    else:
+        derivatives_context_service = None
+
     # Strategy / proposal artifacts.
     strategies = load_all_strategies()
     perf = PerformanceTracker()
@@ -397,6 +423,7 @@ def build_engine(
         config=proposal_config,
         activity_log=activity,
         fail_closed_tracker=fail_closed,
+        market_context_provider=derivatives_context_service,
     )
     history = ProposalHistory()
     interaction = ProposalInteraction(history=history)
@@ -435,6 +462,7 @@ def build_engine(
         portfolio_tracker=PortfolioTracker(),
         mode=settings.trading_mode,
         quote_currency="USDT",
+        derivatives_context_service=derivatives_context_service,
     )
 
 

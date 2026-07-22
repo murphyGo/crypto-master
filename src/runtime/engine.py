@@ -43,8 +43,9 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from src.config import DerivativesDataConfig
 from src.exchange.base import ExchangeError
 from src.logger import get_logger
 from src.models import Position
@@ -68,6 +69,7 @@ from src.runtime.correlation_governor import (
     CorrelationWarningPolicy,
     evaluate_correlation_gate,
 )
+from src.runtime.derivatives_context import DerivativesContextService
 from src.runtime.gate_reason import GateReason
 from src.runtime.market_regime import (
     DEFAULT_BEAR_BAND,
@@ -271,6 +273,21 @@ class EngineConfig(BaseModel):
     strategy_action_snapshot_path: Path = Field(
         default=DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH
     )
+    derivatives_data: DerivativesDataConfig = Field(
+        default_factory=DerivativesDataConfig
+    )
+
+    @model_validator(mode="after")
+    def _validate_derivatives_deadline(self) -> EngineConfig:
+        if (
+            self.derivatives_data.enabled
+            and self.derivatives_data.deadline_20_symbols_seconds
+            > self.cycle_interval_seconds
+        ):
+            raise ValueError(
+                "derivatives refresh deadline cannot exceed the engine cycle interval"
+            )
+        return self
 
 
 @dataclass(frozen=True)
@@ -594,6 +611,7 @@ class TradingEngine:
         portfolio_tracker: PortfolioTracker | None = None,
         mode: Mode = "paper",
         quote_currency: str = "USDT",
+        derivatives_context_service: DerivativesContextService | None = None,
     ) -> None:
         """Initialize the engine.
 
@@ -639,6 +657,7 @@ class TradingEngine:
         self.portfolio_tracker = portfolio_tracker
         self.mode = mode
         self.quote_currency = quote_currency
+        self.derivatives_context_service = derivatives_context_service
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
@@ -871,10 +890,16 @@ class TradingEngine:
                     break
                 await self._interruptible_sleep(self.config.cycle_interval_seconds)
         finally:
-            self.activity_log.append(
-                ActivityEventType.SHUTDOWN,
-                "Trading engine stopped",
-            )
+            try:
+                if self.derivatives_context_service is not None:
+                    await self.derivatives_context_service.close()
+            except Exception:
+                logger.exception("Failed to close derivatives context service")
+            finally:
+                self.activity_log.append(
+                    ActivityEventType.SHUTDOWN,
+                    "Trading engine stopped",
+                )
 
     async def stop(self) -> None:
         """Signal the loop to exit at the next safe point.
@@ -921,7 +946,40 @@ class TradingEngine:
         # process (first cycle); seeds silently on first deploy.
         self._maybe_emit_strategy_action_transitions(cycle_id)
 
-        for sub_account in self._active_sub_accounts():
+        active_sub_accounts = self._active_sub_accounts()
+        if self.derivatives_context_service is not None:
+            symbols = self._derivatives_symbols(active_sub_accounts)
+            try:
+                await self.derivatives_context_service.refresh_cycle(
+                    cycle_id=cycle_id,
+                    cycle_index=self._cycle_index,
+                    symbols=symbols,
+                )
+            except Exception:
+                # Derivatives context is additive. A batch-internal fault must
+                # never suppress the existing OHLCV scan/monitor/snapshot path.
+                logger.exception("Derivatives context prefetch failed")
+                for symbol in symbols:
+                    for series in ("funding", "open_interest"):
+                        self.activity_log.append(
+                            ActivityEventType.DERIVATIVES_DATA_DEGRADED,
+                            details={
+                                "exchange": "binance",
+                                "symbol": symbol,
+                                "series": series,
+                                "status": "unavailable",
+                                "error_code": "internal_error",
+                                "data_timestamp": None,
+                                "data_age_seconds": None,
+                                "cache_status": "none",
+                                "attempt_count": 0,
+                                "circuit_state": "closed",
+                                "truncated_at_venue_retention": False,
+                            },
+                            cycle_id=cycle_id,
+                        )
+
+        for sub_account in active_sub_accounts:
             sub_account_id = self._sub_account_id(sub_account)
             try:
                 trader = self._trader_for_sub_account(sub_account_id)
@@ -982,6 +1040,15 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
         return result
+
+    def _derivatives_symbols(self, sub_accounts: list[SubAccount | None]) -> list[str]:
+        """Stable union of every active account's configured scan symbols."""
+        symbols: set[str] = set()
+        for sub_account in sub_accounts:
+            policy = self._runtime_policy_for_id(self._sub_account_id(sub_account))
+            symbols.add(policy.bitcoin_symbol)
+            symbols.update(policy.altcoin_symbols)
+        return sorted(symbols)
 
     # ------------------------------------------------------------------
     # Internals

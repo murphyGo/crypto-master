@@ -1,10 +1,19 @@
 """Tests for the strategy loader module."""
 
+from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 
+from src.exchange.derivatives import (
+    FundingRate,
+    MarketContext,
+    SeriesAvailability,
+    SeriesKind,
+    SeriesStatus,
+)
 from src.strategy.base import (
     BaseStrategy,
     StrategyLoadError,
@@ -46,6 +55,41 @@ class TestPromptStrategy:
         strategy = PromptStrategy(info=technique_info, prompt_content="Test")
         assert isinstance(strategy, BaseStrategy)
         assert strategy.name == "test_prompt"
+
+    def test_format_prompt_renders_only_normalized_market_context(
+        self, technique_info: TechniqueInfo
+    ) -> None:
+        as_of = datetime(2026, 7, 19, tzinfo=timezone.utc)
+        point = FundingRate(
+            symbol="BTC/USDT",
+            timestamp=as_of,
+            rate=Decimal("0.0001"),
+        )
+        context = MarketContext(
+            symbol="BTC/USDT",
+            as_of=as_of,
+            funding=(point,),
+            funding_availability=SeriesAvailability(
+                series=SeriesKind.FUNDING,
+                status=SeriesStatus.FRESH,
+                data_timestamp=as_of,
+                fetched_at=as_of,
+                age_seconds=0,
+                point_count=1,
+            ),
+            open_interest_availability=SeriesAvailability(
+                series=SeriesKind.OPEN_INTEREST,
+                status=SeriesStatus.UNAVAILABLE,
+            ),
+        )
+        strategy = PromptStrategy(
+            info=technique_info,
+            prompt_content="Context={market_context}",
+        )
+        rendered = strategy.format_prompt([], "BTC/USDT", "1h", market_context=context)
+        assert '"symbol":"BTC/USDT"' in rendered
+        assert "api_key" not in rendered
+        assert "raw" not in rendered
 
     @pytest.mark.asyncio
     async def test_prompt_strategy_analyze_calls_claude(

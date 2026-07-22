@@ -1,6 +1,6 @@
 """Tests for the RobustnessGate validator."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal
 
@@ -12,6 +12,14 @@ from src.backtest.engine import (
     BacktestResult,
     BacktestTrade,
 )
+from src.backtest.snapshot import Snapshot, SnapshotMetadata
+from src.backtest.snapshot_replay import SnapshotReplaySource
+from src.backtest.snapshot_v2 import (
+    SnapshotSeriesMetadata,
+    SnapshotV2,
+    SnapshotV2Metadata,
+    VersionedSnapshot,
+)
 from src.backtest.validator import (
     GateStatus,
     RobustnessConfig,
@@ -20,6 +28,13 @@ from src.backtest.validator import (
     _classify_regimes,
     _sharpe_from_trades,
     classify_entry_regime,
+)
+from src.exchange.derivatives import (
+    FundingRate,
+    MarketContext,
+    MarketContextRequirements,
+    OpenInterestHistory,
+    OpenInterestPoint,
 )
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
@@ -89,6 +104,122 @@ class PeriodicLongStrategy(BaseStrategy):
         if idx > 0 and idx % self.period == 0:
             return self._signal
         return neutral()
+
+
+class ContextRequiredNeutralStrategy(BaseStrategy):
+    def __init__(self) -> None:
+        super().__init__(
+            TechniqueInfo(
+                name="context_required",
+                version="1.0.0",
+                description="context-required robustness test",
+                technique_type="code",
+                requires_market_context=True,
+                market_context_requirements=MarketContextRequirements(
+                    funding_required=True,
+                    funding_min_points=2,
+                    open_interest_required=True,
+                    open_interest_min_points=2,
+                ),
+            )
+        )
+
+    async def analyze(
+        self,
+        ohlcv: list[OHLCV],
+        symbol: str,
+        timeframe: str = "1h",
+        *,
+        market_context: MarketContext | None = None,
+    ) -> AnalysisResult:
+        del ohlcv, symbol, timeframe
+        assert market_context is not None
+        return neutral()
+
+
+def _versioned_replay(*, schema_version: int, count: int = 80) -> SnapshotReplaySource:
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    candles = tuple(make_candles(count, start=start))
+    if schema_version == 1:
+        return SnapshotReplaySource(
+            VersionedSnapshot(
+                schema_version=1,
+                legacy_snapshot=Snapshot(
+                    metadata=SnapshotMetadata(
+                        symbol="BTC/USDT",
+                        timeframe="1h",
+                        source="binance",
+                        fetched_at=start + timedelta(days=10),
+                        candle_count=len(candles),
+                        first_timestamp=candles[0].timestamp,
+                        last_timestamp=candles[-1].timestamp,
+                        fetcher_version="test",
+                    ),
+                    ohlcv=list(candles),
+                ),
+            )
+        )
+
+    end = candles[-1].timestamp
+    funding = tuple(
+        FundingRate(
+            symbol="BTC/USDT",
+            timestamp=start + timedelta(hours=8 * index),
+            rate=Decimal("0.0001"),
+        )
+        for index in range((count - 1) // 8 + 1)
+    )
+    oi = tuple(
+        OpenInterestPoint(
+            symbol="BTC/USDT",
+            timestamp=start + timedelta(hours=index),
+            open_interest=Decimal("1000") + index,
+        )
+        for index in range(count)
+    )
+
+    def metadata(
+        points: tuple[object, ...], granularity: str
+    ) -> SnapshotSeriesMetadata:
+        timestamps = [point.timestamp for point in points]
+        return SnapshotSeriesMetadata(
+            fetched_at=start + timedelta(days=5),
+            requested_since=start,
+            requested_until=end,
+            actual_since=timestamps[0],
+            actual_until=timestamps[-1],
+            granularity=granularity,
+            point_count=len(points),
+        )
+
+    bundle = SnapshotV2(
+        metadata=SnapshotV2Metadata(
+            source="binance",
+            symbol="BTC/USDT",
+            timeframe="1h",
+            created_at=start + timedelta(days=6),
+            ohlcv=metadata(candles, "1h"),
+            funding=metadata(funding, "8h"),
+            open_interest=metadata(oi, "1h"),
+        ),
+        ohlcv=candles,
+        funding=funding,
+        open_interest=OpenInterestHistory(
+            symbol="BTC/USDT",
+            requested_since=start,
+            requested_until=end,
+            actual_since=oi[0].timestamp,
+            actual_until=oi[-1].timestamp,
+            points=oi,
+        ),
+    )
+    return SnapshotReplaySource(
+        VersionedSnapshot(
+            schema_version=2,
+            generation_id="b" * 64,
+            snapshot_v2=bundle,
+        )
+    )
 
 
 def make_candles(
@@ -165,6 +296,85 @@ def make_gate(
         )
     )
     return RobustnessGate(backtester=bt, config=config or RobustnessConfig())
+
+
+@pytest.mark.asyncio
+async def test_context_required_generic_gate_is_insufficient_without_pinned_replay() -> (
+    None
+):
+    strategy = ContextRequiredNeutralStrategy()
+
+    report = await make_gate().evaluate(
+        strategy,
+        make_candles(80, start=datetime(2026, 1, 1, tzinfo=timezone.utc)),
+        "BTC/USDT",
+    )
+
+    assert not report.overall_passed
+    assert report.gates[0].name == "market_context"
+    assert report.gates[0].status is GateStatus.INSUFFICIENT_DATA
+    assert "pinned snapshot" in report.gates[0].reason
+
+
+@pytest.mark.asyncio
+async def test_context_required_v1_snapshot_is_insufficient_data() -> None:
+    report = await make_gate().evaluate_snapshot(
+        ContextRequiredNeutralStrategy(),
+        _versioned_replay(schema_version=1),
+        seed=11,
+    )
+
+    assert not report.overall_passed
+    assert report.gates[0].status is GateStatus.INSUFFICIENT_DATA
+    assert report.replay_identity is not None
+    assert report.replay_identity.schema_version == 1
+    assert report.configuration_digest is not None
+    assert report.seed == 11
+
+
+@pytest.mark.asyncio
+async def test_valid_v2_snapshot_reaches_regular_gates_with_pinned_metadata() -> None:
+    replay = _versioned_replay(schema_version=2)
+
+    report = await make_gate().evaluate_snapshot(
+        ContextRequiredNeutralStrategy(),
+        replay,
+        seed=13,
+    )
+
+    assert all(gate.name != "market_context" for gate in report.gates)
+    assert report.replay_identity == replay.identity
+    assert report.configuration_digest is not None
+    assert report.seed == 13
+    assert report.context_ignored_prefix_bars == 7
+    assert report.context_eligible_bars > 0
+    assert report.context_unmet_bars == 7
+
+
+@pytest.mark.asyncio
+async def test_same_pinned_replay_seed_produces_identical_report() -> None:
+    replay = _versioned_replay(schema_version=2)
+
+    first = await make_gate().evaluate_snapshot(
+        ContextRequiredNeutralStrategy(),
+        replay,
+        seed=23,
+    )
+    second = await make_gate().evaluate_snapshot(
+        ContextRequiredNeutralStrategy(),
+        replay,
+        seed=23,
+    )
+
+    assert first.model_dump(mode="json") == second.model_dump(mode="json")
+
+
+def test_insufficient_data_blocks_overall_while_skipped_stays_neutral() -> None:
+    insufficient = GateStatus.INSUFFICIENT_DATA
+    skipped = GateStatus.SKIPPED
+
+    assert insufficient.value == "insufficient_data"
+    assert skipped.value == "skipped"
 
 
 # =============================================================================

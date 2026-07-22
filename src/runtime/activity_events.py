@@ -50,6 +50,8 @@ class ActivityEventType(str, Enum):
 
     # Scan + propose
     SCAN_ERRORED = "scan_errored"
+    DERIVATIVES_DATA_DEGRADED = "derivatives_data_degraded"
+    DERIVATIVES_DATA_RECOVERED = "derivatives_data_recovered"
     PROPOSAL_GENERATED = "proposal_generated"
     # Candidate-level proposal selection observability (DEBT-079).
     # Emitted by ProposalEngine after multi-technique per-symbol dedup drops a

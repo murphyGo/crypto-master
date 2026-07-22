@@ -18,6 +18,7 @@ from src.backtest.engine import (
 )
 from src.backtest.metrics import count_trade_outcomes, return_percent
 from src.backtest.multi_account_report import MultiAccountReport
+from src.backtest.snapshot_replay import SnapshotReplaySource
 from src.backtest.validator import RobustnessGate
 from src.models import OHLCV
 from src.strategy.base import BaseStrategy
@@ -46,6 +47,8 @@ class BacktestHarness:
         sub_accounts: list[SubAccount],
         ohlcv_by_symbol_tf: dict[tuple[str, str], list[OHLCV]],
         strategies: dict[str, BaseStrategy],
+        *,
+        replay_sources: dict[tuple[str, str], SnapshotReplaySource] | None = None,
     ) -> MultiAccountReport:
         """Run every active sub-account's strategy whitelist."""
         if not ohlcv_by_symbol_tf:
@@ -58,6 +61,17 @@ class BacktestHarness:
             for (candidate_symbol, tf), candles in ohlcv_by_symbol_tf.items()
             if candidate_symbol == symbol
         }
+        replay = (
+            None if replay_sources is None else replay_sources.get((symbol, timeframe))
+        )
+        if replay is not None and (
+            replay.symbol != symbol
+            or replay.timeframe != timeframe
+            or list(replay.ohlcv) != ohlcv
+        ):
+            raise ValueError(
+                "primary OHLCV must match the pinned replay source identity"
+            )
 
         run_id = f"combo-{uuid.uuid4().hex[:12]}"
         per_sub_account = {}
@@ -75,7 +89,13 @@ class BacktestHarness:
 
             results = [
                 await self._run_one(
-                    sub, strategy, ohlcv, symbol, timeframe, ohlcv_by_timeframe
+                    sub,
+                    strategy,
+                    ohlcv,
+                    symbol,
+                    timeframe,
+                    ohlcv_by_timeframe,
+                    replay,
                 )
                 for strategy in selected
             ]
@@ -87,7 +107,7 @@ class BacktestHarness:
             merged.extend(combined.trades)
             strategy_robustness = {
                 strategy.name: await self._evaluate_robustness(
-                    strategy, ohlcv, symbol, timeframe, ohlcv_by_timeframe
+                    strategy, ohlcv, symbol, timeframe, ohlcv_by_timeframe, replay
                 )
                 for strategy in selected
             }
@@ -124,6 +144,7 @@ class BacktestHarness:
         symbol: str,
         timeframe: str,
         ohlcv_by_timeframe: dict[str, list[OHLCV]],
+        replay: SnapshotReplaySource | None,
     ) -> BacktestResult:
         balance = sub.effective_initial_balance().get("USDT", Decimal("10000"))
         defaults = BacktestConfig()
@@ -148,6 +169,9 @@ class BacktestHarness:
             symbol,
             timeframe,
             ohlcv_by_timeframe=ohlcv_by_timeframe,
+            market_context_provider=replay,
+            replay_identity=None if replay is None else replay.identity,
+            seed=None if replay is None else 0,
         )
 
     def _select_strategies(
@@ -181,6 +205,24 @@ class BacktestHarness:
             for trade in result.trades
         ]
         curve = _combine_equity_curves(initial, [r.equity_curve for r in results])
+        replay_identities = {
+            result.replay_identity.model_dump_json()
+            for result in results
+            if result.replay_identity is not None
+        }
+        if len(replay_identities) > 1 or (
+            replay_identities
+            and any(result.replay_identity is None for result in results)
+        ):
+            raise ValueError("cannot combine conflicting replay generations")
+        replay_identity = next(
+            (
+                result.replay_identity
+                for result in results
+                if result.replay_identity is not None
+            ),
+            None,
+        )
         final = initial + total_delta
         outcomes = count_trade_outcomes(t.pnl for t in trades)
         return BacktestResult(
@@ -204,6 +246,14 @@ class BacktestHarness:
             trades=trades,
             equity_curve=curve,
             liquidated=any(r.liquidated for r in results),
+            replay_identity=replay_identity,
+            seed=(0 if replay_identity is not None else None),
+            market_context_eligible_bars=sum(
+                result.market_context_eligible_bars for result in results
+            ),
+            market_context_unmet_bars=sum(
+                result.market_context_unmet_bars for result in results
+            ),
         )
 
     async def _evaluate_robustness(
@@ -213,16 +263,24 @@ class BacktestHarness:
         symbol: str,
         timeframe: str,
         ohlcv_by_timeframe: dict[str, list[OHLCV]],
+        replay: SnapshotReplaySource | None,
     ) -> bool | None:
         if self.gate is None:
             return None
-        report = await self.gate.evaluate(
-            strategy,
-            ohlcv,
-            symbol,
-            timeframe,
-            ohlcv_by_timeframe=ohlcv_by_timeframe,
-        )
+        if replay is not None:
+            report = await self.gate.evaluate_snapshot(
+                strategy,
+                replay,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
+            )
+        else:
+            report = await self.gate.evaluate(
+                strategy,
+                ohlcv,
+                symbol,
+                timeframe,
+                ohlcv_by_timeframe=ohlcv_by_timeframe,
+            )
         return report.overall_passed
 
 

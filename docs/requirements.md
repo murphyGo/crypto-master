@@ -66,6 +66,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | FR-018 | Tapbit Integration | Execute trades and query data through Tapbit API | Medium |
 | FR-019 | Exchange Abstraction | Abstract exchanges through a common interface to facilitate adding new exchanges | High |
 | FR-020 | Historical Chart Data Query | Collect historical OHLCV data for backtesting through exchange APIs | High |
+| FR-046 | Perpetual Derivatives Market Context | Collect current and historical funding-rate and open-interest data from supported perpetual-futures public APIs, expose a decision-time-aligned optional market context to strategy and proposal consumers without look-ahead, and support deterministic replay from versioned snapshots. Missing or unsupported derivatives data must remain explicit rather than being silently synthesized. | High |
 
 ### 2.5 Feedback Loop System
 
@@ -158,6 +159,9 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | **Feedback Loop** | A cyclical process that automatically improves strategies by analyzing trading results |
 | **Risk/Reward (R/R)** | Risk/Reward Ratio. The ratio of expected profit to expected loss |
 | **OHLCV** | Open, High, Low, Close, Volume. Basic candlestick chart data |
+| **Funding Rate** | Periodic payment rate exchanged between perpetual-futures long and short positions; settled history is distinct from the current predicted rate |
+| **Open Interest (OI)** | Outstanding perpetual-futures contracts or notional value observed at a point in time |
+| **Market Context** | Optional, timestamp-bounded non-OHLCV market data supplied to a strategy or proposal decision without records newer than its `as_of` time |
 | **PnL** | Profit and Loss |
 
 ---
@@ -177,6 +181,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | Bitcoin Trading User Proposal | FR-011, FR-013 |
 | Altcoin Trading User Proposal | FR-012, FR-013 |
 | Exchange Support (Binance, Bybit, Tapbit) | FR-016, FR-017, FR-018, FR-019 |
+| Perpetual Derivatives Market Context (Funding/OI) | FR-046, NFR-006, NFR-009, CON-002 |
 | Feedback Loop (Technique Improvement, Backtesting) | FR-021 ~ FR-027 |
 | Sub-Account / Capital Segmentation | FR-036, FR-037, FR-038 |
 | Claude AI Agent | NFR-002 |
@@ -191,3 +196,4 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 |---------|------|---------|--------|
 | 1.0 | 2026-04-05 | Initial creation | Claude |
 | 1.1 | 2026-04-30 | Added FR-036 / FR-037 / FR-038 — Sub-Account / Capital Segmentation requirements (drives Phase 19) | Claude |
+| 1.2 | 2026-07-18 | Added FR-046 — perpetual-futures funding/open-interest market context with no-look-ahead runtime consumption and deterministic snapshot replay | Codex |

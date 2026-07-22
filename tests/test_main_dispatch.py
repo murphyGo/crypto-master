@@ -20,7 +20,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.config import BinanceConfig, BybitConfig, ExchangeCredential, Settings
+from src.config import (
+    BinanceConfig,
+    BybitConfig,
+    DerivativesDataConfig,
+    ExchangeCredential,
+    Settings,
+)
 from src.exchange.binance import BinanceExchange
 from src.exchange.bybit import BybitExchange
 from src.main import (
@@ -30,6 +36,7 @@ from src.main import (
     build_trader,
     build_traders,
 )
+from src.runtime.derivatives_context import DerivativesContextService
 from src.runtime.engine import EngineConfig
 from src.trading.live import LiveTrader
 from src.trading.paper import PaperTrader
@@ -273,6 +280,55 @@ def test_build_engine_logs_trading_mode(tmp_path: Any) -> None:
         engine = build_engine(settings, exchange)
 
     assert isinstance(engine.trader, PaperTrader)
+
+
+def test_build_engine_disabled_constructs_no_derivatives_object() -> None:
+    from src.main import build_engine
+
+    settings = _settings(mode="paper", binance_testnet=True)
+    exchange = build_exchange(settings)
+    with (
+        patch("src.main.load_all_strategies", return_value={}),
+        patch("src.main.PerformanceTracker"),
+        patch("src.main.ProposalHistory"),
+        patch("src.main.ActivityLog"),
+        patch("src.main.DerivativesContextService") as service_type,
+    ):
+        engine = build_engine(settings, exchange)
+
+    service_type.assert_not_called()
+    assert engine.derivatives_context_service is None
+    assert engine.proposal_engine.market_context_provider is None
+
+
+def test_build_engine_enabled_uses_dedicated_empty_credential_mainnet_source() -> None:
+    from src.main import build_engine
+
+    settings = _settings(mode="paper", binance_testnet=True)
+    exchange = build_exchange(settings)
+    config = EngineConfig(derivatives_data=DerivativesDataConfig(enabled=True))
+    public_source = MagicMock(spec=BinanceExchange)
+    service = MagicMock(spec=DerivativesContextService)
+    with (
+        patch("src.main.load_all_strategies", return_value={}),
+        patch("src.main.PerformanceTracker"),
+        patch("src.main.ProposalHistory"),
+        patch("src.main.ActivityLog"),
+        patch("src.main.BinanceExchange", return_value=public_source) as source_type,
+        patch("src.main.DerivativesContextService", return_value=service),
+    ):
+        engine = build_engine(settings, exchange, config=config)
+
+    source_type.assert_called_once()
+    source_config = source_type.call_args.args[0]
+    assert source_type.call_args.kwargs["testnet"] is False
+    assert source_config.market_type == "futures"
+    assert source_config.api_key == ""
+    assert source_config.api_secret == ""
+    assert source_config.testnet_api_key == ""
+    assert source_config.testnet_api_secret == ""
+    assert engine.derivatives_context_service is service
+    assert engine.proposal_engine.market_context_provider is service
 
 
 # =============================================================================

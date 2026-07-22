@@ -9,7 +9,7 @@ Related Requirements:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,6 +21,7 @@ import streamlit as st
 
 from src.config import get_settings
 from src.dashboard.query_params import query_param_first as _query_param_first
+from src.runtime.activity_events import ActivityEvent, ActivityEventType
 from src.runtime.activity_log import ActivityLog
 from src.utils.time import ensure_utc, now_utc
 
@@ -46,6 +47,7 @@ def build_ops_diagnostic_rows(
     now: datetime | None = None,
     stale_after_minutes: int = DEFAULT_STALE_AFTER_MINUTES,
     health_checker: Callable[[str], tuple[bool, str]] | None = None,
+    activity_events: Sequence[ActivityEvent] = (),
 ) -> list[OpsDiagnosticRow]:
     """Build operations diagnostics from local paths and optional health URL."""
     current = ensure_utc(now or now_utc())
@@ -75,6 +77,7 @@ def build_ops_diagnostic_rows(
                 next_step="Provide health URL",
             )
         )
+    rows.extend(_derivatives_rows(activity_events))
     return rows
 
 
@@ -127,6 +130,7 @@ def render() -> None:
         data_dir=settings.data_dir,
         activity_path=activity_log.path,
         health_url=health_url,
+        activity_events=activity_log.read_all(),
     )
     st.dataframe(
         build_ops_diagnostic_dataframe(rows),
@@ -175,6 +179,59 @@ def _latest_activity_file(activity_path: Path) -> Path | None:
     if not existing:
         return None
     return max(existing, key=lambda path: path.stat().st_mtime)
+
+
+def _derivatives_rows(
+    events: Sequence[ActivityEvent],
+) -> list[OpsDiagnosticRow]:
+    """Fold safe activity data into one newest row per derivatives series."""
+    relevant = {
+        ActivityEventType.DERIVATIVES_DATA_DEGRADED.value,
+        ActivityEventType.DERIVATIVES_DATA_RECOVERED.value,
+    }
+    newest: dict[tuple[str, str, str], ActivityEvent] = {}
+    for event in events:
+        if event.event_type not in relevant:
+            continue
+        details = event.details
+        exchange = str(details.get("exchange", "unknown"))
+        symbol = str(details.get("symbol", "unknown"))
+        series = str(details.get("series", "unknown"))
+        key = (exchange, symbol, series)
+        previous = newest.get(key)
+        if previous is None or event.timestamp >= previous.timestamp:
+            newest[key] = event
+
+    rows: list[OpsDiagnosticRow] = []
+    for key in sorted(newest):
+        exchange, symbol, series = key
+        details = newest[key].details
+        state = str(details.get("status", "unavailable"))
+        circuit = str(details.get("circuit_state", "closed"))
+        if circuit == "open" or state in {"stale", "unavailable"}:
+            status = "stop"
+        elif state in {"cached", "unsupported", "unsupported_interval"}:
+            status = "watch"
+        else:
+            status = "pass"
+        error_code = details.get("error_code")
+        age = details.get("data_age_seconds")
+        rows.append(
+            OpsDiagnosticRow(
+                check=f"Derivatives {exchange} {symbol} {series}",
+                status=status,
+                detail=(
+                    f"status={state}; age_seconds={age}; "
+                    f"error_code={error_code}; circuit={circuit}"
+                ),
+                next_step=(
+                    "Monitor derivatives context"
+                    if status == "pass"
+                    else "Check public derivatives data health"
+                ),
+            )
+        )
+    return rows
 
 
 __all__ = [

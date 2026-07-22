@@ -10,6 +10,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.exchange.base import BaseExchange, ExchangeAPIError
+from src.exchange.derivatives import (
+    ContextEvaluation,
+    FundingRate,
+    MarketContextRequirements,
+    SeriesKind,
+    SeriesSnapshot,
+)
 from src.models import OHLCV, AnalysisResult
 from src.proposal.engine import (
     Proposal,
@@ -18,7 +25,9 @@ from src.proposal.engine import (
     ProposalEngineError,
 )
 from src.strategy.base import BaseStrategy, StrategyExecutionError, TechniqueInfo
+from src.strategy.market_context import MarketContextBuilder
 from src.strategy.performance import PerformanceTracker, TechniquePerformance
+from src.utils.time import ensure_utc
 
 # =============================================================================
 # Helpers
@@ -143,6 +152,7 @@ def make_engine(
     ohlcv: list[OHLCV] | Exception | None = None,
     config: ProposalEngineConfig | None = None,
     activity_log: object | None = None,
+    market_context_provider: object | None = None,
 ) -> tuple[ProposalEngine, AsyncMock]:
     """Build a ProposalEngine with mocked exchange and tracker."""
     exchange = AsyncMock(spec=BaseExchange)
@@ -165,8 +175,139 @@ def make_engine(
         performance_tracker=tracker,
         config=config or ProposalEngineConfig(),
         activity_log=activity_log,  # type: ignore[arg-type]
+        market_context_provider=market_context_provider,  # type: ignore[arg-type]
     )
     return engine, exchange
+
+
+def make_context_evaluation(as_of: datetime) -> ContextEvaluation:
+    as_of = ensure_utc(as_of)
+    snapshot = SeriesSnapshot(
+        venue="binance",
+        symbol="BTC/USDT",
+        series=SeriesKind.FUNDING,
+        records=(
+            FundingRate(
+                symbol="BTC/USDT",
+                timestamp=as_of - timedelta(hours=8),
+                rate=Decimal("0.0001"),
+            ),
+        ),
+        fetched_at=as_of,
+    )
+    return MarketContextBuilder().build(
+        "BTC/USDT",
+        as_of=as_of,
+        funding=snapshot,
+        open_interest=None,
+    )
+
+
+async def test_required_missing_context_returns_neutral_without_analysis() -> None:
+    info = make_info("context_required").model_copy(
+        update={
+            "requires_market_context": True,
+            "market_context_requirements": MarketContextRequirements(
+                funding_required=True
+            ),
+        }
+    )
+    strategy = make_strategy(info=info)
+    provider = MagicMock()
+    provider.context_for.return_value = ContextEvaluation(
+        context=None,
+        requirements_satisfied=True,
+    )
+    candles = make_ohlcv()
+    engine, _ = make_engine(
+        strategies={strategy.name: strategy},
+        ohlcv=candles,
+        market_context_provider=provider,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is None
+    strategy.analyze.assert_not_awaited()
+    provider.context_for.assert_called_once_with(
+        "BTC/USDT", as_of=ensure_utc(candles[-1].timestamp)
+    )
+
+
+async def test_context_lookup_is_shared_across_multi_technique_decision() -> None:
+    first = make_strategy(info=make_info("context_a"))
+    second = make_strategy(info=make_info("context_b"))
+    candles = make_ohlcv()
+    evaluation = make_context_evaluation(candles[-1].timestamp)
+    provider = MagicMock()
+    provider.context_for.return_value = evaluation
+    engine, _ = make_engine(
+        strategies={first.name: first, second.name: second},
+        ohlcv=candles,
+        market_context_provider=provider,
+    )
+
+    proposal = await engine.propose_bitcoin()
+
+    assert proposal is not None
+    provider.context_for.assert_called_once_with(
+        "BTC/USDT", as_of=ensure_utc(candles[-1].timestamp)
+    )
+    assert first.analyze.await_args.kwargs["market_context"] is evaluation.context
+    assert second.analyze.await_args.kwargs["market_context"] is evaluation.context
+
+
+async def test_legacy_strategy_signature_is_called_without_context_fallback() -> None:
+    class LegacyStrategy(BaseStrategy):
+        def __init__(self) -> None:
+            super().__init__(make_info("legacy", technique_type="code"))
+            self.calls = 0
+
+        async def analyze(  # type: ignore[override]
+            self,
+            ohlcv: list[OHLCV],
+            symbol: str,
+            timeframe: str = "1h",
+            *,
+            ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+            current_price: Decimal | None = None,
+        ) -> AnalysisResult:
+            self.calls += 1
+            return make_analysis()
+
+    strategy = LegacyStrategy()
+    provider = MagicMock()
+    provider.context_for.return_value = make_context_evaluation(
+        make_ohlcv()[-1].timestamp
+    )
+    engine, _ = make_engine(
+        strategies={strategy.name: strategy},
+        market_context_provider=provider,
+    )
+
+    assert await engine.propose_bitcoin() is not None
+    assert strategy.calls == 1
+
+
+async def test_genuine_type_error_inside_context_strategy_is_not_retried() -> None:
+    class BrokenStrategy(BaseStrategy):
+        async def analyze(
+            self,
+            ohlcv: list[OHLCV],
+            symbol: str,
+            timeframe: str = "1h",
+            *,
+            ohlcv_by_timeframe: dict[str, list[OHLCV]] | None = None,
+            current_price: Decimal | None = None,
+            market_context: object | None = None,  # type: ignore[override]
+        ) -> AnalysisResult:
+            raise TypeError("body failure")
+
+    strategy = BrokenStrategy(make_info("broken", technique_type="code"))
+    engine, _ = make_engine(strategies={strategy.name: strategy})
+
+    with pytest.raises(TypeError, match="body failure"):
+        await engine.propose_bitcoin()
 
 
 # =============================================================================

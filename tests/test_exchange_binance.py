@@ -9,10 +9,27 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from ccxt.base.errors import (
+    AuthenticationError,
+    ExchangeNotAvailable,
+    NetworkError,
+    RateLimitExceeded,
+)
+from ccxt.base.errors import (
+    ExchangeError as CCXTExchangeError,
+)
 
 from src.config import BinanceConfig
 from src.exchange.base import ExchangeAPIError, ExchangeConnectionError, ExchangeError
 from src.exchange.binance import BinanceExchange
+from src.exchange.derivatives import (
+    CurrentFundingRate,
+    DerivativesDataContiguityError,
+    DerivativesDataValidationError,
+    OpenInterestHistory,
+    OpenInterestPoint,
+    UnsupportedFundingIntervalError,
+)
 from src.models import OHLCV, Order, OrderRequest, OrderStatus, Ticker
 
 
@@ -63,6 +80,47 @@ def mock_ccxt_client() -> AsyncMock:
     return client
 
 
+DERIVATIVES_START_MS = 1751328000000  # 2025-07-01 00:00:00 UTC
+HOUR_MS = 60 * 60 * 1000
+
+
+def _funding_raw(
+    hours: int,
+    *,
+    rate: str = "0.0001",
+    symbol: str = "BTC/USDT:USDT",
+) -> dict[str, object]:
+    return {
+        "symbol": symbol,
+        "timestamp": DERIVATIVES_START_MS + hours * HOUR_MS,
+        "fundingRate": rate,
+        "info": {"rawMustNotEscape": True},
+    }
+
+
+def _oi_raw(
+    hours: int,
+    *,
+    amount: str = "100",
+    symbol: str = "BTC/USDT:USDT",
+) -> dict[str, object]:
+    return {
+        "symbol": symbol,
+        "timestamp": DERIVATIVES_START_MS + hours * HOUR_MS,
+        "openInterestAmount": amount,
+        "openInterestValue": "5000000",
+        "info": {"rawMustNotEscape": True},
+    }
+
+
+def _connected_derivatives_exchange(
+    config: BinanceConfig, client: AsyncMock
+) -> BinanceExchange:
+    exchange = BinanceExchange(config=config, testnet=False)
+    exchange._client = client
+    return exchange
+
+
 class TestBinanceExchangeInit:
     """Tests for BinanceExchange initialization."""
 
@@ -95,6 +153,11 @@ class TestBinanceExchangeInit:
         assert (
             BinanceExchange.TESTNET_FUTURES_URL == "https://testnet.binancefutures.com"
         )
+
+    def test_derivatives_capability_is_enabled(
+        self, binance_config: BinanceConfig
+    ) -> None:
+        assert BinanceExchange(config=binance_config).supports_derivatives_data is True
 
 
 class TestBinanceExchangeConnect:
@@ -205,6 +268,27 @@ class TestBinanceExchangeConnect:
             assert call_args["apiKey"] == "live_key"
             assert call_args["secret"] == "live_secret"
             assert call_args["sandbox"] is False
+
+    @pytest.mark.asyncio
+    async def test_connect_omits_empty_public_credentials(self) -> None:
+        config = BinanceConfig(
+            api_key="",
+            api_secret="",
+            testnet_api_key="",
+            testnet_api_secret="",
+            market_type="futures",
+            testnet=False,
+        )
+
+        with patch("src.exchange.binance.ccxt.binanceusdm") as mock_class:
+            mock_class.return_value = AsyncMock()
+            exchange = BinanceExchange(config=config, testnet=False)
+            await exchange.connect()
+
+            call_config = mock_class.call_args.args[0]
+            assert "apiKey" not in call_config
+            assert "secret" not in call_config
+            assert call_config["enableRateLimit"] is True
 
     @pytest.mark.asyncio
     async def test_connect_aligns_credentials_with_runtime_testnet(self) -> None:
@@ -1202,3 +1286,388 @@ class TestBinanceTimestampUTCAware:
         assert order.updated_at is not None
         assert order.updated_at.tzinfo is timezone.utc
         assert order.updated_at == datetime(2024, 1, 1, 0, 1, 0, tzinfo=timezone.utc)
+
+
+class TestBinanceDerivativesCurrent:
+    """Current Funding/OI mappings stay normalized and payload-safe."""
+
+    @pytest.mark.asyncio
+    async def test_get_funding_rate_maps_current_and_predicted_values(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate.return_value = {
+            **_funding_raw(0),
+            "nextFundingRate": "-0.0002",
+            "nextFundingTimestamp": DERIVATIVES_START_MS + 8 * HOUR_MS,
+            "interval": "8h",
+        }
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_funding_rate("BTC/USDT")
+
+        assert isinstance(result, CurrentFundingRate)
+        assert result.symbol == "BTC/USDT"
+        assert result.rate == Decimal("0.0001")
+        assert result.predicted_rate == Decimal("-0.0002")
+        assert result.observed_at.tzinfo is timezone.utc
+        assert result.interval_hours == 8
+        assert "info" not in result.model_dump()
+
+    @pytest.mark.asyncio
+    async def test_get_open_interest_maps_current_point(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest.return_value = _oi_raw(0)
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest("BTC/USDT")
+
+        assert isinstance(result, OpenInterestPoint)
+        assert result.open_interest == Decimal("100")
+        assert result.open_interest_value == Decimal("5000000")
+        assert result.timestamp.tzinfo is timezone.utc
+        assert "info" not in result.model_dump()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"symbol": "BTC/USDT", "timestamp": DERIVATIVES_START_MS},
+            {
+                "symbol": "ETH/USDT:USDT",
+                "timestamp": DERIVATIVES_START_MS,
+                "fundingRate": "0.0001",
+            },
+            {
+                "symbol": "BTC/USDT:USDT",
+                "timestamp": "not-a-timestamp",
+                "fundingRate": "0.0001",
+            },
+            {
+                "symbol": "BTC/USDT:USDT",
+                "timestamp": float("nan"),
+                "fundingRate": "0.0001",
+            },
+        ],
+    )
+    async def test_get_funding_rate_rejects_malformed_payload(
+        self,
+        payload: dict[str, object],
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate.return_value = payload
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(DerivativesDataValidationError) as exc_info:
+            await exchange.get_funding_rate("BTC/USDT")
+
+        assert exc_info.value.code == "invalid_payload"
+
+    @pytest.mark.asyncio
+    async def test_current_funding_rejects_non_8h_interval(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate.return_value = {
+            **_funding_raw(0),
+            "interval": "4h",
+        }
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(UnsupportedFundingIntervalError) as exc_info:
+            await exchange.get_funding_rate("BTC/USDT")
+
+        assert exc_info.value.code == "unsupported_interval"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("error", "expected_code"),
+        [
+            (RateLimitExceeded("secret-bearing-url"), "rate_limited"),
+            (ExchangeNotAvailable("secret-bearing-url"), "venue_unavailable"),
+            (NetworkError("secret-bearing-url"), "network_transient"),
+            (
+                AuthenticationError("secret-bearing-url"),
+                "authentication_unexpected",
+            ),
+            (CCXTExchangeError("secret-bearing-url"), "remote_5xx"),
+        ],
+    )
+    async def test_derivatives_error_ladder_is_typed_and_sanitized(
+        self,
+        error: CCXTExchangeError,
+        expected_code: str,
+        binance_config: BinanceConfig,
+        mock_ccxt_client: AsyncMock,
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate.side_effect = error
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(ExchangeAPIError) as exc_info:
+            await exchange.get_funding_rate("BTC/USDT")
+
+        assert exc_info.value.code == expected_code
+        assert "secret-bearing-url" not in str(exc_info.value)
+        assert exc_info.value.__cause__ is error
+
+
+class TestBinanceFundingHistory:
+    """Funding history uses actual received records and validates the 8h grid."""
+
+    @pytest.mark.asyncio
+    async def test_short_pages_use_last_actual_record_for_next_cursor(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate_history.side_effect = [
+            [_funding_raw(0), _funding_raw(8)],
+            [_funding_raw(16)],
+            [],
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_funding_rate_history(
+            "BTC/USDT", DERIVATIVES_START_MS, limit=1500
+        )
+
+        assert [point.timestamp.hour for point in result] == [0, 8, 16]
+        calls = mock_ccxt_client.fetch_funding_rate_history.call_args_list
+        assert calls[0].kwargs["limit"] == 1000
+        assert calls[1].kwargs["limit"] == 1000
+        assert calls[1].kwargs["since"] == DERIVATIVES_START_MS + 16 * HOUR_MS
+
+    @pytest.mark.asyncio
+    async def test_multi_page_history_deduplicates_overlap(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate_history.side_effect = [
+            [_funding_raw(0), _funding_raw(8)],
+            [_funding_raw(8), _funding_raw(16), _funding_raw(24)],
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_funding_rate_history(
+            "BTC/USDT", DERIVATIVES_START_MS, limit=4
+        )
+
+        assert len(result) == 4
+        assert len({point.timestamp for point in result}) == 4
+        assert result == sorted(result, key=lambda point: point.timestamp)
+
+    @pytest.mark.asyncio
+    async def test_funding_history_gap_fails_loudly(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate_history.return_value = [
+            _funding_raw(0),
+            _funding_raw(16),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(DerivativesDataContiguityError) as exc_info:
+            await exchange.get_funding_rate_history(
+                "BTC/USDT", DERIVATIVES_START_MS, limit=2
+            )
+
+        assert exc_info.value.code == "timestamp_gap"
+
+    @pytest.mark.asyncio
+    async def test_funding_history_non_8h_spacing_is_unsupported(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate_history.return_value = [
+            _funding_raw(0),
+            _funding_raw(4),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(UnsupportedFundingIntervalError) as exc_info:
+            await exchange.get_funding_rate_history(
+                "BTC/USDT", DERIVATIVES_START_MS, limit=2
+            )
+
+        assert exc_info.value.code == "unsupported_interval"
+
+    @pytest.mark.asyncio
+    async def test_funding_history_empty_response_returns_empty(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_funding_rate_history.return_value = []
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_funding_rate_history(
+            "BTC/USDT", DERIVATIVES_START_MS
+        )
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_funding_history_until_is_inclusive(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        until = DERIVATIVES_START_MS + 8 * HOUR_MS
+        mock_ccxt_client.fetch_funding_rate_history.return_value = [
+            _funding_raw(0),
+            _funding_raw(8),
+            _funding_raw(16),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_funding_rate_history(
+            "BTC/USDT", DERIVATIVES_START_MS, until=until
+        )
+
+        assert [int(point.timestamp.timestamp() * 1000) for point in result] == [
+            DERIVATIVES_START_MS,
+            until,
+        ]
+        assert mock_ccxt_client.fetch_funding_rate_history.call_args.kwargs[
+            "params"
+        ] == {"endTime": until}
+
+
+class TestBinanceOpenInterestHistory:
+    """OI history validates 1h suffixes and reports retention loss explicitly."""
+
+    @pytest.mark.asyncio
+    async def test_short_pages_respect_500_cap_and_actual_cursor(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.side_effect = [
+            [_oi_raw(0), _oi_raw(1)],
+            [_oi_raw(2)],
+            [],
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS, limit=600
+        )
+
+        assert isinstance(result, OpenInterestHistory)
+        assert len(result.points) == 3
+        calls = mock_ccxt_client.fetch_open_interest_history.call_args_list
+        assert calls[0].kwargs["limit"] == 500
+        assert calls[1].kwargs["limit"] == 500
+        assert calls[1].kwargs["since"] == DERIVATIVES_START_MS + 2 * HOUR_MS
+
+    @pytest.mark.asyncio
+    async def test_multi_page_oi_history_deduplicates_overlap(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.side_effect = [
+            [_oi_raw(0), _oi_raw(1)],
+            [_oi_raw(1), _oi_raw(2), _oi_raw(3)],
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS, limit=4
+        )
+
+        assert len(result.points) == 4
+        assert len({point.timestamp for point in result.points}) == 4
+
+    @pytest.mark.asyncio
+    async def test_oi_history_marks_retention_truncated_prefix(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.return_value = [
+            _oi_raw(24),
+            _oi_raw(25),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS, limit=2
+        )
+
+        assert result.truncated_at_venue_retention is True
+        assert result.requested_since == datetime.fromtimestamp(
+            DERIVATIVES_START_MS / 1000, tz=timezone.utc
+        )
+        assert result.actual_since == result.points[0].timestamp
+
+    @pytest.mark.asyncio
+    async def test_oi_history_exact_start_is_not_retention_truncated(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.return_value = [
+            _oi_raw(0),
+            _oi_raw(1),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS, limit=2
+        )
+
+        assert result.truncated_at_venue_retention is False
+        assert result.actual_since == result.requested_since
+
+    @pytest.mark.asyncio
+    async def test_oi_history_gap_fails_loudly(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.return_value = [
+            _oi_raw(0),
+            _oi_raw(2),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(DerivativesDataContiguityError) as exc_info:
+            await exchange.get_open_interest_history(
+                "BTC/USDT", since=DERIVATIVES_START_MS, limit=2
+            )
+
+        assert exc_info.value.code == "timestamp_gap"
+
+    @pytest.mark.asyncio
+    async def test_oi_history_no_data_has_explicit_empty_coverage(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        mock_ccxt_client.fetch_open_interest_history.return_value = []
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS
+        )
+
+        assert result.points == ()
+        assert result.actual_since is None
+        assert result.actual_until is None
+        assert result.truncated_at_venue_retention is False
+
+    @pytest.mark.asyncio
+    async def test_oi_history_until_is_inclusive(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        until = DERIVATIVES_START_MS + HOUR_MS
+        mock_ccxt_client.fetch_open_interest_history.return_value = [
+            _oi_raw(0),
+            _oi_raw(1),
+            _oi_raw(2),
+        ]
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        result = await exchange.get_open_interest_history(
+            "BTC/USDT", since=DERIVATIVES_START_MS, until=until
+        )
+
+        assert len(result.points) == 2
+        assert result.actual_until == datetime.fromtimestamp(
+            until / 1000, tz=timezone.utc
+        )
+        assert mock_ccxt_client.fetch_open_interest_history.call_args.kwargs[
+            "params"
+        ] == {"endTime": until}
+
+    @pytest.mark.asyncio
+    async def test_oi_history_rejects_non_1h_timeframe(
+        self, binance_config: BinanceConfig, mock_ccxt_client: AsyncMock
+    ) -> None:
+        exchange = _connected_derivatives_exchange(binance_config, mock_ccxt_client)
+
+        with pytest.raises(DerivativesDataValidationError) as exc_info:
+            await exchange.get_open_interest_history("BTC/USDT", timeframe="5m")
+
+        assert exc_info.value.code == "unsupported_interval"

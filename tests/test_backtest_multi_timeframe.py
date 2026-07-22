@@ -34,6 +34,7 @@ from src.backtest.engine import (
     BacktestError,
     slice_multi_tf_by_index,
 )
+from src.exchange.derivatives import ContextEvaluation, MarketContextRequirements
 from src.models import OHLCV, AnalysisResult
 from src.strategy.base import BaseStrategy, TechniqueInfo
 
@@ -183,6 +184,22 @@ class AlternatingMultiTfParseError(BaseStrategy):
         )
 
 
+class RecordingContextProvider:
+    def __init__(self) -> None:
+        self.as_of: list[datetime] = []
+
+    def context_for(
+        self,
+        symbol: str,
+        *,
+        as_of: datetime,
+        requirements: MarketContextRequirements | None = None,
+    ) -> ContextEvaluation:
+        del symbol, requirements
+        self.as_of.append(as_of)
+        return ContextEvaluation(context=None, requirements_satisfied=True)
+
+
 def make_backtester(tmp_path: Path, *, warmup: int = 5) -> Backtester:
     return Backtester(
         config=BacktestConfig(
@@ -286,6 +303,36 @@ class TestRunMultiTimeframeValidation:
 
 
 class TestRunMultiTimeframeSemantics:
+    @pytest.mark.asyncio
+    async def test_market_context_uses_primary_candle_decision_boundary(
+        self, tmp_path: Path
+    ) -> None:
+        primary = make_5m(24)
+        higher = aligned_higher(primary, 20)
+        provider = RecordingContextProvider()
+        strategy = StaticStrategy(
+            requires_multi_tf=True,
+            signal=AnalysisResult(
+                signal="neutral",
+                confidence=0.0,
+                entry_price=Decimal("50000"),
+                stop_loss=Decimal("49500"),
+                take_profit=Decimal("51000"),
+                reasoning="neutral",
+            ),
+        )
+
+        await make_backtester(tmp_path, warmup=3).run_multi_timeframe(
+            strategy=strategy,
+            ohlcv_by_timeframe={"5m": primary, "20m": higher},
+            symbol="BTC/USDT",
+            primary_timeframe="5m",
+            market_context_provider=provider,
+        )
+
+        assert provider.as_of
+        assert provider.as_of == [call["primary_last_ts"] for call in strategy.calls]
+
     @pytest.mark.asyncio
     async def test_no_future_leakage_in_higher_tf_slice(self, tmp_path: Path) -> None:
         """At every analyze call, no higher-TF candle is ahead of the
