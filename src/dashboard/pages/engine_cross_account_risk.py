@@ -589,8 +589,7 @@ def build_freeze_toggle_plan(currently_frozen: bool) -> FreezeTogglePlan:
             next_value=False,
             action_label="Disengage freeze",
             confirmation_prompt=(
-                "I understand this RESUMES all new entries across every "
-                "sub-account."
+                "I understand this RESUMES all new entries across every " "sub-account."
             ),
         )
     return FreezeTogglePlan(
@@ -598,8 +597,7 @@ def build_freeze_toggle_plan(currently_frozen: bool) -> FreezeTogglePlan:
         next_value=True,
         action_label="Engage freeze",
         confirmation_prompt=(
-            "I understand this HALTS all new entries across every "
-            "sub-account."
+            "I understand this HALTS all new entries across every " "sub-account."
         ),
     )
 
@@ -705,7 +703,9 @@ def render_cross_account_risk(events: list[ActivityEvent]) -> None:
         st.dataframe(metrics_df, hide_index=True, use_container_width=True)
 
     if not cap_df.empty:
-        st.caption("Portfolio totals vs global caps (band: green<70% / amber / red / breach>100%)")
+        st.caption(
+            "Portfolio totals vs global caps (band: green<70% / amber / red / breach>100%)"
+        )
         st.dataframe(cap_df, hide_index=True, use_container_width=True)
 
     if not exposure_df.empty:

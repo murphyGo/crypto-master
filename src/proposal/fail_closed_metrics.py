@@ -174,7 +174,11 @@ class FailClosedMetricsTracker:
 
     def _resolve_sub_account(self, sub_account_id: str | None) -> str:
         """Per-call sub-account wins; fall back to constructor default."""
-        return sub_account_id if sub_account_id is not None else self.default_sub_account_id
+        return (
+            sub_account_id
+            if sub_account_id is not None
+            else self.default_sub_account_id
+        )
 
     def _path_for(self, technique_name: str, sub_account_id: str) -> Path:
         return self.data_dir / sub_account_id / technique_name / "fail_closed.json"

@@ -110,9 +110,7 @@ def _seed_perf_record(
     record_id: str,
 ) -> Path:
     """Write one perf record so ``compute_health_report`` can resolve its id."""
-    path = (
-        data_dir / "performance" / sub_account_id / technique_name / "records.json"
-    )
+    path = data_dir / "performance" / sub_account_id / technique_name / "records.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = [
         {
@@ -339,9 +337,7 @@ def test_compute_health_report_locked_drift_flags_inconsistent(tmp_path: Path) -
     """
     _seed_paper_ledger(tmp_path, "default", [_row()])
     drift = Decimal("10")  # 20x the relative tolerance at locked_sum=500
-    _seed_balances_snapshot(
-        tmp_path, "default", locked=Decimal("500") + drift
-    )
+    _seed_balances_snapshot(tmp_path, "default", locked=Decimal("500") + drift)
     report = compute_health_report(tmp_path, ["default"])
     assert report["report"]["default"]["locked_consistent"] is False
     assert report["totals"]["any_locked_inconsistent"] is True
@@ -435,9 +431,7 @@ def test_locked_consistency_relative_slope_scales_with_account(
     _seed_paper_ledger(tmp_path, "default", rows)
     # Relative tolerance at locked_sum=5000 is 5000 × 0.001 = 5.0 USD.
     # Drift of $2 is comfortably above the 0.01 floor but inside 5.0.
-    _seed_balances_snapshot(
-        tmp_path, "default", locked=Decimal("5000") + Decimal("2")
-    )
+    _seed_balances_snapshot(tmp_path, "default", locked=Decimal("5000") + Decimal("2"))
     report = compute_health_report(tmp_path, ["default"])
     assert report["report"]["default"]["locked_consistent"] is True
 
@@ -641,9 +635,7 @@ def test_health_report_stale_count_zero_when_all_rows_fresh(tmp_path: Path) -> N
     """
     now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
     fresh = (now - timedelta(hours=12)).isoformat()
-    rows = [
-        _row(trade_id=f"fresh-{i}", entry_time=fresh) for i in range(3)
-    ]
+    rows = [_row(trade_id=f"fresh-{i}", entry_time=fresh) for i in range(3)]
     _seed_paper_ledger(tmp_path, "default", rows)
     report = compute_health_report(tmp_path, ["default"], now=now)
     assert report["report"]["default"]["stale_count"] == 0

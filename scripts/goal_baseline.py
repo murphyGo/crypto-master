@@ -13,26 +13,33 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import urllib.request
-import json
-
-logging.disable(logging.WARNING)
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from src.models import OHLCV
-from src.strategy.loader import load_strategy
-from src.backtest.engine import Backtester, BacktestConfig
-from src.backtest.metrics import (
-    sharpe_from_trade_pnls,
+# Keep project imports quiet; each intentional late import carries an E402 waiver.
+logging.disable(logging.WARNING)
+
+from src.backtest.engine import BacktestConfig, Backtester  # noqa: E402
+from src.backtest.metrics import (  # noqa: E402
     max_drawdown_from_equity_values,
+    sharpe_from_trade_pnls,
 )
+from src.models import OHLCV  # noqa: E402
+from src.strategy.loader import load_strategy  # noqa: E402
 
 BINANCE = "https://api.binance.com/api/v3/klines"
-INTERVAL_MS = {"1m": 60_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000,
-               "4h": 14_400_000, "1d": 86_400_000}
+INTERVAL_MS = {
+    "1m": 60_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "1h": 3_600_000,
+    "4h": 14_400_000,
+    "1d": 86_400_000,
+}
 
 
 def fetch_klines(symbol: str, interval: str, days: int) -> list[OHLCV]:
@@ -43,17 +50,24 @@ def fetch_klines(symbol: str, interval: str, days: int) -> list[OHLCV]:
     out: list[OHLCV] = []
     cur = start
     while cur < end:
-        url = f"{BINANCE}?symbol={symbol}&interval={interval}&startTime={cur}&limit=1000"
+        url = (
+            f"{BINANCE}?symbol={symbol}&interval={interval}&startTime={cur}&limit=1000"
+        )
         with urllib.request.urlopen(url, timeout=30) as r:
             rows = json.loads(r.read())
         if not rows:
             break
         for row in rows:
-            out.append(OHLCV(
-                timestamp=datetime.fromtimestamp(row[0] / 1000, tz=timezone.utc),
-                open=Decimal(row[1]), high=Decimal(row[2]), low=Decimal(row[3]),
-                close=Decimal(row[4]), volume=Decimal(row[5]),
-            ))
+            out.append(
+                OHLCV(
+                    timestamp=datetime.fromtimestamp(row[0] / 1000, tz=timezone.utc),
+                    open=Decimal(row[1]),
+                    high=Decimal(row[2]),
+                    low=Decimal(row[3]),
+                    close=Decimal(row[4]),
+                    volume=Decimal(row[5]),
+                )
+            )
         cur = rows[-1][0] + step
     return out
 
@@ -69,8 +83,10 @@ async def main() -> None:
 
     ohlcv = fetch_klines(args.symbol, args.interval, args.days)
     pair = args.symbol.replace("USDT", "/USDT")
-    print(f"Fetched {len(ohlcv)} candles {ohlcv[0].timestamp.date()} -> "
-          f"{ohlcv[-1].timestamp.date()} ({pair} {args.interval})")
+    print(
+        f"Fetched {len(ohlcv)} candles {ohlcv[0].timestamp.date()} -> "
+        f"{ohlcv[-1].timestamp.date()} ({pair} {args.interval})"
+    )
     px0, px1 = float(ohlcv[0].close), float(ohlcv[-1].close)
     print(f"Buy&hold over window: {(px1/px0 - 1)*100:+.1f}%")
     print(f"Config: leverage={args.leverage}x risk={args.risk}%/trade\n")
@@ -87,7 +103,9 @@ async def main() -> None:
 
     strat_dir = Path("strategies")
     files = sorted(f for f in strat_dir.glob("*.py") if not f.name.startswith("_"))
-    print(f"{'strategy':<28}{'ret%':>9}{'win%':>8}{'trades':>8}{'maxDD%':>9}{'sharpe':>8}")
+    print(
+        f"{'strategy':<28}{'ret%':>9}{'win%':>8}{'trades':>8}{'maxDD%':>9}{'sharpe':>8}"
+    )
     print("-" * 70)
     rows = []
     for f in files:
@@ -95,13 +113,33 @@ async def main() -> None:
             strat = load_strategy(f)
             tf = args.interval
             res = await bt.run(strategy=strat, ohlcv=ohlcv, symbol=pair, timeframe=tf)
-            eq = [p.equity for p in res.equity_curve] if res.equity_curve else [res.initial_balance]
+            eq = (
+                [p.equity for p in res.equity_curve]
+                if res.equity_curve
+                else [res.initial_balance]
+            )
             _, mdd = max_drawdown_from_equity_values(eq, res.initial_balance)
-            sharpe = (sharpe_from_trade_pnls(
-                [t.pnl for t in res.trades], res.initial_balance
-            ) or 0.0) if res.trades else 0.0
-            rows.append((f.stem, res.return_percent, res.win_rate * 100,
-                         res.total_trades, mdd, sharpe, res.liquidated))
+            sharpe = (
+                (
+                    sharpe_from_trade_pnls(
+                        [t.pnl for t in res.trades], res.initial_balance
+                    )
+                    or 0.0
+                )
+                if res.trades
+                else 0.0
+            )
+            rows.append(
+                (
+                    f.stem,
+                    res.return_percent,
+                    res.win_rate * 100,
+                    res.total_trades,
+                    mdd,
+                    sharpe,
+                    res.liquidated,
+                )
+            )
         except Exception as e:  # noqa: BLE001
             print(f"{f.stem:<28}  ERROR: {type(e).__name__}: {str(e)[:40]}")
     rows.sort(key=lambda r: r[1], reverse=True)

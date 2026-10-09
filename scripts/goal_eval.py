@@ -17,15 +17,16 @@ import logging
 from decimal import Decimal
 from pathlib import Path
 
+# Keep project imports quiet; each intentional late import carries an E402 waiver.
 logging.disable(logging.WARNING)
 
-from scripts.goal_baseline import fetch_klines  # reuse fetcher
-from src.strategy.loader import load_strategy
-from src.backtest.engine import Backtester, BacktestConfig
-from src.backtest.metrics import (
-    sharpe_from_trade_pnls,
+from scripts.goal_baseline import fetch_klines  # noqa: E402  # reuse fetcher
+from src.backtest.engine import BacktestConfig, Backtester  # noqa: E402
+from src.backtest.metrics import (  # noqa: E402
     max_drawdown_from_equity_values,
+    sharpe_from_trade_pnls,
 )
+from src.strategy.loader import load_strategy  # noqa: E402
 
 
 async def run_one(file: Path, ohlcv, pair, interval, leverage, risk):
@@ -40,10 +41,20 @@ async def run_one(file: Path, ohlcv, pair, interval, leverage, risk):
     bt = Backtester(config=config)
     strat = load_strategy(file)
     res = await bt.run(strategy=strat, ohlcv=ohlcv, symbol=pair, timeframe=interval)
-    eq = [p.equity for p in res.equity_curve] if res.equity_curve else [res.initial_balance]
+    eq = (
+        [p.equity for p in res.equity_curve]
+        if res.equity_curve
+        else [res.initial_balance]
+    )
     _, mdd = max_drawdown_from_equity_values(eq, res.initial_balance)
-    sharpe = (sharpe_from_trade_pnls([t.pnl for t in res.trades], res.initial_balance)
-              or 0.0) if res.trades else 0.0
+    sharpe = (
+        (
+            sharpe_from_trade_pnls([t.pnl for t in res.trades], res.initial_balance)
+            or 0.0
+        )
+        if res.trades
+        else 0.0
+    )
     return res, mdd, sharpe
 
 
@@ -65,18 +76,26 @@ async def main() -> None:
         data[sym] = fetch_klines(sym, args.interval, args.days)
 
     for lev in leverages:
-        print(f"\n===== leverage {lev}x  risk {args.risk}%/trade  "
-              f"{args.interval} {args.days}d =====")
-        print(f"{'symbol':<12}{'ret%':>10}{'win%':>8}{'trades':>8}"
-              f"{'maxDD%':>9}{'sharpe':>8}")
+        print(
+            f"\n===== leverage {lev}x  risk {args.risk}%/trade  "
+            f"{args.interval} {args.days}d ====="
+        )
+        print(
+            f"{'symbol':<12}{'ret%':>10}{'win%':>8}{'trades':>8}"
+            f"{'maxDD%':>9}{'sharpe':>8}"
+        )
         print("-" * 56)
         for sym in symbols:
             ohlcv = data[sym]
             pair = sym.replace("USDT", "/USDT")
-            res, mdd, sh = await run_one(file, ohlcv, pair, args.interval, lev, args.risk)
+            res, mdd, sh = await run_one(
+                file, ohlcv, pair, args.interval, lev, args.risk
+            )
             flag = "  LIQ" if res.liquidated else ""
-            print(f"{pair:<12}{res.return_percent:>10.1f}{res.win_rate*100:>8.1f}"
-                  f"{res.total_trades:>8}{mdd:>9.1f}{sh:>8.2f}{flag}")
+            print(
+                f"{pair:<12}{res.return_percent:>10.1f}{res.win_rate*100:>8.1f}"
+                f"{res.total_trades:>8}{mdd:>9.1f}{sh:>8.2f}{flag}"
+            )
 
 
 if __name__ == "__main__":

@@ -290,9 +290,7 @@ def build_command_center_summary(counts: FunnelCounts) -> str:
         + counts.outcome_linked
         + counts.open_errored
     )
-    opened_total = (
-        counts.trade_opened + counts.outcome_linked + counts.open_errored
-    )
+    opened_total = counts.trade_opened + counts.outcome_linked + counts.open_errored
     grand_total = generated_total + score_accepted_total
     if grand_total <= 0:
         ratio = 0.0

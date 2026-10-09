@@ -470,9 +470,7 @@ def test_live_run_emits_activity_event(tmp_path: Path) -> None:
 
     summary = backfill_paper_sl_tp(data_dir=tmp_path, activity_log=activity_log)
 
-    events = activity_log.filter(
-        event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN
-    )
+    events = activity_log.filter(event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN)
     assert len(events) == 1
     assert events[0].details["backfilled"] == summary.backfilled == 1
     assert events[0].details["examined"] == 1
@@ -486,11 +484,7 @@ def test_dry_run_does_not_emit_activity_event(tmp_path: Path) -> None:
     _seed_paper_trade(tmp_path, "default", performance_record_id=record.id)
     activity_log = ActivityLog(path=tmp_path / "activity.jsonl")
 
-    backfill_paper_sl_tp(
-        data_dir=tmp_path, dry_run=True, activity_log=activity_log
-    )
+    backfill_paper_sl_tp(data_dir=tmp_path, dry_run=True, activity_log=activity_log)
 
-    events = activity_log.filter(
-        event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN
-    )
+    events = activity_log.filter(event_type=ActivityEventType.BACKFILL_PAPER_SL_TP_RAN)
     assert events == []

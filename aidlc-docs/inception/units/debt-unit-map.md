@@ -8,15 +8,11 @@ when debt is added or resolved, then refresh this map.
 
 ## Active Debt by Unit
 
-| Unit | Active Debt | Priority Mix | Notes |
-|------|-------------|--------------|-------|
-| `quality-governance` | DEBT-081 | 1 Low | Restore the repository-wide Black/Ruff gate without mixing mechanical cleanup into trading-feature slices. |
+No active debt items.
 
 ## Debt Details
 
-| Debt | Priority | Primary Unit | Secondary Unit | Suggested Next Action |
-|------|----------|--------------|----------------|-----------------------|
-| DEBT-081 | Low | `quality-governance` | All Python-owning units | Run a bounded formatter/lint restoration unit, then verify full pytest, Black, Ruff, and mypy. |
+No active debt details.
 
 ## Promotion Candidates
 

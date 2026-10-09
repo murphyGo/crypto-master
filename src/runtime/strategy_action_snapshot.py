@@ -51,7 +51,9 @@ from src.utils.io import atomic_write_text
 
 logger = get_logger("crypto_master.runtime.strategy_action_snapshot")
 
-DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH = Path("data/runtime/strategy_action_snapshot.json")
+DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH = Path(
+    "data/runtime/strategy_action_snapshot.json"
+)
 SNAPSHOT_VERSION = 1
 
 # A snapshot maps sub_account_id -> {strategy_name -> applied action value}.
@@ -75,7 +77,9 @@ class StrategyActionTransition:
     new_action: str
 
 
-def load_snapshot(path: Path = DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH) -> AppliedStateMap | None:
+def load_snapshot(
+    path: Path = DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH,
+) -> AppliedStateMap | None:
     """Load the prior applied-state snapshot.
 
     Returns ``None`` when the file is missing (first run) or unreadable /

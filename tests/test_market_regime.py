@@ -138,9 +138,7 @@ def test_classify_regime_fresh_within_budget() -> None:
     closes = [100.0] * 198 + [103.0, 103.0]
     candles = _make_candles(closes)
     one_late_now = candles[-1].timestamp + timedelta(hours=4)
-    assert (
-        classify_regime(candles, timeframe="4h", now=one_late_now) == "bull"
-    )
+    assert classify_regime(candles, timeframe="4h", now=one_late_now) == "bull"
 
 
 def test_classify_regime_detailed_reports_baseline_and_close() -> None:

@@ -1025,9 +1025,7 @@ def test_proposal_final_state_includes_strategy_action_pause_and_shadow_recorded
         ProposalFinalState("gate_rejected_strategy_action_pause")
         is ProposalFinalState.GATE_REJECTED_STRATEGY_ACTION_PAUSE
     )
-    assert (
-        ProposalFinalState("shadow_recorded") is ProposalFinalState.SHADOW_RECORDED
-    )
+    assert ProposalFinalState("shadow_recorded") is ProposalFinalState.SHADOW_RECORDED
 
 
 # =============================================================================

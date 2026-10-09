@@ -41,39 +41,6 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-081: Repository-wide Black/Ruff quality gate drifted after DEBT-042
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Low |
-| **Created** | 2026-07-18 |
-| **Phase** | exchange-integration Derivatives Data Slice 1 Build & Test |
-| **Component** | quality-governance (`src/`, `tests/`, `scripts/`) |
-
-**Description:**
-Repository-wide quality commands are no longer green on the committed baseline.
-`uv run black --check src tests scripts` would reformat 20 files, and
-`uv run ruff check src tests scripts` reports 22 findings in
-`scripts/goal_baseline.py`, `scripts/goal_eval.py`, `scripts/goal_gamble.py`,
-and `scripts/paper_run_tsmom.py`. This recurs after DEBT-042 previously made the
-formatter gate enforceable.
-
-**Impact:**
-Feature slices can verify their touched files, but the repository cannot use a
-single global Black/Ruff pass as a clean quality gate. The Derivatives Data
-Slice 1 changed files are not among the failures and pass both scoped checks;
-the full 2461-test suite and repository-wide mypy also pass.
-
-**Suggested Resolution:**
-Run a bounded formatter/lint restoration unit: Black the 20 named files, fix
-the four script lint clusters without behavioral changes, run full pytest,
-Black, Ruff, and mypy, then close DEBT-081. Keep the mechanical cleanup out of
-trading-feature slices.
-
-**Related:**
-- DEBT-042 (previous formatter-gate restoration)
-- `aidlc-docs/construction/build-and-test/build-and-test-summary.md`
-
 ### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data) ✅
 
 | Field | Value |
@@ -418,6 +385,16 @@ Move resolved items here with resolution date and notes.
 | **Resolved** | YYYY-MM-DD |
 | **Resolution** | [Brief description] |
 -->
+
+### DEBT-081: Repository-wide Black/Ruff quality gate drifted after DEBT-042 ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-07-18 |
+| **Resolved** | 2026-10-09 |
+| **Component** | quality-governance (`src/`, `tests/`, `scripts/`) |
+| **Resolution** | Restored the existing repository-wide quality gate without changing formatter/linter configuration or runtime behavior. The current baseline had 17 Black candidates (superseding the historical 20-file creation snapshot) and 22 Ruff findings in four scripts. Applied Black to exactly those 17 files; sorted the four script import blocks while retaining `logging.disable(logging.WARNING)` before project imports with an explicit E402 rationale; replaced the loop-capturing percentile lambda in `goal_gamble.py` with direct p10/p90 calculations using the same sorted-list index formula. Verification: 292 targeted tests passed, four script `--help` paths passed, full suite 2604 passed, Black reported 222 files clean, Ruff passed, mypy passed across 114 source files, and `uv lock --check` plus `git diff --check` passed. No dependency, lockfile, deployment, credential, production configuration, external trading, or runtime `data/` change. Session log: `docs/sessions/2026-10-09-quality-governance-debt-081-formatter-lint-restoration.md`. |
 
 ### DEBT-066: In-memory mark-price cache for cap-blocker `unrealized_pnl_percent` ✅
 
@@ -1052,18 +1029,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 1 |
-| Resolved (All Time) | 74 |
+| Low | 0 |
+| Resolved (All Time) | 75 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-081 `quality-governance` formatter/lint restoration completed — exactly 17 current Black candidates reformatted and 22 Ruff findings cleared in four scripts while preserving pre-project-import logging suppression and percentile semantics. Verification: 292 targeted tests, four CLI help paths, 2604 full tests, Black 222 files clean, Ruff clean, mypy 114 files clean, lock and diff checks pass. No runtime `data/`, dependency, deployment, credential, or production change. Session log `docs/sessions/2026-10-09-quality-governance-debt-081-formatter-lint-restoration.md`. |
 | 2026-07-18 | Added | DEBT-081 repository-wide Black/Ruff gate drift — Slice 1 changed files are clean, but the committed baseline has 20 Black-format candidates and 22 Ruff findings in four scripts; tracked separately under `quality-governance`. |
 | 2026-06-30 | Resolved | DEBT-068 `cross-account-risk-policy` Slice 2 umbrella closed (via `/dev-crypto`) — all substantive slices (a), (b), (c), (c-arb), (d), (e), (f), (g), and (h) were already shipped; this closeout flips the umbrella to resolved and updates AI-DLC state, debt-unit map, construction plan, session log, and cross-check. No code change. |
 | 2026-06-30 | Resolved | DEBT-069 `strategy-tuning` Slice 2 umbrella completed (via `/dev-crypto`) — final (g) threshold calibration. Fresh Fly `/data/performance` evidence reviewed; `scout.sample_size_max` widened 10 → 15 to align with `keep.sample_size_min`; keep PF/win-rate thresholds retained. Targeted pytest 2 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-strategy-tuning-debt-069g-threshold-calibration.md`. |

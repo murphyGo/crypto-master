@@ -21,16 +21,17 @@ import statistics
 from decimal import Decimal
 from pathlib import Path
 
+# Keep project imports quiet; each intentional late import carries an E402 waiver.
 logging.disable(logging.WARNING)
 
-from scripts.goal_baseline import fetch_klines
-from src.strategy.loader import load_strategy
-from src.backtest.engine import Backtester, BacktestConfig
+from scripts.goal_baseline import fetch_klines  # noqa: E402
+from src.backtest.engine import BacktestConfig, Backtester  # noqa: E402
+from src.strategy.loader import load_strategy  # noqa: E402
 
 BARS_PER_DAY_4H = 6
-WARMUP = 252            # tsmom minimum_candles
+WARMUP = 252  # tsmom minimum_candles
 WINDOW_DAYS = 90
-STEP_BARS = 60          # ~10-day step between window origins
+STEP_BARS = 60  # ~10-day step between window origins
 
 
 async def run_window(strat_file, ohlcv, pair, leverage, risk, max_pos):
@@ -61,8 +62,12 @@ async def main() -> None:
     ap.add_argument("--days", type=int, default=730)
     ap.add_argument("--risks", default="1,5,10,20")
     ap.add_argument("--leverage", type=int, default=5)
-    ap.add_argument("--max-pos", type=float, default=100.0,
-                    help="max_position_size_percent (cap on margin %% of balance)")
+    ap.add_argument(
+        "--max-pos",
+        type=float,
+        default=100.0,
+        help="max_position_size_percent (cap on margin %% of balance)",
+    )
     args = ap.parse_args()
 
     strat_file = Path(args.file)
@@ -72,9 +77,11 @@ async def main() -> None:
 
     data = {s: fetch_klines(s, "4h", args.days) for s in symbols}
     n_any = len(next(iter(data.values())))
-    print(f"Data: {n_any} 4h candles/symbol (~{args.days}d), "
-          f"window={WINDOW_DAYS}d ({window_bars} bars), warmup={WARMUP}, "
-          f"leverage_cap={args.leverage}x")
+    print(
+        f"Data: {n_any} 4h candles/symbol (~{args.days}d), "
+        f"window={WINDOW_DAYS}d ({window_bars} bars), warmup={WARMUP}, "
+        f"leverage_cap={args.leverage}x"
+    )
 
     for risk in risks:
         finals, peaks, liqs, n = [], [], 0, 0
@@ -85,7 +92,8 @@ async def main() -> None:
             while start + window_bars <= len(ohlcv):
                 sl = ohlcv[start - WARMUP : start + window_bars]
                 final, peak, liq = await run_window(
-                    strat_file, sl, pair, args.leverage, risk, args.max_pos)
+                    strat_file, sl, pair, args.leverage, risk, args.max_pos
+                )
                 finals.append(final)
                 peaks.append(peak)
                 liqs += int(liq)
@@ -94,15 +102,18 @@ async def main() -> None:
         if not finals:
             continue
         finals.sort()
-        p = lambda q: finals[int(q * (len(finals) - 1))]  # noqa: E731
+        p10 = finals[int(0.10 * (len(finals) - 1))]
+        p90 = finals[int(0.90 * (len(finals) - 1))]
         doubled_final = sum(1 for x in finals if x >= 100) / n * 100
         doubled_peak = sum(1 for x in peaks if x >= 100) / n * 100
         dd50 = sum(1 for x in finals if x <= -50) / n * 100
         print(f"\n--- risk {risk}%/trade  ({n} rolling 90d windows) ---")
-        print(f"  90d return:  median {statistics.median(finals):+6.1f}%   "
-              f"mean {statistics.mean(finals):+6.1f}%   "
-              f"p10 {p(0.10):+6.1f}%   p90 {p(0.90):+6.1f}%   "
-              f"max {max(finals):+6.1f}%")
+        print(
+            f"  90d return:  median {statistics.median(finals):+6.1f}%   "
+            f"mean {statistics.mean(finals):+6.1f}%   "
+            f"p10 {p10:+6.1f}%   p90 {p90:+6.1f}%   "
+            f"max {max(finals):+6.1f}%"
+        )
         print(f"  P(+100% by end of window):   {doubled_final:5.1f}%")
         print(f"  P(+100% touched intra-window): {doubled_peak:5.1f}%")
         print(f"  P(<= -50% end):              {dd50:5.1f}%")

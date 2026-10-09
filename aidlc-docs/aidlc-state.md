@@ -57,7 +57,17 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
-> **Latest construction (2026-07-22):** `market-regime` Funding+OI crowding
+> **Latest construction (2026-10-09):** `quality-governance` DEBT-081 is
+> **RESOLVED**. The bounded formatter/lint restoration reformatted exactly the
+> 17 current Black candidates and cleared 22 Ruff findings in four scripts
+> without changing formatter configuration or runtime/trading behavior.
+> Verification: 292 targeted tests, four CLI help paths, 2604 full tests,
+> repository-wide Black (222 files), Ruff, mypy (114 files), lock, and diff
+> checks all pass. No dependency, deployment, credential, production
+> configuration, external trading, or runtime `data/` change occurred;
+> Operations N/A.
+
+> **Previous construction (2026-07-22):** `market-regime` Funding+OI crowding
 > observer is **SEALED as a disabled-by-default shadow release** — Functional
 > Design, NFR Requirements/Design, Code Generation, Build & Test, and
 > cross-check PASS. It uses settled trailing-30d Funding p05/p95 plus rising
@@ -80,7 +90,7 @@ Construction artifacts are created just in time for new work. Existing Phase
   observation and is not claimed by this release.
 - **Cross-check:** PASS at
   `docs/cross-checks/2026-07-22-market-regime-funding-oi-crowding-shadow.md`.
-- **Debt:** No new debt; DEBT-081 remains unrelated.
+- **Debt:** No new debt; DEBT-081 was subsequently resolved on 2026-10-09.
 
 | Unit | Existing Implementation | AI-DLC State | Next Action |
 |------|-------------------------|--------------|-------------|
@@ -95,7 +105,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard for data-directory, activity-log freshness, and optional health URL checks shipped | Track future notification, deployment, credential, runtime process, or operations changes in construction plans |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |
 | `persistence-data-integrity` | Complete | Brownfield-complete; construction-ready; 2026-07-19 Snapshot Schema v2 atomicity/versioned-storage secondary **Build & Test approved, Operations N/A, cross-checked PASS for LC-10** — same-root staging, production-reader validation, content-addressed immutable generations, atomic `CURRENT`, manifest allowlist/hash/size/count validation, same-id race handling, every-phase rollback, and schema-v1 no-mutation compatibility verified; snapshot/atomic integration 102 passed; 2026-07-22 Slice 4 collector-to-v2 and exact pinned replay secondary **Build & Test PASS, cross-check PASS**; runtime `data/` unchanged | Preserve immutable generation compatibility; production refresh remains explicit operator action only |
-| `quality-governance` | Complete | Brownfield-complete; construction-ready; 2026-05-13 `mypy src` repo-wide clean milestone — `Success: no issues found in 88 source files` for the first time this session, achieved by bundled DEBT-067 + DEBT-070 close-out (DEBT-067 cleared the 3 pre-existing `src/dashboard/app.py` errors that had been QA-noise across the past 4 unit cycles); 2026-07-18 DEBT-081 tracks renewed repository-wide Black/Ruff drift while derivatives Slice 1 files remain clean | Resolve DEBT-081 in a separate bounded formatter/lint restoration unit |
+| `quality-governance` | Complete | Brownfield-complete; construction-ready; 2026-05-13 `mypy src` repo-wide clean milestone — `Success: no issues found in 88 source files` for the first time this session, achieved by bundled DEBT-067 + DEBT-070 close-out (DEBT-067 cleared the 3 pre-existing `src/dashboard/app.py` errors that had been QA-noise across the past 4 unit cycles); 2026-10-09 DEBT-081 resolved in a bounded formatter/lint restoration — exactly 17 current Black candidates reformatted and 22 Ruff findings cleared in four scripts with logging initialization and percentile semantics preserved; 292 targeted tests, four CLI help paths, 2604 full tests, Black 222 files, Ruff, mypy 114 files, lock, and diff checks pass | Track future quality-governance work in construction plans; keep repository-wide Black/Ruff/mypy/pytest gates green |
 | `consistency-hardening` | Complete | CH-01 `97e6d4f`, CH-02 `d19b308`, CH-03 `c7c30b7`, CH-04 `c108c3c`, CH-05 `809638f`, CH-06 (live fill attribution: actual exit price + entry/exit fees on `LiveTrader`) shipped 2026-05-09, CH-07 (live position rehydration from persisted SL/TP + fee state) shipped 2026-05-09, CH-08 (account-scoped exchange routing for scan/stale-quote/monitor/snapshot) shipped 2026-05-09, CH-09 (BacktestHarness multi-TF routing + per-strategy robustness reporting) shipped 2026-05-09, CH-10 (post-notification/correlation incident safety-score recompute before hard pause) shipped 2026-05-09, CH-11..CH-18 and CH-20..CH-24 shipped 2026-05-09, CH-25 verified superseded by active fill/confirmation contracts 2026-05-09, CH-26 (`src/backtest/metrics.py` shared outcome/return/Sharpe/MDD helpers) shipped 2026-05-09, CH-27 `_execute_bar` loop dedup + parity regression shipped 2026-05-09 (`955897f`), CH-28 paper/live SL/TP parity + live entry-fee cleanup shipped 2026-05-09 (`48e461c`), CH-29 proposal gate envelope + single final save shipped 2026-05-09 (`0cf51a3`), CH-30 build_engine phase split + PolicyResolver shipped 2026-05-09 (`5d3f4d9`), CH-31 policy-field-only sub-account runtime + Decimal profile risk shipped 2026-05-09 (`73181b0`), CH-32 feedback promotion rollback + YAML reparse shipped 2026-05-09 (`29b58c5`), CH-33 proposal/improver/notification helper decomposition shipped 2026-05-09 (`47a723e`), CH-34 runtime policy/safety per-cycle cache shipped 2026-05-09 (`c99573c`), CH-35 structured engine errors + shared trading side aliases shipped 2026-05-09 (`072bb73`), CH-36 shared validator mixins + parse-error semantics shipped 2026-05-09 (`eccbade`); spec.md backlog extended with CH-26..CH-36 from the 2026-05-09 ten-subagent refactor review (36 anchored slices total); 2026-05-13 DEBT-055 CH-27 multi-TF parity test gaps resolved (4 parity variants + true non-degenerate divergence test in `TestRunMultiTimeframeParity`; superseded test deleted) | Track future cross-cutting consistency work in construction plans |
 | `strategy-promotion-lab` | Complete | First-pass scoring, observation persistence, dashboard recommendations, and operator action helper shipped | Track future lab workflow refinements in construction plans |
 | `sub-account-experiment-marketplace` | Complete | Template schema, YAML rendering, publish-time validation, policy-block sub-account config, runtime strategy-per-account paper lab config, and dashboard config discovery shipped | Track future marketplace dashboard/operator tooling in construction plans |

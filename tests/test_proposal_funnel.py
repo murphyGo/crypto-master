@@ -360,7 +360,9 @@ def test_window_falls_back_to_created_at_when_decision_at_missing() -> None:
     )
     counts = compute_funnel_counts(
         [pending, pending_old],
-        window=FunnelWindow(start=base - timedelta(days=1), end=base + timedelta(days=1)),
+        window=FunnelWindow(
+            start=base - timedelta(days=1), end=base + timedelta(days=1)
+        ),
     )
     assert counts.generated == 1
     assert counts.total == 1

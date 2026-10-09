@@ -182,9 +182,7 @@ def test_close_synthetic_record_uses_technique_name_when_provided(
 
     close_unrecoverable_paper_trades(data_dir=tmp_path)
 
-    perf_path = (
-        tmp_path / "performance" / "default" / "rsi_15m" / "records.json"
-    )
+    perf_path = tmp_path / "performance" / "default" / "rsi_15m" / "records.json"
     assert perf_path.exists()
 
 
@@ -237,17 +235,11 @@ def test_close_dry_run_does_not_emit_activity_event(tmp_path: Path) -> None:
 
 def test_close_sub_account_filter_restricts_walk(tmp_path: Path) -> None:
     """``--sub-account`` only touches the named sub-account ledger."""
-    path_a = _seed_ledger(
-        tmp_path, "alpha", [_row(trade_id="a-bad", symbol=None)]
-    )
-    path_b = _seed_ledger(
-        tmp_path, "beta", [_row(trade_id="b-bad", symbol=None)]
-    )
+    path_a = _seed_ledger(tmp_path, "alpha", [_row(trade_id="a-bad", symbol=None)])
+    path_b = _seed_ledger(tmp_path, "beta", [_row(trade_id="b-bad", symbol=None)])
     before_b = path_b.read_text()
 
-    summary = close_unrecoverable_paper_trades(
-        data_dir=tmp_path, sub_account="alpha"
-    )
+    summary = close_unrecoverable_paper_trades(data_dir=tmp_path, sub_account="alpha")
 
     assert summary.closed == 1
     rows_a = _read_ledger(path_a)

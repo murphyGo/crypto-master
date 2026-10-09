@@ -440,10 +440,11 @@ def test_event_sub_account_id_present() -> None:
 def test_event_sub_account_id_absent_or_falsy_normalizes_to_sentinel() -> None:
     # Historical: ``details.get("sub_account_id") or "__global__"``.
     assert event_sub_account_id(_event()) == GLOBAL_SUB_ACCOUNT_SENTINEL
-    assert event_sub_account_id(_event(sub_account_id="")) == GLOBAL_SUB_ACCOUNT_SENTINEL
     assert (
-        event_sub_account_id(_event(sub_account_id=None))
-        == GLOBAL_SUB_ACCOUNT_SENTINEL
+        event_sub_account_id(_event(sub_account_id="")) == GLOBAL_SUB_ACCOUNT_SENTINEL
+    )
+    assert (
+        event_sub_account_id(_event(sub_account_id=None)) == GLOBAL_SUB_ACCOUNT_SENTINEL
     )
     assert GLOBAL_SUB_ACCOUNT_SENTINEL == "__global__"
 

@@ -203,7 +203,9 @@ def classify_open_trade(
     # classification below: any row (including ``unrecoverable``) can
     # also be stale. We compute it here once and pass it through every
     # return path.
-    is_stale = _row_is_stale(row, now=now, stale_threshold_seconds=stale_threshold_seconds)
+    is_stale = _row_is_stale(
+        row, now=now, stale_threshold_seconds=stale_threshold_seconds
+    )
 
     if missing_core:
         return OpenTradeClassification(
@@ -378,9 +380,7 @@ def compute_closed_but_malformed_count(
     trades_path = data_dir / "trades" / "paper" / sub_account_id / "trades.json"
     rows = _load_json_list(trades_path, context="paper ledger")
     return sum(
-        1
-        for row in rows
-        if isinstance(row, dict) and _row_is_closed_but_malformed(row)
+        1 for row in rows if isinstance(row, dict) and _row_is_closed_but_malformed(row)
     )
 
 

@@ -113,9 +113,7 @@ def build_reconciliation_status_banner(
     if event.event_type == ActivityEventType.RECONCILIATION_HEALTH_CHECK_FAILED.value:
         return ReconciliationBanner(
             color="yellow",
-            message=(
-                "Reconciliation health check failed — investigate logs."
-            ),
+            message=("Reconciliation health check failed — investigate logs."),
             cta="Inspect runtime logs for the reconciliation_health_check_failed event",
             open_trade_count=0,
             report_timestamp=event.timestamp,
@@ -155,9 +153,7 @@ def build_reconciliation_status_banner(
         )
     return ReconciliationBanner(
         color="green",
-        message=(
-            f"Reconciliation: {open_count} open trade(s), all monitorable."
-        ),
+        message=(f"Reconciliation: {open_count} open trade(s), all monitorable."),
         cta=None,
         open_trade_count=open_count,
         report_timestamp=event.timestamp,
