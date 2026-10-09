@@ -63,3 +63,19 @@ paid-API fallback.
   this fail-closed path; all 14 Codex tests plus format/lint/type checks pass.
 - Auth and actual deployment qualification are still pending. Existing Fly v51
   remains on Claude in paper mode; the independent device login is in progress.
+
+## Prepared release
+
+- Implementation pushed: `d9bf77a263558364c0ef168f2d9f1d88bf62523b`.
+- Final full suite including the quarantine-write regression: **2618 passed**
+  (54.08 s); final focused Codex tests **14 passed**.
+- Image built and pushed, without deployment:
+  `registry.fly.io/crypto-master:codex-d9bf77a-20261009`, manifest
+  `sha256:9c718ee4b5f73529a713a8563694476e4d6a028c2f955f1fdc35e3e4db65bf9a`.
+- The app remains v51, paper mode, previous image, with health passing.
+  Dedicated ChatGPT authorization is still required before neutral model
+  qualification and actual deployment; do not deploy with missing auth.
+- Local root gained other concurrent uncommitted Dockerfile/state/debt/design
+  work. The fast-forward correctly refused to overwrite it; root is preserved.
+  This work is committed/pushed from the isolated worktree. Recheck current
+  origin/main and Fly release before deploying to preserve concurrent changes.

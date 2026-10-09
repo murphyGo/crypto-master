@@ -29,3 +29,11 @@ the same machine/image restored health. Cause was not established. Dedicated
 Codex login and deployment qualification remain pending. No token values or
 personal/GHA auth cache were copied. No debt item was added; the open
 operational steps are tracked by this construction plan.
+
+Final validation and build: **2618 full tests passed**, **14 Codex boundary
+tests passed**, format/lint/type checks passed. Source commit
+`d9bf77a263558364c0ef168f2d9f1d88bf62523b` is pushed. Built image
+`registry.fly.io/crypto-master:codex-d9bf77a-20261009` (manifest
+`sha256:9c718ee4b5f73529a713a8563694476e4d6a028c2f955f1fdc35e3e4db65bf9a`)
+is prepared; no server deployment yet. Other concurrent local uncommitted work
+prevented a root fast-forward and was preserved.
