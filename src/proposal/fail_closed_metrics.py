@@ -1,6 +1,6 @@
 """Per-strategy proposal-engine fail-closed-rate metrics (DEBT-061).
 
-Tracks two cumulative counters per ``(sub_account, technique)`` pair:
+Preserves two legacy cumulative counters per ``(sub_account, technique)`` pair:
 
 * ``proposals_emitted`` — every time a strategy got far enough that the
   engine actually invoked ``strategy.analyze()``. This is the
@@ -25,6 +25,11 @@ Tracks two cumulative counters per ``(sub_account, technique)`` pair:
   Neutral analysis results are **not** counted as fail-closed: the
   strategy emitted, looked at the data, and said "no setup here" —
   that's a normal no-signal day, not a gate rejection.
+
+DEBT-074 adds observed-attempt, neutral/non-neutral-result, candidate-built
+and candidate-selected counters. They cover only new observations; missing
+legacy fields mean unknown historical stage coverage, not historical zero
+signals. An analyze attempt must never be presented as a generated proposal.
 
 Persistence mirrors :mod:`src.strategy.performance` — one JSON file per
 ``(sub_account_id, technique_name)`` under
@@ -61,6 +66,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -69,6 +75,10 @@ from src.logger import get_logger
 from src.strategy.performance import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.io import atomic_write_text
 from src.utils.time import now_utc
+
+AnalysisStage = Literal[
+    "neutral_results", "non_neutral_results", "candidates_built", "candidates_selected"
+]
 
 logger = get_logger("crypto_master.proposal.fail_closed_metrics")
 
@@ -102,6 +112,12 @@ class StrategyFailClosedCounts(BaseModel):
     technique_version: str = ""
     proposals_emitted: int = Field(default=0, ge=0)
     proposals_fail_closed: int = Field(default=0, ge=0)
+    # Additive stage coverage starts at zero for pre-DEBT-074 snapshots.
+    analysis_attempts_observed: int = Field(default=0, ge=0)
+    neutral_results: int = Field(default=0, ge=0)
+    non_neutral_results: int = Field(default=0, ge=0)
+    candidates_built: int = Field(default=0, ge=0)
+    candidates_selected: int = Field(default=0, ge=0)
     last_updated: str = Field(default_factory=lambda: now_utc().isoformat())
 
     @property
@@ -250,6 +266,35 @@ class FailClosedMetricsTracker:
                 "sub_account_id": sub_account,
                 "technique_version": technique_version,
                 "proposals_emitted": counts.proposals_emitted + 1,
+                "analysis_attempts_observed": counts.analysis_attempts_observed + 1,
+                "last_updated": now_utc().isoformat(),
+            }
+        )
+        self._save(updated)
+
+    def record_stage(
+        self,
+        technique_name: str,
+        technique_version: str,
+        stage: AnalysisStage,
+        sub_account_id: str | None = None,
+    ) -> None:
+        """Record an observed result/build/selection, without inferring old history."""
+        if stage not in {
+            "neutral_results",
+            "non_neutral_results",
+            "candidates_built",
+            "candidates_selected",
+        }:
+            raise ValueError("Unknown analysis stage")
+        sub_account = self._resolve_sub_account(sub_account_id)
+        counts = self.get(technique_name, sub_account)
+        updated = StrategyFailClosedCounts.model_validate(
+            {
+                **counts.model_dump(),
+                "sub_account_id": sub_account,
+                "technique_version": technique_version,
+                stage: getattr(counts, stage) + 1,
                 "last_updated": now_utc().isoformat(),
             }
         )
@@ -312,6 +357,7 @@ class FailClosedMetricsTracker:
 
 
 __all__ = [
+    "AnalysisStage",
     "FailClosedMetricsTracker",
     "StrategyFailClosedCounts",
 ]

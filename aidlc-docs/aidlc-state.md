@@ -57,6 +57,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **2026-10-09 DEBT-074 complete:** `proposal-funnel-audit` — Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates.
+> Verification: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). Operations not performed.
+
 > **2026-10-09 DEBT-078 complete:** `runtime-reconciliation` — Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative.
 > Verification: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. Operations not performed.
 

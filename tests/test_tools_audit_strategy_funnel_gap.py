@@ -6,6 +6,8 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from src.proposal.engine import Proposal, ProposalScore
 from src.proposal.interaction import (
     ProposalDecision,
@@ -23,6 +25,7 @@ def _write_fail_closed(
     technique_name: str,
     emitted: int,
     fail_closed: int,
+    **stages: int,
 ) -> None:
     path = (
         data_dir / "performance" / sub_account_id / technique_name / "fail_closed.json"
@@ -36,6 +39,7 @@ def _write_fail_closed(
                 "technique_version": "1.0.0",
                 "proposals_emitted": emitted,
                 "proposals_fail_closed": fail_closed,
+                **stages,
                 "last_updated": "2026-06-30T00:00:00+00:00",
             }
         )
@@ -93,7 +97,7 @@ def test_audit_classifies_vcp_shaped_pre_funnel_gap(tmp_path: Path) -> None:
     assert audit.proposals_fail_closed == 0
     assert audit.proposal_records == 0
     assert audit.opened_or_linked == 0
-    assert audit.conclusion == "pre_funnel_candidate_selection_or_history_gap"
+    assert audit.conclusion == "pre_funnel_no_signal_or_selection_or_history_gap"
     assert "candidate-level deselection" in audit.suggested_follow_up
 
 
@@ -142,3 +146,67 @@ def test_audit_cli_returns_success(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
 
     assert main(["vcp_breakout", "--sub-account", "vcp_lab"]) == 0
+
+
+@pytest.mark.parametrize(
+    "observed,neutral,non_neutral,built,selected,failures,expected",
+    [
+        (3, 3, 0, 0, 0, 0, "neutral_only"),
+        (1, 1, 0, 0, 0, 0, "pre_funnel_no_signal_or_selection_or_history_gap"),
+        (3, 2, 1, 1, 0, 0, "pre_funnel_no_signal_or_selection_or_history_gap"),
+        (3, 0, 3, 0, 0, 3, "pre_funnel_fail_closed"),
+        (3, 0, 0, 0, 0, 3, "pre_funnel_fail_closed"),
+        (3, 3, 0, 0, 1, 0, "pre_funnel_no_signal_or_selection_or_history_gap"),
+    ],
+)
+def test_audit_signal_coverage_never_guesses_missing_history(
+    tmp_path, observed, neutral, non_neutral, built, selected, failures, expected
+):
+    _write_fail_closed(
+        tmp_path,
+        sub_account_id="lab",
+        technique_name="test",
+        emitted=3,
+        fail_closed=failures,
+        analysis_attempts_observed=observed,
+        neutral_results=neutral,
+        non_neutral_results=non_neutral,
+        candidates_built=built,
+        candidates_selected=selected,
+    )
+    path = tmp_path / "performance" / "lab" / "test" / "fail_closed.json"
+    before = path.read_bytes()
+    audit = audit_strategy_funnel_gap(tmp_path, "test", sub_account="lab")
+    assert audit.conclusion == expected
+    assert audit.neutral_results == neutral
+    assert audit.candidates_selected == selected
+    assert path.read_bytes() == before
+
+
+def test_legacy_gap_explicitly_allows_no_signal(tmp_path):
+    _write_fail_closed(
+        tmp_path,
+        sub_account_id="lab",
+        technique_name="test",
+        emitted=25383,
+        fail_closed=0,
+    )
+    audit = audit_strategy_funnel_gap(tmp_path, "test", sub_account="lab")
+    assert "no_signal" in audit.conclusion
+    assert "Legacy or incomplete coverage" in audit.suggested_follow_up
+    assert audit.analysis_attempts_observed == 0
+
+
+def test_partial_stage_write_is_not_reported_as_no_activity(tmp_path):
+    _write_fail_closed(
+        tmp_path,
+        sub_account_id="lab",
+        technique_name="test",
+        emitted=0,
+        fail_closed=0,
+        neutral_results=1,
+    )
+    assert (
+        audit_strategy_funnel_gap(tmp_path, "test", sub_account="lab").conclusion
+        == "mixed"
+    )

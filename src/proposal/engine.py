@@ -47,7 +47,7 @@ from src.exchange.base import BaseExchange, ExchangeError
 from src.exchange.derivatives import ContextEvaluation, MarketContext
 from src.logger import get_logger
 from src.models import OHLCV, AnalysisResult, Position
-from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+from src.proposal.fail_closed_metrics import AnalysisStage, FailClosedMetricsTracker
 from src.runtime.activity_log import ActivityEventType, ActivityLog
 from src.strategy.base import BaseStrategy, StrategyError
 from src.strategy.market_context import MarketContextBuilder, MarketContextProvider
@@ -379,6 +379,31 @@ class ProposalEngine:
                 exc,
             )
 
+    def _record_stage(
+        self,
+        name: str,
+        version: str,
+        sub_account_id: str,
+        stage: AnalysisStage,
+    ) -> None:
+        if self.fail_closed_tracker is None:
+            return
+        try:
+            self.fail_closed_tracker.record_stage(
+                name, version, stage, sub_account_id=sub_account_id
+            )
+        except OSError as exc:
+            logger.warning("Failed to persist %s for %s: %s", stage, name, exc)
+
+    def _record_selected_candidates(self, proposals: list[Proposal]) -> None:
+        for proposal in proposals:
+            self._record_stage(
+                proposal.technique_name,
+                proposal.technique_version,
+                proposal.sub_account_id,
+                "candidates_selected",
+            )
+
     def _record_fail_closed(self, strategy: BaseStrategy, sub_account_id: str) -> None:
         """Increment ``proposals_fail_closed`` for ``sub_account_id`` if wired.
 
@@ -444,7 +469,7 @@ class ProposalEngine:
         market_context_cache: dict[tuple[str, datetime], ContextEvaluation] = {}
 
         if not self.config.multi_technique_per_symbol:
-            return await self._propose_for_symbol(
+            proposal = await self._propose_for_symbol(
                 symbol=symbol,
                 timeframe=tf,
                 balance=bal,
@@ -455,6 +480,8 @@ class ProposalEngine:
                 sub_account_id=sub_account_id,
                 market_context_cache=market_context_cache,
             )
+            self._record_selected_candidates([proposal] if proposal is not None else [])
+            return proposal
 
         # Multi-technique path: run every applicable technique, dedup
         # by symbol (highest composite wins), return the single
@@ -474,7 +501,9 @@ class ProposalEngine:
             return None
         deduped = _dedup_by_symbol(candidates)
         self._record_deselected_candidates(candidates, deduped)
-        return deduped.get(symbol)
+        proposal = deduped.get(symbol)
+        self._record_selected_candidates([proposal] if proposal is not None else [])
+        return proposal
 
     async def propose_altcoins(
         self,
@@ -567,7 +596,9 @@ class ProposalEngine:
             deduped = candidates
 
         deduped.sort(key=lambda p: p.score.composite, reverse=True)
-        return deduped[:top_k]
+        selected = deduped[:top_k]
+        self._record_selected_candidates(selected)
+        return selected
 
     # ------------------------------------------------------------------
     # Internals
@@ -819,6 +850,16 @@ class ProposalEngine:
             self._record_fail_closed(strategy, sub_account_id)
             return None
 
+        self._record_stage(
+            strategy.name,
+            strategy.version,
+            sub_account_id,
+            (
+                "neutral_results"
+                if analysis.signal == "neutral"
+                else "non_neutral_results"
+            ),
+        )
         if analysis.signal == "neutral":
             logger.info(f"{strategy.name} returned neutral on {symbol}; " "no proposal")
             return None
@@ -847,7 +888,7 @@ class ProposalEngine:
         score = self._score(analysis, perf)
         market_regime = classify_entry_regime(primary_ohlcv)
 
-        return Proposal(
+        proposal = Proposal(
             symbol=symbol,
             timeframe=primary_timeframe,
             technique_name=strategy.name,
@@ -864,6 +905,10 @@ class ProposalEngine:
             market_regime=market_regime,
             reasoning=analysis.reasoning,
         )
+        self._record_stage(
+            strategy.name, strategy.version, sub_account_id, "candidates_built"
+        )
+        return proposal
 
     def _context_for_strategy(
         self,

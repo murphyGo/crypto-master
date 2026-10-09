@@ -285,3 +285,38 @@ def test_corrupt_json_falls_back_to_zero_snapshot(tmp_path: Path) -> None:
 
     assert counts.proposals_emitted == 0
     assert counts.proposals_fail_closed == 0
+
+
+def test_additive_stages_preserve_legacy_denominator_and_restart(tmp_path):
+    path = tmp_path / "lab" / "tech_a" / "fail_closed.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "technique_name": "tech_a",
+                "sub_account_id": "lab",
+                "proposals_emitted": 100,
+                "proposals_fail_closed": 20,
+            }
+        )
+    )
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    tracker.record_emitted("tech_a", "2", sub_account_id="lab")
+    tracker.record_stage("tech_a", "2", "neutral_results", sub_account_id="lab")
+    loaded = FailClosedMetricsTracker(data_dir=tmp_path).get("tech_a", "lab")
+    assert loaded.proposals_emitted == 101
+    assert loaded.proposals_fail_closed == 20
+    assert loaded.analysis_attempts_observed == loaded.neutral_results == 1
+    assert loaded.fail_closed_rate == 20 / 101
+    assert tracker.get("tech_a").proposals_emitted == 0
+
+
+def test_stage_write_keeps_requested_account_for_legacy_payload(tmp_path):
+    path = tmp_path / "lab" / "tech_a" / "fail_closed.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"technique_name": "tech_a", "proposals_emitted": 1}))
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    tracker.record_stage("tech_a", "2", "neutral_results", sub_account_id="lab")
+    assert tracker.get("tech_a", "lab").sub_account_id == "lab"
+    assert tracker.get("tech_a", "lab").neutral_results == 1
+    assert not (tmp_path / "default" / "tech_a" / "fail_closed.json").exists()

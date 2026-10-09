@@ -2,9 +2,9 @@
 
 DEBT-074 surfaced a confusing shape: a strategy can have thousands of
 ``proposals_emitted`` in fail-closed metrics but zero persisted proposal
-records and zero opened trades. That is not a downstream gate rejection in the
-proposal funnel, because the runtime only persists the single selected proposal
-after the proposal engine's per-symbol candidate selection.
+records and zero opened trades. Analyze attempts include valid neutral results. Absent proposal records alone
+cannot distinguish no signal, candidate deselection or missing history; the
+runtime only persists selected proposals after candidate selection.
 
 This tool makes that distinction explicit from on-disk runtime data.
 It never mutates data.
@@ -25,7 +25,8 @@ logger = get_logger("crypto_master.tools.audit_strategy_funnel_gap")
 
 AuditConclusion = Literal[
     "no_activity",
-    "pre_funnel_candidate_selection_or_history_gap",
+    "neutral_only",
+    "pre_funnel_no_signal_or_selection_or_history_gap",
     "pre_funnel_fail_closed",
     "funnel_rejected",
     "opened",
@@ -51,6 +52,11 @@ class StrategyFunnelAudit:
     malformed_files: int
     conclusion: AuditConclusion
     suggested_follow_up: str
+    analysis_attempts_observed: int = 0
+    neutral_results: int = 0
+    non_neutral_results: int = 0
+    candidates_built: int = 0
+    candidates_selected: int = 0
 
 
 def audit_strategy_funnel_gap(
@@ -70,7 +76,7 @@ def audit_strategy_funnel_gap(
     Returns:
         A read-only summary classifying where the strategy disappears.
     """
-    emitted, fail_closed, malformed_metrics = _load_fail_closed_counts(
+    metrics = _load_fail_closed_counts(
         data_dir / "performance",
         technique_name,
         sub_account,
@@ -80,20 +86,38 @@ def audit_strategy_funnel_gap(
         technique_name,
         sub_account,
     )
-    malformed = malformed_metrics + proposal_counts.malformed_files
+    malformed = metrics.malformed + proposal_counts.malformed_files
     conclusion = _classify(
-        proposals_emitted=emitted,
-        proposals_fail_closed=fail_closed,
+        proposals_emitted=metrics.emitted,
+        proposals_fail_closed=metrics.fail_closed,
         proposal_records=proposal_counts.total,
         score_rejected=proposal_counts.score_rejected,
         gate_rejected=proposal_counts.gate_rejected,
         opened_or_linked=proposal_counts.opened_or_linked,
+        neutral_only=(
+            metrics.emitted > 0
+            and metrics.analysis_attempts_observed == metrics.emitted
+            and metrics.neutral_results == metrics.emitted
+            and metrics.non_neutral_results == 0
+            and metrics.candidates_built == 0
+            and metrics.candidates_selected == 0
+            and malformed == 0
+        ),
     )
+    if conclusion == "no_activity" and (
+        malformed
+        or metrics.analysis_attempts_observed
+        or metrics.neutral_results
+        or metrics.non_neutral_results
+        or metrics.candidates_built
+        or metrics.candidates_selected
+    ):
+        conclusion = "mixed"
     return StrategyFunnelAudit(
         technique_name=technique_name,
         sub_account_id=sub_account,
-        proposals_emitted=emitted,
-        proposals_fail_closed=fail_closed,
+        proposals_emitted=metrics.emitted,
+        proposals_fail_closed=metrics.fail_closed,
         proposal_records=proposal_counts.total,
         score_rejected=proposal_counts.score_rejected,
         gate_rejected=proposal_counts.gate_rejected,
@@ -102,6 +126,11 @@ def audit_strategy_funnel_gap(
         malformed_files=malformed,
         conclusion=conclusion,
         suggested_follow_up=_suggest_follow_up(conclusion),
+        analysis_attempts_observed=metrics.analysis_attempts_observed,
+        neutral_results=metrics.neutral_results,
+        non_neutral_results=metrics.non_neutral_results,
+        candidates_built=metrics.candidates_built,
+        candidates_selected=metrics.candidates_selected,
     )
 
 
@@ -115,11 +144,23 @@ class _ProposalCounts:
     malformed_files: int = 0
 
 
+@dataclass(frozen=True)
+class _AnalysisCounts:
+    emitted: int = 0
+    fail_closed: int = 0
+    malformed: int = 0
+    analysis_attempts_observed: int = 0
+    neutral_results: int = 0
+    non_neutral_results: int = 0
+    candidates_built: int = 0
+    candidates_selected: int = 0
+
+
 def _load_fail_closed_counts(
     performance_root: Path,
     technique_name: str,
     sub_account: str | None,
-) -> tuple[int, int, int]:
+) -> _AnalysisCounts:
     paths: list[Path]
     if sub_account is not None:
         paths = [performance_root / sub_account / technique_name / "fail_closed.json"]
@@ -131,6 +172,16 @@ def _load_fail_closed_counts(
     emitted = 0
     fail_closed = 0
     malformed = 0
+    stages = dict.fromkeys(
+        (
+            "analysis_attempts_observed",
+            "neutral_results",
+            "non_neutral_results",
+            "candidates_built",
+            "candidates_selected",
+        ),
+        0,
+    )
     for path in paths:
         if not path.exists():
             continue
@@ -146,7 +197,11 @@ def _load_fail_closed_counts(
             continue
         emitted += _int_field(payload, "proposals_emitted")
         fail_closed += _int_field(payload, "proposals_fail_closed")
-    return emitted, fail_closed, malformed
+        for field in stages:
+            stages[field] += _int_field(payload, field)
+    return _AnalysisCounts(
+        emitted=emitted, fail_closed=fail_closed, malformed=malformed, **stages
+    )
 
 
 def _count_proposal_records(
@@ -224,13 +279,16 @@ def _classify(
     score_rejected: int,
     gate_rejected: int,
     opened_or_linked: int,
+    neutral_only: bool = False,
 ) -> AuditConclusion:
     if proposals_emitted == 0 and proposal_records == 0:
         return "no_activity"
     if proposals_emitted > 0 and proposal_records == 0:
         if proposals_fail_closed > 0:
             return "pre_funnel_fail_closed"
-        return "pre_funnel_candidate_selection_or_history_gap"
+        if neutral_only:
+            return "neutral_only"
+        return "pre_funnel_no_signal_or_selection_or_history_gap"
     if opened_or_linked > 0:
         return "opened"
     if proposal_records > 0 and (score_rejected > 0 or gate_rejected > 0):
@@ -239,11 +297,13 @@ def _classify(
 
 
 def _suggest_follow_up(conclusion: AuditConclusion) -> str:
-    if conclusion == "pre_funnel_candidate_selection_or_history_gap":
+    if conclusion == "neutral_only":
+        return "Every observed analysis returned neutral; no proposal was expected."
+    if conclusion == "pre_funnel_no_signal_or_selection_or_history_gap":
         return (
-            "Persist or emit candidate-level deselection evidence before "
-            "per-symbol dedup so emitted-but-unselected strategies are "
-            "visible in the funnel."
+            "Analyze attempts are not generated proposals. Inspect observed neutral/non-neutral results, "
+            "candidate build/selection counts and candidate-level deselection events. "
+            "Legacy or incomplete coverage cannot distinguish no signal, selection, or missing history."
         )
     if conclusion == "pre_funnel_fail_closed":
         return "Inspect strategy errors or sizing/RR validation failures."
@@ -258,7 +318,7 @@ def _suggest_follow_up(conclusion: AuditConclusion) -> str:
 
 def _int_field(payload: dict[str, object], key: str) -> int:
     value = payload.get(key, 0)
-    return value if isinstance(value, int) and value >= 0 else 0
+    return value if type(value) is int and value >= 0 else 0
 
 
 def _replace_counts(counts: _ProposalCounts, **updates: int) -> _ProposalCounts:
@@ -277,7 +337,7 @@ def _replace_counts(counts: _ProposalCounts, **updates: int) -> _ProposalCounts:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit one strategy's fail-closed emissions versus persisted "
+            "Audit analyze attempts (including neutral results), observed signal/build/selection stages versus persisted "
             "proposal funnel records. Read-only."
         )
     )
@@ -300,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         sub_account=args.sub_account,
     )
     logger.info(
-        "strategy=%s sub_account=%s emitted=%d fail_closed=%d "
+        "strategy=%s sub_account=%s analyze_attempts=%d fail_closed=%d "
         "proposal_records=%d score_rejected=%d gate_rejected=%d "
         "opened_or_linked=%d linked_trades=%d malformed=%d conclusion=%s",
         audit.technique_name,
@@ -314,6 +374,14 @@ def main(argv: list[str] | None = None) -> int:
         audit.linked_trades,
         audit.malformed_files,
         audit.conclusion,
+    )
+    logger.info(
+        "stage_attempts_observed=%d neutral=%d non_neutral=%d candidates_built=%d candidates_selected=%d; legacy stage coverage may be incomplete",
+        audit.analysis_attempts_observed,
+        audit.neutral_results,
+        audit.non_neutral_results,
+        audit.candidates_built,
+        audit.candidates_selected,
     )
     logger.info("suggested_follow_up=%s", audit.suggested_follow_up)
     return 0

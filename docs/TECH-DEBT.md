@@ -309,15 +309,16 @@ Add a fee-netted percent (e.g. `net_pnl_pct = pnl / notional * 100`) alongside t
 - DEBT-024 / Phase 20.1-20.2 (intentional leverage-neutral price-move convention)
 - `[[project_no_ohlcv_edge]]`
 
-### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades
+### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades ✅
 
 | Field | Value |
 |-------|-------|
+| **Reclosed** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
 | **Resolved** | 2026-06-30 (previous slice) |
 | **Reopened** | 2026-10-09 |
-| **Status** | Active; verified residual defect, implementation pending |
+| **Status** | Resolved; source/tests complete; production deployment not performed |
 | **Action-item type** | bug |
 | **Resolution** | Added read-only operator audit `src.tools.audit_strategy_funnel_gap` to distinguish fail-closed emissions, persisted proposal records, and opened/linked funnel states for one `(sub_account, technique)` pair. The DEBT-074 shape (`proposals_emitted > 0`, `proposals_fail_closed == 0`, `proposal_records == 0`, `opened_or_linked == 0`) is now classified as `pre_funnel_candidate_selection_or_history_gap`, not a downstream gate rejection. Code inspection confirms why: with `multi_technique_per_symbol=True`, multiple strategy candidates can be built and counted by fail-closed metrics, but `_dedup_by_symbol` returns only the highest-composite candidate to runtime; only that survivor reaches `_handle_proposal` and `ProposalHistory.save`. Deselected candidates have no `ProposalRecord` or `final_state` today. Concrete follow-up filed as DEBT-079. Tests: `tests/test_tools_audit_strategy_funnel_gap.py` covers the vcp-shaped gap, a healthy opened record, and CLI wrapper. Verification: targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`; cross-check `docs/cross-checks/2026-06-30-proposal-funnel-audit-debt-074.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
@@ -351,6 +352,11 @@ case, not an observed current VCP audit output.
 **Bounded follow-up:** Make unknown/no-signal possibility explicit in audit classification/help; separate analyze, neutral, nonneutral candidate and selection counters without breaking legacy denominator.
 Validation: Neutral-only, failclosed, real candidate deselection, sizing rejection and opened cases; do not infer neutral solely from missing proposals.
 Source: src/proposal/engine.py:803, src/proposal/engine.py:822, src/tools/audit_strategy_funnel_gap.py:219.
+
+**2026-10-09 implementation closeout:** Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates.
+
+Verification: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage).
+Session: `docs/sessions/2026-10-09-proposal-funnel-audit-debt-074-neutral-aware-audit.md`. Cross-check: `docs/cross-checks/2026-10-09-proposal-funnel-audit-debt-074-neutral-aware-audit.md`.
 
 ### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel ✅
 
@@ -1243,10 +1249,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 3 |
+| Total Active | 2 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 2 |
+| Medium | 1 |
 | Low | 1 |
 | Resolved (All Time) | 77 |
 
@@ -1255,6 +1261,7 @@ Move resolved items here with resolution date and notes.
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-074: Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates. Validation: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). |
 | 2026-10-09 | Resolved | DEBT-078: Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative. Validation: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. |
 | 2026-10-09 | Resolved | DEBT-085: Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations. Validation: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. |
 | 2026-10-09 | Resolved | DEBT-084: Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics. Validation: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. |

@@ -2196,6 +2196,15 @@ async def test_fail_closed_tracker_increments_emitted_on_successful_proposal(
     assert counts.proposals_emitted == 1
     assert counts.proposals_fail_closed == 0
 
+    assert counts.analysis_attempts_observed == 1
+    assert (
+        counts.non_neutral_results
+        == counts.candidates_built
+        == counts.candidates_selected
+        == 1
+    )
+    assert counts.neutral_results == 0
+
 
 async def test_fail_closed_tracker_does_not_increment_on_neutral_signal(
     tmp_path: Path,
@@ -2220,6 +2229,14 @@ async def test_fail_closed_tracker_does_not_increment_on_neutral_signal(
     assert counts.proposals_emitted == 1
     assert counts.proposals_fail_closed == 0
 
+    assert counts.analysis_attempts_observed == counts.neutral_results == 1
+    assert (
+        counts.non_neutral_results
+        == counts.candidates_built
+        == counts.candidates_selected
+        == 0
+    )
+
 
 async def test_fail_closed_tracker_increments_on_strategy_error(
     tmp_path: Path,
@@ -2240,6 +2257,14 @@ async def test_fail_closed_tracker_increments_on_strategy_error(
     counts = tracker.get("tech_a")
     assert counts.proposals_emitted == 1
     assert counts.proposals_fail_closed == 1
+
+    assert counts.analysis_attempts_observed == 1
+    assert (
+        counts.neutral_results
+        == counts.non_neutral_results
+        == counts.candidates_built
+        == 0
+    )
 
 
 async def test_fail_closed_tracker_increments_on_rr_floor_rejection(
@@ -2268,6 +2293,9 @@ async def test_fail_closed_tracker_increments_on_rr_floor_rejection(
     counts = tracker.get("tech_a")
     assert counts.proposals_emitted == 1
     assert counts.proposals_fail_closed == 1
+
+    assert counts.analysis_attempts_observed == counts.non_neutral_results == 1
+    assert counts.candidates_built == counts.candidates_selected == 0
 
 
 async def test_fail_closed_tracker_noop_when_not_wired(tmp_path: Path) -> None:
@@ -2363,3 +2391,50 @@ async def test_fail_closed_tracker_routes_rr_floor_reject_to_per_call_sub_accoun
     assert paper_alt_counts.proposals_fail_closed == 1
     assert default_counts.proposals_emitted == 0
     assert default_counts.proposals_fail_closed == 0
+
+
+@pytest.mark.parametrize("multi", [False, True])
+async def test_stage_selection_counts_only_final_top_k(tmp_path, multi):
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    symbols = ["ETH/USDT", "SOL/USDT", "ADA/USDT"]
+    strong = make_strategy(
+        info=make_info("strong", symbols=symbols),
+        analysis=make_analysis(confidence=0.9),
+    )
+    weak = make_strategy(
+        info=make_info("weak", symbols=symbols), analysis=make_analysis(confidence=0.4)
+    )
+    engine, _ = make_engine(
+        strategies={"strong": strong, "weak": weak},
+        config=ProposalEngineConfig(multi_technique_per_symbol=multi),
+        perf_records={
+            "strong": make_perf("strong", total_trades=30, avg_pnl_percent=3),
+            "weak": make_perf("weak", total_trades=30, avg_pnl_percent=0.5),
+        },
+    )
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    engine.fail_closed_tracker = tracker
+    proposals = await engine.propose_altcoins(
+        symbols=symbols, top_k=2, sub_account_id="lab"
+    )
+    assert len(proposals) == 2
+    assert all(p.technique_name == "strong" for p in proposals)
+    assert tracker.get("strong", "lab").candidates_built == 3
+    assert tracker.get("strong", "lab").candidates_selected == 2
+    assert tracker.get("weak", "lab").candidates_built == (3 if multi else 0)
+    assert tracker.get("weak", "lab").candidates_selected == 0
+    assert tracker.get("strong").proposals_emitted == 0
+
+
+async def test_stage_counter_io_failure_preserves_proposal(tmp_path, monkeypatch):
+    from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
+
+    tracker = FailClosedMetricsTracker(data_dir=tmp_path)
+    monkeypatch.setattr(
+        tracker, "record_stage", MagicMock(side_effect=OSError("disk full"))
+    )
+    engine, _ = make_engine(strategies={"tech_a": make_strategy()})
+    engine.fail_closed_tracker = tracker
+    assert await engine.propose_bitcoin() is not None
+    assert tracker.get("tech_a").proposals_fail_closed == 0
