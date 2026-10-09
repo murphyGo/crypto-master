@@ -8,9 +8,15 @@ when debt is added or resolved, then refresh this map.
 
 ## Active Debt by Unit
 
-No active registered debt items in this integrated snapshot.
+| Unit | Active Debt | Priority | Next Action |
+|------|-------------|----------|-------------|
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Bounded source implementation and functional verification complete; cold readiness and shared guest/browser/engine acceptance remain outstanding. |
 
 ## Debt Details
+
+| Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
+|------|----------|--------------|-----------------|-----------------|
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | NFR Design approved and bounded default routes implemented; deterministic semantic/failure tests and 214,686/1M-event local query evidence pass functional containment. Cold p95 exceeds the target. Continue bootstrap/changed-source optimization, native page/concurrency/guest/engine qualification and authorized rollout before closure. |
 
 DEBT-082 is resolved by native production verification. The concurrent
 DEBT-074/078/084/085/086 implementation closures are preserved in

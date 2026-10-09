@@ -225,23 +225,34 @@ def test_load_command_center_status_reads_feedback_from_runtime_dir(
     """Home command center must share the Feedback page's runtime state path."""
     from src.dashboard import app as dashboard_app
 
-    seen_paths: list[Path] = []
-
-    def _load_candidate_records(path: Path) -> list[CandidateRecord]:
-        seen_paths.append(path)
-        return []
-
+    candidate = make_candidate(candidate_id="runtime-path")
+    (tmp_path / "runtime-path.json").write_text(candidate.model_dump_json())
     monkeypatch.setattr(feedback_page, "default_candidate_state_dir", lambda: tmp_path)
+    from src.config import Settings
+    from src.dashboard.data_service import DashboardDataService
+    from src.dashboard.pages import home as home_page
+
+    # The loader must read the same runtime state through its bounded seam,
+    # without falling back to any legacy full-history materializer.
+    service = DashboardDataService()
+    monkeypatch.setattr(home_page, "get_settings", lambda: Settings(data_dir=tmp_path))
+    monkeypatch.setattr("src.dashboard.data_service.get_data_service", lambda: service)
     monkeypatch.setattr(
         feedback_page,
         "load_candidate_records",
-        _load_candidate_records,
+        lambda _: (_ for _ in ()).throw(AssertionError("full-history candidate read")),
     )
-    monkeypatch.setattr(dashboard_app.ActivityLog, "read_all", lambda self: [])
-
-    dashboard_app.load_command_center_status(sub_account_ids=[])
-
-    assert seen_paths == [tmp_path]
+    monkeypatch.setattr(
+        dashboard_app.ActivityLog,
+        "read_all",
+        lambda _: (_ for _ in ()).throw(AssertionError("full-history activity read")),
+    )
+    try:
+        status = dashboard_app.load_command_center_status(sub_account_ids=["default"])
+        assert status.candidate_total == 1
+        assert status.candidate_rows[0].candidate_id == "runtime-path"
+    finally:
+        service.close()
 
 
 def test_app_navigation_includes_all_pages() -> None:

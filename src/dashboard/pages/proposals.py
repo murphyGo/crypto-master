@@ -41,8 +41,6 @@ from src.proposal.funnel import (
     FunnelCounts,
     FunnelWindow,
     compute_funnel_counts,
-    compute_funnel_counts_by_strategy,
-    compute_funnel_counts_by_sub_account,
 )
 from src.proposal.interaction import ProposalHistory
 from src.runtime.activity_log import (
@@ -307,16 +305,6 @@ def render(
     history = history or ProposalHistory()
     activity_log = activity_log or ActivityLog()
 
-    records = history.list_all()
-    events = activity_log.read_all()
-
-    if not records:
-        st.info(
-            "No proposal records on disk yet. The funnel will populate "
-            "once the engine emits proposals."
-        )
-        return
-
     # ---- Time-window selector ----
     window_label = st.radio(
         "Window",
@@ -324,9 +312,35 @@ def render(
         index=3,
         horizontal=True,
     )
-    window = window_for_label(str(window_label))
+    from src.config import get_settings
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.dashboard.read_models import Query
 
-    counts = compute_funnel_counts(records, window=window)
+    results = get_data_service().request_many(
+        [
+            Query(
+                get_settings().data_dir,
+                "proposals",
+                window=str(window_label),
+                source=history.data_dir,
+            ),
+            Query(get_settings().data_dir, "activity", source=activity_log.path),
+        ]
+    )
+    activity_verified = show_availability(results["activity"], "Gate samples")
+    events = (
+        [
+            ActivityEvent.model_validate(raw)
+            for raw in results["activity"].data()["events"]
+        ]
+        if activity_verified
+        else []
+    )
+    if not show_availability(results["proposals"], "Proposal funnel"):
+        return
+    projection = results["proposals"].data()
+    counts = FunnelCounts.model_validate(projection["counts"])
 
     # ---- Funnel-conversion table ----
     st.subheader("Funnel conversion")
@@ -373,14 +387,19 @@ def render(
             options=GATE_REJECTION_COLUMNS,
         )
         sample = latest_sample_event_for_gate(events, str(sample_gate))
-        if sample is None:
+        if not activity_verified:
+            st.caption("Gate samples are unavailable while activity is unverified.")
+        elif sample is None:
             st.caption("No recent sample event for this gate.")
         else:
             st.json(sample.details)
 
     # ---- Per-strategy heatmap ----
     st.subheader("Per-strategy funnel")
-    by_strategy = compute_funnel_counts_by_strategy(records, window=window)
+    by_strategy = {
+        key: FunnelCounts.model_validate(value)
+        for key, value in projection["by_strategy"].items()
+    }
     heatmap = build_per_strategy_heatmap(by_strategy)
     if heatmap.empty:
         st.info("No per-strategy data in this window.")
@@ -409,7 +428,10 @@ def render(
 
     # ---- Per-account summary ----
     st.subheader("Per-sub-account summary")
-    by_sub = compute_funnel_counts_by_sub_account(records, window=window)
+    by_sub = {
+        key: FunnelCounts.model_validate(value)
+        for key, value in projection["by_account"].items()
+    }
     for sub_id, sub_counts in sorted(by_sub.items()):
         st.caption(f"{sub_id}: {build_command_center_summary(sub_counts)}")
 
@@ -426,7 +448,18 @@ def load_funnel_summary(
     wants a :class:`FunnelCounts` snapshot it can pass to
     :func:`build_command_center_summary`.
     """
-    history = history or ProposalHistory()
+    if history is None:
+        from src.config import get_settings
+        from src.dashboard.data_service import get_data_service
+        from src.dashboard.read_models import Query
+        from src.utils.bounded_read import ReadFailure
+
+        result = get_data_service().request(
+            Query(get_settings().data_dir, "proposals", window=window_label, at=now)
+        )
+        if not result.complete:
+            raise ReadFailure(result.reason or "funnel_unavailable")
+        return FunnelCounts.model_validate(result.data()["counts"])
     records = history.list_all()
     window = window_for_label(window_label, now=now)
     return compute_funnel_counts(records, window=window)

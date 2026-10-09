@@ -560,11 +560,22 @@ def render(
             full event log is still used for cycle aggregation;
             this only bounds the timeline table.
     """
-    log = activity_log or ActivityLog()
-    events = log.read_all()
-
     st.title("⚙️ Engine")
     st.caption("Trading engine cycles, per-cycle stats, and the live activity stream.")
+    from src.config import get_settings
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.dashboard.read_models import Query
+
+    log = activity_log or ActivityLog()
+    result = get_data_service().request(
+        Query(get_settings().data_dir, "activity", source=log.path)
+    )
+    if not show_availability(result, "Engine activity"):
+        render_operator_freeze_toggle()
+        return
+    projection = result.data()
+    events = [ActivityEvent.model_validate(raw) for raw in projection["events"]]
 
     # runtime-reconciliation §4: persistent banner above everything so a
     # silent zero-positions defect cannot recur (the Fly 2026-05-13
@@ -577,15 +588,36 @@ def render(
         with st.expander("Reconciliation status — per-trade detail", expanded=False):
             st.dataframe(drilldown_df, hide_index=True, use_container_width=True)
 
-    if not events:
+    if not projection["total"]:
         st.info(
             "Engine activity log is empty. The runtime hasn't started yet, "
             f"or `{log.path}` doesn't exist at this path."
         )
         return
 
-    cycles = aggregate_cycles(events)
-    metrics = build_summary_metrics(events, cycles)
+    cycles = [
+        CycleSummary(
+            **{
+                **raw,
+                "started_at": (
+                    datetime.fromisoformat(raw["started_at"])
+                    if raw["started_at"]
+                    else None
+                ),
+                "completed_at": (
+                    datetime.fromisoformat(raw["completed_at"])
+                    if raw["completed_at"]
+                    else None
+                ),
+            }
+        )
+        for raw in projection["cycles"]
+    ]
+    metrics = projection["metrics"]
+    if metrics["last_cycle_started_at"]:
+        metrics["last_cycle_started_at"] = datetime.fromisoformat(
+            metrics["last_cycle_started_at"]
+        )
 
     # ---- Summary cards ----
     st.subheader("Summary")
@@ -610,14 +642,14 @@ def render(
     c7.metric("Positions closed (total)", metrics["positions_closed_total"])
 
     st.subheader("Runtime Safety")
-    safety = build_runtime_safety_score(events)
+    safety = RuntimeSafetyScore.model_validate(projection["safety"])
     s1, s2 = st.columns(2)
     s1.metric("Safety score", safety.score)
     s2.metric("Safety band", safety.band.value)
     st.caption("; ".join(safety.factors))
 
     st.subheader("Sub-account Metrics")
-    sub_account_df = build_sub_account_metrics_dataframe(events)
+    sub_account_df = pd.DataFrame(projection["sub_rows"])
     if sub_account_df.empty:
         st.info("No sub-account activity recorded yet.")
     else:
@@ -659,7 +691,7 @@ def render(
         st.dataframe(regime_degraded_df, hide_index=True, use_container_width=True)
 
     st.caption("Funding+OI Crowding — SHADOW — NOT ENFORCING")
-    crowding_summary = build_funding_oi_crowding_summary(events)
+    crowding_summary = FundingOiCrowdingSummary(**projection["crowding"])
     f1, f2, f3 = st.columns(3)
     f1.metric("Evaluated", crowding_summary.evaluated)
     f2.metric("Would block", crowding_summary.would_block)
@@ -694,7 +726,7 @@ def render(
 
     # ---- Activity timeline ----
     st.subheader("Activity Timeline")
-    all_event_types = sorted({e.event_type for e in events})
+    all_event_types = projection["types"]
     requested_types = _query_param_values("event_type")
     default_types = [
         event_type for event_type in all_event_types if event_type in requested_types
@@ -706,7 +738,9 @@ def render(
         options=all_event_types,
         default=default_types,
     )
-    tail_events = events[-tail_limit:] if len(events) > tail_limit else events
+    tail_events = [ActivityEvent.model_validate(raw) for raw in projection["timeline"]][
+        -min(tail_limit, DEFAULT_TAIL_LIMIT) :
+    ]
     filtered = [e for e in tail_events if e.event_type in selected_types]
     timeline_df = build_timeline_dataframe(filtered)
     if timeline_df.empty:

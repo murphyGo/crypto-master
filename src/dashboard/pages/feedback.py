@@ -269,13 +269,52 @@ def render(
         "improvement → backtest → robustness gate → decision pipeline."
     )
 
+    bounded_defaults = (
+        state_dir is None and promotion_state_dir is None and audit_log is None
+    )
     state_dir = state_dir or default_candidate_state_dir()
     promotion_state_dir = promotion_state_dir or default_promotion_state_dir()
     audit = audit_log or AuditLog()
 
-    records = load_candidate_records(state_dir)
-    observations = load_promotion_observations(promotion_state_dir)
-    metrics = build_summary_metrics(records)
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.dashboard.read_models import Query
+
+    if bounded_defaults:
+        results = get_data_service().request_many(
+            [
+                Query(
+                    get_settings().data_dir,
+                    "candidates",
+                    source=state_dir,
+                    window="catalog",
+                ),
+                Query(get_settings().data_dir, "promotion", source=promotion_state_dir),
+            ]
+        )
+        promotion_verified = show_availability(
+            results["promotion"], "Promotion evidence"
+        )
+        if not show_availability(results["candidates"], "Candidate catalog"):
+            return
+        records = [
+            CandidateRecord.model_validate(raw)
+            for raw in results["candidates"].data()["catalog"]
+        ]
+        observations = (
+            {
+                key: PromotionObservation.model_validate(raw)
+                for key, raw in results["promotion"].data()["observations"].items()
+            }
+            if promotion_verified
+            else {}
+        )
+        metrics = build_summary_metrics(records)
+    else:
+        # Explicit injected fixtures retain the legacy compatibility API.
+        records = load_candidate_records(state_dir)
+        observations = load_promotion_observations(promotion_state_dir)
+        metrics = build_summary_metrics(records)
 
     # ---- Summary cards ----
     st.subheader("Summary")
@@ -325,7 +364,17 @@ def render(
 
     # ---- Audit timeline for this candidate ----
     st.markdown("**Audit timeline**")
-    events = audit.filter(candidate_id=selected_id)
+    result = get_data_service().request(
+        Query(
+            get_settings().data_dir, "audit", source=audit.path, scope=str(selected_id)
+        )
+    )
+    if not show_availability(result, "Candidate audit history"):
+        return
+    audit_data = result.data()
+    events = [AuditEvent.model_validate(raw) for raw in audit_data["audit"]]
+    if audit_data["audit_total"] > len(events):
+        st.caption(f"Latest {len(events)} audit events of {audit_data['audit_total']}.")
     timeline_df = build_audit_timeline_dataframe(events)
     if timeline_df.empty:
         st.info("No audit events recorded for this candidate.")

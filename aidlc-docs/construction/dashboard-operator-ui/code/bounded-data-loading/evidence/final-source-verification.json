@@ -1,0 +1,90 @@
+{
+  "recorded_at_utc": "2026-10-09T16:47:23.599031+00:00",
+  "method": "Final source verification in dirty shared workspace; base SHA is not a commit of this slice.",
+  "base_head": "22bfa9773ab2f4a9f294ae4c78d9aa67c31e8118",
+  "source_and_test_sha256": {
+    "scripts/qualify_dashboard_loading.py": "b192794667ed806cec3d47fb8bfb0ce2731c43f4ca6f6b9feadb2c4371ac3223",
+    "src/dashboard/__init__.py": "53b61b142dabfdc7d4ea9847221f66b369508bffcdb8862381f366c178002666",
+    "src/dashboard/app.py": "5d73c1dedd9e70046067ab98f86bdd2f2e5ee05dd8c09bc808de4115653547a8",
+    "src/dashboard/availability.py": "8b0656eba017547641f91f2b01dc9c62573d282e08c12c124d441e40d99aca2d",
+    "src/dashboard/data_service.py": "9f58fd484cf95de7d307f962d2a87baefb5d4c2c12ee48a992165a44bb880f9d",
+    "src/dashboard/pages/__init__.py": "f8cb1ba875e2c367254aed9ce7479a76ea841c9f4162b2bef74461125d3f99a6",
+    "src/dashboard/pages/autopsy.py": "c78c9596a6423d980178430c6d85067c5b756e6ca6eac29cd6e4dff058bddc29",
+    "src/dashboard/pages/engine.py": "95d786bed0cec26a589d1bba4705823d665bad3671e3275482a6e1f4af21b553",
+    "src/dashboard/pages/engine_cross_account_risk.py": "580a8cacdd5bd4b193d17033c16d5e0a181846709589670e7eef0a718edc126d",
+    "src/dashboard/pages/engine_market_regime.py": "4bc85d485dc94ae7cab83db38a5a12567c59077e4c9eceea4c4531d18b0f7758",
+    "src/dashboard/pages/engine_reconciliation.py": "9e5b2924f5faefbad3781b2ffaa81231e26d4d1a006dbd5661e211ea6c70bfba",
+    "src/dashboard/pages/feedback.py": "28fb378934bb68e2064d3bcbaee44d9341ce50dafbc0924f39fe407c8494e5bf",
+    "src/dashboard/pages/home.py": "a2aecf20f4f731e3af4010ff7bc07ee6562771db29340cf29d4f7dde69604da4",
+    "src/dashboard/pages/ops.py": "eb9c1d27dd12a38b6605cc4e8b4afb803837cd48417fbea535cc5e7c3852a3a0",
+    "src/dashboard/pages/proposals.py": "713e17f231a71a47cc8483c7d18086339cfcc0aa23cd55b37dfaa1b0c24ac5f4",
+    "src/dashboard/pages/replay.py": "79f1d6a7ac7601f52ff1a1a3d5ddb7855f221e77380a3b9fc18e5de3b4297484",
+    "src/dashboard/pages/strategies.py": "0b257a9c301976be2ff84e987aefed4a525978f46a7d651a5f779b3177b5e528",
+    "src/dashboard/pages/trading.py": "fc67639a1f5206ef6dede002b563ffdc9ddd2e5a27da609c7826972f35ad0b14",
+    "src/dashboard/projections.py": "a3c29ddd23df4ac40b33d3cb6ffe3dafbd035799543bc6b27bd99f7bbbdab2d1",
+    "src/dashboard/query_params.py": "2473fcb7bc130bd5fa6508b1dcb60a5b9c446bac232e5829e8953e8f211280c8",
+    "src/dashboard/read_models.py": "55fa28e0e50365b1c431b88d0b8750aabd0ce3d677f9f262d026eccaa3464440",
+    "src/dashboard/sources.py": "ac3e056ee9a93212110a89dc246f95a3dd4ac8d72120b2389774d9a8e18b485f",
+    "src/dashboard/theme.py": "4a2f2b675b6d15c4bfb4c03532a641149cf2b749543488f5fb8de21e668b2694",
+    "src/utils/bounded_read.py": "f8416b2129acbbad93c2efee6b9cff658225c09aff60503e9946495610f1524b",
+    "tests/test_bounded_read.py": "dfa23daccfc4817d0272eb18eb0967233e4ee9ca9fc95f549d033db862e821ee",
+    "tests/test_dashboard_app.py": "06f6d85414ac2457f4864374fb55fcc5bf271be868b85b87d1359b14c07f407f",
+    "tests/test_dashboard_bounded_pages.py": "d025468c9559bfd4b9a82e40b6175e6382b3f592f5dc40bf9f1aba7c6d99e5a8",
+    "tests/test_dashboard_data_service.py": "3705472477bbc5b110f09a9891483f7baa7a098d4a8b2c8a7232dbb333a3eefe",
+    "tests/test_dashboard_projections.py": "7cf41e7853431d8d65a6628443a218edd139b8ab2da577b44b7a46098f2958e5"
+  },
+  "checks": {
+    "full_pytest": {
+      "command": "uv run pytest -q --tb=short",
+      "passed": 2719,
+      "seconds": 60.93
+    },
+    "final_focused_pytest": {
+      "command": "uv run pytest tests/test_dashboard_projections.py tests/test_dashboard_bounded_pages.py -q --tb=short",
+      "passed": 19,
+      "seconds": 7.31
+    },
+    "new_meaningful_tests_in_full_run": 50,
+    "black_changed_files": {
+      "status": "passed",
+      "files": 18
+    },
+    "ruff_changed_files": {
+      "status": "passed",
+      "files": 18
+    },
+    "mypy": {
+      "command": "uv run mypy src scripts/qualify_dashboard_loading.py",
+      "status": "passed",
+      "source_files": 130
+    },
+    "git_diff_check": "passed",
+    "new_document_links_and_whitespace": {
+      "status": "passed",
+      "documents": 21
+    }
+  },
+  "benchmark_revision_comparison": {
+    "incident-local-query-qualification.json": {
+      "source_files_differing_from_final": [
+        "src/dashboard/projections.py"
+      ],
+      "exact_final_source_performance_qualification": false,
+      "reason": "Publication-time incident expiry and reversed-clock guards added after benchmark; final regression covers them. No latency acceptance claimed."
+    },
+    "million-local-query-qualification.json": {
+      "source_files_differing_from_final": [
+        "src/dashboard/projections.py"
+      ],
+      "exact_final_source_performance_qualification": false,
+      "reason": "Publication-time incident expiry and reversed-clock guards added after benchmark; final regression covers them. No latency acceptance claimed."
+    }
+  },
+  "acceptance": {
+    "functional_containment": "passed",
+    "cold_complete_latency": "not passed at measured revisions; final revision not timing-qualified",
+    "native_pages_shared_guest_engine": "not qualified",
+    "debt_083": "active critical",
+    "deployment": "not performed by this slice"
+  }
+}

@@ -262,7 +262,13 @@ def discover_sub_account_ids(data_dir: Path, mode: DashboardMode) -> list[str]:
     ):
         if not base.exists():
             continue
-        found.update(p.name for p in base.iterdir() if p.is_dir())
+        for path in base.iterdir():
+            if path.is_dir():
+                found.add(path.name)
+                if len(found) > 128:
+                    from src.utils.bounded_read import ReadFailure
+
+                    raise ReadFailure("account_budget_exhausted")
     ordered = sorted(found - {DEFAULT_SUB_ACCOUNT_ID})
     return [DEFAULT_SUB_ACCOUNT_ID, *ordered]
 
@@ -274,6 +280,10 @@ def discover_configured_sub_account_ids(
     """Discover enabled sub-account ids from ``config/sub_accounts.yaml``."""
     if not config_path.exists():
         return []
+    if config_path.stat().st_size > 1024 * 1024:
+        from src.utils.bounded_read import ReadFailure
+
+        raise ReadFailure("configuration_budget_exhausted")
     try:
         parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
@@ -284,6 +294,10 @@ def discover_configured_sub_account_ids(
     raw_accounts = parsed.get("sub_accounts")
     if not isinstance(raw_accounts, list):
         return []
+    if len(raw_accounts) > 128:
+        from src.utils.bounded_read import ReadFailure
+
+        raise ReadFailure("account_budget_exhausted")
 
     ids: list[str] = []
     seen: set[str] = set()
@@ -461,6 +475,14 @@ def render(
             runtime-reconciliation banner + drill-through + cash-only
             suppression rule (runtime-reconciliation §4).
     """
+    # Explicit injected legacy sources remain a fixture/compatibility seam.
+    # Production defaults never enter the full-history adapter below.
+    if trade_tracker is None and portfolio_tracker is None and proposal_history is None:
+        _render_bounded_trading(
+            sub_account_ids=sub_account_ids, activity_log=activity_log
+        )
+        return
+
     st.title("💹 Trading")
     st.caption("Active positions, recent trade history, and equity curve.")
 
@@ -647,6 +669,189 @@ def render(
             else curve_df
         )
         st.line_chart(chart_data, use_container_width=True)
+
+
+def _render_bounded_trading(
+    *, sub_account_ids: list[str] | None, activity_log: ActivityLog | None
+) -> None:
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.dashboard.read_models import Query
+    from src.runtime.activity_events import ActivityEvent
+
+    st.title("💹 Trading")
+    st.caption("Active positions, recent trade history, and equity curve.")
+    reconciliation_slot = st.container()
+    requested_mode = _query_param_first("mode")
+    modes: tuple[DashboardMode, DashboardMode] = ("paper", "live")
+    mode = st.radio(
+        "Mode",
+        modes,
+        index=modes.index(requested_mode) if requested_mode in modes else 0,
+        horizontal=True,
+        format_func=lambda value: value.capitalize(),
+    )
+    settings = get_settings()
+    from src.utils.bounded_read import ReadFailure
+
+    try:
+        ids = (
+            sub_account_ids
+            if sub_account_ids is not None
+            else merge_sub_account_ids(
+                discover_configured_sub_account_ids(
+                    Path("config/sub_accounts.yaml"), mode
+                ),
+                discover_sub_account_ids(settings.data_dir, mode),
+            )
+        )
+    except (ReadFailure, OSError):
+        st.warning("Sub-account configuration could not be verified.")
+        return
+    ids = ids or [DEFAULT_SUB_ACCOUNT_ID]
+    if len(ids) > 128:
+        st.warning("Sub-account data exceeds the supported dashboard scope.")
+        return
+    options = [AGGREGATE_SUB_ACCOUNT, *ids] if len(ids) > 1 else ids
+    requested = _query_param_first("sub_account")
+    selected = str(
+        st.selectbox(
+            "Sub-account",
+            options,
+            index=options.index(requested) if requested in options else 0,
+        )
+    )
+    accounts = tuple(ids if selected == AGGREGATE_SUB_ACCOUNT else [selected])
+    results = get_data_service().request_many(
+        [
+            Query(
+                settings.data_dir,
+                "activity",
+                source=(activity_log or ActivityLog()).path,
+            ),
+            Query(settings.data_dir, "ledger", mode=mode, accounts=accounts),
+            Query(settings.data_dir, "snapshots", mode=mode, accounts=accounts),
+            Query(settings.data_dir, "proposals"),
+        ]
+    )
+    with reconciliation_slot:
+        reconciliation_verified = show_availability(
+            results["activity"], "Runtime reconciliation"
+        )
+        banner = None
+        if reconciliation_verified:
+            events = [
+                ActivityEvent.model_validate(raw)
+                for raw in results["activity"].data()["events"]
+            ]
+            banner = build_reconciliation_status_banner(events)
+            render_reconciliation_banner(banner)
+            drilldown = build_reconciliation_drilldown_dataframe(events)
+            if not drilldown.empty:
+                with st.expander("Reconciliation status — per-trade detail"):
+                    st.dataframe(drilldown, hide_index=True, use_container_width=True)
+    ledger_verified = show_availability(results["ledger"], "Trade ledger")
+    snapshots_verified = show_availability(results["snapshots"], "Portfolio snapshots")
+    proposals_verified = show_availability(results["proposals"], "Threshold rejections")
+    ledger = results["ledger"].data() if ledger_verified else {}
+    snapshots_data = results["snapshots"].data() if snapshots_verified else {}
+    snapshots = [
+        AssetSnapshot.model_validate(raw)
+        for raw in snapshots_data.get("latest", {}).values()
+    ]
+    latest = (
+        max(snapshots, key=lambda snapshot: snapshot.timestamp) if snapshots else None
+    )
+    metrics = ledger.get("metrics", {})
+    st.subheader("Summary")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(
+        "Current Equity",
+        f"{latest.total_equity:.2f} {latest.quote_currency}" if latest else "—",
+        delta=f"{latest.unrealized_pnl:+.2f} unrealized" if latest else None,
+    )
+    c2.metric("Open Positions", metrics.get("open_positions", "—"))
+    closed = metrics.get("closed_trades")
+    c3.metric("Closed Trades", closed if closed is not None else "—")
+    c4.metric(
+        "Win Rate",
+        (
+            f"{(metrics['wins'] / closed if closed else 0) * 100:.1f}%"
+            if ledger_verified
+            else "—"
+        ),
+    )
+    c5.metric(
+        "Realized P&L", f"{metrics['realized_pnl']:.2f}" if ledger_verified else "—"
+    )
+    if latest:
+        st.caption(f"Snapshot {latest.timestamp.isoformat(timespec='seconds')}")
+    st.subheader("Active Positions")
+    if ledger_verified:
+        trades = [TradeHistory.model_validate(row["trade"]) for row in ledger["open"]]
+        open_df = build_open_positions_dataframe(
+            trades, dict(latest.current_prices) if latest else {}
+        )
+        requested_symbol = _query_param_first("symbol")
+        if requested_symbol:
+            open_df = open_df[open_df["Symbol"] == requested_symbol]
+        if not open_df.empty:
+            st.dataframe(open_df, hide_index=True, use_container_width=True)
+        elif banner and banner.open_trade_count > 0:
+            st.warning(
+                f"Ledger selection has no open positions, but reconciliation reports {banner.open_trade_count} open trade(s). Check the reconciliation detail."
+            )
+        elif requested_symbol and metrics["open_positions"]:
+            st.info("No open positions match the selected symbol.")
+        elif reconciliation_verified:
+            st.info("No open positions.")
+        else:
+            st.warning(
+                "The selected ledger contains no open rows; runtime reconciliation remains unverified."
+            )
+    st.metric(
+        "Proposals rejected (threshold)",
+        results["proposals"].data()["threshold"] if proposals_verified else "—",
+    )
+    st.subheader("Recent Trade History")
+    if ledger_verified:
+        history = [TradeHistory.model_validate(raw) for raw in ledger["history"]]
+        history_df = build_trade_history_dataframe(history)
+        if not history_df.empty:
+            if requested_symbol:
+                history_df = history_df[history_df["Symbol"] == requested_symbol]
+            st.dataframe(history_df, hide_index=True, use_container_width=True)
+        else:
+            st.info("No trade history for this mode yet.")
+    st.subheader("Equity Curve")
+    if snapshots_verified:
+        curves = {
+            account: [
+                (datetime.fromisoformat(point["timestamp"]), Decimal(point["equity"]))
+                for point in points
+            ]
+            for account, points in snapshots_data["curves"].items()
+        }
+        curve_df = (
+            build_comparative_equity_dataframe(curves)
+            if selected == AGGREGATE_SUB_ACCOUNT
+            else build_equity_curve_dataframe(curves.get(selected, []))
+        )
+        if snapshots_data["sampled"]:
+            st.caption(
+                "Sampled equity history; first/latest points and bucket extrema retained."
+            )
+        if curve_df.empty:
+            st.info("No equity history yet.")
+        else:
+            st.line_chart(
+                (
+                    curve_df.set_index("timestamp")
+                    if "timestamp" in curve_df.columns
+                    else curve_df
+                ),
+                use_container_width=True,
+            )
 
 
 __all__ = [

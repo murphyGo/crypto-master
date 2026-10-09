@@ -41,6 +41,96 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-083: Dashboard full-history reads exhaust the shared production VM
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Critical |
+| **Created** | 2026-10-09 |
+| **Status** | Active; NFR Design approved; bounded source containment implemented and functional tests pass; cold readiness/shared-guest/browser/engine acceptance remains outstanding |
+| **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
+| **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
+| **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
+
+**Description and Evidence:**
+The operator reports an unavailable web UI and indefinite Trading loading.
+The preceding diagnostic session on Fly v51 found 214,686 activity lines
+across April–October archives, with sampled sizes totaling 90,064,921 bytes
+(85.89 MiB), on a 1024 MiB shared engine/dashboard VM. Initial health/HTML
+requests and WebSocket connection succeeded; the captured render was Home,
+then stalled after its controls. Direct Trading data readiness was not
+successfully captured. The original probe's initial page hash selected Home;
+this limitation is recorded in the incident artifact.
+
+Prometheus reported guest available memory dropping from 506.98 MiB at
+09:50:30 UTC to zero at 09:51:00 UTC, then remaining zero during the captured
+interval. Health/static HTTP, SSH, and management exec timed out. Fly reported
+the same instance started with a critical HTTP check. Memory exhaustion is
+observed; a kernel OOM kill and an exhausted-state Python stack were not
+captured. File counts/sizes are an earlier diagnostic snapshot, not a current
+production inventory.
+
+The strongest source-level explanation is full activity materialization:
+`JsonlRotator.read_all()` loads/sorts all raw payloads, then
+`ActivityLog.read_all()` builds a second full validated event collection while
+the first remains retained. Home, Trading, Engine, Ops, and Proposal Funnel
+use this path. Home's 24h funnel summary performs a separate full proposal
+history read, not another activity read; this earlier description was
+corrected during the NFR source recheck.
+`tail(n)` and `filter()` also materialize everything before limiting results.
+Full proposal enumeration and repeated snapshot loading are additional growth
+risks that must be qualified, without claiming they independently caused this
+incident.
+
+**Impact:**
+Production UI availability is lost and the shared VM becomes unresponsive,
+putting engine continuity at risk. Critical priority reflects the observed
+outage; no trading loss or successful engine monitoring during the stall is
+claimed.
+
+**Suggested Resolution and Closure:**
+Introduce bounded dashboard queries for latest state, existing recent windows,
+and exact historical aggregates. Preserve reconciliation/ledger protection,
+metric periods, UTC selection, account isolation, runtime files, and trading
+controls. Incomplete data must be explicit rather than become SAFE or zero.
+Limit process-wide cache bytes and concurrent rebuild work before allocation;
+qualify every affected activity route and Home's nested funnel path.
+
+Operator-approved acceptance targets cover cold/warm readiness, 256 MiB dashboard RSS
+growth, <=768 MiB shared-VM use, four concurrent sessions, the incident workload
+and >=1M-event fixtures. They are acceptance requirements, not measured results.
+The approved NFR Design specifies bounded streaming reducers, source-generation
+coverage, a 16 MiB encoded-result cache, one worker, at most four admitted
+rebuilds, and a 4s foreground deadline. Bounded source readers/service and the
+default dashboard paths now implement this containment, with deterministic
+failure/parity tests and 20-sample local query measurements. The incident
+214,686-event workload and a representative 1,000,000-event fixture complete
+without full rich archive collections. Cold activity p95 remains 5.150s /
+21.614s, exceeding the complete-readiness target. Native full-page timings,
+four-session decoded memory, guest use and engine continuity are unqualified.
+Temporary memory changes/restart, rollout, and production acceptance remain
+separate from this local implementation. Debt stays active until
+the approved design, bounded implementation, resource/semantic qualification,
+and authorized production verification are evidenced. DEBT-082 remains an
+independent Claude/Node image work item; its later operational resolution is
+preserved and does not deploy this dashboard slice.
+
+**Related:**
+- `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-code-generation-plan.md`
+- `aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/implementation-and-qualification.md`
+- `docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading.md`
+- `docs/cross-checks/2026-10-10-dashboard-operator-ui-bounded-data-loading.md`
+- `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-functional-design-plan.md`
+- `aidlc-docs/construction/dashboard-operator-ui/functional-design/bounded-data-loading/incident-evidence.md`
+- `aidlc-docs/construction/dashboard-operator-ui/functional-design/bounded-data-loading/metrics-evidence.json`
+- `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-nfr-design-plan.md`
+- `aidlc-docs/construction/dashboard-operator-ui/nfr-requirements/bounded-data-loading/nfr-requirements.md`
+- `aidlc-docs/construction/dashboard-operator-ui/nfr-design/bounded-data-loading/nfr-design-patterns.md`
+- `docs/sessions/2026-10-09-dashboard-operator-ui-bounded-data-loading-nfr.md`
+- `docs/cross-checks/2026-10-09-dashboard-operator-ui-bounded-data-loading-nfr.md`
+- `docs/sessions/2026-10-09-dashboard-operator-ui-bounded-data-loading-design.md`
+- `docs/cross-checks/2026-10-09-dashboard-operator-ui-bounded-data-loading-design.md`
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |
@@ -1261,8 +1351,8 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 0 |
-| Critical | 0 |
+| Total Active | 1 |
+| Critical | 1 |
 | High | 0 |
 | Medium | 0 |
 | Low | 0 |
@@ -1273,6 +1363,10 @@ Move resolved items here with resolution date and notes.
 ## Change History
 
 | Date | Action | Item |
+|------|--------|------|
+| 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |
+| 2026-10-09 | Updated | DEBT-083: `진행시켜` approved Functional Design and presented BDL-NFR targets, authorizing NFR Requirements/Design preparation. Requirements formalized; bounded streaming/cache/coalescing/coverage NFR Design drafted. Corrected Home funnel provenance (proposals only). NFR Design review, implementation, qualification and production acceptance remain pending; other metric/image debts retain their own scope. |
+| 2026-10-09 | Added | DEBT-083 (Critical), `dashboard-operator-ui`: diagnostic guest-memory exhaustion with 214,686 activity lines and full-history UI readers. Functional Design draft, sanitized prior metrics, bounded-loading/semantic rules, proposed qualification targets, and implementation sequence documented. Review, code, operational recovery, and production verification remain pending. |
 | 2026-10-09 | Resolved | DEBT-082: native production v55 verifies Node 24.21.0 / Claude 2.1.295, three help/flag checks, ldd, 167 source35e14b4 artifact hashes, healthy dashboard, and a completed paper cycle. v53 failure/v54 rollback overlapped concurrent v55 Codex activation; root cause is not inferred. Temporary 2 GB runtime capacity is retained in source fly.toml; later DEBT-074/078/084/085/086 source through 3f4864f was not deployed. |
 | 2026-10-09 | Resolved | DEBT-086: Legacy unknown states no longer count as observed score acceptance. Dashboard summaries share the canonical acceptance total, include every record once in the generated denominator, and show unknown coverage separately; stored history and the legacy raw gate total remain unchanged. Validation: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered. |
 | 2026-10-09 | Resolved | DEBT-074: Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates. Validation: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). |
@@ -1320,7 +1414,6 @@ Move resolved items here with resolution date and notes.
 | 2026-05-28 | Updated | DEBT-069 `strategy-tuning` Slice 2(a) + (d) shipped — the `strategy-tuning` Slice 2 dashboard pass (full team cycle: senior-dev implemented, qa-reviewer 🟡 on a single stale-docstring defect, senior-dev fixed the docstring comment-only → effectively 🟢). **(a) Dashboard Applied/Recommended view + YAML clipboard diff (RENDER-ONLY)** — all in `src/dashboard/pages/strategies.py`: pure builders `build_strategy_tuning_rows` / `build_strategy_tuning_yaml_diff` / `build_strategy_tuning_dataframe` + `StrategyTuningRow` model + `INSUFFICIENT_EVIDENCE` sentinel + thin `render_strategy_tuning`, wired into `render()` via optional `tuning_policy` / `tuning_sub_account_id` args (default disabled policy — existing callers unaffected); Applied = `policy.applied_action_for(name)`, Recommended = `recommend_action(evidence, policy.thresholds_for(name))` rendering `"—"` when the recommender returns `None`; write-back path explicitly OUT OF SCOPE (resolved Open Decision — operator copies the YAML diff + applies by hand + restart); placement: extended `strategies.py` (not a new page) because it already holds the `PerformanceTracker` / `FailClosedMetricsTracker` inputs the recommender needs. **(d) `STRATEGY_ACTION_APPLIED` startup diff emitter** — new module `src/runtime/strategy_action_snapshot.py` (`load_snapshot` fail-soft, pure `diff_snapshots`, `save_snapshot` via canonical `src.utils.io.atomic_write_text`); in `src/runtime/engine.py`: once-per-process `_maybe_emit_strategy_action_transitions` hooked in `run_cycle` (guard `_strategy_action_diff_done`), `_current_applied_state_map` (unions registered strategies @ default `keep` with override keys so removed-override transitions are detected), new `EngineConfig.strategy_action_snapshot_path` (default `data/runtime/strategy_action_snapshot.json`); first run with no prior snapshot SEEDS silently (no event storm on deploy), thereafter emits one event per changed `(sub_account, strategy)` with details `{sub_account, strategy, prior_action, new_action}`; emitter wrapped fail-soft so a snapshot IO failure never crashes the cycle. **QA 🟡 → resolved (comment-only, NOT new debt):** the `STRATEGY_ACTION_APPLIED` enum docstring at `src/runtime/activity_log.py:297-306` had sketched a speculative payload (`sub_account_id` / `prior_state` / `new_state` / `applied_by` / `evidence_snapshot`) and cited a nonexistent test (`test_strategy_action_applied_event_payload`); lead decision — the shipped 4-key shape `{sub_account, strategy, prior_action, new_action}` is the FINAL contract (DEBT-069(d) spec verbatim), speculative `applied_by` / `evidence_snapshot` belong to (c) the observation store; docstring rewritten to match the emitted contract + cite the real emitter/test, fixed THIS cycle. +22 tests (7 (a) dashboard in `tests/test_dashboard_strategies.py` + 11 snapshot in `tests/test_strategy_action_snapshot.py` + 4 (d) engine in `tests/test_runtime_engine.py`); full suite 2217 passed (+22), 0 failed; ruff clean; mypy clean (90 source files); no quant escalation (no `src/trading` / `src/backtest` / `src/strategy` math touched — reads of existing recommender / policy API only). After this cycle the DEBT-069 umbrella's remaining-open sub-tasks are (b) initial-action seeding, (c) observation store, (f) pause-reason split, (g) threshold calibration, (i) funnel test gaps; (a), (d), (e), and the (h)-comment are shipped. Session log `docs/sessions/2026-05-28-strategy-tuning-slice-2-dashboard-a-d.md` |
 | 2026-05-25 | Updated | DEBT-068 `cross-account-risk-policy` Slice 2(h) shipped — `runtime-safety-score` kill-switch integration. **COMPLETES the DEBT-068 umbrella SUBSTANCE** (all of (a), (b), (c) [(c-1)+(c-2)], (c-arb), (d), (e), (f) [(f-1)+(f-2)], (g), (h) now shipped; only six minor ride-along follow-up notes remain). Feeds LIVE kill-switch trips into the operator-facing runtime-safety-score. All in `src/runtime/safety_score.py`: new `RuntimeSafetyInputs.kill_switch_conditions` field; new `_count_kill_switch_conditions` extractor counting DISTINCT `(cycle_id, gate_reason, sub_account_id)` tuples of NON-advisory `RISK_KILL_SWITCH_TRIPPED` events (paper advisories excluded; missing/None `sub_account_id` → `"__global__"` so a portfolio gate counts once per cycle); new penalty `min(kill_switch_conditions * 25, 60)` in `compute_runtime_safety_score` (per-condition 25, cap 60). Band math: 1 live condition → 75 = DEGRADED (satisfies the spec line-367 mandate that a portfolio kill-switch trip bumps the band to at least degraded), 2 → 50 = RISKY, cap 60. Kill-switch-only scope — stale-position `auto_close` (correct-behaviour housekeeping) and operator-freeze (manual analogue of `pause_recommended`) DELIBERATELY EXCLUDED. **Over-count bug caught by the quant + fixed before ship**: the two GLOBAL/portfolio kill-switch gates (`_global_kill_switch_gate` / `_portfolio_daily_loss_check`, gate_reasons `portfolio_kill_switch` / `portfolio_daily_loss_kill_switch`) emit with the PROPOSING account's `sub_account_id` via `_proposal_summary`, so one portfolio condition counted once per distinct proposer per cycle (3 accounts → over-count instead of one condition → 75/DEGRADED), and the `"__global__"` branch was dead; fix (Option A, engine-side in `src/runtime/engine.py`): both portfolio emit sites now `details.pop("sub_account_id", None)` after the `_proposal_summary` spread — the pop must REMOVE the key (not null it) because the f-1 dataframe relies on `.get(..., "—")` defaulting; this also fixed an f-1 mis-attribution (a portfolio trip no longer lights the proposer's per-account kill-switch state; renders "—"); account-level gates untouched (stable literal account id, distinct conditions still count separately). +14 tests (10 original + 4 regression); full suite 2195 passed (+14), 0 failed; ruff + mypy clean; quant-trader-expert 🔴→🟢 (first pass found the over-count; re-review after fix: sound — both portfolio emit sites drop the key, no third global path, account gates unaffected, no f-1 regression, band math correct), qa-reviewer 🟢 on the original full suite 2191 (qa's fixtures did not exercise the multi-proposer global trip, so QA did not catch the over-count — the quant did). DEBT-068 umbrella SUBSTANCE COMPLETE; status-flip-to-Resolved-vs-slim recommendation surfaced to the lead. Session log `docs/sessions/2026-05-25-cross-account-risk-policy-kill-switch-safety-score-h.md` |
 | 2026-05-25 | Updated | DEBT-068 `cross-account-risk-policy` Slice 2(f-2) shipped — operator-freeze toggle WRITE side. **COMPLETES DEBT-068(f)** (both (f-1) read-only panel + (f-2) toggle write-side now shipped). Runtime flags write side in `src/runtime/runtime_flags.py`: new `write_trading_freeze(value, path)` — a read-merge-write that PRESERVES unrelated keys, writes atomically via the canonical `src.utils.io.atomic_write_text` (DEBT-028 single source of truth), and REFUSES to overwrite a malformed/unreadable existing file (raises the new `RuntimeFlagsWriteError`, file left byte-for-byte untouched — the deliberate LOUD-fail inverse of the (d) reader's never-crash fail-safe); missing/empty file = fresh-start; new `_load_existing_document` is the read-half of the merge. Dashboard side in `src/dashboard/pages/engine.py`: new `FreezeTogglePlan` + pure `build_freeze_toggle_plan` + thin confirmation-gated `render_operator_freeze_toggle` (REPLACES the (f-1) read-only indicator; now ALSO renders on the quiet-log path so a freeze can still be engaged). Rerun-safe: the write is gated inside `if submitted and acknowledged:` (`st.form` + `st.form_submit_button` + mandatory ack checkbox, `clear_on_submit`) so a page refresh cannot re-toggle. +12 tests (10 runtime_flags write-side + 2 dashboard plan); full suite 2181 passed (+12), 0 failed; ruff + mypy clean; qa-reviewer 🟢 (verified round-trip, key-preservation, malformed-file refusal — file genuinely untouched, guards raise BEFORE `atomic_write_text` — atomicity (no temp left, parent dir created), rerun-safety, pure/thin split, no (f-1) regression); no quant escalation (no trading-math / `src/trading` touched). Two non-blocking follow-ups filed: (f-2-note-test-gap) — the post-`atomic_write_text` `OSError`→`RuntimeFlagsWriteError` wrap branch (`runtime_flags.py` ~L204) is untested, add a monkeypatch test that makes `atomic_write_text` raise `OSError` and asserts the wrap (low priority); (f-2-note-broad-except) — the dashboard widget wraps `read_trading_freeze` in a broad `except Exception` (`engine.py` ~L1543), justified (never crash the UI; reader is itself fail-safe), noted per the error-handling checklist, no fix needed. With (f) complete, the DEBT-068 umbrella's only remaining SUBSTANCE is (h) runtime-safety-score kill-switch + stale-event integration. Session log `docs/sessions/2026-05-25-cross-account-risk-policy-operator-freeze-toggle-f-2.md` |
-|------|--------|------|
 | 2026-05-24 | Updated | DEBT-068 `cross-account-risk-policy` Slice 2(f-1) shipped — read-only Cross-Account Risk dashboard panel; the (f) dashboard slice is now SPLIT into (f-1) read-only [SHIPPED] and (f-2) operator-freeze toggle write-side [OPEN]. All in `src/dashboard/pages/engine.py`, event-driven, pure `build_*` + thin `render_*` per the reconciliation-banner pattern: `build_cross_account_risk_dataframe` (per-account equity / realized-today / unrealized / stop-risk / notional + kill-switch state), `kill_switch_state_for_account`, `build_portfolio_cap_utilization` (GREEN/AMBER/RED/BREACH bands at 70/90/100%, lower-inclusive, breach > 100), `build_symbol_side_exposure_dataframe` (distinct-account count + total notional + closest cap), `build_risk_gate_events_dataframe`, `build_operator_freeze_state` (READ-ONLY freeze-STATE indicator), `render_cross_account_risk` wired into `render()`. PLUS the (g-note) "Rejected"-column fix via a shared `_genuine_rejection_events` helper (counts hard blocks once: live kill-switch dedup by `proposal_id`, operator-freeze self-counts, paper advisories excluded) — **RESOLVES (g-note-dashboard-undercount)**. The operator-freeze toggle WRITE side was correctly DEFERRED to (f-2); (f-1) ships only the read-only freeze-STATE indicator. Panel populates from risk-gate event details only — fields never invented, never crash on empty/partial data. +14 tests; full suite 2169 passed (+14), 0 failed; ruff + mypy clean; qa-reviewer 🟢 (Rejected-column rule verified against engine emission paths — no double-count; `build_*` purity, empty-data safety, defensive details access confirmed); no quant escalation (no trading-math / `src/trading` touched). One follow-up filed: (f-1-note-snapshot-event) — the engine has no dedicated portfolio-snapshot `ActivityEvent` (`_record_portfolio_snapshot` writes to `PortfolioTracker`, not the activity log), so the panel populates only from risk-gate events that fired on a breach; a quiet account/cap shows "n/a"/empty (no steady-state) — a dedicated per-cycle portfolio-snapshot event would enable steady-state equity/PnL and 0%-utilization rows. DEBT-068 umbrella remains Active for (f-2) operator-freeze toggle write-side + (h) runtime-safety-score integration. Session log `docs/sessions/2026-05-24-cross-account-risk-policy-dashboard-panel-f-1.md` |
 | 2026-05-24 | Updated | DEBT-069 `strategy-tuning` Slice 2(e) shipped — true profit-factor computation. `TechniquePerformance.from_records` now persists real closed-trade `gross_win_pct`, `gross_loss_pct`, and cumulative closed-trade `max_drawdown_pct`, still excluding `synthetic=True` reconciliation rows from money aggregates. `evidence_from_performance` now uses `gross_win_pct / gross_loss_pct` directly and drops the old `_infer_profit_factor` approximation based on win/loss counts times best/worst trade magnitudes. Added the shadow-aware defensive comment from (h). Tests: `uv run pytest tests/test_strategy_performance.py tests/test_strategy_tuning_recommender.py -q` => 119 passed; ruff and targeted mypy clean. DEBT-069 remains Active for (a) dashboard/YAML helper, (b) initial recommendation seeding, (c) observation store, (d) `STRATEGY_ACTION_APPLIED` emission, (f) pause-reason split, (g) threshold calibration, and (i) funnel test gaps. Session log `docs/sessions/2026-05-24-strategy-tuning-true-pf.md` |
 | 2026-05-24 | Updated | DEBT-068 `cross-account-risk-policy` Slice 2(c-arb) shipped — `cap_resolution=lowest_priority_loses` arbitration for the global `(symbol, side)`/`symbol` caps. **COMPLETES the last open-cap v1-arbitration gap left by (b).** Breach detection in `_global_aggregate_cap_gate` (`src/runtime/engine.py`) is UNCHANGED — an arbitration step now decides `block_overall`. SOFT-ceiling semantics (per quant design): under `lowest_priority_loses`, a breaching proposal is ADMITTED iff for EVERY breached cap the proposing account strictly outranks at least one OTHER (self-excluded) holder on that cap's key (`account_priority`: earlier = higher priority, unlisted = lowest). AND-conservative across multiple breached caps — any cap that arbitrates to block blocks the proposal, so a more-permissive broad cap can never override a stricter narrow-cap block. FCFS preserved bit-for-bit (FCFS-default path behaves exactly as post-(b)). FCFS-equivalent fallbacks: empty `account_priority`, unlisted proposer, `sub_account` None / single-account, no existing holders on the key. Admitted LIVE overshoot emits an informational `RISK_CAP_ADVISORY` (`advisory=False`) carrying `cap_overshoot` — soft-ceiling admission is NOT silent. Additive `details` fields only (`cap_resolution`, `arbitration_outcome`, `proposer_account`, `proposer_rank`, `proposer_listed`, `existing_holders`, `arbitration_by_cap`, `cap_overshoot`); no `final_state` / funnel change. +14 tests; full suite 2156 passed (+14), 0 failed; ruff + mypy clean; quant-trader-expert 🟢 "sound — ship" (design conformance confirmed; superset relationship between the per-`(symbol, side)` and per-`symbol` keys verified strictly safe under AND-conservative composition — a more-permissive broad cap can never override a stricter narrow-cap block, per-cap audit trail `arbitration_by_cap` disambiguates), qa-reviewer 🟢 (full suite 2156 passed +14, ruff + mypy clean, FCFS bit-for-bit preserved, all 7 pre-existing global-cap tests pass unchanged, funnel / `final_state` unchanged). One MINOR non-blocking follow-up filed: (c-arb-note-overshoot-units) — `cap_overshoot` mixes units when a COUNT cap (`open_positions_per_symbol_side`) and a NOTIONAL cap breach together (its `total`/`max` would sum positions and dollars); harmless (advisory DISPLAY-only, never read by any decision path — arbitration is per-cap and unit-aware via `arbitration_by_cap`), worth a one-line code comment or a per-cap-unit split if a future reader might misread it, tied to the (f) dashboard slice. DEBT-068 umbrella remains Active for (f) dashboard exposure panel + operator-freeze toggle WRITE side + stale-event surfacing + the (g-note) "Rejected"-column rebase + the new `RISK_*` event charting + the (c-arb-note) display fields, and (h) runtime-safety-score integration. Session log `docs/sessions/2026-05-24-cross-account-risk-policy-cap-arbitration-c-arb.md` |

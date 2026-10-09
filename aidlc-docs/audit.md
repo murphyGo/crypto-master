@@ -1,5 +1,26 @@
 # AI-DLC Approval Audit
 
+## 2026-10-10T01:46:24+09:00 — Bounded Dashboard Source Verification Checkpoint
+
+- **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
+- **Authorization:** Previously approved NFR Design and implementation (`진행시켜`), continued by `gogo`; no additional production authorization is inferred.
+- **Implemented:** Bounded readers, one process worker, compact generation-verified reuse, explicit availability and default Home/Trading/Engine/Ops/Funnel/Feedback integration.
+- **Verification:** Final full regression 2719 passed in 60.93s; final focused run 19 passed; changed-file Black/Ruff, mypy (130 files) and document links/whitespace passed.
+- **Qualification:** Measured 20-sample incident/million cold query p95 5.150s/21.614s misses the 5s target. Final expiry/clock guards were regression-tested after those benchmark revisions; exact-final-source performance was not remeasured. Native page/four-session/guest/engine acceptance remains pending.
+- **Evidence:** `construction/dashboard-operator-ui/code/bounded-data-loading/implementation-and-qualification.md`; final source/test hashes and benchmark revision differences in `code/bounded-data-loading/evidence/final-source-verification.json` under that unit.
+- **Disposition:** Code Generation and source Build & Test passed; NFR qualification partial. No commit, push, deployment or runtime-data mutation for this slice. Concurrent operations/strategy/AI work and unrelated local changes preserved.
+- **Recorded at:** 2026-10-10T01:46:24+09:00, record time.
+
+## 2026-10-09T23:51:15+09:00 — Bounded Dashboard NFR Design and Implementation Approval
+
+- **Unit/debt:** `dashboard-operator-ui` / DEBT-083
+- **Operator response:** `진행시켜`
+- **Prompt:** Presented NFR Design with cache 16 MiB, result 2 MiB, one worker and 4s wait, followed by the explicit question to proceed to code implementation.
+- **Decision:** Approves the presented design and its implementation/verification. The code-generation plan executes that scope without repeating this approval.
+- **Plan:** `construction/plans/dashboard-operator-ui-bounded-data-loading-code-generation-plan.md`
+- **Boundary:** Production recovery, deployment and acceptance remain separate. Unrelated financial, strategy and AI runtime tasks retain their own scope.
+- **Recorded at:** 2026-10-09T23:51:15+09:00, record time.
+
 ## 2026-07-18T05:45:11+09:00 — Code Generation Plan Approval Requested
 
 - **Unit:** `exchange-integration`
@@ -509,3 +530,26 @@ dependency, live network, or runtime `data/` action occurred.
   Snapshot-v2 evidence qualifies it.
 - **Status:** Complete; workflow ended after Construction Build & Test
 - **Recorded at:** 2026-07-22T20:57:20+09:00
+
+## 2026-10-09T22:37:27+09:00 — Bounded Dashboard Functional Approval and NFR Continuation
+
+- **Primary unit:** `dashboard-operator-ui`
+- **Task/debt:** Bounded dashboard data loading / DEBT-083
+- **Exact operator response:** `진행시켜`
+- **Prompt context:** The presented Functional Design and BDL-NFR-01..08
+  targets, followed by the explicit question to proceed through NFR
+  Requirements/Design.
+- **Decision:** Functional Design and its presented acceptance targets
+  approved. Formalize those same targets and prepare NFR Design without
+  requesting the same approval again. New numeric implementation budgets
+  and algorithms remain a concrete NFR Design review, not approved code.
+- **Scope:** Documentation and design continuation. No production restart,
+  memory change, runtime-data write, deployment, or implementation approval
+  is inferred from this response. The concurrent DEBT-082 authorization is
+  owned by its separate task.
+- **Correction:** Source recheck confirms Home's nested funnel summary reads
+  proposals only; the standalone Funnel page reads proposals and activity.
+- **Status:** Functional Design complete; approved-target NFR formalization
+  complete; NFR Design preparation authorized
+- **Recorded at:** 2026-10-09T22:37:27+09:00 (record time, not a claimed
+  message timestamp)

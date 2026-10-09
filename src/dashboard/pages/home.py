@@ -21,7 +21,7 @@ Related Requirements:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -40,15 +40,16 @@ from src.dashboard.theme import (
     APP_TITLE,
 )
 from src.feedback.loop import CandidateRecord
-from src.runtime.activity_log import ActivityEvent, ActivityEventType, ActivityLog
+from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from src.runtime.activity_log import ActivityLog as ActivityLog
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
     compute_runtime_safety_score,
     inputs_from_recent_activity_events,
     recent_activity_events,
 )
-from src.strategy.performance import TradeHistory, TradeHistoryTracker
-from src.trading.portfolio import AssetSnapshot, PortfolioTracker
+from src.strategy.performance import TradeHistory
+from src.trading.portfolio import AssetSnapshot
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
 
@@ -177,19 +178,92 @@ def render_home() -> None:
         horizontal=True,
         format_func=lambda value: value.capitalize(),
     )
-    sub_account_ids = discover_command_center_sub_accounts(mode)
+    from src.utils.bounded_read import ReadFailure
+
+    try:
+        sub_account_ids = discover_command_center_sub_accounts(mode)
+    except (ReadFailure, OSError):
+        st.warning("Sub-account configuration could not be verified.")
+        return
     scope_options = (
         [COMMAND_CENTER_AGGREGATE_SCOPE, *sub_account_ids]
         if len(sub_account_ids) > 1
         else sub_account_ids
     )
     scope = st.selectbox("Command center scope", options=scope_options, index=0)
-    status = load_command_center_status(
-        mode=mode,
-        scope=str(scope),
-        sub_account_ids=sub_account_ids,
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.proposal.funnel import FunnelCounts
+
+    results = get_data_service().request_many(
+        _home_queries(mode, str(scope), sub_account_ids)
     )
-    render_command_center_status(status)
+    verified = {
+        kind: show_availability(result, label)
+        for kind, label in (
+            ("activity", "Runtime safety and activity"),
+            ("ledger", "Trade ledger"),
+            ("snapshots", "Portfolio snapshots"),
+            ("candidates", "Candidate evidence"),
+            ("proposals", "24h proposal funnel"),
+        )
+        for result in [results[kind]]
+    }
+    if all(
+        verified[kind] for kind in ("activity", "ledger", "snapshots", "candidates")
+    ):
+        status = _status_from_projections(results, mode, str(scope), sub_account_ids)
+        render_command_center_status(status)
+    else:
+        # Independent verified sections stay usable. Incomplete safety,
+        # account/ledger and candidate sections are never rendered as zeros.
+        if verified["activity"]:
+            activity = results["activity"].data()
+            safety = RuntimeSafetyScore.model_validate(activity["safety"])
+            st.metric("Runtime Safety", f"{safety.score}/100 {safety.band.value}")
+            st.caption(
+                f"Last cycle: {activity['metrics']['last_cycle_status'] or 'missing'}"
+            )
+        if verified["ledger"]:
+            ledger = results["ledger"].data()
+            st.metric("Open Positions", ledger["metrics"]["open_positions"])
+            st.dataframe(
+                trading_page.build_open_positions_dataframe(
+                    [
+                        TradeHistory.model_validate(row["trade"])
+                        for row in ledger["open"]
+                    ]
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+        if verified["snapshots"]:
+            snapshots = [
+                AssetSnapshot.model_validate(raw)
+                for raw in results["snapshots"].data()["latest"].values()
+            ]
+            equity = latest_snapshot_equity(
+                snapshots,
+                aggregate_per_sub_account=scope == COMMAND_CENTER_AGGREGATE_SCOPE,
+            )
+            st.metric("Current Equity", f"{equity:.2f}" if equity is not None else "—")
+        if verified["candidates"]:
+            candidate_data = results["candidates"].data()
+            st.metric("Candidates", candidate_data["candidate_counts"]["total"])
+            st.dataframe(
+                build_candidate_dataframe(
+                    build_candidate_rows(
+                        [
+                            CandidateRecord.model_validate(raw)
+                            for raw in candidate_data["candidates"]
+                        ],
+                        mode=mode,
+                        scope=str(scope),
+                    )
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
 
     st.markdown("### Sections")
     col1, col2, col3 = st.columns(3)
@@ -218,7 +292,11 @@ def render_home() -> None:
     try:
         from src.dashboard.pages import proposals as proposals_page
 
-        funnel_counts = proposals_page.load_funnel_summary(window_label="24h")
+        if not verified["proposals"]:
+            raise ValueError("funnel_unavailable")
+        funnel_counts = FunnelCounts.model_validate(
+            results["proposals"].data()["counts"]
+        )
         st.caption(
             f"Funnel (24h): "
             f"{proposals_page.build_command_center_summary(funnel_counts)}"
@@ -262,44 +340,87 @@ def load_command_center_status(
     sub_account_ids: list[str] | None = None,
 ) -> CommandCenterStatus:
     """Load persisted state for the Home command-center read model."""
-    events = ActivityLog().read_all()
+    from src.dashboard.data_service import get_data_service
+    from src.utils.bounded_read import ReadFailure
+
     ids = sub_account_ids or discover_command_center_sub_accounts(mode)
-    load_ids = ids if scope == COMMAND_CENTER_AGGREGATE_SCOPE else [scope]
+    results = get_data_service().request_many(_home_queries(mode, scope, ids)[:4])
+    if not all(result.complete for result in results.values()):
+        raise ReadFailure("command_center_unavailable")
+    return _status_from_projections(results, mode, scope, ids)
 
-    trades: list[TradeHistory] = []
-    scoped_trades: list[tuple[str, TradeHistory]] = []
-    snapshots: list[AssetSnapshot] = []
-    for sub_account_id in load_ids:
-        trade_tracker = TradeHistoryTracker(sub_account_id=sub_account_id)
-        portfolio_tracker = PortfolioTracker(
-            trade_tracker=trade_tracker,
-            sub_account_id=sub_account_id,
-        )
-        loaded_trades = trade_tracker.load_trades(mode=mode)
-        trades.extend(loaded_trades)
-        scoped_trades.extend((sub_account_id, trade) for trade in loaded_trades)
-        snapshots.extend(portfolio_tracker.load_snapshots(mode))
-    candidate_records = feedback_page.load_candidate_records(
-        feedback_page.default_candidate_state_dir()
-    )
-    if scope != COMMAND_CENTER_AGGREGATE_SCOPE:
-        # Scope candidate evidence to the selected sub-account so the
-        # Home page metrics match the panel filter (CH-05).
-        candidate_records = [
-            record for record in candidate_records if record.sub_account_id == scope
-        ]
-    candidate_metrics = feedback_page.build_summary_metrics(candidate_records)
 
-    return build_command_center_status(
-        events=events,
-        trades=trades,
+def _home_queries(mode: DashboardMode, scope: str, ids: list[str]) -> list:
+    from src.dashboard.read_models import Query
+
+    root = get_settings().data_dir
+    accounts = tuple(ids if scope == COMMAND_CENTER_AGGREGATE_SCOPE else [scope])
+    return [
+        Query(root, "activity", scope=scope),
+        Query(root, "ledger", mode=mode, accounts=accounts),
+        Query(root, "snapshots", mode=mode, accounts=accounts),
+        Query(
+            root,
+            "candidates",
+            scope=scope,
+            source=feedback_page.default_candidate_state_dir(),
+        ),
+        Query(root, "proposals", window="24h"),
+    ]
+
+
+def _status_from_projections(
+    results: dict, mode: DashboardMode, scope: str, ids: list[str]
+) -> CommandCenterStatus:
+    activity, ledger, portfolio, candidates = [
+        results[kind].data()
+        for kind in ("activity", "ledger", "snapshots", "candidates")
+    ]
+    scoped_trades = [
+        (row["account"], TradeHistory.model_validate(row["trade"]))
+        for row in ledger["open"]
+    ]
+    snapshots = [
+        AssetSnapshot.model_validate(raw) for raw in portfolio["latest"].values()
+    ]
+    evaluated = datetime.fromisoformat(activity["evaluated_at"])
+    incident_events = [
+        ActivityEvent.model_validate(raw) for raw in activity["incidents"]
+    ]
+    status = build_command_center_status(
+        events=incident_events,
+        trades=[trade for _, trade in scoped_trades],
         scoped_trades=scoped_trades,
         snapshots=snapshots,
         sub_account_count=len(ids),
         mode=mode,
         scope=scope,
-        candidate_metrics=candidate_metrics,
-        candidate_records=candidate_records,
+        now=evaluated,
+        candidate_metrics=candidates["candidate_counts"],
+        candidate_records=[
+            CandidateRecord.model_validate(raw) for raw in candidates["candidates"]
+        ],
+    )
+    safety = RuntimeSafetyScore.model_validate(activity["safety"])
+    metrics = activity["metrics"]
+    last_status = metrics["last_cycle_status"] or "missing"
+    last_at = (
+        datetime.fromisoformat(metrics["last_cycle_started_at"])
+        if metrics["last_cycle_started_at"]
+        else None
+    )
+    return replace(
+        status,
+        safety=safety,
+        last_cycle_status=last_status,
+        last_cycle_started_at=last_at,
+        actionable_events=activity["actionable"],
+        diagnostic_rows=build_runtime_diagnostic_rows(
+            safety=safety,
+            last_cycle_status=last_status,
+            snapshot_freshness=status.snapshot_freshness,
+            incident_rows=status.incident_rows,
+        ),
     )
 
 

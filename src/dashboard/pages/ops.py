@@ -126,11 +126,23 @@ def render() -> None:
         value=_query_param_first("health_url") or "",
         placeholder="https://crypto-master.fly.dev/_stcore/health",
     )
+    from src.dashboard.availability import show_availability
+    from src.dashboard.data_service import get_data_service
+    from src.dashboard.read_models import Query
+
+    result = get_data_service().request(
+        Query(settings.data_dir, "activity", source=activity_log.path)
+    )
+    verified = show_availability(result, "Derivatives activity")
     rows = build_ops_diagnostic_rows(
         data_dir=settings.data_dir,
         activity_path=activity_log.path,
         health_url=health_url,
-        activity_events=activity_log.read_all(),
+        activity_events=(
+            [ActivityEvent.model_validate(raw) for raw in result.data()["events"]]
+            if verified
+            else []
+        ),
     )
     st.dataframe(
         build_ops_diagnostic_dataframe(rows),
