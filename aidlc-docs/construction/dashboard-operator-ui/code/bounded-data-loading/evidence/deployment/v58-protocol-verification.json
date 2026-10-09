@@ -1,0 +1,360 @@
+{
+  "recorded_at_utc": "2026-10-09T17:37:47.304899+00:00",
+  "decoder_streamlit": "1.65.0",
+  "method": "Streamlit WebSocket protocol using canonical navigation hash and advertised availability fragment refresh; not a browser or viewport test",
+  "pages": [
+    {
+      "page": "home",
+      "selected_server_page_hash": "dae0b89ba4f982fd3e5bbc594b64aa2b",
+      "navigation": [
+        {
+          "name": "app",
+          "path": "",
+          "hash": "dae0b89ba4f982fd3e5bbc594b64aa2b"
+        },
+        {
+          "name": "autopsy",
+          "path": "autopsy",
+          "hash": "6bf1baadcb6f2a7a28328aea36f7965f"
+        },
+        {
+          "name": "engine",
+          "path": "engine",
+          "hash": "f45b17b3c72c47f119e48a6c8bb8c278"
+        },
+        {
+          "name": "engine cross account risk",
+          "path": "engine_cross_account_risk",
+          "hash": "6119853a5bc794371abe2f2368a70a45"
+        },
+        {
+          "name": "engine market regime",
+          "path": "engine_market_regime",
+          "hash": "b183db748016e3051086a01834a1454e"
+        },
+        {
+          "name": "engine reconciliation",
+          "path": "engine_reconciliation",
+          "hash": "a0269724487d84931c0dd0751da8ee31"
+        },
+        {
+          "name": "feedback",
+          "path": "feedback",
+          "hash": "0a43f60ce0214a9d4c8f0c6e1d4af136"
+        },
+        {
+          "name": "home",
+          "path": "home",
+          "hash": "a05c0ad62f73492b0276039a7963d7e7"
+        },
+        {
+          "name": "ops",
+          "path": "ops",
+          "hash": "cdec2b9432e92ed3d3e5153306ef4012"
+        },
+        {
+          "name": "proposals",
+          "path": "proposals",
+          "hash": "7516ff9cf6a152d888b3fc9291efbe41"
+        },
+        {
+          "name": "replay",
+          "path": "replay",
+          "hash": "c1fc563136738c1ef677a5e7d1199bdf"
+        },
+        {
+          "name": "strategies",
+          "path": "strategies",
+          "hash": "d6c7f564d5e1d874056c1d5c55bc7f16"
+        },
+        {
+          "name": "trading",
+          "path": "trading",
+          "hash": "652641d27d34732d3e8584918f03f831"
+        }
+      ],
+      "total_seconds": 32.74235158300144,
+      "attempts": [
+        {
+          "run_seconds": 9.01971545800916,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "bcf8f21007236d4bf7121481f936ecb4fbd78dccedafbc882e43db7ae130dd25"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 1,
+            "navigation": 3,
+            "page_config_changed": 1,
+            "delta": 26,
+            "auto_rerun": 4,
+            "script_finished": 1
+          },
+          "element_types": {
+            "markdown": 7,
+            "heading": 1,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 8
+          }
+        },
+        {
+          "run_seconds": 2.040716292016441,
+          "metrics": {
+            "Runtime safety": {
+              "populated": true,
+              "value_sha256": "8b3369944dd2a3fab39e32d1aeb1f763946a458ae3e6368a46432adc8f3a0860"
+            },
+            "Last cycle": {
+              "populated": true,
+              "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df"
+            },
+            "Open positions": {
+              "populated": true,
+              "value_sha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3"
+            },
+            "Snapshot": {
+              "populated": true,
+              "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2"
+            },
+            "Mode": {
+              "populated": true,
+              "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07"
+            },
+            "Scope": {
+              "populated": true,
+              "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b"
+            },
+            "Sub-accounts": {
+              "populated": true,
+              "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278"
+            },
+            "Actionable events": {
+              "populated": true,
+              "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+            },
+            "Candidates": {
+              "populated": true,
+              "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+            },
+            "Awaiting approval": {
+              "populated": true,
+              "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+            },
+            "Promoted": {
+              "populated": true,
+              "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+            },
+            "Errored": {
+              "populated": true,
+              "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+            }
+          },
+          "titles": [],
+          "alerts": [
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": true,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 35,
+            "session_status_changed": 67,
+            "navigation": 4,
+            "page_config_changed": 2,
+            "delta": 123,
+            "auto_rerun": 4,
+            "script_finished": 34
+          },
+          "element_types": {
+            "markdown": 22,
+            "heading": 2,
+            "radio": 2,
+            "selectbox": 2,
+            "alert": 11,
+            "metric": 12,
+            "dataframe": 4,
+            "page_link": 3
+          }
+        }
+      ],
+      "status": "complete_protocol_render"
+    },
+    {
+      "page": "trading",
+      "selected_server_page_hash": "652641d27d34732d3e8584918f03f831",
+      "navigation": [
+        {
+          "name": "Home",
+          "path": "",
+          "hash": "947324ff6dc0bdb8ac8ee9233d8ffa82"
+        },
+        {
+          "name": "Strategies",
+          "path": "strategies",
+          "hash": "d6c7f564d5e1d874056c1d5c55bc7f16"
+        },
+        {
+          "name": "Trading",
+          "path": "trading",
+          "hash": "652641d27d34732d3e8584918f03f831"
+        },
+        {
+          "name": "Feedback Loop",
+          "path": "feedback",
+          "hash": "0a43f60ce0214a9d4c8f0c6e1d4af136"
+        },
+        {
+          "name": "Proposal Replay",
+          "path": "replay",
+          "hash": "c1fc563136738c1ef677a5e7d1199bdf"
+        },
+        {
+          "name": "Trade Autopsy",
+          "path": "autopsy",
+          "hash": "6bf1baadcb6f2a7a28328aea36f7965f"
+        },
+        {
+          "name": "Ops Diagnostics",
+          "path": "ops",
+          "hash": "cdec2b9432e92ed3d3e5153306ef4012"
+        },
+        {
+          "name": "Engine",
+          "path": "engine",
+          "hash": "f45b17b3c72c47f119e48a6c8bb8c278"
+        },
+        {
+          "name": "Proposal Funnel",
+          "path": "proposals",
+          "hash": "7516ff9cf6a152d888b3fc9291efbe41"
+        }
+      ],
+      "total_seconds": 3.8664288749860134,
+      "attempts": [
+        {
+          "run_seconds": 3.1248546660062857,
+          "metrics": {
+            "Current Equity": {
+              "populated": true,
+              "value_sha256": "62e0ac406fc5baab2b5399d8cb84d7452c6cb712b72937bed12e31d1acf4b8c9"
+            },
+            "Open Positions": {
+              "populated": true,
+              "value_sha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3"
+            },
+            "Closed Trades": {
+              "populated": true,
+              "value_sha256": "11bde34a6593b3da0d81a8a71b24dc6f6cf05d18e9f59e610e58ff202263adef"
+            },
+            "Win Rate": {
+              "populated": true,
+              "value_sha256": "056ac17d1b497f569f14dbce1a14e1adab78777cff614b6777f8bcf1fd3da932"
+            },
+            "Realized P&L": {
+              "populated": true,
+              "value_sha256": "7c31eaa76b045bc43ef5e88ebbf2e818edb4da68b850097846194f80cb13ca49"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": true,
+              "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "efd8f7aca11cc31ef199d99f2b80afa8a5fd206ac5e5f7d77a0b9889f979796c"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": true,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 3,
+            "page_config_changed": 2,
+            "delta": 82,
+            "navigation": 2,
+            "script_finished": 2
+          },
+          "element_types": {
+            "markdown": 6,
+            "heading": 5,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 1,
+            "dataframe": 3,
+            "metric": 6,
+            "vega_lite_chart": 1
+          }
+        }
+      ],
+      "status": "complete_protocol_render"
+    }
+  ]
+}

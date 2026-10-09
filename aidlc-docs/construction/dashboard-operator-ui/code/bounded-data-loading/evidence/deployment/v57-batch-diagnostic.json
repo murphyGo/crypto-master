@@ -1,0 +1,500 @@
+{
+  "checked_at": "2026-10-09T17:17:05.987897+00:00",
+  "architecture": "x86_64",
+  "artifacts": {
+    "checked": 175,
+    "mismatches": []
+  },
+  "settings": {
+    "trading_mode": "paper",
+    "llm_provider": "codex",
+    "streamlit": "1.65.0"
+  },
+  "processes": {
+    "engine": {
+      "pid": 653,
+      "rss_kib": 205168,
+      "threads": 2
+    },
+    "dashboard": {
+      "pid": 654,
+      "rss_kib": 300304,
+      "threads": 12
+    }
+  },
+  "memory_kib": {
+    "MemTotal": 2015876,
+    "MemAvailable": 1350016,
+    "SwapTotal": 0
+  },
+  "batch_samples": [
+    {
+      "attempt": 1,
+      "seconds": 4.149541072999909,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 2,
+      "seconds": 4.075351011000066,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 3,
+      "seconds": 4.00499205999995,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 4,
+      "seconds": 4.001804158000141,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 5,
+      "seconds": 4.003111838999985,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 6,
+      "seconds": 4.076804002000017,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 7,
+      "seconds": 4.000291245999961,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 8,
+      "seconds": 4.002700669000205,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 9,
+      "seconds": 4.079269621999856,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 10,
+      "seconds": 4.078317422999817,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 11,
+      "seconds": 4.079448323999941,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    },
+    {
+      "attempt": 12,
+      "seconds": 4.004385259999935,
+      "results": {
+        "activity": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "ledger": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "snapshots": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "candidates": {
+          "status": "pending",
+          "reason": "rebuild_pending",
+          "age": null
+        },
+        "proposals": {
+          "status": "unavailable",
+          "reason": "queue_full",
+          "age": null
+        }
+      },
+      "active": "activity",
+      "jobs": [
+        "activity",
+        "ledger",
+        "snapshots",
+        "candidates"
+      ],
+      "cache": []
+    }
+  ]
+}

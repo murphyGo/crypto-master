@@ -1,0 +1,1137 @@
+{
+  "recorded_at_utc": "2026-10-09T17:14:29.669925+00:00",
+  "decoder_streamlit": "1.65.0",
+  "method": "Streamlit WebSocket protocol with page hash discovered from server; manual retries after pending; not a browser or viewport test",
+  "pages": [
+    {
+      "page": "home",
+      "selected_server_page_hash": "947324ff6dc0bdb8ac8ee9233d8ffa82",
+      "total_seconds": 153.37731008400442,
+      "attempts": [
+        {
+          "run_seconds": 4.8210017500096,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "bcf8f21007236d4bf7121481f936ecb4fbd78dccedafbc882e43db7ae130dd25"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 1,
+            "page_config_changed": 2,
+            "delta": 33,
+            "navigation": 2,
+            "auto_rerun": 4,
+            "script_finished": 1
+          },
+          "element_types": {
+            "markdown": 7,
+            "heading": 1,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 8
+          }
+        },
+        {
+          "run_seconds": 4.174801749992184,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7e69a46424f9564cc7f26ce7b716b7c507d7052e33a055c8bc94b17a7e4686fc"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "65ce6eef312d90f82039c160744a01bbdd943d44d4d5654ac7dfa2ccd7428733"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 3,
+            "session_status_changed": 3,
+            "page_config_changed": 3,
+            "delta": 59,
+            "navigation": 3,
+            "auto_rerun": 8,
+            "script_finished": 2
+          },
+          "element_types": {
+            "markdown": 14,
+            "heading": 2,
+            "radio": 2,
+            "selectbox": 2,
+            "alert": 16
+          }
+        },
+        {
+          "run_seconds": 5.6912772089999635,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7e69a46424f9564cc7f26ce7b716b7c507d7052e33a055c8bc94b17a7e4686fc"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "65ce6eef312d90f82039c160744a01bbdd943d44d4d5654ac7dfa2ccd7428733"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 4,
+            "session_status_changed": 5,
+            "page_config_changed": 4,
+            "delta": 85,
+            "navigation": 4,
+            "auto_rerun": 12,
+            "script_finished": 3
+          },
+          "element_types": {
+            "markdown": 21,
+            "heading": 3,
+            "radio": 3,
+            "selectbox": 3,
+            "alert": 24
+          }
+        },
+        {
+          "run_seconds": 7.125247208023211,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7e69a46424f9564cc7f26ce7b716b7c507d7052e33a055c8bc94b17a7e4686fc"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "65ce6eef312d90f82039c160744a01bbdd943d44d4d5654ac7dfa2ccd7428733"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 5,
+            "session_status_changed": 7,
+            "page_config_changed": 5,
+            "delta": 111,
+            "navigation": 5,
+            "auto_rerun": 16,
+            "script_finished": 4
+          },
+          "element_types": {
+            "markdown": 28,
+            "heading": 4,
+            "radio": 4,
+            "selectbox": 4,
+            "alert": 32
+          }
+        },
+        {
+          "run_seconds": 7.275466708000749,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7e69a46424f9564cc7f26ce7b716b7c507d7052e33a055c8bc94b17a7e4686fc"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "65ce6eef312d90f82039c160744a01bbdd943d44d4d5654ac7dfa2ccd7428733"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 6,
+            "session_status_changed": 9,
+            "page_config_changed": 6,
+            "delta": 137,
+            "navigation": 6,
+            "auto_rerun": 20,
+            "script_finished": 5
+          },
+          "element_types": {
+            "markdown": 35,
+            "heading": 5,
+            "radio": 5,
+            "selectbox": 5,
+            "alert": 40
+          }
+        },
+        {
+          "run_seconds": 6.396464624995133,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 7,
+            "session_status_changed": 11,
+            "page_config_changed": 7,
+            "delta": 163,
+            "navigation": 7,
+            "auto_rerun": 24,
+            "script_finished": 6
+          },
+          "element_types": {
+            "markdown": 42,
+            "heading": 6,
+            "radio": 6,
+            "selectbox": 6,
+            "alert": 48
+          }
+        },
+        {
+          "run_seconds": 7.201332582975738,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 8,
+            "session_status_changed": 13,
+            "page_config_changed": 8,
+            "delta": 189,
+            "navigation": 8,
+            "auto_rerun": 28,
+            "script_finished": 7
+          },
+          "element_types": {
+            "markdown": 49,
+            "heading": 7,
+            "radio": 7,
+            "selectbox": 7,
+            "alert": 56
+          }
+        },
+        {
+          "run_seconds": 6.16067633300554,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 9,
+            "session_status_changed": 15,
+            "page_config_changed": 9,
+            "delta": 215,
+            "navigation": 9,
+            "auto_rerun": 32,
+            "script_finished": 8
+          },
+          "element_types": {
+            "markdown": 56,
+            "heading": 8,
+            "radio": 8,
+            "selectbox": 8,
+            "alert": 64
+          }
+        },
+        {
+          "run_seconds": 7.274057833012193,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 10,
+            "session_status_changed": 17,
+            "page_config_changed": 10,
+            "delta": 241,
+            "navigation": 10,
+            "auto_rerun": 36,
+            "script_finished": 9
+          },
+          "element_types": {
+            "markdown": 63,
+            "heading": 9,
+            "radio": 9,
+            "selectbox": 9,
+            "alert": 72
+          }
+        },
+        {
+          "run_seconds": 6.958730750018731,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 11,
+            "session_status_changed": 19,
+            "page_config_changed": 11,
+            "delta": 267,
+            "navigation": 11,
+            "auto_rerun": 40,
+            "script_finished": 10
+          },
+          "element_types": {
+            "markdown": 70,
+            "heading": 10,
+            "radio": 10,
+            "selectbox": 10,
+            "alert": 80
+          }
+        },
+        {
+          "run_seconds": 7.197428707993822,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 12,
+            "session_status_changed": 21,
+            "page_config_changed": 12,
+            "delta": 293,
+            "navigation": 12,
+            "auto_rerun": 44,
+            "script_finished": 11
+          },
+          "element_types": {
+            "markdown": 77,
+            "heading": 11,
+            "radio": 11,
+            "selectbox": 11,
+            "alert": 88
+          }
+        },
+        {
+          "run_seconds": 7.121368125022855,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 13,
+            "session_status_changed": 23,
+            "page_config_changed": 13,
+            "delta": 319,
+            "navigation": 13,
+            "auto_rerun": 48,
+            "script_finished": 12
+          },
+          "element_types": {
+            "markdown": 84,
+            "heading": 12,
+            "radio": 12,
+            "selectbox": 12,
+            "alert": 96
+          }
+        },
+        {
+          "run_seconds": 7.115750292025041,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 14,
+            "session_status_changed": 25,
+            "page_config_changed": 14,
+            "delta": 345,
+            "navigation": 14,
+            "auto_rerun": 52,
+            "script_finished": 13
+          },
+          "element_types": {
+            "markdown": 91,
+            "heading": 13,
+            "radio": 13,
+            "selectbox": 13,
+            "alert": 104
+          }
+        },
+        {
+          "run_seconds": 6.159891082992544,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 15,
+            "session_status_changed": 27,
+            "page_config_changed": 15,
+            "delta": 371,
+            "navigation": 15,
+            "auto_rerun": 56,
+            "script_finished": 14
+          },
+          "element_types": {
+            "markdown": 98,
+            "heading": 14,
+            "radio": 14,
+            "selectbox": 14,
+            "alert": 112
+          }
+        },
+        {
+          "run_seconds": 6.55851299999631,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "2482378f3a2b415b1ac5e4cc08dda26290be21a752343d152f6cbf4b5231e583"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "38fe88394b2a3058f8dfd0fde96a9445fa204a49e81a7f311ba4b2efc1ae4392"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 16,
+            "session_status_changed": 29,
+            "page_config_changed": 16,
+            "delta": 397,
+            "navigation": 16,
+            "auto_rerun": 60,
+            "script_finished": 15
+          },
+          "element_types": {
+            "markdown": 105,
+            "heading": 15,
+            "radio": 15,
+            "selectbox": 15,
+            "alert": 120
+          }
+        },
+        {
+          "run_seconds": 6.236249625013443,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "2482378f3a2b415b1ac5e4cc08dda26290be21a752343d152f6cbf4b5231e583"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "38fe88394b2a3058f8dfd0fde96a9445fa204a49e81a7f311ba4b2efc1ae4392"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 17,
+            "session_status_changed": 31,
+            "page_config_changed": 17,
+            "delta": 423,
+            "navigation": 17,
+            "auto_rerun": 64,
+            "script_finished": 16
+          },
+          "element_types": {
+            "markdown": 112,
+            "heading": 16,
+            "radio": 16,
+            "selectbox": 16,
+            "alert": 128
+          }
+        },
+        {
+          "run_seconds": 6.727001999999629,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "2482378f3a2b415b1ac5e4cc08dda26290be21a752343d152f6cbf4b5231e583"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "38fe88394b2a3058f8dfd0fde96a9445fa204a49e81a7f311ba4b2efc1ae4392"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 18,
+            "session_status_changed": 33,
+            "page_config_changed": 18,
+            "delta": 449,
+            "navigation": 18,
+            "auto_rerun": 68,
+            "script_finished": 17
+          },
+          "element_types": {
+            "markdown": 119,
+            "heading": 17,
+            "radio": 17,
+            "selectbox": 17,
+            "alert": 136
+          }
+        }
+      ],
+      "status": "incomplete_after_deadline"
+    }
+  ]
+}

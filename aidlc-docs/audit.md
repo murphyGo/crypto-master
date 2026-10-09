@@ -1,5 +1,16 @@
 # AI-DLC Approval Audit
 
+## 2026-10-10 — Bounded Dashboard Deployment Authorization and v58 Verification
+
+- **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
+- **Operator response:** `배포도 해줘` after local implementation/verification and disclosure of the cold latency miss.
+- **Authorized action:** Deploy the verified UI improvement to the existing Fly app and perform ordinary rollout checks. Scope includes source identity commits and the requested-root reuse correction found during those checks.
+- **Final release:** v58, runtime source `785374bebd12ab18b145b3a1f3de6238b3fe4d4b`; digest `sha256:51eccbe5df64c17b63d8b37da21d1013032d6c3b42d466c4df02f219de7d3184`.
+- **Verification:** 2721 regression passes; 175 deployed runtime hashes match; HTTP health and first paper cycle pass; complete Home/Trading protocol responses observed. Source/process/query verification captured at 2026-10-09T17:40:14Z.
+- **Preserved:** Paper mode, Codex provider, 2048 MiB recovery allocation, original volume, unrelated local configuration and concurrent source/operations history.
+- **Open acceptance:** Observed cold Home completion ~33s still exceeds the target. Exact-final twenty-sample performance and native viewport/four-session/shared-guest qualification remain pending. Native Browser bootstrap lacks its runtime service module. No complete NFR/debt closeout is recorded.
+- **Session:** `docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md`.
+
 ## 2026-10-10T01:46:24+09:00 — Bounded Dashboard Source Verification Checkpoint
 
 - **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.

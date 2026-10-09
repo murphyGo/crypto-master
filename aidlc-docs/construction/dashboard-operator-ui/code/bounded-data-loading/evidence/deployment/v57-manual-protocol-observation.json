@@ -1,0 +1,1382 @@
+{
+  "recorded_at_utc": "2026-10-09T17:07:36.849178+00:00",
+  "decoder_streamlit": "1.65.0",
+  "method": "Streamlit WebSocket protocol with page hash discovered from server; manual retries after pending; not a browser or viewport test",
+  "pages": [
+    {
+      "page": "trading",
+      "selected_server_page_hash": "652641d27d34732d3e8584918f03f831",
+      "navigation": [
+        {
+          "name": "Home",
+          "path": "",
+          "hash": "947324ff6dc0bdb8ac8ee9233d8ffa82"
+        },
+        {
+          "name": "Strategies",
+          "path": "strategies",
+          "hash": "d6c7f564d5e1d874056c1d5c55bc7f16"
+        },
+        {
+          "name": "Trading",
+          "path": "trading",
+          "hash": "652641d27d34732d3e8584918f03f831"
+        },
+        {
+          "name": "Feedback Loop",
+          "path": "feedback",
+          "hash": "0a43f60ce0214a9d4c8f0c6e1d4af136"
+        },
+        {
+          "name": "Proposal Replay",
+          "path": "replay",
+          "hash": "c1fc563136738c1ef677a5e7d1199bdf"
+        },
+        {
+          "name": "Trade Autopsy",
+          "path": "autopsy",
+          "hash": "6bf1baadcb6f2a7a28328aea36f7965f"
+        },
+        {
+          "name": "Ops Diagnostics",
+          "path": "ops",
+          "hash": "cdec2b9432e92ed3d3e5153306ef4012"
+        },
+        {
+          "name": "Engine",
+          "path": "engine",
+          "hash": "f45b17b3c72c47f119e48a6c8bb8c278"
+        },
+        {
+          "name": "Proposal Funnel",
+          "path": "proposals",
+          "hash": "7516ff9cf6a152d888b3fc9291efbe41"
+        }
+      ],
+      "total_seconds": 109.77634995800327,
+      "attempts": [
+        {
+          "run_seconds": 4.742159583998728,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "3caf7f948c4ba594b107a401bf32acb98c0c2371dc41c150670363d89a9a64df"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 1,
+            "page_config_changed": 2,
+            "delta": 38,
+            "navigation": 2,
+            "auto_rerun": 3,
+            "script_finished": 1
+          },
+          "element_types": {
+            "markdown": 4,
+            "heading": 5,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 4,
+            "metric": 6
+          }
+        },
+        {
+          "run_seconds": 4.148830082995119,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "0ee294d0486d82487fc94f534e554e149efb55c676ecf6c4179b1bda1419a04d"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7793b338e3ca3e714f10d05fc3f683e5924bf42637c399bf52045bb121f6ea73"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 3,
+            "session_status_changed": 3,
+            "page_config_changed": 3,
+            "delta": 69,
+            "navigation": 3,
+            "auto_rerun": 6,
+            "script_finished": 2
+          },
+          "element_types": {
+            "markdown": 8,
+            "heading": 10,
+            "radio": 2,
+            "selectbox": 2,
+            "alert": 8,
+            "metric": 12
+          }
+        },
+        {
+          "run_seconds": 4.151382874988485,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "0ee294d0486d82487fc94f534e554e149efb55c676ecf6c4179b1bda1419a04d"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7793b338e3ca3e714f10d05fc3f683e5924bf42637c399bf52045bb121f6ea73"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 4,
+            "session_status_changed": 5,
+            "page_config_changed": 4,
+            "delta": 100,
+            "navigation": 4,
+            "auto_rerun": 9,
+            "script_finished": 3
+          },
+          "element_types": {
+            "markdown": 12,
+            "heading": 15,
+            "radio": 3,
+            "selectbox": 3,
+            "alert": 12,
+            "metric": 18
+          }
+        },
+        {
+          "run_seconds": 6.724630416982109,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "0ee294d0486d82487fc94f534e554e149efb55c676ecf6c4179b1bda1419a04d"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7793b338e3ca3e714f10d05fc3f683e5924bf42637c399bf52045bb121f6ea73"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 5,
+            "session_status_changed": 7,
+            "page_config_changed": 5,
+            "delta": 131,
+            "navigation": 5,
+            "auto_rerun": 12,
+            "script_finished": 4
+          },
+          "element_types": {
+            "markdown": 16,
+            "heading": 20,
+            "radio": 4,
+            "selectbox": 4,
+            "alert": 16,
+            "metric": 24
+          }
+        },
+        {
+          "run_seconds": 6.959131709008943,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "0ee294d0486d82487fc94f534e554e149efb55c676ecf6c4179b1bda1419a04d"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "7793b338e3ca3e714f10d05fc3f683e5924bf42637c399bf52045bb121f6ea73"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 6,
+            "session_status_changed": 9,
+            "page_config_changed": 6,
+            "delta": 162,
+            "navigation": 6,
+            "auto_rerun": 15,
+            "script_finished": 5
+          },
+          "element_types": {
+            "markdown": 20,
+            "heading": 25,
+            "radio": 5,
+            "selectbox": 5,
+            "alert": 20,
+            "metric": 30
+          }
+        },
+        {
+          "run_seconds": 6.158674499980407,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 7,
+            "session_status_changed": 11,
+            "page_config_changed": 7,
+            "delta": 193,
+            "navigation": 7,
+            "auto_rerun": 18,
+            "script_finished": 6
+          },
+          "element_types": {
+            "markdown": 24,
+            "heading": 30,
+            "radio": 6,
+            "selectbox": 6,
+            "alert": 24,
+            "metric": 36
+          }
+        },
+        {
+          "run_seconds": 6.085808542004088,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5e879248bc7127ff0e506ffba216ae4603be91c4f6219f9b61dd7f5d87c26858"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 8,
+            "session_status_changed": 13,
+            "page_config_changed": 8,
+            "delta": 224,
+            "navigation": 8,
+            "auto_rerun": 21,
+            "script_finished": 7
+          },
+          "element_types": {
+            "markdown": 28,
+            "heading": 35,
+            "radio": 7,
+            "selectbox": 7,
+            "alert": 28,
+            "metric": 42
+          }
+        },
+        {
+          "run_seconds": 5.841507957986323,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "25a1cbc5e5dbe30ee6630f9444038bc088591e92c9d93ad58c70aca1e2dd3d3b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 9,
+            "session_status_changed": 15,
+            "page_config_changed": 9,
+            "delta": 256,
+            "navigation": 9,
+            "auto_rerun": 25,
+            "script_finished": 8
+          },
+          "element_types": {
+            "markdown": 32,
+            "heading": 40,
+            "radio": 8,
+            "selectbox": 8,
+            "alert": 32,
+            "metric": 48
+          }
+        },
+        {
+          "run_seconds": 6.486687459022505,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "25a1cbc5e5dbe30ee6630f9444038bc088591e92c9d93ad58c70aca1e2dd3d3b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 10,
+            "session_status_changed": 17,
+            "page_config_changed": 10,
+            "delta": 288,
+            "navigation": 10,
+            "auto_rerun": 29,
+            "script_finished": 9
+          },
+          "element_types": {
+            "markdown": 36,
+            "heading": 45,
+            "radio": 9,
+            "selectbox": 9,
+            "alert": 36,
+            "metric": 54
+          }
+        },
+        {
+          "run_seconds": 6.401550624985248,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "25a1cbc5e5dbe30ee6630f9444038bc088591e92c9d93ad58c70aca1e2dd3d3b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 11,
+            "session_status_changed": 19,
+            "page_config_changed": 11,
+            "delta": 320,
+            "navigation": 11,
+            "auto_rerun": 33,
+            "script_finished": 10
+          },
+          "element_types": {
+            "markdown": 40,
+            "heading": 50,
+            "radio": 10,
+            "selectbox": 10,
+            "alert": 40,
+            "metric": 60
+          }
+        },
+        {
+          "run_seconds": 5.8428043329913635,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "25a1cbc5e5dbe30ee6630f9444038bc088591e92c9d93ad58c70aca1e2dd3d3b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 12,
+            "session_status_changed": 21,
+            "page_config_changed": 12,
+            "delta": 352,
+            "navigation": 12,
+            "auto_rerun": 37,
+            "script_finished": 11
+          },
+          "element_types": {
+            "markdown": 44,
+            "heading": 55,
+            "radio": 11,
+            "selectbox": 11,
+            "alert": 44,
+            "metric": 66
+          }
+        },
+        {
+          "run_seconds": 6.560993542021606,
+          "metrics": {
+            "Current Equity": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Open Positions": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Closed Trades": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Win Rate": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Realized P&L": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": false,
+              "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "214879f02c505625f75e494cd68ef5ce0ccf37967e228ba8f8c5a858c6be3a60"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "3a9f550e6b822665d1a6943cc397a5266136763f7c57871f70e4cbf8581fb0cd"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 13,
+            "session_status_changed": 23,
+            "page_config_changed": 13,
+            "delta": 384,
+            "navigation": 13,
+            "auto_rerun": 41,
+            "script_finished": 12
+          },
+          "element_types": {
+            "markdown": 48,
+            "heading": 60,
+            "radio": 12,
+            "selectbox": 12,
+            "alert": 48,
+            "metric": 72
+          }
+        },
+        {
+          "run_seconds": 13.776485874986975,
+          "metrics": {
+            "Current Equity": {
+              "populated": true,
+              "value_sha256": "aad8e500b114d216932ec896a0cb6b6cec469e1cc1d4644a66aff8057426087e"
+            },
+            "Open Positions": {
+              "populated": true,
+              "value_sha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3"
+            },
+            "Closed Trades": {
+              "populated": true,
+              "value_sha256": "11bde34a6593b3da0d81a8a71b24dc6f6cf05d18e9f59e610e58ff202263adef"
+            },
+            "Win Rate": {
+              "populated": true,
+              "value_sha256": "056ac17d1b497f569f14dbce1a14e1adab78777cff614b6777f8bcf1fd3da932"
+            },
+            "Realized P&L": {
+              "populated": true,
+              "value_sha256": "7c31eaa76b045bc43ef5e88ebbf2e818edb4da68b850097846194f80cb13ca49"
+            },
+            "Proposals rejected (threshold)": {
+              "populated": true,
+              "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b"
+            }
+          },
+          "titles": [
+            "\ud83d\udcb9 Trading",
+            "Summary",
+            "Active Positions",
+            "Recent Trade History",
+            "Equity Curve"
+          ],
+          "alerts": [
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "bea70dae950865927e47ce2d9b973d5abd58544aa6bdf706b0997b367573ebee"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": true,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 14,
+            "session_status_changed": 25,
+            "page_config_changed": 14,
+            "delta": 416,
+            "navigation": 14,
+            "auto_rerun": 41,
+            "script_finished": 13
+          },
+          "element_types": {
+            "markdown": 54,
+            "heading": 65,
+            "radio": 13,
+            "selectbox": 13,
+            "alert": 49,
+            "metric": 78,
+            "dataframe": 3,
+            "vega_lite_chart": 1
+          }
+        }
+      ],
+      "status": "complete_protocol_render"
+    },
+    {
+      "page": "home",
+      "selected_server_page_hash": "947324ff6dc0bdb8ac8ee9233d8ffa82",
+      "navigation": [
+        {
+          "name": "Home",
+          "path": "",
+          "hash": "947324ff6dc0bdb8ac8ee9233d8ffa82"
+        },
+        {
+          "name": "Strategies",
+          "path": "strategies",
+          "hash": "d6c7f564d5e1d874056c1d5c55bc7f16"
+        },
+        {
+          "name": "Trading",
+          "path": "trading",
+          "hash": "652641d27d34732d3e8584918f03f831"
+        },
+        {
+          "name": "Feedback Loop",
+          "path": "feedback",
+          "hash": "0a43f60ce0214a9d4c8f0c6e1d4af136"
+        },
+        {
+          "name": "Proposal Replay",
+          "path": "replay",
+          "hash": "c1fc563136738c1ef677a5e7d1199bdf"
+        },
+        {
+          "name": "Trade Autopsy",
+          "path": "autopsy",
+          "hash": "6bf1baadcb6f2a7a28328aea36f7965f"
+        },
+        {
+          "name": "Ops Diagnostics",
+          "path": "ops",
+          "hash": "cdec2b9432e92ed3d3e5153306ef4012"
+        },
+        {
+          "name": "Engine",
+          "path": "engine",
+          "hash": "f45b17b3c72c47f119e48a6c8bb8c278"
+        },
+        {
+          "name": "Proposal Funnel",
+          "path": "proposals",
+          "hash": "7516ff9cf6a152d888b3fc9291efbe41"
+        }
+      ],
+      "total_seconds": 43.82024604198523,
+      "attempts": [
+        {
+          "run_seconds": 17.5240861249913,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "83b99c465724b7722b3beaa72079538f4bcdde8ab5236e7b43dd8382acdc3c85"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "2a0594b0029e73af76d5cca4ab0bda4059ec919b977946086e2c7134a43afef4"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "64ad80528d6dd90bde09f1b832de858da12f09bad9616cc6cbd25501bc662ac0"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "57eadee03d609a628f55ef6c7030b319df3f0c65674d7f6a5a26b097cbeaad8f"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 1,
+            "page_config_changed": 2,
+            "delta": 33,
+            "navigation": 2,
+            "auto_rerun": 4,
+            "script_finished": 1
+          },
+          "element_types": {
+            "markdown": 7,
+            "heading": 1,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 8
+          }
+        },
+        {
+          "run_seconds": 6.71768291699118,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "83b99c465724b7722b3beaa72079538f4bcdde8ab5236e7b43dd8382acdc3c85"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "2a0594b0029e73af76d5cca4ab0bda4059ec919b977946086e2c7134a43afef4"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "64ad80528d6dd90bde09f1b832de858da12f09bad9616cc6cbd25501bc662ac0"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "57eadee03d609a628f55ef6c7030b319df3f0c65674d7f6a5a26b097cbeaad8f"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 3,
+            "session_status_changed": 3,
+            "page_config_changed": 3,
+            "delta": 59,
+            "navigation": 3,
+            "auto_rerun": 8,
+            "script_finished": 2
+          },
+          "element_types": {
+            "markdown": 14,
+            "heading": 2,
+            "radio": 2,
+            "selectbox": 2,
+            "alert": 16
+          }
+        },
+        {
+          "run_seconds": 6.086759208003059,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "ecf6753a29177e7ec6aead50f7dc60f9f5fde11cdd8c3183aa37551f5f34e276"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 4,
+            "session_status_changed": 5,
+            "page_config_changed": 4,
+            "delta": 85,
+            "navigation": 4,
+            "auto_rerun": 12,
+            "script_finished": 3
+          },
+          "element_types": {
+            "markdown": 21,
+            "heading": 3,
+            "radio": 3,
+            "selectbox": 3,
+            "alert": 24
+          }
+        },
+        {
+          "run_seconds": 6.640771959006088,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "ecf6753a29177e7ec6aead50f7dc60f9f5fde11cdd8c3183aa37551f5f34e276"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 5,
+            "session_status_changed": 7,
+            "page_config_changed": 5,
+            "delta": 111,
+            "navigation": 5,
+            "auto_rerun": 16,
+            "script_finished": 4
+          },
+          "element_types": {
+            "markdown": 28,
+            "heading": 4,
+            "radio": 4,
+            "selectbox": 4,
+            "alert": 32
+          }
+        }
+      ],
+      "status": "missing_metrics_after_four_runs"
+    }
+  ]
+}

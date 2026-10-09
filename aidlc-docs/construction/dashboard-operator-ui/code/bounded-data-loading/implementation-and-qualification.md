@@ -6,6 +6,14 @@
 **Status:** Source containment implemented; functional verification passed;
 performance/production acceptance remains incomplete. DEBT-083 stays active.
 
+**Deployment follow-up:** The operator subsequently requested deployment.
+Fly v58 now runs `785374b`, including requested-root projection retention for
+verified reuse after the stale display deadline. Source/process/health/engine
+checks and complete Home/Trading protocol responses are verified in the
+[deployment session](../../../../../docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md).
+The source-only/no-deployment statements below describe this report's earlier
+checkpoint; complete NFR acceptance remains pending.
+
 ## Implemented behavior
 
 Default Home, Trading, Engine, Ops and Funnel activity reads use one locked

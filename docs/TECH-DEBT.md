@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; NFR Design approved; bounded source containment implemented and functional tests pass; cold readiness/shared-guest/browser/engine acceptance remains outstanding |
+| **Status** | Active; bounded containment and requested-root reuse correction deployed/verified on Fly v58 (`785374b`); cold readiness and full native shared-guest/four-session acceptance remain outstanding |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -115,7 +115,20 @@ and authorized production verification are evidenced. DEBT-082 remains an
 independent Claude/Node image work item; its later operational resolution is
 preserved and does not deploy this dashboard slice.
 
+**2026-10-10 production follow-up:** The operator explicitly requested rollout.
+Fly v58 now runs `785374b`, including requested-root compact projection retention
+for generation-verified reuse after the stale display deadline. All 175 runtime
+hashes match; health, five persisted queries and the first paper cycle pass.
+Home/Trading produce complete protocol responses, but observed cold Home
+completion is about 33s. Exact-final twenty-sample/native browser/four-session
+resource acceptance remains pending; the debt stays Critical/active. See the
+deployment session and cross-check below. The source-only wording above is the
+earlier checkpoint.
+
 **Related:**
+- `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-deployment-plan.md`
+- `docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md`
+- `docs/cross-checks/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md`
 - `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-code-generation-plan.md`
 - `aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/implementation-and-qualification.md`
 - `docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading.md`
@@ -1374,6 +1387,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-10-10 | Deployed | DEBT-083: operator requested rollout. Fly v58 runs `785374b`, including retained requested-root projections for verified reuse after slow batches. 2721 regression passes, 175 deployed hashes, health/first paper cycle and complete Home/Trading protocol responses verified. Observed cold Home completion ~33s; exact-final performance/native browser/four-session/shared-guest qualification remains pending. Critical/active retained. |
 | 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |
 | 2026-10-09 | Updated | DEBT-083: `진행시켜` approved Functional Design and presented BDL-NFR targets, authorizing NFR Requirements/Design preparation. Requirements formalized; bounded streaming/cache/coalescing/coverage NFR Design drafted. Corrected Home funnel provenance (proposals only). NFR Design review, implementation, qualification and production acceptance remain pending; other metric/image debts retain their own scope. |
 | 2026-10-09 | Added | DEBT-083 (Critical), `dashboard-operator-ui`: diagnostic guest-memory exhaustion with 214,686 activity lines and full-history UI readers. Functional Design draft, sanitized prior metrics, bounded-loading/semantic rules, proposed qualification targets, and implementation sequence documented. Review, code, operational recovery, and production verification remain pending. |

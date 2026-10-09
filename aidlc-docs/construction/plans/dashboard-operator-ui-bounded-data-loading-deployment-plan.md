@@ -8,20 +8,20 @@
 
 ## Steps
 
-1. [ ] Record deployment authorization; commit only the approved UI source/tests/design/evidence and related unit records, preserving unrelated local configuration.
-2. [ ] Integrate current origin records in an isolated worktree, resolve documentation conflicts narrowly and verify the final source against the passed 2719-test revision. Run meaningful default-page/projection checks on the final checkout.
-3. [ ] Build/deploy from the clean isolated checkout with a source-SHA image label, existing Fly topology/capacity and health checks. Retain v56 image identity for rollback if the new release fails acceptance.
-4. [ ] Verify exact deployed artifacts, machine/volume/settings, process health and bounded source behavior. Verify rendered Home/Trading through the available native browser and record any limitation; HTTP 200 alone is not UI acceptance.
-5. [ ] Observe post-rollout health/memory and an engine cycle where practical, then update session/cross-check/unit/debt with actual release evidence and remaining NFR findings. Preserve DEBT-083 until its full criteria pass.
+1. [x] Record deployment authorization; commit only the approved UI source/tests/design/evidence and related unit records, preserving unrelated local configuration.
+2. [x] Integrate current origin records in an isolated worktree, resolve documentation conflicts narrowly and verify the final source against the passed 2719-test revision. Final checkout focused checks pass; the rollout correction also has 2721 full passes.
+3. [x] Build/deploy from the clean isolated checkout with a source-SHA image label, existing Fly topology/capacity and health checks. Final v58 source `785374b`; v56 image identity retained for rollback.
+4. [x] Verify 175 deployed artifacts, machine/volume/settings, processes and bounded queries. Record complete Home/Trading protocol responses and native Browser bootstrap limitation; viewport acceptance remains unqualified.
+5. [x] Observe post-rollout health/memory and the first completed engine cycle; session/cross-check/unit/debt record actual evidence and pending NFR criteria. DEBT-083 remains active.
 
 ## Rollback
 
 ### Rollout correction
 
-- [ ] Preserve the requested root's expired encoded projections for generation-verified reuse. The 30s stale **display** deadline is not a reason to discard the compact projection and reread the archive after a slow batch. Other inactive roots may still be evicted for the two-root limit; freshness, stale display, cache bytes and entry caps remain unchanged.
+- [x] Preserve the requested root's expired encoded projections for generation-verified reuse. The 30s stale **display** deadline is not a reason to discard the compact projection and reread the archive after a slow batch. Other inactive roots may still be evicted for the two-root limit; freshness, stale display, cache bytes and entry caps remain unchanged.
 - [x] Verify unchanged-source reuse after >30s, damaged-source rejection and other-root admission. Focused service/default-page tests: 16 passed; full regression: 2721 passed in 245.42s; Black/Ruff and source mypy (129 files) pass. Redeployment is recorded below.
-- [ ] Redeploy the validated correction with a new source identity.
-- [ ] Record the v57 protocol retry failures and actual corrected-release evidence; do not infer native browser or complete latency acceptance from health.
+- [x] Redeploy the validated correction with a new source identity: `785374b`, Fly v58.
+- [x] Record the v57 protocol retry failures and actual corrected-release evidence; native browser and complete latency acceptance remain pending.
 
 If the replacement release fails health/startup or causes a new UI/process
 regression, redeploy the captured v56 image with the existing `fly.toml` and
@@ -31,7 +31,9 @@ from the already disclosed cold latency miss.
 
 ## Completion
 
-- [ ] Scoped source and remote identity recorded
-- [ ] Fly release/artifacts verified
-- [ ] Actual UI/process/health evidence recorded, with limitations
-- [ ] Session/cross-check/state/debt reflect deployment and open acceptance
+- [x] Scoped source and remote identity recorded
+- [x] Fly release/artifacts verified
+- [x] Actual protocol/process/health evidence recorded, with native UI limitations
+- [x] Session/cross-check/state/debt reflect deployment and open acceptance
+
+See the [deployment session](../../../docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md).
