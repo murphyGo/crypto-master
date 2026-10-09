@@ -66,9 +66,13 @@ class DashboardDataService:
             future = self._jobs.get(query)
             if future is None:
                 active_roots = {key.root for key in self._jobs}
+                # A display deadline does not expire the compact projection
+                # needed to verify/reuse this root after a slow batch. Retire
+                # other inactive roots; byte/entry limits still bound retention.
                 for key, cached in list(self._cache.items()):
                     if (
-                        key.root not in active_roots
+                        key.root != query.root
+                        and key.root not in active_roots
                         and now - cached.evaluated > self.limits.stale_seconds
                     ):
                         self._cache.pop(key)

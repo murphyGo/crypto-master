@@ -16,6 +16,13 @@
 
 ## Rollback
 
+### Rollout correction
+
+- [ ] Preserve the requested root's expired encoded projections for generation-verified reuse. The 30s stale **display** deadline is not a reason to discard the compact projection and reread the archive after a slow batch. Other inactive roots may still be evicted for the two-root limit; freshness, stale display, cache bytes and entry caps remain unchanged.
+- [x] Verify unchanged-source reuse after >30s, damaged-source rejection and other-root admission. Focused service/default-page tests: 16 passed; full regression: 2721 passed in 245.42s; Black/Ruff and source mypy (129 files) pass. Redeployment is recorded below.
+- [ ] Redeploy the validated correction with a new source identity.
+- [ ] Record the v57 protocol retry failures and actual corrected-release evidence; do not infer native browser or complete latency acceptance from health.
+
 If the replacement release fails health/startup or causes a new UI/process
 regression, redeploy the captured v56 image with the existing `fly.toml` and
 the same 2048 MiB allocation. Do not mutate `/data`, credentials, trading

@@ -1,8 +1,10 @@
 """Shared worker admission, foreground deadlines and safe result states."""
 
+import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 from src.dashboard.data_service import DashboardDataService
 from src.dashboard.read_models import Limits, Query
@@ -156,5 +158,75 @@ def test_only_two_data_roots_are_admitted(tmp_path):
         assert service.request(Query(tmp_path / "two", "activity")).complete
         result = service.request(Query(tmp_path / "three", "activity"))
         assert result.reason == "root_budget_exhausted" and not result.complete
+    finally:
+        service.close()
+
+
+def test_unchanged_projection_survives_stale_display_deadline(tmp_path, monkeypatch):
+    from src.dashboard import projections
+
+    path = tmp_path / "runtime" / "activity.jsonl"
+    path.parent.mkdir()
+    now = datetime.now(timezone.utc)
+    path.write_text(
+        json.dumps(
+            {
+                "timestamp": now.isoformat(),
+                "event_type": "cycle_started",
+                "cycle_id": "cached-cycle",
+                "message": "",
+                "details": {},
+            }
+        )
+        + "\n"
+    )
+    query = Query(tmp_path, "activity", at=now)
+    service = DashboardDataService()
+    try:
+        assert service.request(query).complete
+        with service._condition:
+            service._cache[query.normalized()].evaluated -= (
+                service.limits.stale_seconds + 1
+            )
+        original_reader = projections.reverse_jsonl_records
+
+        def unnecessary_read(*args, **kwargs):
+            raise ReadFailure("unexpected_archive_rebuild")
+
+        monkeypatch.setattr(projections, "reverse_jsonl_records", unnecessary_read)
+        result = service.request(query)
+        assert result.complete and result.data()["total"] == 1
+        assert service.stats()["cache_bytes"] <= service.limits.cache_bytes
+
+        # Retention for verified reuse cannot make expired or damaged data
+        # eligible for display as complete or as labelled stale fallback.
+        monkeypatch.setattr(projections, "reverse_jsonl_records", original_reader)
+        path.write_text("broken\n")
+        with service._condition:
+            service._cache[query.normalized()].evaluated -= (
+                service.limits.stale_seconds + 1
+            )
+        damaged = service.request(query)
+        assert damaged.status == "unavailable" and damaged.payload is None
+        assert damaged.reason == "malformed_json"
+    finally:
+        service.close()
+
+
+def test_expired_other_root_can_be_evicted_to_admit_new_root(tmp_path):
+    def build(query, limits):
+        yield {"count": 7}
+
+    service = DashboardDataService(builder=build)
+    try:
+        first = Query(tmp_path / "one", "activity")
+        assert service.request(first).complete
+        assert service.request(Query(tmp_path / "two", "activity")).complete
+        with service._condition:
+            service._cache[first.normalized()].evaluated -= (
+                service.limits.stale_seconds + 1
+            )
+        assert service.request(Query(tmp_path / "three", "activity")).complete
+        assert len({query.root for query in service._cache}) == 2
     finally:
         service.close()
