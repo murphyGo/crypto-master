@@ -7,6 +7,12 @@ the same provider factory. Existing timeout/retry names and per-strategy
 `claude_timeout_seconds` remain compatible. Local configurations retain the
 legacy Claude default until explicitly changed.
 
+The shared Fly machine uses 2 GiB RAM. The preceding 1 GiB runtime exhausted
+available memory and stopped responding to HTTP and SSH during rollout; the
+capacity change retains the same CPU, machine, image, volume and trading mode.
+Reduce it only after measuring startup and dashboard/model-call peaks. This is
+a capacity mitigation; it does not identify the original allocating code path.
+
 ## Dedicated login
 
 Create `/data/codex-auth` owned by the service user with mode 0700. Obtain a

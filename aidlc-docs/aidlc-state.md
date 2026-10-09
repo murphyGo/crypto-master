@@ -72,12 +72,14 @@ Construction artifacts are created just in time for new work. Existing Phase
 > **2026-10-09 DEBT-084 complete:** `strategy-framework` — Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics.
 > Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. Operations not performed.
 
-> **Current construction (2026-10-09):** `ai-feedback-loop` Codex migration
-> implementation and regression checks are complete; Operations is pending the
-> dedicated Fly device login and real model qualification. Explicit Fly provider
-> selection, persistent auth serialization and shared response parsing preserve
-> existing trade modes and approval rules. See
-> `construction/plans/ai-feedback-loop-codex-migration-plan.md`.
+> **2026-10-09 Codex migration complete:** `ai-feedback-loop` implementation,
+> dedicated device login and actual Fly cutover passed. Release v55 runs image
+> source `35e14b4`, Codex 0.153.4 / `gpt-6-astra`, in unchanged paper mode.
+> Native factory text/JSON calls passed at 13:49:56 / 13:50:00 UTC and HTTP health
+> returned `ok`. The same machine/volume retains 2 GiB RAM after observed 1 GiB
+> exhaustion; the allocating code path remains unidentified. Later source-only
+> strategy/reconciliation/funnel fixes above are not in this production image.
+> See `construction/plans/ai-feedback-loop-codex-migration-plan.md`.
 
 > **Latest construction (2026-10-09):** `notifications-ops` DEBT-082 is
 > **RESOLVED** on native production evidence. Current v55 verifies Node
@@ -89,8 +91,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 > raised the running machine to 2 GB, now retained in source `fly.toml`.
 > Upstream changes through `3f4864f` (DEBT-074/078/084/085/086) are not
 > part of this deployment.
-> The earlier Codex login-pending checkpoint above is historical for the
-> live environment; separate model-qualification records remain with that unit.
+> Codex model qualification is recorded in the completed migration unit above.
 
 > **Previous construction (2026-10-09):** `clean-architecture-hardening` CAH-15
 > is **COMPLETE** with ADR Alternative C as the final scope. A current

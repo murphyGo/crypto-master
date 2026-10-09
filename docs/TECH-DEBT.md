@@ -608,10 +608,6 @@ session/cross-check; unrelated debt remains separately tracked.
 <!--
 Move resolved items here with resolution date and notes.
 
-
-<!--
-Move resolved items here with resolution date and notes.
-
 ### DEBT-XXX: [Title] ✅
 
 | Field | Value |

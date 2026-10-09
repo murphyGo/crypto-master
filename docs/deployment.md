@@ -22,19 +22,12 @@ when either dies the script exits and Fly restarts the machine.
   Get them from
   [testnet.binance.vision](https://testnet.binance.vision/) or
   [testnet.bybit.com](https://testnet.bybit.com/).
-- Claude auth — pick **one** of the two paths:
-  - **Recommended for personal use: Claude Code subscription**
-    via `CLAUDE_CODE_OAUTH_TOKEN`. Generate the token locally
-    (where Claude Code is already logged in) with
-    `claude setup-token` — it prints a long-lived OAuth token
-    starting with `sk-ant-oat01-...`. This routes `claude -p`
-    calls through your Pro / Max subscription rather than the
-    metered API.
-  - **Anthropic API key** via `ANTHROPIC_API_KEY`. Per-request
-    billing through console.anthropic.com. Use this if you don't
-    have a Claude Code subscription, or if you want to keep the
-    runtime's spend separate from your interactive Claude Code
-    usage.
+- A dedicated ChatGPT login for Codex, stored on the persistent volume at
+  `/data/codex-auth` (directory 0700, auth.json 0600). Follow
+  [Codex runtime operations](codex-runtime.md). Fly explicitly selects
+  `LLM_PROVIDER=codex` and `gpt-6-astra`; do not copy a personal or GHA auth
+  cache, put auth JSON into Fly Secrets, or add a paid API fallback.
+- Existing Claude credentials remain available only for explicit rollback.
 - A Cloudflare account if you want auth on the dashboard (recommended,
   see *Dashboard auth* below).
 
@@ -53,20 +46,8 @@ fly volumes create data --region nrt --size 1
 # 3. Push secrets. Live keys are deliberately omitted; first deploy
 #    is paper-only.
 #
-# Pick ONE of the two Claude auth paths:
-#
-#   (a) Claude Code subscription (recommended for personal use):
+# Codex auth is provisioned separately on /data using its device login.
 fly secrets set \
-    CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...    \
-    BINANCE_TESTNET_API_KEY=...                 \
-    BINANCE_TESTNET_API_SECRET=...              \
-    TRADING_MODE=paper                          \
-    LOG_LEVEL=INFO                              \
-    PAPER_INITIAL_BALANCE=10000
-
-#   (b) Anthropic API key (per-request billing):
-fly secrets set \
-    ANTHROPIC_API_KEY=sk-ant-...                \
     BINANCE_TESTNET_API_KEY=...                 \
     BINANCE_TESTNET_API_SECRET=...              \
     TRADING_MODE=paper                          \
@@ -116,7 +97,12 @@ fly secrets set \
 #      proposals + activity log events. Default "auto-engine".
 ```
 
-## Claude CLI runtime pins and image checks
+## CLI runtime pins and image checks
+
+The active Codex path pins native CLI 0.153.4 and the release archive checksum.
+After provisioning dedicated auth, verify the configured factory's bounded
+text and JSON calls without invoking a trading cycle. The following Node/Claude
+checks qualify the explicit rollback adapter retained in the same image.
 
 The Dockerfile pins Node `24.21.0-trixie-slim` and Python
 `3.13.16-slim-trixie` by tag plus image-index digest, and installs Claude Code
@@ -172,7 +158,7 @@ image/source identity; a newer main commit does not prove it is deployed.
 fly deploy
 ```
 
-First deploy takes ~5 minutes (image build + Claude CLI install +
+First deploy takes ~5 minutes (image build + CLI installation +
 Python deps). Subsequent deploys are faster thanks to layer caching
 on requirements.txt + pyproject.toml.
 
@@ -580,11 +566,10 @@ Idempotent — safe to re-run. Resolves stuck trades surfaced as
    `/data/runtime/activity.jsonl` and `/data/audit/feedback.jsonl`
    off-box (e.g., into a private S3 bucket).
 
-4. **Claude CLI auth churn.** If Anthropic changes the headless
-   auth path (env var name, OAuth requirement), `claude -p` calls
-   inside the container will start failing silently — check engine
-   activity log for `cycle_errored` events containing Claude-related
-   strings.
+4. **CLI auth recovery.** Codex refreshes its dedicated auth cache in place.
+   Revoked or invalid refresh credentials require a new device login; see
+   [the recovery procedure](codex-runtime.md). Check engine activity and the
+   `crypto_master.ai.codex` log for errors. No automatic provider fallback runs.
 
 ## Appendix: minimal `.env.example` for local mirror
 
