@@ -1,6 +1,7 @@
 # ADR 0001 — `TradingEngine` God-Object Decomposition (CAH-15)
 
-- **Status**: Proposed
+- **Status**: Accepted — Slices 1 and 2 shipped; Slice 3 declined after the
+  2026-10-09 post-extraction coupling re-measurement
 - **Date**: 2026-05-28
 - **Deciders**: team-lead + user (go/no-go gate before any code)
 - **Work unit**: CAH-15 (`aidlc-docs/construction/plans/clean-architecture-hardening-code-generation-plan.md`)
@@ -276,6 +277,37 @@ Slices 1+2 intact and shippable.
 
 ---
 
+## Slice 3 Revalidation and Final Decision (2026-10-09)
+
+The conditional `ProposalGateChain` extraction was re-measured against the
+current `src/runtime/engine.py`, after Slices 1 and 2 and subsequent runtime
+features had landed.
+
+| Measure | Current result |
+|---------|----------------|
+| `TradingEngine` size | 4,787 lines, 64 methods |
+| `_handle_proposal` size | 388 lines |
+| Direct `self` calls from `_handle_proposal` | 19 |
+| Transitively reachable in-class methods | 39 |
+| Non-method engine-state dependencies | 19 |
+| Cache/state coupling | Six per-cycle caches, cross-cycle `_mark_price_cache`, and `_operator_freeze_active` |
+
+The atomic six-cache reset block remains on `TradingEngine` exactly as the ADR
+requires. Moving the proposal path would therefore either move or proxy most of
+the class's method surface while threading the same engine-owned state back
+through a large collaborator interface. Gate order would remain hardcoded, so
+the extraction would not reduce the irreducible complexity it is meant to
+address.
+
+**Final decision: NO-GO for Slice 3.** Alternative C is accepted as the final
+CAH-15 scope. `SnapshotRecorder` and `PositionMonitor` are the delivered
+decomposition; `ProposalGateChain` is intentionally not implemented. This is a
+completed design decision, not queued or unfinished development. Reopening it
+requires a new finding that demonstrates materially lower coupling or a
+correctness/testability benefit beyond relocation.
+
+---
+
 ## Consequences
 
 ### Positive
@@ -429,7 +461,7 @@ way. Defer and re-measure after Slices 1+2 + CAH-05, exactly as written.
 ### 5. Staging order — CORRECT, with CHANGE B
 SnapshotRecorder → PositionMonitor is the right risk order (increasing coupling;
 the monitor depends on the recorder via `record_closed_trade`, so the recorder must
-land first). 
+land first).
 
   - **CHANGE B (must fold in):** the dependency direction creates a **transitive
     write-through chain** — `PositionMonitor` calls `recorder.record_closed_trade`,

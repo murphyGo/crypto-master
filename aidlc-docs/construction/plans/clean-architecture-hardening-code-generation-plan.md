@@ -380,10 +380,15 @@ complementary moves; do NOT migrate the whole dict.**
     directly, never chained). Engine 5196→4603 lines; +1 test; 2329 passed; quant 🟢 +
     qa 🟢. Session log
     `docs/sessions/2026-05-31-clean-architecture-hardening-cah-15-slice-2-position-monitor.md`.
-  - `[ ]` Slice 3 — `ProposalGateChain` — CONDITIONAL, **DEFERRED per ADR Alternative C**.
-    Irreducible gate-ordering complexity + six per-cycle caches → high live-money risk
-    for a cosmetic gain. Re-measure residual coupling after Slices 1+2 and require a
-    fresh quant go/no-go before any extraction.
+  - `[x]` Slice 3 decision — `ProposalGateChain` **NO-GO; intentionally not
+    implemented**. The 2026-10-09 re-measurement found a 388-line
+    `_handle_proposal`, 19 direct calls, 39 transitively reachable engine
+    methods, and 19 state dependencies including all six per-cycle caches,
+    `_mark_price_cache`, and `_operator_freeze_active`. Alternative C is final:
+    extraction would retain hardcoded ordering while adding a broad borrowed-
+    state interface, creating high live-money risk for cosmetic relocation.
+    Reopening requires a new bounded finding with materially lower coupling or
+    a correctness/testability benefit beyond relocation.
 
 ---
 
