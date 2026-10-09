@@ -41,6 +41,93 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-084: Financial win rate uses exit-reason labels
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-09 |
+| **Status** | Active; analysis verified, implementation pending |
+| **Action-item type** | bug |
+| **Component** | `strategy-framework` (primary); `strategy-tuning`, `dashboard-operator-ui` (secondary) |
+
+**Description:**
+RSI15m 104/201 net winners = 51.7413%, summary 5/201 = 2.4876%; time-stop trade 2b92d91a-cb17-4ec1-83b8-27db99d5b04a +3.916758 and c377cf1f-2ffd-4113-944e-ffa6cd4caa03 -8.052047 both labeled breakeven
+Verification verdict: verified by source inspection and independent snapshot arithmetic.
+Evidence source: Fly crypto-master machine 6835752b711958, snapshot 2026-10-09T09:45:37Z
+at /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z. These are structural reporting defects, not strategy-edge claims.
+
+**Impact:**
+Economic performance or funnel interpretation can mislead operator decisions.
+Current paper configuration has strategy tuning disabled; this finding does not
+claim that an automatic pause or a live trading change occurred.
+
+**Suggested Resolution:**
+Add economic net win/loss/breakeven aggregates and use net win rate for economic reporting/recommendation; preserve exit-reason statistics.
+Validation: Positive/negative/zero time-stop; fee-flipped TP; synthetic exclusion; legacy records; recommendation boundaries.
+
+**Related:**
+- src/runtime/snapshot_recorder.py:288, src/strategy/performance.py:357, src/strategy/tuning_recommender.py:105
+- DEBT-073 / DEBT-069 metric contracts where relevant; preserve their historical resolutions.
+
+### DEBT-085: Recommendation evidence ignores rolling window and account return basis
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-09 |
+| **Status** | Active; analysis verified, implementation pending |
+| **Action-item type** | bug |
+| **Component** | `strategy-tuning` (primary); `strategy-framework`, `dashboard-operator-ui` (secondary) |
+
+**Description:**
+Raschke lifetime notional sum -32.6627% versus initial-equity return -3.2663%; last30closed +177.614135USDT =+1.7761%. window_closed_trades has no src consumer.
+Verification verdict: verified by source inspection and independent snapshot arithmetic.
+Evidence source: Fly crypto-master machine 6835752b711958, snapshot 2026-10-09T09:45:37Z
+at /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z. These are structural reporting defects, not strategy-edge claims.
+
+**Impact:**
+Economic performance or funnel interpretation can mislead operator decisions.
+Current paper configuration has strategy tuning disabled; this finding does not
+claim that an automatic pause or a live trading change occurred.
+
+**Suggested Resolution:**
+Build bounded evidence sorted by exit time, lastN real closed trades, consistent canonical account base, net USDT PF/win rate and account MDD.
+Validation: 31+ trades, N overrides, varying notional/capital, chronological sorting, open/synthetic exclusion, -5% boundary, Raschke regression.
+
+**Related:**
+- src/strategy/tuning.py:179, src/dashboard/pages/strategies.py:464, src/strategy/tuning_recommender.py:107
+- DEBT-073 / DEBT-069 metric contracts where relevant; preserve their historical resolutions.
+
+### DEBT-086: Legacy unknown funnel rows are counted as score accepted
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Low |
+| **Created** | 2026-10-09 |
+| **Status** | Active; analysis verified, implementation pending |
+| **Action-item type** | bug |
+| **Component** | `proposal-funnel-audit` (primary); `dashboard-operator-ui` (secondary) |
+
+**Description:**
+Disabled default has 1739 explicit composite-score rejections within 1796 legacy unknown rows. Example proposal 71fee8b6-24aa-4f54-a58f-6d82c119ee0e rejected composite0.1373<threshold0.3000 but aggregator includes unknown as postscore. Active 12 ranking unaffected.
+Verification verdict: verified by source inspection and independent snapshot arithmetic.
+Evidence source: Fly crypto-master machine 6835752b711958, snapshot 2026-10-09T09:45:37Z
+at /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z. These are structural reporting defects, not strategy-edge claims.
+
+**Impact:**
+Economic performance or funnel interpretation can mislead operator decisions.
+Current paper configuration has strategy tuning disabled; this finding does not
+claim that an automatic pause or a live trading change occurred.
+
+**Suggested Resolution:**
+Keep unknown acceptance separate; show observed/unknown counts without guessing or rewriting historical terminal state.
+Validation: Legacy explicit score rejection, legacy pending/unknown, current gate rejected, opened/outcome linked; no false score-accepted inference.
+
+**Related:**
+- src/proposal/funnel.py:145, src/proposal/funnel.py:183
+- DEBT-074 / DEBT-079 funnel classification and candidate observability; preserve their historical resolutions.
+
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range
 
 | Field | Value |
@@ -210,13 +297,16 @@ Add a fee-netted percent (e.g. `net_pnl_pct = pnl / notional * 100`) alongside t
 - DEBT-024 / Phase 20.1-20.2 (intentional leverage-neutral price-move convention)
 - `[[project_no_ohlcv_edge]]`
 
-### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades ✅
+### DEBT-074: `vcp_breakout` emits ~6,400 proposals but has opened zero trades
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
-| **Resolved** | 2026-06-30 |
+| **Resolved** | 2026-06-30 (previous slice) |
+| **Reopened** | 2026-10-09 |
+| **Status** | Active; verified residual defect, implementation pending |
+| **Action-item type** | bug |
 | **Resolution** | Added read-only operator audit `src.tools.audit_strategy_funnel_gap` to distinguish fail-closed emissions, persisted proposal records, and opened/linked funnel states for one `(sub_account, technique)` pair. The DEBT-074 shape (`proposals_emitted > 0`, `proposals_fail_closed == 0`, `proposal_records == 0`, `opened_or_linked == 0`) is now classified as `pre_funnel_candidate_selection_or_history_gap`, not a downstream gate rejection. Code inspection confirms why: with `multi_technique_per_symbol=True`, multiple strategy candidates can be built and counted by fail-closed metrics, but `_dedup_by_symbol` returns only the highest-composite candidate to runtime; only that survivor reaches `_handle_proposal` and `ProposalHistory.save`. Deselected candidates have no `ProposalRecord` or `final_state` today. Concrete follow-up filed as DEBT-079. Tests: `tests/test_tools_audit_strategy_funnel_gap.py` covers the vcp-shaped gap, a healthy opened record, and CLI wrapper. Verification: targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`; cross-check `docs/cross-checks/2026-06-30-proposal-funnel-audit-debt-074.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
 | **Component** | proposal-funnel-audit (primary) + strategy-framework |
@@ -233,6 +323,22 @@ Trace one `vcp_breakout` proposal through the funnel (`src/proposal/funnel.py`) 
 **Related:**
 - `strategies/vcp_breakout.py`, `config/sub_accounts.yaml:109-117`, `src/proposal/funnel.py`
 - DEBT-079 (candidate-level deselection observability)
+
+**2026-10-09 residual verification:**
+Neutral analysis attempts are diagnosed as missing candidates. VCP fail_closed emitted25383 means analyze attempts, neutral included, while actual persisted proposals1. Audit helper maps any positive attempts/zero proposals/zero failclosed to candidate-selection/history gap, omitting valid neutral-only case. Current VCP helper would return opened, so the current specific misclassification is not claimed.
+The prior resolution above records the historical implementation; this new
+observation limits its correctness claim without erasing that history.
+Verification verdict: verified by deployed-source hash equality and control-flow
+inspection. Snapshot: /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z.
+Current VCP has one historical opened proposal; its present audit conclusion
+is opened. The neutral-only false classification is a source-confirmed branch
+case, not an observed current VCP audit output.
+
+**Follow-up units:** `proposal-funnel-audit` (primary); `proposal-runtime` (secondary).
+
+**Bounded follow-up:** Make unknown/no-signal possibility explicit in audit classification/help; separate analyze, neutral, nonneutral candidate and selection counters without breaking legacy denominator.
+Validation: Neutral-only, failclosed, real candidate deselection, sizing rejection and opened cases; do not infer neutral solely from missing proposals.
+Source: src/proposal/engine.py:803, src/proposal/engine.py:822, src/tools/audit_strategy_funnel_gap.py:219.
 
 ### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel ✅
 
@@ -330,13 +436,16 @@ Add direct unit tests for `resolve_bounds_from_performance_record` covering: (1)
 - DEBT-071 (introduced the resolver) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
 - DEBT-078 (consolidation that this coverage protects)
 
-### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks ✅
+### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks
 
 | Field | Value |
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
-| **Resolved** | 2026-06-30 |
+| **Resolved** | 2026-06-30 (previous slice) |
+| **Reopened** | 2026-10-09 |
+| **Status** | Active; verified residual defect, implementation pending |
+| **Action-item type** | bug |
 | **Resolution** | Stale weak-provenance SL/TP hits now close with `orphan_force_close` instead of `stop_loss` / `take_profit`: `PositionMonitor` relabels bound exits older than the always-on reconciliation age wall when the row lacks persisted bounds or a performance link, while healthy old rows with both bounds + performance provenance keep normal SL/TP analytics labels. The duplicate bounds walks were consolidated: `load_performance_record_bounds_index` in `src/strategy/performance.py` feeds both the runtime resolver and `backfill_paper_sl_tp`; `load_proposal_trade_bounds_index` in new `src/proposal/bounds.py` feeds `repair_paper_trade_bounds_from_proposals`. Targeted tests added for stale relabeling, healthy old-row preservation, shared perf index null/string preservation, and shared proposal index. Targeted pytest 45 passed; ruff scoped checks passed. Session log `docs/sessions/2026-06-30-runtime-reconciliation-debt-078-stale-bound-label.md`; cross-check `docs/cross-checks/2026-06-30-runtime-reconciliation-debt-078.md`. |
 | **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
 | **Component** | runtime-reconciliation (primary) + strategy-framework (performance) |
@@ -354,6 +463,21 @@ On the normal SL/TP close path, gate the `stop_loss`/`take_profit` label on fres
 - `src/runtime/position_monitor.py` (normal SL/TP close path vs `force_close_orphan`)
 - `src/strategy/performance.py::resolve_bounds_from_performance_record`, operator tools `_PerfIndex` / `_proposal_bounds_index`
 - DEBT-071 (structural-orphan path, now fixed) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
+
+**2026-10-09 residual verification:**
+Normal positions older than24h can be mislabeled as orphan closes. Normal runtime paper/live open stores null performance_record_id; bound-exit helper maps age>=24h plus null link to orphan_force_close. Healthy26h Weinstein TP is a deterministic counterexample. Historical observed orphan closes in this snapshot=0.
+The prior resolution above records the historical implementation; this new
+observation limits its correctness claim without erasing that history.
+Verification verdict: verified by deployed-source hash equality and control-flow
+inspection. Snapshot: /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z.
+The orphan-label case is a prospective code counterexample with zero observed
+orphan closes in the frozen active ledger, not a claim of a past incident.
+
+**Follow-up units:** `runtime-reconciliation` (primary); `strategy-framework`, `trading-core` (secondary).
+
+**Bounded follow-up:** Use explicit repair/backfill/first-observation provenance; preserve genuine recovered stale-bound protection. Do not use optional reverse link as provenance.
+Validation: Normal paper/live open, persisted bounds, null reverse link,26h SL/TP retain trigger; explicitly recovered old rows retain conservative labeling; economic PnL unchanged.
+Source: src/runtime/engine.py:1726, src/runtime/position_monitor.py:255, src/runtime/position_monitor.py:592.
 
 ### DEBT-069: `strategy-tuning` Slice 2 umbrella ✅
 
@@ -1101,11 +1225,11 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 6 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
-| Low | 0 |
+| Medium | 5 |
+| Low | 1 |
 | Resolved (All Time) | 75 |
 
 ---
@@ -1113,6 +1237,8 @@ Move resolved items here with resolution date and notes.
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Added | DEBT-084 (Medium, economic win rate), DEBT-085 (Medium, rolling-window/account-base recommendation evidence), and DEBT-086 (Low, legacy unknown funnel acceptance). Operator-approved registration from the verified Fly snapshot captured at 09:45:37 UTC; evidence, bounded fixes, and validation cases recorded. Implementation remains pending. |
+| 2026-10-09 | Reopened | DEBT-074 (Medium, neutral-only audit classification) and DEBT-078 (Medium, optional reverse-link provenance for aged bound exits). Source-confirmed residual branches; historical resolution records retained. No current VCP audit misclassification or historical orphan-close incident is claimed. |
 | 2026-10-09 | Updated | DEBT-082: operator approved local Dockerfile/runbook repair and image validation; exact Node 24 / Python 3.13 / Claude 2.1.295 candidate applied. Independent static QA, 171 focused tests, amd64 build, packaging, and isolated health checks pass; runtime acceptance is PARTIAL because local emulation did not reliably complete CLI help. DEBT-082 remains active; no new production rollout or authenticated inference claim. |
 | 2026-10-09 | Added | DEBT-082 (Medium), `notifications-ops` with `ai-feedback-loop`: preceding Fly v50 snapshot reports Node 20.19.2 with Claude CLI 2.1.295; current package metadata requires Node >=22 and Node 20 is EOL. Diagnosis and pinned Node 24 / Python / Claude proposal prepared; deployment-config implementation awaits explicit approval. No Docker/source/production change or current authenticated CLI proof is claimed. |
 | 2026-10-09 | Completed | CAH-15 `clean-architecture-hardening` closed with ADR Alternative C as the final scope. Post-Slices-1/2 re-measurement found `_handle_proposal` at 388 lines, 19 direct calls, 39 transitively reachable engine methods, and 19 state dependencies including all six per-cycle caches, `_mark_price_cache`, and `_operator_freeze_active`. Slice 3 `ProposalGateChain` is NO-GO: it would preserve hardcoded gate ordering while adding a broad borrowed-state interface on the live-money path. Slices 1 `SnapshotRecorder` and 2 `PositionMonitor` remain the delivered decomposition; no code or new debt. |
