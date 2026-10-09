@@ -57,6 +57,8 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **2026-10-09 strategy corrections deployed:** DEBT-084, DEBT-085, DEBT-078, DEBT-074 and DEBT-086 are running on Fly v56 at commit `3f4864f`. All 168 runtime artifact hashes match; health checks and the first engine cycle pass. Paper mode, Codex settings, 2048 MB memory and the original volume are preserved. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`. Earlier source-only checkpoints below remain historical.
+
 > **Operations checkpoint (2026-10-09 14:57Z):** Concurrent Fly v56 is healthy
 > after restoring the committed 2 GB capacity. All 168 runtime files match
 > `fab4e86` (including the later five fixes), native Node/Claude checks pass,
