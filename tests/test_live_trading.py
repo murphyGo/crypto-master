@@ -708,6 +708,11 @@ class TestLiveClosePosition:
         assert rehydrated is not None
         assert rehydrated.stop_loss == Decimal("49000")
         assert rehydrated.take_profit == Decimal("52000")
+        persisted = restarted.get_trade(legacy.id)
+        assert persisted.bounds_recovery_pending
+        assert persisted.stop_loss == Decimal("49000")
+        restarted.acknowledge_bounds_recovery(legacy.id)
+        assert not restarted.get_trade(legacy.id).bounds_recovery_pending
 
     @pytest.mark.asyncio
     async def test_close_falls_back_to_caller_price_when_exchange_omits_average(

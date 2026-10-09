@@ -105,6 +105,10 @@ class TradeHistory(DecimalFieldsMixin, UtcTimestampMixin, BaseModel):
     stop_loss: Decimal | None = None
     take_profit: Decimal | None = None
 
+    # A real bound repair awaits its first successful, non-breaching check.
+    # Reverse performance links are optional on normal runtime positions.
+    bounds_recovery_pending: bool = False
+
     # Status
     status: Literal["open", "closed", "cancelled"] = "open"
     close_reason: str | None = None  # "take_profit", "stop_loss", "manual"
@@ -307,6 +311,30 @@ class TradeHistoryTracker:
             f"Closed trade {trade_id}: {close_reason}, " f"P&L={pnl} ({pnl_pct:.2f}%)"
         )
         return trade
+
+    def recover_trade_bounds(
+        self, trade_id: str, stop_loss: Decimal, take_profit: Decimal
+    ) -> None:
+        """Persist recovered bounds and explicit provenance in one atomic update."""
+        trade = self.get_trade(trade_id)
+        if trade is None or trade.status != "open":
+            return
+        if trade.stop_loss is not None and trade.take_profit is not None:
+            return
+        if trade.stop_loss is None:
+            trade.stop_loss = stop_loss
+        if trade.take_profit is None:
+            trade.take_profit = take_profit
+        trade.bounds_recovery_pending = True
+        self._update_trade(trade)
+
+    def acknowledge_bounds_recovery(self, trade_id: str) -> None:
+        """Persist the first healthy bound observation, without recurring writes."""
+        trade = self.get_trade(trade_id)
+        if trade is None or trade.status != "open" or not trade.bounds_recovery_pending:
+            return
+        trade.bounds_recovery_pending = False
+        self._update_trade(trade)
 
     def cancel_trade(self, trade_id: str) -> TradeHistory | None:
         """Cancel an open trade.

@@ -208,10 +208,13 @@ def _write_trade_bounds_patches(
         patch = patches.get(trade_id or "")
         if patch is None:
             continue
+        repaired = row.get("stop_loss") is None or row.get("take_profit") is None
         if row.get("stop_loss") is None:
             row["stop_loss"] = patch.stop_loss
         if row.get("take_profit") is None:
             row["take_profit"] = patch.take_profit
+        if repaired:
+            row["bounds_recovery_pending"] = True
 
     atomic_write_text(trades_path, json.dumps(latest_rows, indent=2, default=str))
     return True

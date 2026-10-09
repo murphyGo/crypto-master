@@ -457,6 +457,18 @@ class PaperTrader:
                     )
                     continue
                 stop_loss, take_profit = recovered
+                try:
+                    self._trade_tracker.recover_trade_bounds(
+                        trade.id, stop_loss, take_profit
+                    )
+                except OSError:
+                    # Continue monitoring in-memory bounds; the missing persisted
+                    # bounds still identify conservative first-observation exits.
+                    logger.warning(
+                        "Could not persist recovered bounds for %s",
+                        trade.id,
+                        exc_info=True,
+                    )
                 logger.info(
                     "Backfilled SL/TP for open paper trade %s from "
                     "performance record %s: SL=%s TP=%s",
@@ -1300,6 +1312,10 @@ class PaperTrader:
             return False, None
 
         return exit_condition_for_position(open_pos.position, current_price)
+
+    def acknowledge_bounds_recovery(self, trade_id: str) -> None:
+        """Record a healthy monitor observation for a repaired row."""
+        self._trade_tracker.acknowledge_bounds_recovery(trade_id)
 
     def get_open_trades(self) -> list[TradeHistory]:
         """Get all open paper trades.

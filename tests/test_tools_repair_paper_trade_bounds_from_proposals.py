@@ -158,6 +158,7 @@ def test_repair_populates_open_trade_bounds_from_linked_proposal(
     row = _read_trade_row(tmp_path, "default", trade.id)
     assert row["stop_loss"] == "49500"
     assert row["take_profit"] == "51500"
+    assert row["bounds_recovery_pending"] is True
     assert row["performance_record_id"] is None
 
 
@@ -269,6 +270,7 @@ def test_patch_write_merges_into_latest_trade_snapshot(tmp_path: Path) -> None:
             "status": "open",
             "stop_loss": "49500",
             "take_profit": "51500",
+            "bounds_recovery_pending": True,
         },
         {
             "id": "concurrent",
@@ -339,3 +341,15 @@ def test_main_returns_nonzero_for_malformed_trade_file(tmp_path: Path) -> None:
     ) as get_settings:
         get_settings.return_value.data_dir = tmp_path
         assert main([]) == 1
+
+
+def test_patch_does_not_mark_already_repaired_latest_row(tmp_path):
+    path = tmp_path / "trades.json"
+    rows = [
+        {"id": "target", "status": "open", "stop_loss": "49000", "take_profit": "53000"}
+    ]
+    path.write_text(json.dumps(rows))
+    assert _write_trade_bounds_patches(
+        path, {"target": _TradeBoundsPatch(stop_loss="49500", take_profit="51500")}
+    )
+    assert json.loads(path.read_text()) == rows

@@ -448,15 +448,16 @@ Add direct unit tests for `resolve_bounds_from_performance_record` covering: (1)
 - DEBT-071 (introduced the resolver) — session log `docs/sessions/2026-06-26-runtime-reconciliation-debt-071-orphan-age-backstop.md`
 - DEBT-078 (consolidation that this coverage protects)
 
-### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks
+### DEBT-078: Backfilled-then-stale SL/TP still fires the normal monitor at a stale price (mislabel edge) + three duplicate bounds-resolution walks ✅
 
 | Field | Value |
 |-------|-------|
+| **Reclosed** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-06-26 |
 | **Resolved** | 2026-06-30 (previous slice) |
 | **Reopened** | 2026-10-09 |
-| **Status** | Active; verified residual defect, implementation pending |
+| **Status** | Resolved; source/tests complete; production deployment not performed |
 | **Action-item type** | bug |
 | **Resolution** | Stale weak-provenance SL/TP hits now close with `orphan_force_close` instead of `stop_loss` / `take_profit`: `PositionMonitor` relabels bound exits older than the always-on reconciliation age wall when the row lacks persisted bounds or a performance link, while healthy old rows with both bounds + performance provenance keep normal SL/TP analytics labels. The duplicate bounds walks were consolidated: `load_performance_record_bounds_index` in `src/strategy/performance.py` feeds both the runtime resolver and `backfill_paper_sl_tp`; `load_proposal_trade_bounds_index` in new `src/proposal/bounds.py` feeds `repair_paper_trade_bounds_from_proposals`. Targeted tests added for stale relabeling, healthy old-row preservation, shared perf index null/string preservation, and shared proposal index. Targeted pytest 45 passed; ruff scoped checks passed. Session log `docs/sessions/2026-06-30-runtime-reconciliation-debt-078-stale-bound-label.md`; cross-check `docs/cross-checks/2026-06-30-runtime-reconciliation-debt-078.md`. |
 | **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
@@ -490,6 +491,11 @@ orphan closes in the frozen active ledger, not a claim of a past incident.
 **Bounded follow-up:** Use explicit repair/backfill/first-observation provenance; preserve genuine recovered stale-bound protection. Do not use optional reverse link as provenance.
 Validation: Normal paper/live open, persisted bounds, null reverse link,26h SL/TP retain trigger; explicitly recovered old rows retain conservative labeling; economic PnL unchanged.
 Source: src/runtime/engine.py:1726, src/runtime/position_monitor.py:255, src/runtime/position_monitor.py:592.
+
+**2026-10-09 implementation closeout:** Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative.
+
+Verification: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass.
+Session: `docs/sessions/2026-10-09-runtime-reconciliation-debt-078-bound-provenance.md`. Cross-check: `docs/cross-checks/2026-10-09-runtime-reconciliation-debt-078-bound-provenance.md`.
 
 ### DEBT-069: `strategy-tuning` Slice 2 umbrella ✅
 
@@ -1237,10 +1243,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 4 |
+| Total Active | 3 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 3 |
+| Medium | 2 |
 | Low | 1 |
 | Resolved (All Time) | 77 |
 
@@ -1249,6 +1255,7 @@ Move resolved items here with resolution date and notes.
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-078: Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative. Validation: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. |
 | 2026-10-09 | Resolved | DEBT-085: Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations. Validation: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. |
 | 2026-10-09 | Resolved | DEBT-084: Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics. Validation: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. |
 | 2026-10-09 | Added | DEBT-084 (Medium, economic win rate), DEBT-085 (Medium, rolling-window/account-base recommendation evidence), and DEBT-086 (Low, legacy unknown funnel acceptance). Operator-approved registration from the verified Fly snapshot captured at 09:45:37 UTC; evidence, bounded fixes, and validation cases recorded. Implementation remains pending. |

@@ -142,6 +142,7 @@ def test_backfill_populates_open_trade_with_sl_tp_from_perf(
     row = _read_trade_row(tmp_path, "default", trade.id)
     assert row["stop_loss"] == "49500"
     assert row["take_profit"] == "51500"
+    assert row["bounds_recovery_pending"] is True
 
 
 def test_backfill_skips_already_set(tmp_path: Path) -> None:

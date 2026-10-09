@@ -40,12 +40,15 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from src.logger import get_logger
 from src.runtime.activity_log import ActivityEventType
 from src.runtime.reconciliation import OpenTradeState, classify_open_trade
 from src.strategy.base import default_max_bars_held
 from src.strategy.performance import TradeHistory
 from src.trading.sub_account_registry import DEFAULT_SUB_ACCOUNT_ID
 from src.utils.time import ensure_utc, now_utc
+
+logger = get_logger("crypto_master.runtime.position_monitor")
 
 if TYPE_CHECKING:
     from src.exchange.base import BaseExchange
@@ -264,6 +267,20 @@ class PositionMonitor:
                 closed_count += 1
                 self._record_closed_trade(closed_trade, close_reason, cycle_id)
                 continue
+
+            # A repaired position survived its first bound check. Persist that
+            # observation so a later real hit, even after restart, is not relabeled.
+            if trade.bounds_recovery_pending:
+                acknowledge = getattr(trader, "acknowledge_bounds_recovery", None)
+                if callable(acknowledge):
+                    try:
+                        acknowledge(trade.id)
+                    except OSError:
+                        logger.warning(
+                            "Could not acknowledge recovered bounds for %s",
+                            trade.id,
+                            exc_info=True,
+                        )
 
             # SL/TP not hit — evaluate the per-strategy time-stop. The SL/TP
             # check above always runs first so a price that hits the bound on the
@@ -597,7 +614,7 @@ class PositionMonitor:
         actual bound-touch moment. In that case recording ``stop_loss`` or
         ``take_profit`` would pollute hit-rate analytics, so use the existing
         reconciliation label instead. Healthy rows with both persisted bounds
-        and a performance link keep the normal SL/TP label.
+        and no pending recovery keep the normal SL/TP label.
         """
         if reason not in {"stop_loss", "take_profit"}:
             return reason
@@ -607,7 +624,7 @@ class PositionMonitor:
         weak_reconciliation_provenance = (
             trade.stop_loss is None
             or trade.take_profit is None
-            or trade.performance_record_id is None
+            or trade.bounds_recovery_pending
         )
         if not weak_reconciliation_provenance:
             return reason

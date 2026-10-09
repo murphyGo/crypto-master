@@ -57,6 +57,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **2026-10-09 DEBT-078 complete:** `runtime-reconciliation` — Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative.
+> Verification: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. Operations not performed.
+
 > **2026-10-09 DEBT-085 complete:** `strategy-tuning` — Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations.
 > Verification: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. Operations not performed.
 

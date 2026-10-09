@@ -224,6 +224,7 @@ def _backfill_one_file(
 
         row["stop_loss"] = sl
         row["take_profit"] = tp
+        row["bounds_recovery_pending"] = True
         summary.backfilled += 1
         mutated = True
 

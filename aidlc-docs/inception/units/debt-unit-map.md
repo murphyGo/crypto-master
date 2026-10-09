@@ -12,14 +12,12 @@ when debt is added or resolved, then refresh this map.
 |------|-------------|----------|-------------|
 | `notifications-ops` | DEBT-082 | 1 Medium | Complete native CLI help/flag acceptance and the now-authorized commit/push/rollout with production verification. |
 | `proposal-funnel-audit` | DEBT-074, DEBT-086 | 1 Medium, 1 Low | Correct neutral/unknown funnel interpretations while retaining legacy evidence. |
-| `runtime-reconciliation` | DEBT-078 | 1 Medium | Replace optional reverse-link provenance with explicit repair/observation provenance. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
 | DEBT-082 | Medium | `notifications-ops` | `ai-feedback-loop` | Replace unsupported Node/CLI image composition using pinned compatible versions and strict build assertions; preserve CLI/auth/trading boundaries. Approved Dockerfile repair applied; 171 focused tests and static QA pass. Target amd64 build, packaging, and isolated health pass; runtime acceptance is PARTIAL (CLI help on local emulation). Production rollout remains pending. |
-| DEBT-078 | Medium | `runtime-reconciliation` | `strategy-framework`, `trading-core` | Use explicit repair/backfill/first-observation provenance; preserve genuine recovered stale-bound protection. Do not use optional reverse link as provenance. |
 | DEBT-074 | Medium | `proposal-funnel-audit` | `proposal-runtime` | Make unknown/no-signal possibility explicit in audit classification/help; separate analyze, neutral, nonneutral candidate and selection counters without breaking legacy denominator. |
 | DEBT-086 | Low | `proposal-funnel-audit` | `dashboard-operator-ui` | Keep unknown acceptance separate; show observed/unknown counts without guessing or rewriting historical terminal state. |
 

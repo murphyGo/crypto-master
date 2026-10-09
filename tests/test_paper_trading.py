@@ -1864,6 +1864,9 @@ class TestPaperRehydration:
         assert open_pos is not None
         assert open_pos.position.stop_loss == Decimal("49000")
         assert open_pos.position.take_profit == Decimal("52000")
+        persisted = revived.get_trade(legacy.id)
+        assert persisted.bounds_recovery_pending
+        assert persisted.stop_loss == Decimal("49000")
 
     async def test_rehydrate_skip_unrecoverable_leaves_age_closeable(
         self, tmp_path: Path
