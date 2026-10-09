@@ -159,9 +159,18 @@ def build_summary_dataframe(
                 "Type": info.technique_type,
                 "Symbols": ", ".join(info.symbols) if info.symbols else "—",
                 "Total Trades": perf.total_trades,
-                "Wins": perf.wins,
-                "Losses": perf.losses,
-                "Win Rate %": round(perf.win_rate * 100, 2),
+                "Wins": perf.net_wins,
+                "Losses": perf.net_losses,
+                "Breakevens": perf.net_breakevens,
+                "Net Unknown": perf.net_unknown,
+                "Win Rate %": (
+                    round(perf.net_win_rate * 100, 2)
+                    if perf.net_win_rate is not None
+                    else "—"
+                ),
+                "Exit-label Wins": perf.wins,
+                "Exit-label Losses": perf.losses,
+                "Exit-label Win Rate %": round(perf.win_rate * 100, 2),
                 "Avg P&L %": round(perf.avg_pnl_percent, 2),
                 "Total P&L %": round(perf.total_pnl_percent, 2),
                 "Best Trade %": round(perf.best_trade_pnl, 2),

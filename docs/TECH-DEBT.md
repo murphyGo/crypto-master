@@ -41,13 +41,14 @@ Template for new items:
 - Related DEBT items
 -->
 
-### DEBT-084: Financial win rate uses exit-reason labels
+### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |
 |-------|-------|
+| **Resolved** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-10-09 |
-| **Status** | Active; analysis verified, implementation pending |
+| **Status** | Resolved; source/tests complete; production deployment not performed |
 | **Action-item type** | bug |
 | **Component** | `strategy-framework` (primary); `strategy-tuning`, `dashboard-operator-ui` (secondary) |
 
@@ -69,6 +70,11 @@ Validation: Positive/negative/zero time-stop; fee-flipped TP; synthetic exclusio
 **Related:**
 - src/runtime/snapshot_recorder.py:288, src/strategy/performance.py:357, src/strategy/tuning_recommender.py:105
 - DEBT-073 / DEBT-069 metric contracts where relevant; preserve their historical resolutions.
+
+**2026-10-09 implementation closeout:** Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics.
+
+Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes.
+Session: `docs/sessions/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`.
 
 ### DEBT-085: Recommendation evidence ignores rolling window and account return basis
 
@@ -1225,18 +1231,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 6 |
+| Total Active | 5 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 5 |
+| Medium | 4 |
 | Low | 1 |
-| Resolved (All Time) | 75 |
+| Resolved (All Time) | 76 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-084: Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics. Validation: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. |
 | 2026-10-09 | Added | DEBT-084 (Medium, economic win rate), DEBT-085 (Medium, rolling-window/account-base recommendation evidence), and DEBT-086 (Low, legacy unknown funnel acceptance). Operator-approved registration from the verified Fly snapshot captured at 09:45:37 UTC; evidence, bounded fixes, and validation cases recorded. Implementation remains pending. |
 | 2026-10-09 | Reopened | DEBT-074 (Medium, neutral-only audit classification) and DEBT-078 (Medium, optional reverse-link provenance for aged bound exits). Source-confirmed residual branches; historical resolution records retained. No current VCP audit misclassification or historical orphan-close incident is claimed. |
 | 2026-10-09 | Updated | DEBT-082: operator approved local Dockerfile/runbook repair and image validation; exact Node 24 / Python 3.13 / Claude 2.1.295 candidate applied. Independent static QA, 171 focused tests, amd64 build, packaging, and isolated health checks pass; runtime acceptance is PARTIAL because local emulation did not reliably complete CLI help. DEBT-082 remains active; no new production rollout or authenticated inference claim. |

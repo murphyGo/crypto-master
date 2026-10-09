@@ -76,6 +76,7 @@ def make_perf(
         wins=wins,
         losses=losses,
         win_rate=win_rate,
+        net_win_rate=win_rate if total_trades else None,
         avg_pnl_percent=avg_pnl_percent,
         total_pnl_percent=total_pnl_percent,
         best_trade_pnl=best_trade_pnl,
@@ -192,7 +193,7 @@ def test_summary_handles_no_history() -> None:
 
     row = df.iloc[0]
     assert row["Total Trades"] == 0
-    assert row["Win Rate %"] == 0.0
+    assert row["Win Rate %"] == "—"
 
 
 def test_summary_renders_dash_for_no_symbols() -> None:
@@ -480,6 +481,7 @@ def _keep_band_perf(name: str) -> TechniquePerformance:
         losses=15,
         breakevens=0,
         win_rate=0.5,
+        net_win_rate=0.5,
         total_pnl_percent=10.0,
         gross_win_pct=30.0,
         gross_loss_pct=20.0,
@@ -512,6 +514,7 @@ def _pause_band_perf(name: str) -> TechniquePerformance:
         losses=18,
         breakevens=0,
         win_rate=0.1,
+        net_win_rate=0.1,
         total_pnl_percent=-30.0,
         gross_win_pct=5.0,
         gross_loss_pct=35.0,

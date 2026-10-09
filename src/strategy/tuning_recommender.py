@@ -102,7 +102,7 @@ StrategyFailClosedCounts`.
 
     return RecommenderEvidence(
         closed_trades=closed,
-        win_rate=perf.win_rate,
+        win_rate=perf.net_win_rate if perf.net_win_rate is not None else 0.0,
         profit_factor=profit_factor,
         closed_pnl_pct=perf.net_total_pnl_percent,
         max_drawdown_pct=max_drawdown_pct,

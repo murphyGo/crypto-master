@@ -292,6 +292,12 @@ class TechniquePerformance(BaseModel):
     net_avg_pnl_percent: float = 0.0
     net_win_pct: float = 0.0
     net_loss_pct: float = 0.0
+    # Economic outcomes are independent of the legacy exit-reason labels.
+    net_wins: int = 0
+    net_losses: int = 0
+    net_breakevens: int = 0
+    net_unknown: int = 0
+    net_win_rate: float | None = None
     last_updated: datetime = Field(default_factory=now_utc)
     # Q2 follow-up: number of ``synthetic=True`` records excluded from
     # the money-relevant aggregations above. Reported separately so
@@ -389,6 +395,11 @@ class TechniquePerformance(BaseModel):
         net_avg_pnl = net_total_pnl / len(net_values) if net_values else 0.0
         net_win_pct = sum(net for net in net_values if net > 0.0)
         net_loss_pct = abs(sum(net for net in net_values if net < 0.0))
+        economic_values = [net_return_for_record(r) for r in closed_real_records]
+        known_values = [value for value in economic_values if value is not None]
+        net_wins = sum(value > 0 for value in known_values)
+        net_losses = sum(value < 0 for value in known_values)
+        net_breakevens = sum(value == 0 for value in known_values)
         regime_performance = _regime_performance_from_records(closed_real_records)
 
         return cls(
@@ -412,10 +423,48 @@ class TechniquePerformance(BaseModel):
             net_avg_pnl_percent=net_avg_pnl,
             net_win_pct=net_win_pct,
             net_loss_pct=net_loss_pct,
+            net_wins=net_wins,
+            net_losses=net_losses,
+            net_breakevens=net_breakevens,
+            net_unknown=len(economic_values) - len(known_values),
+            net_win_rate=net_wins / len(known_values) if known_values else None,
             last_updated=now_utc(),
             synthetic_count=synthetic_count,
             regime_performance=regime_performance,
         )
+
+
+def net_return_for_record(record: PerformanceRecord) -> Decimal | None:
+    """Economic return in percent; unknown costs never become gross winners.
+
+    Actual entry is the denominator of runtime ``pnl_percent``. Legacy rows
+    without execution notional remain usable only when their fees are zero.
+    This additive contract leaves DEBT-073's legacy percent aggregates intact.
+    """
+    if record.synthetic or record.outcome == TradeOutcome.PENDING:
+        return None
+    if record.pnl_percent is None:
+        return None
+    gross = Decimal(str(record.pnl_percent))
+    if not gross.is_finite() or not record.fees.is_finite():
+        return None
+    if record.fees == 0:
+        return gross
+    entry = (
+        record.actual_entry_price
+        if record.actual_entry_price is not None
+        else record.entry_price
+    )
+    quantity = record.quantity
+    if (
+        quantity is None
+        or not quantity.is_finite()
+        or not entry.is_finite()
+        or quantity <= 0
+        or entry <= 0
+    ):
+        return None
+    return gross - record.fees / (entry * quantity) * 100
 
 
 def _max_drawdown_pct(pnl_values: list[float]) -> float:

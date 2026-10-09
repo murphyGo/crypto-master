@@ -57,6 +57,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **2026-10-09 DEBT-084 complete:** `strategy-framework` — Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics.
+> Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. Operations not performed.
+
 > **Current construction (2026-10-09):** `ai-feedback-loop` Codex migration
 > implementation and regression checks are complete; Operations is pending the
 > dedicated Fly device login and real model qualification. Explicit Fly provider

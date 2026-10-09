@@ -370,6 +370,7 @@ def test_evidence_from_performance_reconstructs_inputs() -> None:
         breakevens=2,
         pending=0,
         win_rate=0.5,
+        net_win_rate=0.5,
         avg_pnl_percent=1.0,
         total_pnl_percent=12.0,
         best_trade_pnl=20.0,
