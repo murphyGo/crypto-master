@@ -36,6 +36,11 @@ class StrategyTuningEvidenceSnapshot(BaseModel):
     closed_pnl_pct: float
     max_drawdown_pct: float
     fail_closed_rate: float = Field(ge=0.0, le=1.0)
+    economic_complete: bool = False
+    coverage_note: str = "legacy observation has no account/window basis"
+    window_closed_trades: int | None = None
+    capital_base: float | None = None
+    quote_currency: str | None = None
 
     @classmethod
     def from_recommender_evidence(
@@ -49,6 +54,11 @@ class StrategyTuningEvidenceSnapshot(BaseModel):
             closed_pnl_pct=evidence.closed_pnl_pct,
             max_drawdown_pct=evidence.max_drawdown_pct,
             fail_closed_rate=evidence.fail_closed_rate,
+            economic_complete=evidence.economic_complete,
+            coverage_note=evidence.coverage_note,
+            window_closed_trades=evidence.window_closed_trades,
+            capital_base=evidence.capital_base,
+            quote_currency=evidence.quote_currency,
         )
 
 

@@ -1,5 +1,6 @@
 """Economic outcomes must not inherit the runtime's exit-reason labels."""
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -14,6 +15,7 @@ from src.strategy.performance import (
     net_return_for_record,
 )
 from src.strategy.tuning import StrategyAction, ThresholdSpec
+from src.strategy.tuning_evidence import evidence_from_records
 from src.strategy.tuning_recommender import evidence_from_performance, recommend_action
 
 
@@ -31,6 +33,7 @@ def record(pnl: float | None, **overrides: object) -> PerformanceRecord:
         "quantity": Decimal("10"),
         "pnl_percent": pnl,
         "outcome": TradeOutcome.BREAKEVEN,
+        "exit_timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
     }
     values.update(overrides)
     return PerformanceRecord.model_validate(values)
@@ -90,7 +93,12 @@ def test_time_stop_economic_win_rate_clears_keep_threshold() -> None:
         "test", "1", [record(2)] * 10 + [record(-1)] * 10
     )
     assert perf.win_rate == 0
-    evidence = evidence_from_performance(perf, fail_closed_rate=0)
+    evidence = evidence_from_records(
+        [record(2)] * 10 + [record(-1)] * 10,
+        window_closed_trades=30,
+        initial_balance=Decimal("10000"),
+        fail_closed_rate=0,
+    )
     assert evidence.win_rate == 0.5
     assert recommend_action(evidence, ThresholdSpec()) == StrategyAction.KEEP
 

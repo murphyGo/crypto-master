@@ -76,13 +76,14 @@ Validation: Positive/negative/zero time-stop; fee-flipped TP; synthetic exclusio
 Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes.
 Session: `docs/sessions/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`.
 
-### DEBT-085: Recommendation evidence ignores rolling window and account return basis
+### DEBT-085: Recommendation evidence ignores rolling window and account return basis ✅
 
 | Field | Value |
 |-------|-------|
+| **Resolved** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-10-09 |
-| **Status** | Active; analysis verified, implementation pending |
+| **Status** | Resolved; source/tests complete; production deployment not performed |
 | **Action-item type** | bug |
 | **Component** | `strategy-tuning` (primary); `strategy-framework`, `dashboard-operator-ui` (secondary) |
 
@@ -104,6 +105,11 @@ Validation: 31+ trades, N overrides, varying notional/capital, chronological sor
 **Related:**
 - src/strategy/tuning.py:179, src/dashboard/pages/strategies.py:464, src/strategy/tuning_recommender.py:107
 - DEBT-073 / DEBT-069 metric contracts where relevant; preserve their historical resolutions.
+
+**2026-10-09 implementation closeout:** Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations.
+
+Verification: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%.
+Session: `docs/sessions/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`.
 
 ### DEBT-086: Legacy unknown funnel rows are counted as score accepted
 
@@ -1231,18 +1237,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 5 |
+| Total Active | 4 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 3 |
 | Low | 1 |
-| Resolved (All Time) | 76 |
+| Resolved (All Time) | 77 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-085: Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations. Validation: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. |
 | 2026-10-09 | Resolved | DEBT-084: Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics. Validation: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. |
 | 2026-10-09 | Added | DEBT-084 (Medium, economic win rate), DEBT-085 (Medium, rolling-window/account-base recommendation evidence), and DEBT-086 (Low, legacy unknown funnel acceptance). Operator-approved registration from the verified Fly snapshot captured at 09:45:37 UTC; evidence, bounded fixes, and validation cases recorded. Implementation remains pending. |
 | 2026-10-09 | Reopened | DEBT-074 (Medium, neutral-only audit classification) and DEBT-078 (Medium, optional reverse-link provenance for aged bound exits). Source-confirmed residual branches; historical resolution records retained. No current VCP audit misclassification or historical orphan-close incident is claimed. |

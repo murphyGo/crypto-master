@@ -57,6 +57,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **2026-10-09 DEBT-085 complete:** `strategy-tuning` — Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations.
+> Verification: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. Operations not performed.
+
 > **2026-10-09 DEBT-084 complete:** `strategy-framework` — Added separate fee-net economic win/loss/breakeven/unknown counts and win rate, and switched strategy-summary and recommendation win-rate consumers to them while retaining historical exit-label statistics.
 > Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes. Operations not performed.
 

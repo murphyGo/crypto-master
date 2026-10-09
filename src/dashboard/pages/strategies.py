@@ -19,29 +19,33 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import yaml
 from pydantic import BaseModel
 
 from src.backtest.multi_account_report import MultiAccountReport
+from src.config import get_settings
 from src.logger import get_logger
 from src.proposal.fail_closed_metrics import FailClosedMetricsTracker
 from src.strategy.base import BaseStrategy
 from src.strategy.loader import DEFAULT_STRATEGIES_DIR, load_all_strategies
 from src.strategy.performance import PerformanceRecord, PerformanceTracker
 from src.strategy.tuning import StrategyAction, StrategyTuningPolicy
+from src.strategy.tuning_evidence import evidence_from_records
 from src.strategy.tuning_observations import (
     StrategyTuningObservation,
     StrategyTuningObservationStore,
 )
 from src.strategy.tuning_recommender import (
     RecommenderEvidence,
-    evidence_from_performance,
     recommend_action,
     seed_action_for,
 )
+from src.trading.sub_account import SubAccount
 
 logger = get_logger("crypto_master.dashboard.strategies")
 DEFAULT_COMBINATIONS_DIR = Path("data/backtest/combinations")
@@ -348,7 +352,13 @@ def _format_evidence_summary(evidence: RecommenderEvidence) -> str:
     pf = (
         f"{evidence.profit_factor:.2f}" if evidence.profit_factor is not None else "n/a"
     )
+    if not evidence.economic_complete:
+        return (
+            f"Economic evidence unavailable: {evidence.coverage_note}; "
+            f"closed={evidence.closed_trades}; fail_closed={evidence.fail_closed_rate * 100:.0f}%"
+        )
     return (
+        f"window={evidence.window_closed_trades}, capital={evidence.capital_base} {evidence.quote_currency}, "
         f"closed={evidence.closed_trades}, "
         f"PF={pf}, "
         f"win={evidence.win_rate * 100:.0f}%, "
@@ -392,6 +402,8 @@ def build_strategy_tuning_rows(
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
     observations: Mapping[tuple[str, str], StrategyTuningObservation] | None = None,
+    initial_balance: Decimal | None = None,
+    quote_currency: str = "USDT",
 ) -> list[StrategyTuningRow]:
     """Build the Applied / Recommended rows for one sub-account.
 
@@ -429,6 +441,8 @@ def build_strategy_tuning_rows(
         tracker,
         fail_closed_tracker=fail_closed_tracker,
         sub_account_id=sub_account_id,
+        initial_balance=initial_balance,
+        quote_currency=quote_currency,
     )
     rows: list[StrategyTuningRow] = []
     observations = observations or {}
@@ -462,6 +476,8 @@ def _evaluate_strategy_tuning(
     tracker: PerformanceTracker,
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
+    initial_balance: Decimal | None = None,
+    quote_currency: str = "USDT",
 ) -> list[_StrategyTuningEvaluation]:
     """Evaluate live recommendations without performing any persistence."""
     effective_sub_account = (
@@ -470,7 +486,8 @@ def _evaluate_strategy_tuning(
     evaluations: list[_StrategyTuningEvaluation] = []
     for name in sorted(strategies):
         strategy = strategies[name]
-        perf = tracker.get_performance(strategy.name, strategy.version)
+        records = tracker.load_records(strategy.name, strategy.version)
+        thresholds = policy.thresholds_for(strategy.name)
         if fail_closed_tracker is None:
             fail_closed_rate = 0.0
         else:
@@ -480,7 +497,13 @@ def _evaluate_strategy_tuning(
             )
             fail_closed_rate = counts.fail_closed_rate
 
-        evidence = evidence_from_performance(perf, fail_closed_rate=fail_closed_rate)
+        evidence = evidence_from_records(
+            records,
+            window_closed_trades=thresholds.window_closed_trades,
+            initial_balance=initial_balance,
+            quote_currency=quote_currency,
+            fail_closed_rate=fail_closed_rate,
+        )
         applied = policy.applied_action_for(strategy.name)
         # DEBT-069(b): the live recommender is authoritative; the per-strategy
         # seed is only a fallback when evidence is too thin to recommend
@@ -493,9 +516,7 @@ def _evaluate_strategy_tuning(
         # DEBT-069(f): keep the raw live recommendation (pre-seed-fallback) so
         # the pause-triage join only counts genuine live evidence as
         # corroboration — a seeded pause is config guidance, not evidence.
-        live_recommendation = recommend_action(
-            evidence, policy.thresholds_for(strategy.name)
-        )
+        live_recommendation = recommend_action(evidence, thresholds)
         recommended = live_recommendation or seed_action_for(strategy.name)
         differs = recommended != applied
         yaml_diff = build_strategy_tuning_yaml_diff(
@@ -525,6 +546,8 @@ def record_strategy_tuning_observations(
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
     evaluated_at: datetime | None = None,
+    initial_balance: Decimal | None = None,
+    quote_currency: str = "USDT",
 ) -> list[StrategyTuningObservation]:
     """Persist current recommendations for one sub-account.
 
@@ -539,6 +562,8 @@ def record_strategy_tuning_observations(
         tracker,
         fail_closed_tracker=fail_closed_tracker,
         sub_account_id=sub_account_id,
+        initial_balance=initial_balance,
+        quote_currency=quote_currency,
     )
     observations: list[StrategyTuningObservation] = []
     for evaluation in evaluations:
@@ -594,6 +619,29 @@ def build_strategy_tuning_dataframe(rows: list[StrategyTuningRow]) -> pd.DataFra
     )
 
 
+def load_tuning_capital(
+    sub_account_id: str,
+    config_path: Path = Path("config/sub_accounts.yaml"),
+) -> tuple[Decimal | None, str]:
+    """Resolve the configured account quote seed without guessing live capital."""
+    if not config_path.exists():
+        settings = get_settings()
+        if sub_account_id == "default" and settings.trading_mode == "paper":
+            return Decimal(str(settings.paper_initial_balance)), "USDT"
+        return None, "USDT"
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        accounts = data["sub_accounts"]
+        matches = [raw for raw in accounts if raw.get("id") == sub_account_id]
+        if len(matches) != 1:
+            return None, "USDT"
+        account = SubAccount.model_validate(matches[0])
+        quote = account.effective_quote_currency()
+        return account.effective_initial_balance().get(quote), quote
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, yaml.YAMLError):
+        return None, "USDT"
+
+
 def render_strategy_tuning(
     strategies: dict[str, BaseStrategy],
     policy: StrategyTuningPolicy,
@@ -601,6 +649,8 @@ def render_strategy_tuning(
     fail_closed_tracker: FailClosedMetricsTracker | None = None,
     sub_account_id: str | None = None,
     observation_store: StrategyTuningObservationStore | None = None,
+    initial_balance: Decimal | None = None,
+    quote_currency: str = "USDT",
 ) -> None:
     """Render the strategy-tuning Applied / Recommended section (thin).
 
@@ -621,6 +671,8 @@ def render_strategy_tuning(
     effective_sub_account = (
         sub_account_id if sub_account_id is not None else tracker.sub_account_id
     )
+    if initial_balance is None:
+        initial_balance, quote_currency = load_tuning_capital(effective_sub_account)
     observations_by_key: dict[tuple[str, str], StrategyTuningObservation] = {}
     if observation_store is not None:
         observations_by_key = {
@@ -637,6 +689,8 @@ def render_strategy_tuning(
         fail_closed_tracker=fail_closed_tracker,
         sub_account_id=effective_sub_account,
         observations=observations_by_key,
+        initial_balance=initial_balance,
+        quote_currency=quote_currency,
     )
     if observation_store is not None:
         observations = record_strategy_tuning_observations(
@@ -646,6 +700,8 @@ def render_strategy_tuning(
             observation_store,
             fail_closed_tracker=fail_closed_tracker,
             sub_account_id=effective_sub_account,
+            initial_balance=initial_balance,
+            quote_currency=quote_currency,
         )
         observations_by_key = {
             (observation.sub_account_id, observation.strategy): observation
@@ -658,6 +714,8 @@ def render_strategy_tuning(
             fail_closed_tracker=fail_closed_tracker,
             sub_account_id=effective_sub_account,
             observations=observations_by_key,
+            initial_balance=initial_balance,
+            quote_currency=quote_currency,
         )
     table = build_strategy_tuning_dataframe(rows)
     if table.empty:

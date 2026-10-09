@@ -42,7 +42,8 @@ class RecommenderEvidence:
             breakevens``). The bucket samples-size thresholds compare
             against this.
         win_rate: Win rate in ``[0.0, 1.0]``.
-        profit_factor: ``gross_win / gross_loss`` over the window.
+        profit_factor: Sum of positive net quote PnL divided by absolute
+            negative net quote PnL over the window.
             ``None`` means "undefined" (no losses yet); treat as
             "insufficient evidence" for buckets that require an
             explicit profit-factor band.
@@ -61,6 +62,11 @@ class RecommenderEvidence:
     closed_pnl_pct: float
     max_drawdown_pct: float
     fail_closed_rate: float
+    economic_complete: bool = True
+    coverage_note: str = ""
+    window_closed_trades: int | None = None
+    capital_base: float | None = None
+    quote_currency: str | None = None
 
 
 def evidence_from_performance(
@@ -71,7 +77,10 @@ def evidence_from_performance(
 ) -> RecommenderEvidence:
     """Build a :class:`RecommenderEvidence` from a performance snapshot.
 
-    Convenience constructor for the common path: the engine has a
+    Legacy constructor; economic recommendations require evidence_from_records.
+    Aggregate-only inputs cannot establish the account/window contract.
+
+    Compatibility path: the caller has a
     fresh :class:`TechniquePerformance` (already excludes synthetic
     rows per DEBT-065) and a DEBT-061 fail-closed-rate to thread
     through.
@@ -107,6 +116,8 @@ StrategyFailClosedCounts`.
         closed_pnl_pct=perf.net_total_pnl_percent,
         max_drawdown_pct=max_drawdown_pct,
         fail_closed_rate=fail_closed_rate,
+        economic_complete=False,
+        coverage_note="legacy aggregate lacks rolling window and account capital",
     )
 
 
@@ -130,6 +141,12 @@ def recommend_action(
         bucket matches and the evidence does not even support a
         ``keep``/``promote`` recommendation (e.g. zero closed trades).
     """
+    # A fail-closed pause is independent of financial evidence availability.
+    if evidence.fail_closed_rate >= thresholds.pause.fail_closed_rate_min:
+        return StrategyAction.PAUSE
+    if not evidence.economic_complete:
+        return None
+
     # Pause: any one of (cumulative loss AND enough evidence) or
     # (fail-closed rate alone) qualifies. Pause is the highest priority
     # because it is the only action that *stops* capital loss.

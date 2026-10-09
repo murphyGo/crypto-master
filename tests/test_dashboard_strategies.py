@@ -465,6 +465,25 @@ def _make_tracker_returning(
     tracker = MagicMock(spec=PerformanceTracker)
     tracker.sub_account_id = sub_account_id
     tracker.get_performance.side_effect = lambda name, version: perf_by_name[name]
+
+    def load_records(name, version):
+        perf = perf_by_name[name]
+        returns = [perf.net_win_pct / perf.wins] * perf.wins if perf.wins else []
+        returns += (
+            [-perf.net_loss_pct / perf.losses] * perf.losses if perf.losses else []
+        )
+        return [
+            make_record(
+                technique_name=name,
+                version=version,
+                pnl_percent=value,
+                outcome=TradeOutcome.WIN if value > 0 else TradeOutcome.LOSS,
+                exit_at=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=i),
+            ).model_copy(update={"quantity": Decimal("100")})
+            for i, value in enumerate(returns)
+        ]
+
+    tracker.load_records.side_effect = load_records
     return tracker
 
 
@@ -533,7 +552,9 @@ def test_tuning_rows_applied_and_recommended_keep_match() -> None:
     tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
     policy = StrategyTuningPolicy(enabled=True)  # default applied = keep
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     assert len(rows) == 1
     row = rows[0]
@@ -557,7 +578,9 @@ def test_tuning_rows_recommendation_differs_produces_yaml_diff() -> None:
         strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
     )
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "pause"
@@ -584,7 +607,9 @@ def test_tuning_rows_pause_triage_evidence_corroborated() -> None:
         strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
     )
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "pause"
@@ -608,7 +633,9 @@ def test_tuning_rows_pause_triage_gate_config_only_when_recommender_disagrees() 
         strategy_overrides={"rsi": StrategyOverride(applied=StrategyAction.PAUSE)},
     )
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "pause"
@@ -632,7 +659,9 @@ def test_tuning_rows_pause_triage_gate_config_only_on_thin_evidence() -> None:
         strategy_overrides={"cold": StrategyOverride(applied=StrategyAction.PAUSE)},
     )
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "pause"
@@ -648,7 +677,9 @@ def test_tuning_rows_pause_triage_blank_for_non_pause() -> None:
     tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
     policy = StrategyTuningPolicy(enabled=True)  # applied defaults to keep
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     assert rows[0].applied == "keep"
     assert rows[0].pause_triage == ""
@@ -665,7 +696,9 @@ def test_tuning_rows_thin_evidence_falls_back_to_seed() -> None:
     tracker = _make_tracker_returning({"cold": _thin_evidence_perf("cold")})
     policy = StrategyTuningPolicy(enabled=True)
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "keep"
@@ -687,7 +720,9 @@ def test_tuning_rows_thin_evidence_seeded_pause_produces_yaml_diff() -> None:
     )
     policy = StrategyTuningPolicy(enabled=True)  # applied defaults to keep
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.applied == "keep"
@@ -710,7 +745,9 @@ def test_tuning_rows_live_recommendation_supersedes_seed() -> None:
     )
     policy = StrategyTuningPolicy(enabled=True)
 
-    rows = build_strategy_tuning_rows(strategies, policy, tracker)
+    rows = build_strategy_tuning_rows(
+        strategies, policy, tracker, initial_balance=Decimal("10000")
+    )
 
     row = rows[0]
     assert row.recommended == "keep"  # live recommendation, not the scout seed
@@ -726,7 +763,11 @@ def test_tuning_rows_sub_account_id_override_wins() -> None:
     policy = StrategyTuningPolicy(enabled=True)
 
     rows = build_strategy_tuning_rows(
-        strategies, policy, tracker, sub_account_id="explicit"
+        strategies,
+        policy,
+        tracker,
+        sub_account_id="explicit",
+        initial_balance=Decimal("10000"),
     )
 
     assert rows[0].sub_account_id == "explicit"
@@ -762,6 +803,7 @@ def test_tuning_rows_include_persisted_observation_metadata(tmp_path: Path) -> N
         StrategyTuningPolicy(enabled=True),
         tracker,
         observations={("lab", "rsi"): observation},
+        initial_balance=Decimal("10000"),
     )
 
     assert rows[0].last_observed_at == "2026-06-10T00:00:00+00:00"
@@ -813,7 +855,10 @@ def test_tuning_dataframe_columns_and_empty() -> None:
     strategies = {"rsi": make_strategy(make_info(name="rsi"))}
     tracker = _make_tracker_returning({"rsi": _keep_band_perf("rsi")})
     rows = build_strategy_tuning_rows(
-        strategies, StrategyTuningPolicy(enabled=True), tracker
+        strategies,
+        StrategyTuningPolicy(enabled=True),
+        tracker,
+        initial_balance=Decimal("10000"),
     )
     df = build_strategy_tuning_dataframe(rows)
     assert df.iloc[0]["Applied"] == "keep"
