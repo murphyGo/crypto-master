@@ -10,6 +10,9 @@ primary_region = 'nrt'
   dockerfile = 'Dockerfile'
 
 [env]
+  LLM_PROVIDER = 'codex'
+  CODEX_CLI_MODEL = 'gpt-6-astra'
+  CODEX_AUTH_HOME = '/data/codex-auth'
   CLAUDE_CLI_MODEL = 'sonnet'
   ENGINE_CYCLE_INTERVAL = '1800'
   ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS = '300'

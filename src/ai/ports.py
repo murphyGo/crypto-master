@@ -11,9 +11,8 @@ Protocol structurally with NO changes, so the domain no longer has to
 name the edge adapter to type its collaborator.
 
 Related Requirements:
-- NFR-002: Claude CLI Integration. ``ClaudeCLI`` remains the ONLY
-  production adapter — this Protocol exists for dependency inversion
-  and testability (fakes), NOT to introduce an Anthropic-API client.
+- NFR-002: CLI integration. ``CodexCLI`` and ``ClaudeCLI`` implement this
+  port. The provider factory selects one explicitly; no paid API fallback.
 """
 
 from __future__ import annotations

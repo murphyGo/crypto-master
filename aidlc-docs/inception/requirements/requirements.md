@@ -50,7 +50,7 @@ change history.
 | FR-019 | Provide exchange abstraction for new exchanges | High | `exchange-integration` |
 | FR-020 | Collect historical OHLCV for backtesting | High | `exchange-integration`, `backtesting-validation` |
 | FR-021 | Analyze strategy performance and generate reports | High | `ai-feedback-loop`, `backtesting-validation` |
-| FR-022 | Generate Claude-assisted improvement suggestions | High | `ai-feedback-loop` |
+| FR-022 | Generate AI-assisted improvement suggestions | High | `ai-feedback-loop` |
 | FR-023 | Generate new analysis technique ideas | High | `ai-feedback-loop` |
 | FR-024 | Generate techniques from operator ideas | Medium | `ai-feedback-loop` |
 | FR-025 | Execute backtests against historical data | High | `backtesting-validation` |
@@ -61,7 +61,7 @@ change history.
 | FR-030 | Show feedback loop progress | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
 | FR-031 | Show asset and performance summaries | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
 | FR-032 | Provide a Streamlit web dashboard | Medium | `dashboard-operator-ui`, `dashboard-operator-command-center` |
-| FR-033 | Require falsifiable hypotheses for Claude-generated techniques | High | `strategy-framework`, `ai-feedback-loop` |
+| FR-033 | Require falsifiable hypotheses for AI-generated techniques | High | `strategy-framework`, `ai-feedback-loop` |
 | FR-034 | Gate strategy promotion through robustness validation | High | `backtesting-validation`, `strategy-framework` |
 | FR-035 | Require failure-mode analysis before strategy improvement | High | `ai-feedback-loop`, `strategy-framework` |
 | FR-036 | Isolate capital, positions, history, and equity by sub-account | High | `sub-account-capital-segmentation`, `trading-core` |
@@ -81,7 +81,7 @@ change history.
 | ID | Summary | Primary Unit |
 |----|---------|--------------|
 | NFR-001 | Use Python 3.10 or higher | `quality-governance` |
-| NFR-002 | Use Claude CLI through `claude -p` instead of Anthropic API | `ai-feedback-loop` |
+| NFR-002 | Use pinned Codex CLI in Fly with dedicated auth and explicit Claude rollback | `ai-feedback-loop` |
 | NFR-003 | Implement the dashboard with Streamlit | `dashboard-operator-ui` |
 | NFR-004 | Manage sensitive configuration through ignored environment variables | `notifications-ops`, `exchange-integration` |
 | NFR-005 | Store techniques as prompt markdown or Python code | `strategy-framework` |
@@ -97,7 +97,7 @@ change history.
 
 | ID | Summary | Applies To |
 |----|---------|------------|
-| CON-001 | Do not call the Anthropic API directly; use Claude CLI | `ai-feedback-loop` |
+| CON-001 | Use CLI providers; no direct paid LLM API fallback | `ai-feedback-loop` |
 | CON-002 | Respect exchange API rate limits | `exchange-integration` |
 | CON-003 | Require operator approval for live trading and strategy adoption | `trading-core`, `strategy-framework`, `proposal-runtime` |
 

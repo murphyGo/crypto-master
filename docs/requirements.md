@@ -8,7 +8,7 @@
 
 ### 1.1 Project Purpose
 
-Crypto Master is an automated crypto trading application. It leverages Claude AI Agent to automate chart analysis, trading strategy development, and execution, while continuously improving analysis techniques and enhancing performance through a self-feedback loop.
+Crypto Master is an automated crypto trading application. It uses a CLI-based AI agent to automate chart analysis, trading strategy development, and execution, while continuously improving analysis techniques and enhancing performance through a self-feedback loop.
 
 ### 1.2 Scope
 
@@ -73,13 +73,13 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | ID | Requirement | Description | Priority |
 |----|-------------|-------------|----------|
 | FR-021 | Technique Performance Analysis | Automatically analyze the performance of existing analysis techniques and generate reports | High |
-| FR-022 | Technique Improvement Suggestion (Claude) | Claude automatically generates technique improvement suggestions based on performance data | High |
-| FR-023 | New Technique Idea Generation | Claude generates entirely new analysis technique ideas | High |
+| FR-022 | Technique Improvement Suggestion (AI) | The configured AI model automatically generates technique improvement suggestions based on performance data | High |
+| FR-023 | New Technique Idea Generation | The configured AI model generates entirely new analysis technique ideas | High |
 | FR-024 | User Idea Input | Generate new analysis techniques based on ideas provided by users | Medium |
 | FR-025 | Backtesting Execution | Validate analysis technique performance using historical data | High |
 | FR-026 | Automated Feedback Loop | Automate the cycle of backtesting → analysis → improvement → revalidation | High |
 | FR-027 | Technique Adoption | Adopt techniques with good backtesting performance as official techniques after user approval | High |
-| FR-033 | Hypothesis-Driven Generation | Every Claude-generated technique must declare a falsifiable market hypothesis (frontmatter `hypothesis` field). Indicator-mashup strategies without an underlying market-structure rationale must be rejected at prompt level. | High |
+| FR-033 | Hypothesis-Driven Generation | Every AI-generated technique must declare a falsifiable market hypothesis (frontmatter `hypothesis` field). Indicator-mashup strategies without an underlying market-structure rationale must be rejected at prompt level. | High |
 | FR-034 | Robustness Validation Gate | Before a strategy can be promoted from `experimental/` to `active`, it must pass a robustness gate consisting of: out-of-sample (OOS) split, walk-forward windows, regime split, and (when parameter grid available) parameter sensitivity. SKIPPED gates are surfaced; FAILED gates block promotion. | High |
 | FR-035 | Failure-Mode Improvement | Improvement prompts must require a structural failure analysis (root-cause enumeration) before proposing changes, and cap the number of new conditions added per revision to discourage overfitting. | High |
 
@@ -110,7 +110,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | ID | Requirement | Description |
 |----|-------------|-------------|
 | NFR-001 | Python 3.10+ | Use Python version 3.10 or higher |
-| NFR-002 | Claude CLI Integration | Implement AI features by calling Claude CLI using `claude -p "..."` instead of Anthropic API |
+| NFR-002 | CLI AI Integration | Fly uses pinned native Codex CLI with dedicated ChatGPT auth; Claude CLI remains an explicit rollback option. Preserve text/JSON contracts, bounded cancellation and auth serialization. No direct paid API fallback. |
 | NFR-003 | Streamlit UI | Implement web dashboard using Streamlit |
 | NFR-004 | Environment Variable Management | Manage sensitive information such as API keys through `.env` file and include in `.gitignore` |
 
@@ -143,7 +143,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 
 | ID | Constraint | Description |
 |----|------------|-------------|
-| CON-001 | No Anthropic API | Do not call Anthropic API directly, only use Claude CLI |
+| CON-001 | No direct paid LLM API | Use the selected CLI provider; never silently fall back to a paid OpenAI or Anthropic API |
 | CON-002 | Rate Limit Compliance | Comply with each exchange's API rate limits |
 | CON-003 | User Approval Required | Explicit user approval is required for live trading and new technique adoption |
 
@@ -184,7 +184,7 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | Perpetual Derivatives Market Context (Funding/OI) | FR-046, NFR-006, NFR-009, CON-002 |
 | Feedback Loop (Technique Improvement, Backtesting) | FR-021 ~ FR-027 |
 | Sub-Account / Capital Segmentation | FR-036, FR-037, FR-038 |
-| Claude AI Agent | NFR-002 |
+| Codex CLI / explicit Claude CLI rollback | NFR-002 |
 | UI Dashboard | FR-028 ~ FR-032, NFR-003 |
 | Credentials (.env) | NFR-004, NFR-011 |
 
@@ -197,3 +197,5 @@ Crypto Master is an automated crypto trading application. It leverages Claude AI
 | 1.0 | 2026-04-05 | Initial creation | Claude |
 | 1.1 | 2026-04-30 | Added FR-036 / FR-037 / FR-038 — Sub-Account / Capital Segmentation requirements (drives Phase 19) | Claude |
 | 1.2 | 2026-07-18 | Added FR-046 — perpetual-futures funding/open-interest market context with no-look-ahead runtime consumption and deterministic snapshot replay | Codex |
+
+| 1.3 | 2026-10-09 | NFR-002 / CON-001 allow pinned Codex CLI with dedicated auth, explicit Claude rollback and no direct paid API fallback | Codex |

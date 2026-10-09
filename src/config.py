@@ -404,7 +404,12 @@ class Settings(BaseSettings):
     # STARTTLS path (port 587) untouched for backward compatibility.
     email_use_ssl: bool = Field(default=False)
 
-    # Claude CLI Timeout / Retry (Phase 12.3)
+    # Explicit deployment selection; local legacy callers retain Claude by default.
+    llm_provider: Literal["claude", "codex"] = "claude"
+    codex_cli_model: Literal["gpt-6-astra"] = "gpt-6-astra"
+    codex_auth_home: Path = Path("/data/codex-auth")
+
+    # Shared CLI timeout/retry; legacy setting names remain compatible (Phase 12.3).
     # Base timeout for one ``claude -p`` invocation in seconds.
     # On timeout the wrapper retries up to ``claude_cli_max_retries``
     # times, multiplying the timeout by 1.5x each retry (e.g.

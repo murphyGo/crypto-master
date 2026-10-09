@@ -24,8 +24,8 @@ import yaml
 from pydantic import BaseModel, Field
 
 from src.ai import prompts
-from src.ai.claude import ClaudeCLI
 from src.ai.exceptions import ClaudeParseError
+from src.ai.factory import create_llm_client
 from src.logger import get_logger
 from src.strategy.base import StrategyValidationError, TechniqueInfo
 from src.strategy.loader import validate_python_strategy_source
@@ -154,8 +154,7 @@ class StrategyImprover:
             claude: Optional pre-built LLM client (LAYER-F1 / DIP seam).
                 Typed against the narrow :class:`LLMClient` Protocol so
                 tests can inject any structural fake; defaults to a
-                fresh ``ClaudeCLI()`` (the only production adapter,
-                NFR-002).
+                client selected by ``create_llm_client()`` (NFR-002).
             experimental_dir: Directory where generated techniques are
                 written. Defaults to ``strategies/experimental/``.
             catalog_path: Path to the strategy priority matrix
@@ -167,7 +166,7 @@ class StrategyImprover:
                 catalog. Defaults to
                 ``docs/research/strategies/00-priority-matrix.md``.
         """
-        self.claude = claude or ClaudeCLI()
+        self.claude = claude if claude is not None else create_llm_client()
         self.experimental_dir = experimental_dir or DEFAULT_EXPERIMENTAL_DIR
         self.catalog_path = catalog_path or DEFAULT_CATALOG_PATH
         self._catalog_cache: str | None = None

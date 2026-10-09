@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-Crypto Master is an automated crypto trading application that uses Claude AI for chart analysis, trading strategy development, and continuous improvement through feedback loops.
+Crypto Master is an automated crypto trading application that uses CLI-based AI for chart analysis, trading strategy development, and continuous improvement through feedback loops.
 
 **Key Features:**
-- Bitcoin and altcoin chart analysis using Claude AI
+- Bitcoin and altcoin chart analysis using CLI-based AI
 - Multiple exchange support (Binance, Bybit)
 - Live and paper trading modes
 - Automated technique generation and improvement
@@ -25,7 +25,7 @@ crypto-master/
 │   ├── exchange/          # Exchange integrations (Binance, Bybit, base, factory)
 │   ├── strategy/          # Analysis techniques + performance tracker
 │   ├── trading/           # Trading engine (paper, live, portfolio, strategy)
-│   ├── ai/                # Claude AI integration (ClaudeCLI, StrategyImprover)
+│   ├── ai/                # CLI AI adapters (CodexCLI, ClaudeCLI, StrategyImprover)
 │   ├── backtest/          # Backtesting engine
 │   ├── proposal/          # Trading proposals (engine, interaction, notification)
 │   ├── feedback/          # Feedback loop + audit
@@ -104,10 +104,12 @@ See `.env.example` for all available options.
 - `docs/development-plan.md` - Development roadmap
 - `DESIGN.md` - Architecture and design details
 
-## Claude AI Integration
+## AI Integration
 
-Claude is integrated via CLI (`claude -p "..."`) per NFR-002 constraint.
-Do NOT use Anthropic API directly.
+Fly explicitly selects Codex CLI 0.153.4 / `gpt-6-astra`. The provider factory
+returns `LLMClient`; Claude remains an explicit rollback/local compatibility
+option. NFR-002 / CON-001 prohibit direct paid LLM API fallback. Dedicated
+Codex auth persists on `/data`; see `docs/codex-runtime.md`.
 
 ## Testing Guidelines
 

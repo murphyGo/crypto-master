@@ -57,6 +57,13 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Current construction (2026-10-09):** `ai-feedback-loop` Codex migration
+> implementation and regression checks are complete; Operations is pending the
+> dedicated Fly device login and real model qualification. Explicit Fly provider
+> selection, persistent auth serialization and shared response parsing preserve
+> existing trade modes and approval rules. See
+> `construction/plans/ai-feedback-loop-codex-migration-plan.md`.
+
 > **Latest construction (2026-10-09):** `clean-architecture-hardening` CAH-15
 > is **COMPLETE** with ADR Alternative C as the final scope. A current
 > re-measurement found `_handle_proposal` at 388 lines with 19 direct calls,

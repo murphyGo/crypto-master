@@ -5,8 +5,8 @@
 # dashboard reads what the engine writes.
 #
 # Auth:
-# - Claude CLI (NFR-002 mandates `claude -p`) is installed via npm.
-#   Headless auth is `ANTHROPIC_API_KEY` set at runtime via Fly secrets.
+# - Codex uses its own ChatGPT auth cache on the persistent /data volume.
+# - Claude remains installed for an explicit rollback; no API fallback.
 # - Exchange testnet keys come in the same way (BINANCE_API_KEY etc).
 
 FROM python:3.13-slim
@@ -32,6 +32,16 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Qualified native CLI; the transport rejects any other version at runtime.
+RUN test "$(uname -m)" = x86_64 \
+ && curl --fail --location --silent --show-error --max-time 120 \
+      https://github.com/openai/codex/releases/download/rust-v0.153.4/codex-x86_64-unknown-linux-musl.tar.gz \
+      -o /tmp/codex.tar.gz \
+ && echo 'f479424eca092484dc40d87ae28c44f4cc40234a60045d6131e493800d814a30  /tmp/codex.tar.gz' | sha256sum --check \
+ && tar -xzf /tmp/codex.tar.gz -C /tmp codex-x86_64-unknown-linux-musl \
+ && install -m 0755 /tmp/codex-x86_64-unknown-linux-musl /usr/local/bin/codex \
+ && rm /tmp/codex.tar.gz /tmp/codex-x86_64-unknown-linux-musl
 
 # Install Python deps first so layer cache survives source edits.
 COPY requirements.txt pyproject.toml ./

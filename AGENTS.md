@@ -4,7 +4,7 @@ Brownfield AI-DLC project overlay for the existing Crypto Master trading system.
 
 ## Project Purpose
 
-Crypto Master is an automated crypto trading application with Claude CLI-assisted
+Crypto Master is an automated crypto trading application with CLI-assisted
 strategy generation, backtesting, proposal review, paper/live trading, and
 operator dashboard workflows.
 
@@ -76,7 +76,7 @@ of truth unless a current task explicitly updates them.
    `DESIGN.md`, or `CLAUDE.md`; update them intentionally and narrowly.
 3. Treat `data/` as runtime/operator data. Do not migrate or delete it during
    AI-DLC overlay work.
-4. Keep Claude integration on the CLI path (`claude -p`) unless requirements
+4. Keep AI integration on the CLI path (Codex in Fly, Claude rollback) unless requirements
    are explicitly changed.
 5. Keep exchange credentials and live trading controls conservative. Live mode
    must fail fast for missing credentials and require explicit operator intent.

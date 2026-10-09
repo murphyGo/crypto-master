@@ -97,10 +97,10 @@ class PromptStrategy(BaseStrategy):
             prompt_content: The prompt template (markdown content after frontmatter).
             llm_client: Optional injected LLM client (LAYER-F1 / DIP
                 seam). When provided, ``analyze`` uses it directly
-                instead of constructing a concrete ``ClaudeCLI`` — the
+                instead of constructing a concrete CLI adapter — the
                 domain strategy no longer news up the edge adapter. When
                 ``None`` (the default and the production path),
-                ``analyze`` falls back to constructing ``ClaudeCLI``
+                ``analyze`` uses the configured provider factory
                 with the per-strategy timeout override, preserving
                 historical behaviour. ``LLMClient`` is a structural
                 Protocol, so ``ClaudeCLI`` satisfies it with no changes.
@@ -279,27 +279,27 @@ class PromptStrategy(BaseStrategy):
         # LAYER-F1 / DIP: prefer an injected ``LLMClient`` so the domain
         # strategy does not construct the concrete edge adapter at
         # runtime. When none is injected (the production path), fall
-        # back to constructing ``ClaudeCLI`` here.
+        # back to the configured provider factory here.
         #
         # Phase 14.1: per-strategy timeout override — when
         # ``info.claude_timeout_seconds`` is set, pass it to
-        # ``ClaudeCLI`` directly so prompt-heavy strategies (e.g.
+        # the selected adapter so prompt-heavy strategies (e.g.
         # multi-TF ICT/SMC analysis) get a longer leash without forcing
         # every other strategy onto the same global timeout. ``None``
-        # (default) lets ``ClaudeCLI`` resolve from
+        # (default) lets the selected adapter resolve from
         # ``Settings.claude_cli_timeout_seconds`` as before.
         try:
             client: LLMClient
             if self._llm_client is not None:
                 client = self._llm_client
             else:
-                from src.ai import ClaudeCLI
+                from src.ai.factory import create_llm_client
 
                 timeout_override = self.info.claude_timeout_seconds
                 if timeout_override is not None:
-                    client = ClaudeCLI(timeout=float(timeout_override))
+                    client = create_llm_client(timeout=float(timeout_override))
                 else:
-                    client = ClaudeCLI()
+                    client = create_llm_client()
             response = await client.analyze(prompt)
         except ClaudeTimeoutError:
             # Phase 12.3: ClaudeTimeoutError is a StrategyError, so it
@@ -564,7 +564,7 @@ def load_strategy(
         file_path: Path to strategy file.
         llm_client: Optional injected LLM client passed to prompt-based
             (``.md``) strategies so the loaded ``PromptStrategy`` uses
-            it instead of constructing a concrete ``ClaudeCLI`` at
+            it instead of constructing a concrete CLI adapter at
             analyze time (LAYER-F1 / DIP). Ignored for code (``.py``)
             strategies. ``None`` (default) keeps the production path.
 

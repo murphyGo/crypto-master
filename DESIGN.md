@@ -79,9 +79,13 @@ class BaseStrategy(ABC):
 - **Prompt-based** (`.md` files): Claude analyzes chart with prompt
 - **Code-based** (`.py` files): Python technical analysis
 
-### 2.3 Claude AI Integration (`src/ai/`)
+### 2.3 CLI AI Integration (`src/ai/`)
 
-**Purpose**: Interface with Claude via CLI.
+**Purpose**: Adapt the configured CLI provider to the `LLMClient` port.
+Fly selects `CodexCLI` through `create_llm_client()`; Claude is retained for
+explicit rollback and local compatibility. Both use the shared response parser.
+Codex uses a pinned tool-free process policy, persistent dedicated auth and a
+cross-process file lock. See `docs/codex-runtime.md` and the construction design.
 
 ```python
 # src/ai/claude.py
@@ -115,8 +119,8 @@ class StrategyImprover:
     async def improve(self, original_strategy_path: Path, performance: PerformanceData) -> StrategyArtefact: ...
 ```
 
-**Constraint**: Uses `claude -p "..."` CLI only (NFR-002). The
-`ClaudeCLI.analyze` / `complete` split lets callers choose between
+**Constraint**: Uses CLI providers with no direct paid API fallback (NFR-002).
+The `LLMClient.analyze` / `complete` split lets callers choose between
 strict JSON parsing and raw stdout depending on what the prompt
 asks for.
 
@@ -299,7 +303,7 @@ data/
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Claude integration | CLI only | Constraint CON-001 |
+| AI integration | CLI only; Codex in Fly | Constraint CON-001 |
 | Exchange library | ccxt | Unified API, wide support |
 | Data validation | Pydantic | Type safety, serialization |
 | Dashboard | Streamlit | Rapid development, Python-native |

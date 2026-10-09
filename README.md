@@ -1,7 +1,6 @@
 # Crypto Master
 
-Crypto Master is a brownfield automated crypto trading system for Claude
-CLI-assisted strategy generation, backtesting, proposal review, paper/live
+Crypto Master is a brownfield automated crypto trading system for CLI-assisted strategy generation, backtesting, proposal review, paper/live
 trading, and operator dashboard workflows.
 
 The project predates the AI-DLC overlay. Existing implementation, session logs,
@@ -11,7 +10,7 @@ of truth unless a current task intentionally updates them.
 ## What It Does
 
 - Runs paper or live crypto trading loops against exchange adapters.
-- Generates and evaluates trading proposals with Claude CLI assistance.
+- Generates and evaluates trading proposals with Codex CLI assistance.
 - Supports strategy loading, backtesting, promotion analysis, and performance
   tracking.
 - Persists local runtime state through JSON/JSONL files under `data/`.
@@ -73,8 +72,12 @@ Important defaults:
 - Live mode requires explicit live exchange credentials and fails fast when they
   are missing.
 - `DATA_DIR=data` stores runtime/operator state locally by default.
-- Claude integration is through the CLI path, `claude -p`; the Anthropic API is
-  not the project integration path.
+- Fly selects `LLM_PROVIDER=codex` with native CLI 0.153.4 and `gpt-6-astra`.
+  Local legacy configurations default to `claude`; set `LLM_PROVIDER=codex`
+  explicitly for Codex. No direct paid LLM API fallback is used.
+- Codex needs its own ChatGPT login under `CODEX_AUTH_HOME` (default
+  `/data/codex-auth`), directory 0700 and auth.json 0600. See
+  [the operations guide](docs/codex-runtime.md) for setup and recovery.
 
 Never commit `.env` or exchange credentials.
 

@@ -44,6 +44,7 @@ docs/research/*
 tests/
 plans/
 .claude/
+.codex/
 
 # Environment files — these MUST stay out of images. Secrets come
 # from `fly secrets set` at deploy time.
