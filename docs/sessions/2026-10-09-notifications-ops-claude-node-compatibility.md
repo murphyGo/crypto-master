@@ -5,7 +5,11 @@
 **Primary:** `notifications-ops` (US-014, NFR-004, NFR-011).
 **Secondary:** `ai-feedback-loop` (US-004, NFR-002, CON-001).
 
-**Current outcome: PASS / DEBT-082 resolved.** Final read-only verification
+**Latest checkpoint:** Concurrent v56 and the matching 2 GB configuration
+were verified at 14:57Z; see the final section. The v55 evidence below is the
+earlier DEBT-082 resolution checkpoint.
+
+**13:52Z outcome: PASS / DEBT-082 resolved.** Final read-only verification
 started at 2026-10-09T13:52:48.176970Z and exited 0. Current v55 is healthy, runs in paper
 mode with Codex/auth present, and contains 167 matching source35e14b4 runtime
 artifacts. Node/Claude native help/library checks and a completed engine cycle
@@ -350,3 +354,26 @@ source35e14b4 image. The debt map now has no active registered entries in this
 integrated snapshot; counting actual unique records gives **83 resolved**,
 correcting the stale inherited statistic. External uncommitted DEBT-083 work
 is still outside this map and commit.
+
+
+## Concurrent v56 Follow-up: 14:57Z PASS
+
+After the closeout push, another session deployed v56 using image
+`sha256:a1d4e132479109300fe9432a04df21feb1efc8ebe50e463ee3e5bfac0b11cdd0`.
+Its initial machine configuration reverted memory to 1024 MB. This lead
+preserved that image and restored 2048 MB to match committed `fly.toml`.
+The machine restarted at 14:56:10.397Z and its service check passed.
+
+The read-only verification starting at 14:57:04.103938Z exited 0:
+all 168 runtime files match Git `fab4e86` (runtime-identical to `3f4864f`),
+Node 24.21.0 / Claude 2.1.295 / Codex 0.153.4 / Python 3.13.16 pass,
+three Claude help/flag checks and `ldd` pass, and paper/Codex plus both
+processes are confirmed. Cycle `9e400295-3a87-4213-91f3-f0315d71fba2`
+completed at 14:56:30.498990Z after the latest restart. External health is
+HTTP 200; Fly reports deployed v56, started machine, 2048 MB, passing check.
+
+Evidence: `/private/tmp/crypto-master-debt082-v56-verification.json` and
+`/private/tmp/crypto-master-debt082-v56-status.json`. The earlier statement
+that DEBT-074/078/084/085/086 was not deployed applied to v55; these runtime
+changes are now present in v56. This lead did not perform that image rollout
+or an authenticated model call. The 2 GB capacity remains temporary mitigation.
