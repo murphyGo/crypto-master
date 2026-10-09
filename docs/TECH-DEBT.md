@@ -111,18 +111,19 @@ Validation: 31+ trades, N overrides, varying notional/capital, chronological sor
 Verification: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%.
 Session: `docs/sessions/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`.
 
-### DEBT-086: Legacy unknown funnel rows are counted as score accepted
+### DEBT-086: Legacy unknown funnel rows are counted as score accepted ✅
 
 | Field | Value |
 |-------|-------|
+| **Resolved** | 2026-10-09 |
 | **Priority** | Low |
 | **Created** | 2026-10-09 |
-| **Status** | Active; analysis verified, implementation pending |
+| **Status** | Resolved; source/tests complete; production deployment not performed |
 | **Action-item type** | bug |
 | **Component** | `proposal-funnel-audit` (primary); `dashboard-operator-ui` (secondary) |
 
 **Description:**
-Disabled default has 1739 explicit composite-score rejections within 1796 legacy unknown rows. Example proposal 71fee8b6-24aa-4f54-a58f-6d82c119ee0e rejected composite0.1373<threshold0.3000 but aggregator includes unknown as postscore. Active 12 ranking unaffected.
+The default-account directory has 1739 explicit composite-score rejections within 1796 legacy unknown rows. The dashboard also reads 112 older default-account records from the root proposal directory, bringing its unknown total to 1908. Example root proposal 71fee8b6-24aa-4f54-a58f-6d82c119ee0e rejected composite0.1373<threshold0.3000 but the old aggregator includes unknown as postscore. Active 12 ranking unaffected. The directory-scope distinction was verified during implementation replay.
 Verification verdict: verified by source inspection and independent snapshot arithmetic.
 Evidence source: Fly crypto-master machine 6835752b711958, snapshot 2026-10-09T09:45:37Z
 at /private/tmp/crypto-master-strategy-snapshots/fly-data-20261009T094537Z. These are structural reporting defects, not strategy-edge claims.
@@ -139,6 +140,11 @@ Validation: Legacy explicit score rejection, legacy pending/unknown, current gat
 **Related:**
 - src/proposal/funnel.py:145, src/proposal/funnel.py:183
 - DEBT-074 / DEBT-079 funnel classification and candidate observability; preserve their historical resolutions.
+
+**2026-10-09 implementation closeout:** Legacy unknown states no longer count as observed score acceptance. Dashboard summaries share the canonical acceptance total, include every record once in the generated denominator, and show unknown coverage separately; stored history and the legacy raw gate total remain unchanged.
+
+Verification: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered.
+Session: `docs/sessions/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`. Cross-check: `docs/cross-checks/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`.
 
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range
 
@@ -1249,18 +1255,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 1 |
-| Low | 1 |
-| Resolved (All Time) | 77 |
+| Low | 0 |
+| Resolved (All Time) | 78 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-086: Legacy unknown states no longer count as observed score acceptance. Dashboard summaries share the canonical acceptance total, include every record once in the generated denominator, and show unknown coverage separately; stored history and the legacy raw gate total remain unchanged. Validation: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered. |
 | 2026-10-09 | Resolved | DEBT-074: Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates. Validation: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). |
 | 2026-10-09 | Resolved | DEBT-078: Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative. Validation: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. |
 | 2026-10-09 | Resolved | DEBT-085: Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations. Validation: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. |

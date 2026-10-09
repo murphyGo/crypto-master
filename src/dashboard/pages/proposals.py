@@ -90,7 +90,6 @@ GATE_REJECTION_COLUMNS: tuple[str, ...] = (
     "gate_rejected_total_cap",
     "gate_rejected_symbol_cap",
     "gate_rejected_stale_quote",
-    "gate_rejected_unknown",
 )
 
 # ``gate_reason`` discriminator values matched against the activity
@@ -155,7 +154,8 @@ def build_conversion_summary(counts: FunnelCounts) -> dict[str, float]:
     the 2026-05-13 snapshot's 2,624 -> 773 -> 118 -> 100 funnel:
 
     * ``generated_to_score_accepted`` — how many proposals cleared
-      the score gate.
+      the score gate, as an observed share of all records. Unknowns remain
+      in the generated denominator but never in the accepted numerator.
     * ``score_accepted_to_proposal_opened`` — how many score-accepted
       proposals survived the post-acceptance gate chain.
     * ``proposal_opened_to_trade_opened`` — how many opens reached a
@@ -168,17 +168,7 @@ def build_conversion_summary(counts: FunnelCounts) -> dict[str, float]:
             return 0.0
         return float(numerator) / float(denominator)
 
-    generated_total = counts.generated + counts.score_accepted + counts.score_rejected
-    # Every gate rejection is by definition score-accepted-then-blocked,
-    # so the score-accepted denominator includes them.
-    score_accepted_total = (
-        counts.score_accepted
-        + counts.gate_rejected_total
-        + counts.proposal_opened
-        + counts.trade_opened
-        + counts.outcome_linked
-        + counts.open_errored
-    )
+    score_accepted_total = counts.score_accepted_total
     proposal_opened_total = (
         counts.proposal_opened
         + counts.trade_opened
@@ -190,18 +180,14 @@ def build_conversion_summary(counts: FunnelCounts) -> dict[str, float]:
     )
 
     return {
-        "generated_to_score_accepted": safe(
-            score_accepted_total, generated_total + score_accepted_total
-        ),
+        "generated_to_score_accepted": safe(score_accepted_total, counts.total),
         "score_accepted_to_proposal_opened": safe(
             proposal_opened_total, score_accepted_total
         ),
         "proposal_opened_to_trade_opened": safe(
             trade_opened_total, proposal_opened_total
         ),
-        "generated_to_trade_opened": safe(
-            trade_opened_total, generated_total + score_accepted_total
-        ),
+        "generated_to_trade_opened": safe(trade_opened_total, counts.total),
     }
 
 
@@ -276,29 +262,20 @@ def latest_sample_event_for_gate(
 def build_command_center_summary(counts: FunnelCounts) -> str:
     """Single-line funnel summary for the dashboard home view.
 
-    Format: ``"X generated -> Y accepted -> Z opened (W% conversion)"``
-    where the percent is ``trade_opened / (generated + score_*)`` —
-    the end-to-end conversion the 2026-05-13 review wants on the home
-    page.
+    Observed acceptance and legacy unknowns are shown separately. Each
+    record contributes once to the generated denominator.
     """
-    generated_total = counts.generated + counts.score_accepted + counts.score_rejected
-    score_accepted_total = (
-        counts.score_accepted
-        + counts.gate_rejected_total
-        + counts.proposal_opened
-        + counts.trade_opened
-        + counts.outcome_linked
-        + counts.open_errored
-    )
+    score_accepted_total = counts.score_accepted_total
     opened_total = counts.trade_opened + counts.outcome_linked + counts.open_errored
-    grand_total = generated_total + score_accepted_total
+    grand_total = counts.total
     if grand_total <= 0:
         ratio = 0.0
     else:
         ratio = float(opened_total) / float(grand_total) * 100.0
     return (
-        f"{grand_total} generated -> {score_accepted_total} accepted -> "
-        f"{opened_total} opened ({ratio:.1f}% conversion)"
+        f"{grand_total} generated -> {score_accepted_total} accepted (observed) -> "
+        f"{opened_total} opened ({ratio:.1f}% conversion); "
+        f"{counts.score_acceptance_unknown_total} score acceptance unknown"
     )
 
 
@@ -355,11 +332,17 @@ def render(
     st.subheader("Funnel conversion")
     table = build_funnel_table(counts)
     st.dataframe(table, hide_index=True, use_container_width=True)
+    st.caption(
+        f"Score acceptance: {counts.score_accepted_total} observed; "
+        f"{counts.score_acceptance_unknown_total} unknown. "
+        "Unknown legacy states remain in total generated records but do not "
+        "count as score accepted or as observed post-acceptance rejections."
+    )
 
     conv = build_conversion_summary(counts)
     cols = st.columns(4)
     cols[0].metric(
-        "Generated -> score-accepted",
+        "Generated -> score-accepted (observed)",
         f"{conv['generated_to_score_accepted'] * 100:.1f}%",
     )
     cols[1].metric(

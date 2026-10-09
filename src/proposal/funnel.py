@@ -15,7 +15,7 @@ Per the resolved open decisions (2026-05-13):
 * **Forward-only with ``gate_rejected_unknown`` fallback** for legacy
   rows. Records whose ``final_state`` still equals the model default
   (``generated``) *and* whose ``decision`` is non-PENDING (i.e. the
-  record has been through the score gate but pre-dates this field) get
+  record has a decision but pre-dates this field) get
   bucketed into ``gate_rejected_unknown``. We do *not* infer the
   original terminal gate by walking ``decision`` / ``trade_id``.
 
@@ -125,7 +125,10 @@ class FunnelCounts(BaseModel):
 
     @property
     def gate_rejected_total(self) -> int:
-        """Sum of every ``gate_rejected_*`` bucket (post-acceptance rejections).
+        """Sum every gate-named bucket, including legacy unknowns.
+
+        Unknowns do not establish score acceptance. This compatibility
+        total preserves the raw taxonomy, not an observed post-score count.
 
         PROP-F1 (CAH-12): derived by iterating the ``GATE_REJECTED_*``
         members of :class:`ProposalFinalState` rather than hand-summing
@@ -148,20 +151,27 @@ class FunnelCounts(BaseModel):
         Operators routinely ask "how many proposals passed the score
         gate?" — that's every record currently sitting in
         ``score_accepted`` plus every record that moved downstream of
-        it (every ``gate_rejected_*`` bucket, ``proposal_opened``,
+        it (known ``gate_rejected_*`` buckets, ``shadow_recorded``, ``proposal_opened``,
         ``trade_opened``, ``outcome_linked``, ``open_errored``). The
         derived sum saves callers from re-deriving it from the funnel
-        order each time.
+        order each time. Legacy unknowns cannot establish acceptance and
+        are exposed separately by ``score_acceptance_unknown_total``.
         """
         return (
             self.score_accepted
             + self.gate_rejected_total
+            - self.score_acceptance_unknown_total
             + self.shadow_recorded
             + self.proposal_opened
             + self.trade_opened
             + self.outcome_linked
             + self.open_errored
         )
+
+    @property
+    def score_acceptance_unknown_total(self) -> int:
+        """Legacy records whose final state cannot establish score acceptance."""
+        return self.gate_rejected_unknown
 
 
 # Mapping from ``ProposalFinalState`` to the ``FunnelCounts`` field

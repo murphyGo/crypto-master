@@ -96,16 +96,24 @@ def test_legacy_record_without_final_state_loads_with_default(
         proposal=make_proposal(proposal_id="legacy_1"),
         decision=ProposalDecision.REJECTED,
         decision_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        rejection_reason="counter_trend_short_in_uptrend",
+        rejection_reason="composite0.1373<threshold0.3000",
     )
     history.save(record)
     path = tmp_path / "default" / "legacy_1.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload.pop("final_state", None)
     path.write_text(json.dumps(payload), encoding="utf-8")
+    before = path.read_bytes()
 
     loaded = history.load("legacy_1")
     # Default still applies — file loads.
+    assert loaded.final_state == ProposalFinalState.GENERATED.value
+    counts = compute_funnel_counts(history.list_all())
+    assert counts.score_accepted_total == 0
+    assert counts.score_acceptance_unknown_total == 1
+    assert counts.score_rejected == 0  # Do not infer a historical terminal.
+    assert counts.gate_rejected_total == 1  # Raw taxonomy stays compatible.
+    assert path.read_bytes() == before
     assert loaded.final_state == ProposalFinalState.GENERATED.value
 
 
@@ -124,6 +132,8 @@ def test_aggregator_buckets_decided_legacy_row_into_unknown() -> None:
     assert counts.gate_rejected_unknown == 1
     assert counts.generated == 1
     assert counts.total == 2
+    assert counts.score_accepted_total == 0
+    assert counts.score_acceptance_unknown_total == 1
 
 
 # =============================================================================
@@ -211,7 +221,7 @@ def test_gate_rejected_total_derivation_sums_exactly_the_gate_members() -> None:
 
 # Non-gate terminals that sit downstream of (or at) ``score_accepted`` —
 # every proposal in one of these cleared the score gate. ``score_accepted_total``
-# = these + every ``GATE_REJECTED_*`` bucket. Derived from the enum below so a
+# = these + known ``GATE_REJECTED_*`` buckets. Derived from the enum below so a
 # new gate terminal folds in automatically; this explicit set only needs editing
 # when a NON-gate post-score terminal is added (a conscious funnel-shape change).
 _NON_GATE_POST_SCORE_STATES = frozenset(
@@ -226,13 +236,14 @@ _NON_GATE_POST_SCORE_STATES = frozenset(
 )
 
 # Terminals that do NOT count toward ``score_accepted_total`` — a proposal in one
-# of these never cleared the score gate (still generating / scoring, or rejected
-# at the score gate itself).
+# of these has no evidence of clearing the score gate (still generating /
+# scoring, rejected at the score gate, or legacy unknown).
 _NON_SCORE_ACCEPTED_STATES = frozenset(
     {
         ProposalFinalState.GENERATED,
         ProposalFinalState.SCORED,
         ProposalFinalState.SCORE_REJECTED,
+        ProposalFinalState.GATE_REJECTED_UNKNOWN,
     }
 )
 
@@ -270,13 +281,15 @@ def test_score_accepted_total_sums_every_post_score_state() -> None:
     """One record per state downstream of (and including) ``score_accepted``.
 
     DEBT-069(i): the post-score set is derived from the enum — every
-    ``GATE_REJECTED_*`` bucket plus the non-gate post-score terminals
+    known ``GATE_REJECTED_*`` bucket plus the non-gate post-score terminals
     (``score_accepted``, ``shadow_recorded``, ``proposal_opened``,
     ``trade_opened``, ``outcome_linked``, ``open_errored``) — so it stays
     exhaustive (incl. ``SHADOW_RECORDED``, previously missing) and a new
     terminal cannot silently slip the assertion.
     """
-    post_score_states = set(_gate_rejected_states()) | _NON_GATE_POST_SCORE_STATES
+    post_score_states = (
+        set(_gate_rejected_states()) - {ProposalFinalState.GATE_REJECTED_UNKNOWN}
+    ) | _NON_GATE_POST_SCORE_STATES
 
     # Partition guard: every enum member is either post-score or explicitly
     # non-counting. A new terminal that is neither fails here, forcing a
@@ -310,10 +323,17 @@ def test_score_accepted_total_sums_every_post_score_state() -> None:
                 final_state=ProposalFinalState.SCORE_REJECTED,
                 decision=ProposalDecision.REJECTED,
             ),
+            _record(
+                proposal_id="unknown",
+                final_state=ProposalFinalState.GATE_REJECTED_UNKNOWN,
+                decision=ProposalDecision.REJECTED,
+            ),
         ]
     )
     counts = compute_funnel_counts(records)
     assert counts.score_accepted_total == len(post_score_states)
+    assert counts.score_acceptance_unknown_total == 1
+    assert counts.total == len(post_score_states) + len(_NON_SCORE_ACCEPTED_STATES)
 
 
 # =============================================================================

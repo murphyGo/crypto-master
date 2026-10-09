@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from src.dashboard.pages.proposals import (
     FUNNEL_COLUMN_ORDER,
     GATE_REJECTION_COLUMNS,
@@ -21,8 +23,10 @@ from src.dashboard.pages.proposals import (
     latest_sample_event_for_gate,
     window_for_label,
 )
-from src.proposal.funnel import FunnelCounts, FunnelWindow
+from src.proposal.funnel import FunnelCounts, FunnelWindow, compute_funnel_counts
+from src.proposal.interaction import ProposalDecision, ProposalFinalState
 from src.runtime.activity_log import ActivityEvent, ActivityEventType
+from tests.test_proposal_funnel import _record
 
 
 def test_window_for_label_returns_unbounded_for_lifetime() -> None:
@@ -131,6 +135,51 @@ def test_command_center_summary_handles_empty_input() -> None:
     summary = build_command_center_summary(FunnelCounts())
     assert "0 generated" in summary
     assert "0.0% conversion" in summary
+
+
+def test_mixed_funnel_reports_observed_acceptance_without_double_counting() -> None:
+    states = [
+        ProposalFinalState.GENERATED,
+        ProposalFinalState.SCORED,
+        ProposalFinalState.SCORE_REJECTED,
+        ProposalFinalState.GATE_REJECTED_UNKNOWN,
+        ProposalFinalState.SCORE_ACCEPTED,
+        ProposalFinalState.GATE_REJECTED_TOTAL_CAP,
+        ProposalFinalState.SHADOW_RECORDED,
+        ProposalFinalState.PROPOSAL_OPENED,
+        ProposalFinalState.TRADE_OPENED,
+        ProposalFinalState.OUTCOME_LINKED,
+    ]
+    counts = compute_funnel_counts(
+        _record(
+            proposal_id=state.value,
+            final_state=state,
+            decision=ProposalDecision.PENDING,
+        )
+        for state in states
+    )
+    ratios = build_conversion_summary(counts)
+    assert ratios["generated_to_score_accepted"] == pytest.approx(6 / 10)
+    assert ratios["score_accepted_to_proposal_opened"] == pytest.approx(3 / 6)
+    assert ratios["proposal_opened_to_trade_opened"] == pytest.approx(2 / 3)
+    assert ratios["generated_to_trade_opened"] == pytest.approx(2 / 10)
+    assert all(0 <= ratio <= 1 for ratio in ratios.values())
+    summary = build_command_center_summary(counts)
+    assert "10 generated -> 6 accepted (observed)" in summary
+    assert "2 opened (20.0% conversion)" in summary
+    assert "1 score acceptance unknown" in summary
+    assert build_funnel_table(counts).iloc[0]["gate_rejected_unknown"] == 1
+    assert "gate_rejected_unknown" not in set(build_per_gate_volume(counts)["gate"])
+
+
+def test_unknown_only_history_does_not_claim_score_acceptance() -> None:
+    counts = compute_funnel_counts(
+        [_record(proposal_id="old", decision=ProposalDecision.REJECTED)]
+    )
+    assert all(ratio == 0 for ratio in build_conversion_summary(counts).values())
+    summary = build_command_center_summary(counts)
+    assert "1 generated -> 0 accepted (observed)" in summary
+    assert "1 score acceptance unknown" in summary
 
 
 def test_latest_sample_event_for_gate_matches_gate_reason() -> None:
