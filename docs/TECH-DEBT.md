@@ -138,7 +138,7 @@ preserved and does not deploy this dashboard slice.
 | **Resolved** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-10-09 |
-| **Status** | Resolved; source/tests complete; production deployment not performed |
+| **Status** | Resolved; source/tests complete; deployed and verified in Fly v56 |
 | **Action-item type** | bug |
 | **Component** | `strategy-framework` (primary); `strategy-tuning`, `dashboard-operator-ui` (secondary) |
 
@@ -166,6 +166,8 @@ Validation: Positive/negative/zero time-stop; fee-flipped TP; synthetic exclusio
 Verification: 211 focused tests; 2628 full-suite tests; changed-file Black/Ruff and mypy (122 source files) pass. Frozen Fly RSI15m replay reproduces 104/201 net winners (51.7413%) versus the retained exit-label rate 2.4876%, with zero unknown economic outcomes.
 Session: `docs/sessions/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-framework-debt-084-economic-win-rate.md`.
 
+**2026-10-09 production follow-up:** Runtime commit `3f4864f` deployed to Fly v56. All 168 artifact hashes match; service/process health and the first completed engine cycle pass. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`.
+
 ### DEBT-085: Recommendation evidence ignores rolling window and account return basis ✅
 
 | Field | Value |
@@ -173,7 +175,7 @@ Session: `docs/sessions/2026-10-09-strategy-framework-debt-084-economic-win-rate
 | **Resolved** | 2026-10-09 |
 | **Priority** | Medium |
 | **Created** | 2026-10-09 |
-| **Status** | Resolved; source/tests complete; production deployment not performed |
+| **Status** | Resolved; source/tests complete; deployed and verified in Fly v56 |
 | **Action-item type** | bug |
 | **Component** | `strategy-tuning` (primary); `strategy-framework`, `dashboard-operator-ui` (secondary) |
 
@@ -201,6 +203,8 @@ Validation: 31+ trades, N overrides, varying notional/capital, chronological sor
 Verification: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%.
 Session: `docs/sessions/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`. Cross-check: `docs/cross-checks/2026-10-09-strategy-tuning-debt-085-window-account-basis.md`.
 
+**2026-10-09 production follow-up:** Runtime commit `3f4864f` deployed to Fly v56. All 168 artifact hashes match; service/process health and the first completed engine cycle pass. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`.
+
 ### DEBT-086: Legacy unknown funnel rows are counted as score accepted ✅
 
 | Field | Value |
@@ -208,7 +212,7 @@ Session: `docs/sessions/2026-10-09-strategy-tuning-debt-085-window-account-basis
 | **Resolved** | 2026-10-09 |
 | **Priority** | Low |
 | **Created** | 2026-10-09 |
-| **Status** | Resolved; source/tests complete; production deployment not performed |
+| **Status** | Resolved; source/tests complete; deployed and verified in Fly v56 |
 | **Action-item type** | bug |
 | **Component** | `proposal-funnel-audit` (primary); `dashboard-operator-ui` (secondary) |
 
@@ -235,6 +239,8 @@ Validation: Legacy explicit score rejection, legacy pending/unknown, current gat
 
 Verification: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered.
 Session: `docs/sessions/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`. Cross-check: `docs/cross-checks/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`.
+
+**2026-10-09 production follow-up:** Runtime commit `3f4864f` deployed to Fly v56. All 168 artifact hashes match; service/process health and the first completed engine cycle pass. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`.
 
 ### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data) ✅
 
@@ -342,7 +348,7 @@ Add a fee-netted percent (e.g. `net_pnl_pct = pnl / notional * 100`) alongside t
 | **Created** | 2026-06-26 |
 | **Resolved** | 2026-06-30 (previous slice) |
 | **Reopened** | 2026-10-09 |
-| **Status** | Resolved; source/tests complete; production deployment not performed |
+| **Status** | Resolved; source/tests complete; deployed and verified in Fly v56 |
 | **Action-item type** | bug |
 | **Resolution** | Added read-only operator audit `src.tools.audit_strategy_funnel_gap` to distinguish fail-closed emissions, persisted proposal records, and opened/linked funnel states for one `(sub_account, technique)` pair. The DEBT-074 shape (`proposals_emitted > 0`, `proposals_fail_closed == 0`, `proposal_records == 0`, `opened_or_linked == 0`) is now classified as `pre_funnel_candidate_selection_or_history_gap`, not a downstream gate rejection. Code inspection confirms why: with `multi_technique_per_symbol=True`, multiple strategy candidates can be built and counted by fail-closed metrics, but `_dedup_by_symbol` returns only the highest-composite candidate to runtime; only that survivor reaches `_handle_proposal` and `ProposalHistory.save`. Deselected candidates have no `ProposalRecord` or `final_state` today. Concrete follow-up filed as DEBT-079. Tests: `tests/test_tools_audit_strategy_funnel_gap.py` covers the vcp-shaped gap, a healthy opened record, and CLI wrapper. Verification: targeted pytest 3 passed; touched-file ruff passed; `uv run mypy src` passed. Session log `docs/sessions/2026-06-30-proposal-funnel-audit-debt-074-vcp-gap.md`; cross-check `docs/cross-checks/2026-06-30-proposal-funnel-audit-debt-074.md`. |
 | **Phase** | strategy-improvement analysis 2026-06-26 |
@@ -381,6 +387,8 @@ Source: src/proposal/engine.py:803, src/proposal/engine.py:822, src/tools/audit_
 
 Verification: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage).
 Session: `docs/sessions/2026-10-09-proposal-funnel-audit-debt-074-neutral-aware-audit.md`. Cross-check: `docs/cross-checks/2026-10-09-proposal-funnel-audit-debt-074-neutral-aware-audit.md`.
+
+**2026-10-09 production follow-up:** Runtime commit `3f4864f` deployed to Fly v56. All 168 artifact hashes match; service/process health and the first completed engine cycle pass. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`.
 
 ### DEBT-079: Candidate-level proposal deselection is not persisted in the funnel ✅
 
@@ -487,7 +495,7 @@ Add direct unit tests for `resolve_bounds_from_performance_record` covering: (1)
 | **Created** | 2026-06-26 |
 | **Resolved** | 2026-06-30 (previous slice) |
 | **Reopened** | 2026-10-09 |
-| **Status** | Resolved; source/tests complete; production deployment not performed |
+| **Status** | Resolved; source/tests complete; deployed and verified in Fly v56 |
 | **Action-item type** | bug |
 | **Resolution** | Stale weak-provenance SL/TP hits now close with `orphan_force_close` instead of `stop_loss` / `take_profit`: `PositionMonitor` relabels bound exits older than the always-on reconciliation age wall when the row lacks persisted bounds or a performance link, while healthy old rows with both bounds + performance provenance keep normal SL/TP analytics labels. The duplicate bounds walks were consolidated: `load_performance_record_bounds_index` in `src/strategy/performance.py` feeds both the runtime resolver and `backfill_paper_sl_tp`; `load_proposal_trade_bounds_index` in new `src/proposal/bounds.py` feeds `repair_paper_trade_bounds_from_proposals`. Targeted tests added for stale relabeling, healthy old-row preservation, shared perf index null/string preservation, and shared proposal index. Targeted pytest 45 passed; ruff scoped checks passed. Session log `docs/sessions/2026-06-30-runtime-reconciliation-debt-078-stale-bound-label.md`; cross-check `docs/cross-checks/2026-06-30-runtime-reconciliation-debt-078.md`. |
 | **Phase** | DEBT-071 orphan age-backstop cycle 2026-06-26 |
@@ -526,6 +534,8 @@ Source: src/runtime/engine.py:1726, src/runtime/position_monitor.py:255, src/run
 
 Verification: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass.
 Session: `docs/sessions/2026-10-09-runtime-reconciliation-debt-078-bound-provenance.md`. Cross-check: `docs/cross-checks/2026-10-09-runtime-reconciliation-debt-078-bound-provenance.md`.
+
+**2026-10-09 production follow-up:** Runtime commit `3f4864f` deployed to Fly v56. All 168 artifact hashes match; service/process health and the first completed engine cycle pass. See `docs/sessions/2026-10-09-strategy-improvement-production-deployment.md`.
 
 ### DEBT-069: `strategy-tuning` Slice 2 umbrella ✅
 
@@ -1369,6 +1379,7 @@ Move resolved items here with resolution date and notes.
 | 2026-10-09 | Added | DEBT-083 (Critical), `dashboard-operator-ui`: diagnostic guest-memory exhaustion with 214,686 activity lines and full-history UI readers. Functional Design draft, sanitized prior metrics, bounded-loading/semantic rules, proposed qualification targets, and implementation sequence documented. Review, code, operational recovery, and production verification remain pending. |
 | 2026-10-09 | Resolved | DEBT-082: native production v55 verifies Node 24.21.0 / Claude 2.1.295, three help/flag checks, ldd, 167 source35e14b4 artifact hashes, healthy dashboard, and a completed paper cycle. v53 failure/v54 rollback overlapped concurrent v55 Codex activation; root cause is not inferred. Temporary 2 GB runtime capacity is retained in source fly.toml; later DEBT-074/078/084/085/086 source through 3f4864f was not deployed. |
 | 2026-10-09 | Resolved | DEBT-086: Legacy unknown states no longer count as observed score acceptance. Dashboard summaries share the canonical acceptance total, include every record once in the generated denominator, and show unknown coverage separately; stored history and the legacy raw gate total remain unchanged. Validation: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered. |
+| 2026-10-09 | Deployed | DEBT-084, DEBT-085, DEBT-078, DEBT-074 and DEBT-086 deployed at runtime commit `3f4864f` to Fly v56; 168 file hashes, service/process health, 12 strategy counters and first cycle verified. |
 | 2026-10-09 | Resolved | DEBT-074: Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates. Validation: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). |
 | 2026-10-09 | Resolved | DEBT-078: Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative. Validation: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. |
 | 2026-10-09 | Resolved | DEBT-085: Recommendations now use UTC-ordered last-N closed real records, net quote-amount PF/win rate, initial-account-capital return and equity-peak drawdown. Dashboard and observations share the per-strategy window and explicit capital/currency/coverage contract; incomplete economic evidence cannot drive economic recommendations. Validation: 391 strategy/dashboard tests pass, including account-capital and window boundaries, unknown records, legacy aggregate rejection and persisted basis metadata. Changed-file Black/Ruff and source mypy pass (123 files). Frozen Raschke last-30 replay gives +1.7761413511% on 10000 USDT, PF 1.741436 and net win rate 60%. |
