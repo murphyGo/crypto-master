@@ -41,6 +41,78 @@ Template for new items:
 - Related DEBT items
 -->
 
+### DEBT-082: Production Claude CLI runs below its declared Node engine range
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-09 |
+| **Status** | Active; approved local repair and amd64 build complete; CLI help acceptance and production rollout pending |
+| **Component** | `notifications-ops` (primary); `ai-feedback-loop` (secondary) |
+| **Requirements / stories** | US-014, NFR-004, NFR-011; US-004, NFR-002, CON-001 |
+| **Legacy context** | Fly.io deployment / Phase 8.3; Claude CLI integration |
+
+**Description:**
+The preceding Fly v50 deployment of `b1c88a2` produced a package-engine
+compatibility warning. Its 2026-10-09T09:37:06Z remote verification reported
+Node `v20.19.2` and Claude CLI `2.1.295` (`--version` exit 0). This is an
+in-session operational snapshot, not a production refresh in this cycle.
+The current read-only npm query for `@anthropic-ai/claude-code@2.1.295`
+confirms `engines.node >=22.0.0`. Node's official lifecycle page lists Node 20
+as EOL and Node 22/24 as LTS.
+
+The baseline `Dockerfile` installed Debian `nodejs`/`npm` into the floating
+`python:3.13-slim` base, then installed an unversioned Claude package without an
+engine-strict gate. Its Node 18+ comment was stale. A successful `--version`
+check does not prove an authenticated `claude -p` request works.
+
+**Impact:**
+An unsupported Node/CLI combination can fail on less frequently exercised
+CLI paths or on future image rebuilds. No current engine outage is claimed:
+the preceding deployment snapshot showed a completed paper cycle and 159
+consistent artifacts. Medium severity reflects the confirmed compatibility
+and reproducibility gap, not a demonstrated trading failure.
+
+**Remediation and Acceptance:**
+The operator approved the reviewed local Dockerfile/runbook change and image
+validation with “진행시켜”. The senior developer applied the exact reviewed
+candidate: digest-pinned official `node:24.21.0-trixie-slim` and
+`python:3.13.16-slim-trixie` stages, selective Node/npm copies, required runtime
+libraries, Claude CLI `2.1.295`, strict engine enforcement, and version
+assertions. The deployment runbook and required Infrastructure Design now
+record the update policy and acceptance boundaries.
+
+Independent static QA and 171 focused tests pass. The `linux/amd64` image
+build, strict engine gate, pinned versions, Python/package checks, runtime
+artifact hashes, and isolated dashboard health pass. Overall runtime
+acceptance is **PARTIAL**: Claude help/flag checks remain unreliable under
+local amd64 emulation and need a native amd64 runner or usable emulator.
+Detailed commands, library evidence, and bounded retry outcomes are in the
+session and cross-check. No new source defect is established by this gap.
+
+`claude -p`, startup semantics, environment-backed credentials, trading
+controls, and runtime data are unchanged. Authenticated inference is a
+separate, unperformed check. DEBT-082 remains active until the remaining CLI
+acceptance and now-authorized production remediation are evidenced;
+a local source repair does not change the preceding deployed Node 20 snapshot.
+
+The invoked [team skill](../.claude/skills/team/SKILL.md) required approval
+because deployment configuration was touched. That local implementation gate
+has been satisfied. The operator subsequently authorized commit, push, and
+deployment with “커밋 푸시 배포까지 해줘”; native checks and actual rollout
+verification remain pending. DEBT-082 is not yet resolved.
+
+**Related:**
+- `aidlc-docs/construction/plans/notifications-ops-claude-node-compatibility-plan.md`
+- `aidlc-docs/construction/notifications-ops/nfr-design/claude-node-compatibility.md`
+- `aidlc-docs/construction/notifications-ops/infrastructure-design/claude-node-compatibility.md`
+- `docs/sessions/2026-10-09-notifications-ops-claude-node-compatibility.md`
+- `docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md`
+- [Versioned npm package metadata](https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.295)
+- [Official Node release lifecycle](https://nodejs.org/en/about/previous-releases)
+- [Official Node image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/node)
+- [Official Python image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/python)
+
 ### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data) ✅
 
 | Field | Value |
@@ -1029,10 +1101,10 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 0 |
+| Total Active | 1 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 0 |
+| Medium | 1 |
 | Low | 0 |
 | Resolved (All Time) | 75 |
 
@@ -1041,6 +1113,8 @@ Move resolved items here with resolution date and notes.
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Updated | DEBT-082: operator approved local Dockerfile/runbook repair and image validation; exact Node 24 / Python 3.13 / Claude 2.1.295 candidate applied. Independent static QA, 171 focused tests, amd64 build, packaging, and isolated health checks pass; runtime acceptance is PARTIAL because local emulation did not reliably complete CLI help. DEBT-082 remains active; no new production rollout or authenticated inference claim. |
+| 2026-10-09 | Added | DEBT-082 (Medium), `notifications-ops` with `ai-feedback-loop`: preceding Fly v50 snapshot reports Node 20.19.2 with Claude CLI 2.1.295; current package metadata requires Node >=22 and Node 20 is EOL. Diagnosis and pinned Node 24 / Python / Claude proposal prepared; deployment-config implementation awaits explicit approval. No Docker/source/production change or current authenticated CLI proof is claimed. |
 | 2026-10-09 | Completed | CAH-15 `clean-architecture-hardening` closed with ADR Alternative C as the final scope. Post-Slices-1/2 re-measurement found `_handle_proposal` at 388 lines, 19 direct calls, 39 transitively reachable engine methods, and 19 state dependencies including all six per-cycle caches, `_mark_price_cache`, and `_operator_freeze_active`. Slice 3 `ProposalGateChain` is NO-GO: it would preserve hardcoded gate ordering while adding a broad borrowed-state interface on the live-money path. Slices 1 `SnapshotRecorder` and 2 `PositionMonitor` remain the delivered decomposition; no code or new debt. |
 | 2026-10-09 | Resolved | DEBT-081 `quality-governance` formatter/lint restoration completed — exactly 17 current Black candidates reformatted and 22 Ruff findings cleared in four scripts while preserving pre-project-import logging suppression and percentile semantics. Verification: 292 targeted tests, four CLI help paths, 2604 full tests, Black 222 files clean, Ruff clean, mypy 114 files clean, lock and diff checks pass. No runtime `data/`, dependency, deployment, credential, or production change. Session log `docs/sessions/2026-10-09-quality-governance-debt-081-formatter-lint-restoration.md`. |
 | 2026-07-18 | Added | DEBT-081 repository-wide Black/Ruff gate drift — Slice 1 changed files are clean, but the committed baseline has 20 Black-format candidates and 22 Ruff findings in four scripts; tracked separately under `quality-governance`. |

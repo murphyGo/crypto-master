@@ -116,6 +116,49 @@ fly secrets set \
 #      proposals + activity log events. Default "auto-engine".
 ```
 
+## Claude CLI runtime pins and image checks
+
+The Dockerfile pins Node `24.21.0-trixie-slim` and Python
+`3.13.16-slim-trixie` by tag plus image-index digest, and installs Claude Code
+`2.1.295` with `npm --engine-strict`. This CLI version declares Node
+`>=22.0.0`. Both image stages use Debian Trixie; the runtime includes
+`libstdc++6` and `libatomic1` for the copied Node executable. The Dockerfile
+records and asserts the selected runtime/package versions during the build.
+
+Update these pins intentionally: recheck the versioned npm package's
+`engines.node`, resolve the official image digests, retain compatible Debian
+bases, and rerun the target-architecture image checks. A package upgrade or
+successful `claude --version` alone does not prove authenticated inference.
+Debian/Python dependency resolution retains its existing behavior, so the pins
+do not make the entire image reproducible.
+
+Before deployment, prepare a clean build context from the intended runtime
+inputs and Dockerfile, excluding `.env`, credentials, local `.claude` files,
+and runtime `data/`. For the current Linux amd64 deployment target:
+
+```bash
+docker build --platform linux/amd64 --progress plain \
+  -t crypto-master:runtime-check /path/to/clean-build-context
+docker image inspect crypto-master:runtime-check \
+  --format '{{.Id}} {{.Os}}/{{.Architecture}}'
+docker run --rm --platform linux/amd64 --network none \
+  --entrypoint sh crypto-master:runtime-check -ec \
+  'node --version; npm --version; npx --version; claude --version; ldd /usr/local/bin/node; claude --help'
+docker run --rm --platform linux/amd64 --network none --tmpfs /data \
+  --entrypoint python crypto-master:runtime-check -c \
+  'import src.ai.claude, src.config, src.main, streamlit; print("runtime imports OK")'
+```
+
+Require no `EBADENGINE`, the pinned Node/Claude versions, no `not found`
+libraries in `ldd`, and the existing client's `-p`/`--print` and `--model`
+flags in CLI help. Record image identity, target architecture, commands,
+results, and whether authenticated inference was run. Keep credentials out
+of build layers and smoke checks; a later authenticated, bounded non-trading
+smoke uses the existing approved runtime credential mechanism. Image
+acceptance and production rollout are separate evidence stages. The
+[DEBT-082 cross-check](cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md)
+records the current acceptance and rollout state.
+
 ## Deploy
 
 ```bash

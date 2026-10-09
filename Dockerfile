@@ -9,25 +9,45 @@
 # - Claude remains installed for an explicit rollback; no API fallback.
 # - Exchange testnet keys come in the same way (BINANCE_API_KEY etc).
 
-FROM python:3.13-slim
+# Keep Node and Python on the same Debian release. Pin these upstream
+# inputs; review future updates through the same compatibility build gate.
+FROM node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS node-runtime
+FROM python:3.13.16-slim-trixie@sha256:bf44cdfcb76cd3b41e879bc058fc37ec5872002ccfde7fcb765e218cde0cd79c
+
+# Copy only Node/npm so the Python image's /usr/local stays intact.
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules/npm/ /usr/local/lib/node_modules/npm/
 
 # System dependencies:
-# - nodejs / npm: required for `@anthropic-ai/claude-code` (the
-#   CLI the project shells out to via `claude -p`). Debian Bookworm's
-#   nodejs package is 18.x which satisfies Claude Code's Node 18+
-#   requirement.
+# - libstdc++6 / libatomic1: Node's shared libraries, including ARM support.
 # - ca-certificates: HTTPS to Anthropic + exchange APIs.
 # - curl: convenience for in-container debugging.
 # - tini: PID 1 init that reaps zombies and forwards signals to
 #   start.sh (which propagates SIGTERM to both children).
+# Claude CLI 2.1.295 requires Node >=22; Node 24 LTS meets that requirement.
+# Keep the deployed CLI version while changing its runtime. engine-strict
+# turns future engine incompatibilities into build failures.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        nodejs \
-        npm \
+        libstdc++6 \
+        libatomic1 \
         tini \
- && npm install -g @anthropic-ai/claude-code \
+ && ln -s node /usr/local/bin/nodejs \
+ && ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && node --version \
+ && npm --version \
+ && npx --version \
+ && npm install --global --engine-strict @anthropic-ai/claude-code@2.1.295 \
+ && node -e 'const assert = require("node:assert/strict"); \
+       const p = require("/usr/local/lib/node_modules/@anthropic-ai/claude-code/package.json"); \
+       assert.equal(process.versions.node.split(".")[0], "24"); \
+       assert.equal(p.version, "2.1.295"); \
+       assert.equal(p.engines.node, ">=22.0.0"); \
+       console.log(JSON.stringify({node: process.version, cli: p.version, requiredNode: p.engines.node}));' \
+ && claude --version \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

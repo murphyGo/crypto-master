@@ -64,7 +64,21 @@ Construction artifacts are created just in time for new work. Existing Phase
 > existing trade modes and approval rules. See
 > `construction/plans/ai-feedback-loop-codex-migration-plan.md`.
 
-> **Latest construction (2026-10-09):** `clean-architecture-hardening` CAH-15
+> **Latest construction (2026-10-09):** `notifications-ops` Claude/Node
+> compatibility repair is operator-approved and applied locally (DEBT-082,
+> active Medium). The exact reviewed Node 24.21.0 / Python 3.13.16 / Claude
+> 2.1.295 Dockerfile candidate and narrow runbook are applied; Infrastructure
+> Design records the unchanged deployment topology. Independent static QA and
+> 171 focused tests pass. The `linux/amd64` image build, packaging, and isolated
+> dashboard health pass. Runtime acceptance is PARTIAL: CLI help/flag checks
+> remain unverified on local emulation and need native amd64 or a usable
+> emulator. No new production rollout or authenticated inference is claimed.
+> The v50 Node 20.19.2 snapshot is historical; the current release listing is
+> v51 and its runtime snapshot is being validated. The subsequent user request
+> “커밋 푸시 배포까지 해줘” authorizes commit, push, and rollout; native checks
+> and actual deployment verification remain pending.
+
+> **Previous construction (2026-10-09):** `clean-architecture-hardening` CAH-15
 > is **COMPLETE** with ADR Alternative C as the final scope. A current
 > re-measurement found `_handle_proposal` at 388 lines with 19 direct calls,
 > 39 transitively reachable engine methods, and 19 state dependencies,
@@ -120,7 +134,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready; 2026-05-13 DEBT-061 closed (per-strategy fail-closed counter instrumentation in `ProposalEngine._build_proposal_for_strategy` at emit / `StrategyError` catch / `TradingValidationError` catch; new `src/proposal/fail_closed_metrics.py` with `StrategyFailClosedCounts` Pydantic model `model_validate`-enforced on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`; `sub_account_id` plumbed as per-call argument after second-round 🔴 fix; quant Q1/Q2/Q4 ratified-as-shipped, Q4 per-reason breakdown deferred as non-breaking extension; pytest 1843 passed, net +31); 2026-05-13 DEBT-070 closed (ranking-side `total_trades` → `real_trade_count` sweep: 4 reads in `ProposalEngine._select_best_technique` at `src/proposal/engine.py:996, 1010, 1014` and `_select_all_techniques` at `:1132` switched with inline `# DEBT-070:` comments; display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally untouched; pinned by `test_select_best_technique_tiebreaks_on_real_trade_count` + `test_select_best_technique_any_history_ignores_synthetic_only` in `tests/test_proposal_engine.py`; pytest 2061 passed, net +2) | Track future proposal/runtime cycle changes in construction plans |
 | `dashboard-operator-ui` | Complete | Brownfield-complete; construction-ready; 2026-05-13 per-strategy `Emitted` / `Fail-Closed` / `Fail-Closed %` columns shipped on the Strategies page (`src/dashboard/pages/strategies.py`) as part of DEBT-061 closeout | Track future Streamlit/operator UI changes in construction plans |
 | `dashboard-operator-command-center` | Complete | Home command center shipped with safety/freshness, account context, exposure detail, strategy evidence drilldown, incident actions, runtime diagnostics, and page-level drillthrough links | Track future shared state or cross-page workflow refinements in construction plans |
-| `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard for data-directory, activity-log freshness, and optional health URL checks shipped | Track future notification, deployment, credential, runtime process, or operations changes in construction plans |
+| `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard shipped; 2026-10-09 Claude/Node compatibility Dockerfile/runbook repair approved and applied (DEBT-082, active Medium); static QA, 171 focused tests, amd64 build, packaging, and isolated health pass; runtime acceptance PARTIAL because CLI help is unverified on local emulation | Complete native CLI help/flag acceptance and the now-authorized commit/push/rollout with production verification |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |
 | `persistence-data-integrity` | Complete | Brownfield-complete; construction-ready; 2026-07-19 Snapshot Schema v2 atomicity/versioned-storage secondary **Build & Test approved, Operations N/A, cross-checked PASS for LC-10** — same-root staging, production-reader validation, content-addressed immutable generations, atomic `CURRENT`, manifest allowlist/hash/size/count validation, same-id race handling, every-phase rollback, and schema-v1 no-mutation compatibility verified; snapshot/atomic integration 102 passed; 2026-07-22 Slice 4 collector-to-v2 and exact pinned replay secondary **Build & Test PASS, cross-check PASS**; runtime `data/` unchanged | Preserve immutable generation compatibility; production refresh remains explicit operator action only |
 | `quality-governance` | Complete | Brownfield-complete; construction-ready; 2026-05-13 `mypy src` repo-wide clean milestone — `Success: no issues found in 88 source files` for the first time this session, achieved by bundled DEBT-067 + DEBT-070 close-out (DEBT-067 cleared the 3 pre-existing `src/dashboard/app.py` errors that had been QA-noise across the past 4 unit cycles); 2026-10-09 DEBT-081 resolved in a bounded formatter/lint restoration — exactly 17 current Black candidates reformatted and 22 Ruff findings cleared in four scripts with logging initialization and percentile semantics preserved; 292 targeted tests, four CLI help paths, 2604 full tests, Black 222 files, Ruff, mypy 114 files, lock, and diff checks pass | Track future quality-governance work in construction plans; keep repository-wide Black/Ruff/mypy/pytest gates green |
