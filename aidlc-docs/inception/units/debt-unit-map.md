@@ -8,15 +8,14 @@ when debt is added or resolved, then refresh this map.
 
 ## Active Debt by Unit
 
-| Unit | Active Debt | Priority | Next Action |
-|------|-------------|----------|-------------|
-| `notifications-ops` | DEBT-082 | 1 Medium | Complete native CLI help/flag acceptance and the now-authorized commit/push/rollout with production verification. |
+No active registered debt items in this integrated snapshot.
 
 ## Debt Details
 
-| Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
-|------|----------|--------------|-----------------|-----------------|
-| DEBT-082 | Medium | `notifications-ops` | `ai-feedback-loop` | Replace unsupported Node/CLI image composition using pinned compatible versions and strict build assertions; preserve CLI/auth/trading boundaries. Approved Dockerfile repair applied; 171 focused tests and static QA pass. Target amd64 build, packaging, and isolated health pass; runtime acceptance is PARTIAL (CLI help on local emulation). Production rollout remains pending. |
+DEBT-082 is resolved by native production verification. The concurrent
+DEBT-074/078/084/085/086 implementation closures are preserved in
+`docs/TECH-DEBT.md`; their later source changes are not deployed as part of
+the source35e14b4 production image.
 
 ## Promotion Candidates
 

@@ -5,16 +5,15 @@
 **Primary:** `notifications-ops` (US-014, NFR-004, NFR-011).
 **Secondary:** `ai-feedback-loop` (US-004, NFR-002, CON-001).
 
-**Current outcome:** The operator approved local Dockerfile/runbook repair and
-image validation with “진행시켜”, then explicitly authorized commit, push, and
-deployment with “커밋 푸시 배포까지 해줘”. The reviewed Dockerfile is applied; static QA
-and 171 focused tests pass. Target amd64 build, packaging, and isolated health
-checks pass; runtime acceptance is **PARTIAL** because CLI help remains
-unverified under local emulation. A native amd64 runner or usable emulator
-is required for the remaining help/flag check.
-DEBT-082 remains active, Medium. No new deployment or authenticated inference
-is claimed. The diagnosis entries below describe the initial pre-approval
-slice; the approved continuation is recorded afterward.
+**Current outcome: PASS / DEBT-082 resolved.** Final read-only verification
+started at 2026-10-09T13:52:48.176970Z and exited 0. Current v55 is healthy, runs in paper
+mode with Codex/auth present, and contains 167 matching source35e14b4 runtime
+artifacts. Node/Claude native help/library checks and a completed engine cycle
+pass. Our v53 failure and v54 rollback overlapped another session's v55
+activation, so root cause is unproven. Memory recovery to 2 GB is retained in
+`fly.toml`; separate bounded-loading work remains open. Later source through
+`3f4864f` for DEBT-074/078/084/085/086 is not deployed. The chronological checkpoints below preserve
+earlier observations and are superseded by the final production closeout.
 
 ## Initial Diagnosis: Selection and Evidence
 
@@ -176,7 +175,7 @@ after checking health. All 159 runtime artifact hashes matched the clean
 build context, with zero mismatches. CLI help acceptance is tracked separately
 while the emulation issue is investigated.
 
-## Final Local Acceptance: PARTIAL
+## Historical Local Acceptance Checkpoint: PARTIAL
 
 Local implementation is complete and the approved target image builds.
 Independent static/regression QA, strict engine installation, pinned runtime
@@ -226,3 +225,128 @@ This records the refreshed pre-rollout identity, not a new runtime health or
 native CLI result. No DEBT-082 deployment success is claimed at this checkpoint.
 The unrelated dashboard-operator-ui design work and local `.claude` changes
 remain outside the scoped commit and are preserved.
+
+## Native Validation and Integrated Commit/Push
+
+The native Fly remote builder completed the checked preflight successfully.
+`/private/tmp/crypto-master-debt082-native-preflight-checked.log` records three
+retained `claude --help` outputs, **22,108 bytes each**, with the existing
+`-p`/`--print` and `--model` flags. Node `v24.21.0`, Claude `2.1.295`, and
+`ldd` with no missing libraries pass. This closes the local emulation gap;
+no authenticated inference was run and no gate was waived.
+
+The first scoped commit `6c32376` could not push because main had advanced to
+`88962e6`, including upstream `d9bf77a` Codex migration. An isolated worktree
+integrated the repair and preserved the Codex implementation and pending
+Operations notes. The sole state-document conflict retained both units.
+Resulting commit **`35e14b41b2a7b7844355edcaf42b41f160db4d71`** was pushed to
+main. Unrelated root-workspace DEBT-083/dashboard design and `.claude` work
+were not included.
+
+Integrated verification:
+
+- `uv run pytest`: **2,618 passed in 82.88s**, Python 3.11.13.
+- Black: **222 files** pass; Ruff passes; mypy passes **122 files**.
+- Integrated image build/push: PASS, tag `git-35e14b4`.
+- Published image:
+  `registry.fly.io/crypto-master@sha256:51bb18b9c94ef9f4af987a4e5bc52d3dadf48c1ea885a43759621de66c804a67`.
+
+## Authorized Rollout in Progress
+
+The rollout uses that immutable image and the temporary configuration
+`/private/tmp/crypto-master-debt082-integrated-release/current-provider.fly.toml`,
+based on the previously running `16eef0d` Fly configuration. It preserves the
+current Claude provider, paper mode, and existing settings. An optional
+provider-preference question received no answer during the response window;
+the existing-provider assumption was stated before proceeding.
+
+Concurrent upstream changes remain in the image, including Codex `0.153.4`.
+The dedicated Codex auth file is absent in the live environment; enabling
+Codex without its required login would not preserve the running provider.
+Codex activation and real-model qualification therefore remain separate
+Operations work. No credential or trading-mode change is part of this repair.
+
+Production versions/help, image/artifact identity, health, and engine-cycle
+results are pending. The native preflight and published image alone do not
+resolve DEBT-082 or prove rollout success.
+
+## Production Acceptance Failure and Rollback Started
+
+Fly release **v53** applied the intended image digest
+`sha256:51bb18b9c94ef9f4af987a4e5bc52d3dadf48c1ea885a43759621de66c804a67`.
+The machine started at **2026-10-09T13:38:45Z** and initially returned HTTP 200.
+Logs showed the paper engine scanning through 13:38:59Z, but no completed
+first engine cycle was verified.
+
+The native verification SSH call failed to return and hit its outer
+180-second timeout. A subsequent HTTP health request timed out after
+20 seconds; the Fly health check had been critical since **13:39:23Z**.
+A simple SSH memory-info request also hung. Therefore a running machine and
+initial HTTP success do not establish production acceptance. No root cause
+is proven from these observations.
+
+Rollback was immediately started to the pre-rollout v51 image digest
+`sha256:7deac463e936fe238077a6eae6695660fe7bf94320b1b068cd70308e3b49c9e5`,
+using the same provider/paper/settings configuration and persistent volume.
+The rollback log is `/private/tmp/crypto-master-debt082-rollback.log`.
+Restored service health is not yet claimed at this checkpoint. Existing
+separate dashboard-memory work may be relevant but has not been established
+as the cause; no unrelated debt or source change is included here.
+
+## Final Production Closeout: PASS
+
+Our v54 rollback ran after v53 acceptance failed. Another session deployed
+**v55 at 2026-10-09T13:43:09Z**, image
+`sha256:9adffd345d6a82d239d2c07b77a6112b4909a414bd12ca5fc0573f9383bcabfe`,
+and activated Codex with its dedicated auth during the same interval. This
+concurrency confounds a clean rollback comparison: neither a proven Node
+regression nor proof of an unrelated memory root cause follows from the
+old/new-image observations.
+
+Our memory-only recovery updated the actual v55 machine from **1 GB to 2 GB**.
+The latest machine start was **13:47:48Z**. The matching `fly.toml` change
+(`memory_mb = 2048`) records this temporary capacity so the next normal deploy
+does not silently reduce it. TOML parsing and equality of all other config
+fields passed. This source configuration change does not change the verified
+runtime image; DEBT-083 bounded loading remains separate and unresolved.
+
+Final evidence combines
+`/private/tmp/crypto-master-debt082-production-verification.json`,
+`/private/tmp/crypto-master-debt082-final-fly-status.json`, and
+`/private/tmp/crypto-master-debt082-final-health.txt`:
+
+| Check | Verified result |
+|-------|-----------------|
+| Check time / helper | 2026-10-09T13:52:48.176970Z; exit 0; `DEBT082_PRODUCTION_VERIFICATION_PASS` |
+| Image source | All 167 runtime file hashes match `35e14b41b2a7b7844355edcaf42b41f160db4d71`; zero mismatches |
+| Platform / versions | x86_64; Node 24.21.0; npm/npx 11.19.0; Python 3.13.16; Claude 2.1.295; Codex 0.153.4 |
+| Claude help / libraries | Three checks exit 0, required flags present; `ldd` exit 0, no missing libraries |
+| Actual provider / mode | Codex; auth file present; paper mode; engine and dashboard processes present |
+| Post-start cycle | `a387b999-cc45-48c3-bf3e-9d74ee636385`, completed 13:48:32.830488Z; zero opened/closed trades |
+| Fresh service checks | Fly `Deployed=true`, status `deployed`, version 55, service check passing; HTTP 200 |
+| Machine instance | `01M4GEPRGV8E0VCNGV10ZXBRWQ` |
+
+The first helper invocation exited 1 solely because its expected-Claude
+assertion conflicted with concurrent Codex activation. Its collected version,
+help, artifact, and cycle evidence was retained. Corrected assertions for the
+actual Codex/paper state then passed; the failed assertion is not hidden as
+an initial green run. No authenticated model call was made by this team lead,
+and completed-cycle evidence is not reported as Claude inference proof.
+
+Before documentation closure, latest origin `9748413` was integrated while
+preserving the separate DEBT-084 implementation and DEBT-074/078/085/086
+records. **That later strategy code is not in production**: v55 artifact
+identity remains source `35e14b4`. Root-workspace DEBT-083/dashboard design and
+`.claude` changes remain outside this integration. DEBT-082 now closes solely
+on verified current native runtime compatibility; the failed initial rollout,
+concurrent activation, and temporary capacity mitigation remain explicit.
+
+### Final Source Integration Refresh
+
+The first closeout push was rejected because origin advanced again. The
+closeout was rebased onto `3f4864f`, preserving all five later implementations
+(DEBT-074/078/084/085/086). Their code remains outside the deployed
+source35e14b4 image. The debt map now has no active registered entries in this
+integrated snapshot; counting actual unique records gives **83 resolved**,
+correcting the stale inherited statistic. External uncommitted DEBT-083 work
+is still outside this map and commit.

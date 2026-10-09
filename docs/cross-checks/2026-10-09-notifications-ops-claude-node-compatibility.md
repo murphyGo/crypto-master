@@ -2,82 +2,61 @@
 
 **Date:** 2026-10-09 · **Units:** `notifications-ops` / `ai-feedback-loop`
 
-**Scope:** Approved local Dockerfile/runbook repair and image validation.
-**Status:** **PARTIAL** runtime acceptance. Implementation, static/regression
-QA, amd64 build, packaging, and isolated health checks PASS. Repeatable CLI
-help/flag acceptance remains unverified under local emulation. DEBT-082 stays
-active (Medium). The operator has now authorized commit, push, and deployment;
-native runtime checks and rollout verification remain pending.
+**Status: PASS — DEBT-082 resolved.** Final read-only production verification
+started at **2026-10-09T13:52:48.176970Z** and exited 0. Current v55 is healthy and paper
+mode; its 167 runtime artifacts match source **`35e14b4`**. Upstream changes
+through `3f4864f` for DEBT-074/078/084/085/086 were not deployed.
 
-## Traceability and Scope
+## Verification
 
-| Contract | Result |
-|----------|--------|
-| US-014, NFR-004/NFR-011 operations and secrets | Approved Docker packaging change preserves runtime credential handling. The context excludes `.env`, `.claude`, and runtime `data/`; no secret or production volume change. |
-| US-004, NFR-002/CON-001 Claude integration | Existing `claude -p` application contract is unchanged. Authenticated inference was not run. |
-| Dependency compatibility | Baseline v50 snapshot used Node 20.19.2 with CLI 2.1.295 requiring Node >=22. The candidate uses pinned Node 24.21.0 / Python 3.13.16 / CLI 2.1.295 and strict engine installation. |
-| Design and operations | Plan, NFR and Infrastructure Design, runbook, debt, and state distinguish passing local checks from remaining CLI acceptance and production rollout. |
+| Check | Result |
+|-------|--------|
+| Current release/image | v55; `sha256:9adffd345d6a82d239d2c07b77a6112b4909a414bd12ca5fc0573f9383bcabfe` |
+| Runtime versions | Node 24.21.0; Python 3.13.16; npm/npx 11.19.0; Claude 2.1.295; Codex 0.153.4 |
+| Native Claude compatibility | Three help checks exit 0 with required print/model flags; `ldd` exits 0 with no missing Node libraries |
+| Artifact identity | All 167 runtime file hashes match source `35e14b41b2a7b7844355edcaf42b41f160db4d71`; zero mismatches |
+| Current operations | Codex provider, auth file present, paper mode, engine/dashboard running; Fly service check passing and HTTP 200 |
+| Cycle after latest restart | `a387b999-cc45-48c3-bf3e-9d74ee636385` completed at 13:48:32Z after the 13:47:48Z start |
+| Integrated source QA | 2,618 tests in 82.88s on Python 3.11.13; Black 222 files; Ruff; mypy 122 files pass |
+| Native preflight | Three retained 22,108-byte help outputs plus flags, versions, and ldd pass; this resolved the earlier local QEMU limitation |
 
-The v50 production snapshot at 2026-10-09T09:37:06Z is historical. The
-pre-rollout release listing is now v51; its runtime snapshot is being
-validated, with no new health result yet. No outage or source defect is established by this
-repair's local verification limits.
+Initial focused QA also passed 171 tests and the original local image passed
+packaging/import and isolated health checks. Those are earlier evidence, not
+claims that the latest undeployed strategy change was tested or deployed here.
 
-## Passing Checks
+## Rollout Attribution and Limits
 
-- `uv run pytest tests/test_ai_claude.py tests/test_main_dispatch.py tests/test_config.py`:
-  **171 passed in 2.16s**, Darwin / Python 3.13.0.
-- Independent static QA: exact reviewed Dockerfile candidate, all three RUN
-  commands' `sh -n`, embedded JavaScript `node --check`, byte-identical
-  `WORKDIR` onward versus HEAD, and `git diff --check` pass. No blocking
-  source-review finding.
-- `linux/amd64` image build: PASS. Local image ID
-  `sha256:63d6cce6114b488ba24ae9b140caa305ae98b5a4f9db0fb26ad78ad3077ff061`;
-  this is not a published registry manifest. Base index/platform digests,
-  context provenance, and commands are recorded in the session.
-- Node 24.21.0, npm/npx 11.19.0, Claude 2.1.295, strict engine installation,
-  and no `EBADENGINE`: PASS. Package postinstall execution was independently
-  verified after npm's install-script advisory.
-- Node library resolution: PASS with qualification. `ldd` exits 1 with stderr
-  reporting guest exit 139 on both candidate and official Node base under the
-  legacy local emulator. Loader trace and the running Node process report
-  resolve all seven libraries, with none missing. This is documented alternate
-  evidence; a successful `ldd` command is not claimed.
-- Read-only, network-disabled amd64 smoke with disposable tmpfs: Python
-  3.13.16; all ten application/dependency imports; `pip check`; startup shell
-  syntax; and `ClaudeCLI.is_available()` pass. All 159 runtime artifact hashes
-  match the explicit clean context.
-- Isolated Streamlit 1.65.0 loopback health: HTTP 200 / `ok`. The engine was
-  not started, authenticated inference was not run, and the process was
-  stopped afterward. No verification containers remain.
+Our v53 image `51bb18b9…` initially returned HTTP 200, then SSH/health checks
+hung and no completed first cycle was verified. Our v54 rollback to the
+prior image ran, but another session deployed v55 at 13:43:09Z and activated
+Codex with its dedicated auth. This overlap prevents a clean old/new-image
+comparison or a proven cause for the v53 failure.
 
-## Remaining CLI Acceptance
+Our memory-only recovery raised the actual v55 machine from 1 GB to 2 GB.
+The closeout records that capacity in `fly.toml` so a later normal deployment
+does not silently restore 1 GB. This is a temporary operational mitigation;
+separate bounded-loading DEBT-083 remains unresolved. It does not alter the
+already verified runtime image or establish that issue as the failure cause.
 
-The old local Docker emulator produced SIGSEGV and 45–90 second timeouts for
-`claude --help`. One exit-0 run did not retain help output and therefore cannot
-prove repeatable flag availability. A bounded official QEMU 10.2.3 retry also
-failed with a JavaScriptCore MemoryExhaustion assertion, including with
-AVX-capable CPU emulation and JIT/gigacage disabled. The session records the
-binary provenance and failure details. No further Dockerfile change was made.
+The first verification helper exited 1 only because its old expected-Claude
+provider assertion disagreed with concurrently activated Codex. The retained
+checks were valid; corrected assertions against the observed Codex/paper
+state then exited 0 with `DEBT082_PRODUCTION_VERIFICATION_PASS`. No
+credential values were recorded, and this team lead made no authenticated
+model call. A completed cycle is not presented as Claude inference proof.
 
-Complete retained, repeatable `claude --help` output and the existing
-`-p`/`--print`, `--model` flag checks on native amd64 or usable emulation before
-full runtime acceptance. This unresolved validation limit is tracked in
-DEBT-082; no additional debt or source defect is asserted.
+## Scope and Closure
 
-## Authorization and Closeout
+The user approved implementation with “진행시켜” and explicitly requested
+“커밋 푸시 배포까지 해줘”. Node/Python image pins, strict Claude engine checks,
+and runbook changes satisfy the runtime compatibility scope for US-014 /
+NFR-004/NFR-011 and the installed CLI contract for US-004 / NFR-002/CON-001.
+DEBT-082 closes on current native production evidence despite the failed
+initial rollout. Upstream Codex work and DEBT-074/078/084/085/086 records are
+preserved; root-workspace DEBT-083/dashboard design and `.claude` changes are
+not absorbed into this change.
 
-The operator approved the presented Dockerfile/runbook change and local image
-validation with “진행시켜”. This satisfies the invoked
-[team skill](../../.claude/skills/team/SKILL.md)'s deployment-configuration gate.
-The remaining test limitation is not a new approval requirement. In the
-subsequent turn, the operator explicitly requested “커밋 푸시 배포까지 해줘”,
-authorizing commit, push, and deployment of this repair. Native checks and
-rollout verification are still pending. Credentials, trading settings,
-application code, and unrelated local `.claude` work remain unchanged by this
-repair.
-
-See the [construction plan](../../aidlc-docs/construction/plans/notifications-ops-claude-node-compatibility-plan.md),
+See the [plan](../../aidlc-docs/construction/plans/notifications-ops-claude-node-compatibility-plan.md),
 [NFR design](../../aidlc-docs/construction/notifications-ops/nfr-design/claude-node-compatibility.md),
 [Infrastructure Design](../../aidlc-docs/construction/notifications-ops/infrastructure-design/claude-node-compatibility.md),
 and [session evidence](../sessions/2026-10-09-notifications-ops-claude-node-compatibility.md).

@@ -3,9 +3,9 @@
 **Date:** 2026-10-09
 **Primary unit:** `notifications-ops`
 **Secondary unit:** `ai-feedback-loop`
-**Stage:** Commit/push/deploy authorized; native runtime acceptance and rollout pending
+**Stage:** Complete; native production compatibility verified on current v55
 **Queue:** Session follow-up from the preceding Fly deployment
-**Related debt:** DEBT-082 (active; CLI help acceptance and production rollout pending)
+**Related debt:** DEBT-082 (resolved 2026-10-09)
 
 ## Task and Selection
 
@@ -16,7 +16,7 @@ remediation. The operator then approved the specified local Dockerfile/runbook
 implementation and image validation with “진행시켜”. That bounded implementation
 is now applied. In the subsequent turn, the operator explicitly requested
 “커밋 푸시 배포까지 해줘”, authorizing commit, push, and deployment of this
-repair. Runtime acceptance and rollout evidence remain pending.
+repair. Native production acceptance has since passed on current v55.
 
 The queue survey at local HEAD `16eef0d` found:
 
@@ -87,33 +87,40 @@ the approved topology and validation boundary are recorded in
 - [x] Build and inspect the exact target Linux architecture image; record
       the local image identity, base platform manifests, strict engine gate,
       and Python/health smoke results.
-- [ ] Complete the remaining final-image CLI help acceptance. The local amd64
-      emulation is unstable; a retained, reliable help/flag smoke is required
-      before full runtime acceptance can pass.
+- [x] Complete native amd64 CLI acceptance: three retained help outputs
+      (22,108 bytes each) expose the required flags; Node/Claude versions and
+      `ldd` pass.
 - [x] Complete scoped static/regression QA and document actual results,
       keeping implementation status separate from future production verification.
 - [x] Obtain explicit commit/push/deploy authorization (operator:
       “커밋 푸시 배포까지 해줘”).
-- [ ] Complete native target-image validation, scoped commit/push, authorized
-      rollout, and production verification; record the actual result.
+- [x] Integrate current upstream safely and push scoped commit `35e14b4`;
+      integrated QA passes 2,618 tests, Black, Ruff, and mypy.
+- [x] Record the authorized rollout and recovery chronology; verify current
+      deployed image, versions/help, artifacts, health, and completed cycle.
 
 ## Verification Outcome
 
-The amd64 build, pinned versions, strict package engine check, 171 focused
-tests, ten application/dependency imports, pip consistency, startup syntax,
-159 runtime artifact hashes, and isolated dashboard health all pass. Node
-libraries resolve through loader trace and the running process report; local
-`ldd` reports a guest-emulation failure (wrapper exit 1, guest exit 139).
+**PASS / DEBT-082 resolved.** Integrated source `35e14b4` passed 2,618 tests,
+Black 222 files, Ruff, and mypy 122 files. Native remote preflight passed
+three CLI help/flag checks and `ldd`, resolving the earlier QEMU limitation.
+Final read-only production verification started at 13:52:48Z and exited 0: current v55
+has Node 24.21.0 / Claude 2.1.295, repeated help checks, no missing libraries,
+167 matching source35e14b4 artifacts, HTTP 200/passing service health, and a
+paper cycle completed at 13:48:32Z after the latest restart.
 
-Overall runtime acceptance is **PARTIAL**. Claude CLI help is not reliably
-verified: the old local emulator produced timeout/SIGSEGV outcomes and a
-bounded modern-emulator retry failed with a JavaScriptCore MemoryExhaustion
-assertion. The remaining help/flag gate needs a native amd64 runner or usable
-amd64 emulation. No source defect or authenticated inference success is
-claimed. This is a validation-environment limitation, not another approval
-gate. DEBT-082 remains active. The operator has now authorized commit, push,
-and rollout; this approval does not itself establish a passing native check
-or completed deployment.
+Our initial v53 rollout failed health/SSH acceptance; v54 rollback overlapped
+another session's v55 deployment and Codex activation. The current provider
+is Codex with auth present. The overlap prevents a clean causal comparison
+of old/new images. Our memory recovery raised v55 to 2 GB, and that temporary
+capacity is recorded in `fly.toml`; separate bounded-loading work remains
+unresolved. Upstream changes through `3f4864f` for DEBT-074/078/084/085/086 were not
+deployed.
+
+The [cross-check](../../../docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md)
+and session retain image identities, failed attempts, corrected provider
+assertions, and the final evidence. No authenticated model call by this team
+lead or Claude inference success is claimed.
 
 ## Approval Boundary and Exclusions
 
@@ -125,10 +132,11 @@ approved the presented local `Dockerfile`/runbook change and image validation
 with “진행시켜”; that approval satisfies the implementation boundary. No
 additional approval is needed to complete those checks. The subsequent
 explicit instruction “커밋 푸시 배포까지 해줘” also authorizes commit, push, and
-deployment of this repair. Native checks and actual rollout results remain
-evidence gates; no completed deployment is claimed at this checkpoint.
+deployment of this repair. Native and current production checks passed; the
+recorded recovery and concurrent rollout are part of the operational outcome.
 
-Application code, trading settings, `fly.toml`, `start.sh`, runtime `data/`,
+The sole `fly.toml` change preserves the 2 GB recovery capacity.
+Application code, trading settings, `start.sh`, runtime `data/`,
 credentials, live controls, Python dependencies, and local `.claude` settings
 are outside this slice. No trading hypothesis changes, so quant review is not
 required. Existing focused regression tests supplement the image checks; no new

@@ -159,6 +159,13 @@ acceptance and production rollout are separate evidence stages. The
 [DEBT-082 cross-check](cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md)
 records the current acceptance and rollout state.
 
+The 2026-10-09 recovery retained `memory_mb = 2048` in `fly.toml` after
+raising the running machine from 1 GB to 2 GB. This is temporary capacity
+mitigation while bounded data loading is addressed; the incident root cause
+was not established by overlapping rollouts. Revisit capacity deliberately
+when that work is validated. The DEBT-082 cross-check records exact deployed
+image/source identity; a newer main commit does not prove it is deployed.
+
 ## Deploy
 
 ```bash

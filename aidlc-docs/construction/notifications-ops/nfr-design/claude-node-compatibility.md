@@ -1,7 +1,7 @@
 # NFR Design: Claude CLI Node Compatibility
 
 **Date:** 2026-10-09
-**Status:** Approved Dockerfile applied; amd64 build PASS; runtime acceptance PARTIAL
+**Status:** Complete; native production compatibility PASS on current v55
 **Owner:** `notifications-ops`; secondary `ai-feedback-loop`
 **Stories / requirements:** US-014, US-004; NFR-002, NFR-004, NFR-011, CON-001
 **Related debt:** DEBT-082
@@ -20,7 +20,7 @@ assumption no longer holds.
 | Production Node and CLI versions | Node `v20.19.2`; Claude Code `2.1.295` | Preceding Fly v50 deployment snapshot at `2026-10-09T09:37:06Z`, associated with `b1c88a2`; not reread from production in this cycle. |
 | npm `2.1.295` metadata | `engines.node` is `>=22.0.0` | Rechecked this cycle using `npm view @anthropic-ai/claude-code@2.1.295 version engines dist.integrity --json`. |
 | Previous operational smoke | `claude --version` exited 0 and a paper engine cycle completed | Shows the CLI launches and the engine ran; does not establish authenticated `claude -p` inference or complete compatibility. |
-| Local image tooling | Docker Desktop 4.10.1 / Engine 20.10.17 on an arm64 host; daemon started for validation | The authorized retry built `linux/amd64` successfully. Node/Claude versions pass; library loading is evidenced by loader trace/process report, while CLI help acceptance remains unresolved. |
+| Local image tooling | Docker Desktop 4.10.1 / Engine 20.10.17 on an arm64 host; daemon started for validation | The authorized retry built `linux/amd64` successfully. Local CLI-help emulation failures were later resolved by native remote preflight: three help/flag checks and ldd pass. |
 
 The supported conclusion is a declared Node-engine mismatch and a build
 reproducibility gap, with no proven runtime outage. The fix must eliminate the
@@ -165,14 +165,21 @@ supply the following evidence before repository acceptance can pass:
 | Startup contract review | Existing `tini` entrypoint, `start.sh`, ports, data path, process supervision, and paper/live controls retain their current semantics. |
 | Artifact hygiene | No secret values or credential files in the build context, layers, logs, or committed evidence. |
 
-The local Docker daemon was started for target `linux/amd64` validation.
-The initial macOS credential-helper failure was resolved by an authorized
-retry; the image build passed. Loader trace and the running Node process report
-resolve all seven libraries, but `ldd` itself reports guest-emulation failure.
-Repeated CLI help checks are unstable under both the old local emulator and
-a bounded modern-emulator retry. The [cross-check](../../../../docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md)
-records overall runtime acceptance as PARTIAL; a native amd64 runner or
-usable emulator must complete the help/flag gate.
+The local amd64 build and Python/health smoke passed, but local emulation
+could not reliably execute CLI help. Native remote preflight subsequently
+passed three retained 22,108-byte help outputs with the required flags, Node
+24.21.0 / Claude 2.1.295 versions, and `ldd` with no missing libraries. This
+closes the previously documented local acceptance gap. Detailed evidence is
+in the [cross-check](../../../../docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md).
+
+The final integrated commit `35e14b4` preserves concurrent upstream Codex
+migration commits `d9bf77a` / `88962e6`, including Codex 0.153.4 in the image.
+The patch above records the initial reviewed Docker change; it is not a diff
+of all later upstream changes. Integrated regression/quality checks pass.
+The initial v53 rollout failed health acceptance; rollback overlapped a
+concurrent v55 deployment. Final native checks on v55 pass and all 167 runtime
+artifacts match source `35e14b4`; later changes through `3f4864f`
+(DEBT-074/078/084/085/086) are not deployed. The session preserves attribution and failure evidence.
 
 An authenticated `claude -p` invocation is a separate functional smoke. Run it
 only in an approved environment with the existing credential mechanism and a
@@ -182,20 +189,19 @@ must never be reported as successful authenticated inference.
 
 ## Operations and Rollback
 
-The operator subsequently authorized commit, push, and deployment with
-“커밋 푸시 배포까지 해줘”. Native acceptance and rollout verification are now
-in scope and remain pending. Before rollout, refresh the deployed image/release
-and record the corresponding rollback target. The current release listing is
-v51 at 09:58:31; its runtime snapshot is being validated. The earlier v50
-evidence is historical and is not the current rollback baseline. Image details
-are recorded in the session.
+The user authorized commit, push, and deployment. The initial v53 image
+`51bb18b9…` failed production acceptance after initial HTTP success, prompting
+v54 rollback to the recorded v51 image `7deac463…`. Another session deployed
+v55 `9adffd34…` and activated Codex during the same interval. This overlap
+prevents a clean rollback comparison or a proven cause for the initial failure.
 
-After deployment, verify the deployed image identity, Node/Claude versions,
-health endpoint, and a completed engine cycle with the existing mode/settings.
-Keep authenticated inference status separate from health and cycle evidence.
-If image startup, library loading, CLI execution, or health fails, restore the
-recorded previous image through the established Fly rollback procedure. Do
-not delete or migrate the persistent volume as a rollback mechanism.
+Final native production checks on v55 verify the pinned Node/Claude versions,
+three successful help/flag checks, `ldd`, 167 source35e14b4 runtime hashes,
+healthy dashboard, and a completed paper engine cycle. Current provider is
+Codex with auth present; this session made no authenticated model call.
+Memory recovery raised v55 from 1 GB to 2 GB, retained in `fly.toml` as a
+temporary capacity mitigation. Separate bounded-loading work remains open.
+No persistent volume migration or deletion was used for recovery.
 
 ## Approval Boundary
 
@@ -207,4 +213,5 @@ validation. Complete that authorized scope without another approval request.
 The subsequent explicit instruction “커밋 푸시 배포까지 해줘” authorizes commit,
 push, and deployment of this repair. Credential changes and trading-mode
 changes remain outside scope. Approval does not replace native acceptance or
-production verification; those results remain pending.
+production verification. Both native preflight and current production
+compatibility checks passed.

@@ -146,78 +146,6 @@ Validation: Legacy explicit score rejection, legacy pending/unknown, current gat
 Verification: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered.
 Session: `docs/sessions/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`. Cross-check: `docs/cross-checks/2026-10-09-proposal-funnel-audit-debt-086-legacy-score-acceptance.md`.
 
-### DEBT-082: Production Claude CLI runs below its declared Node engine range
-
-| Field | Value |
-|-------|-------|
-| **Priority** | Medium |
-| **Created** | 2026-10-09 |
-| **Status** | Active; approved local repair and amd64 build complete; CLI help acceptance and production rollout pending |
-| **Component** | `notifications-ops` (primary); `ai-feedback-loop` (secondary) |
-| **Requirements / stories** | US-014, NFR-004, NFR-011; US-004, NFR-002, CON-001 |
-| **Legacy context** | Fly.io deployment / Phase 8.3; Claude CLI integration |
-
-**Description:**
-The preceding Fly v50 deployment of `b1c88a2` produced a package-engine
-compatibility warning. Its 2026-10-09T09:37:06Z remote verification reported
-Node `v20.19.2` and Claude CLI `2.1.295` (`--version` exit 0). This is an
-in-session operational snapshot, not a production refresh in this cycle.
-The current read-only npm query for `@anthropic-ai/claude-code@2.1.295`
-confirms `engines.node >=22.0.0`. Node's official lifecycle page lists Node 20
-as EOL and Node 22/24 as LTS.
-
-The baseline `Dockerfile` installed Debian `nodejs`/`npm` into the floating
-`python:3.13-slim` base, then installed an unversioned Claude package without an
-engine-strict gate. Its Node 18+ comment was stale. A successful `--version`
-check does not prove an authenticated `claude -p` request works.
-
-**Impact:**
-An unsupported Node/CLI combination can fail on less frequently exercised
-CLI paths or on future image rebuilds. No current engine outage is claimed:
-the preceding deployment snapshot showed a completed paper cycle and 159
-consistent artifacts. Medium severity reflects the confirmed compatibility
-and reproducibility gap, not a demonstrated trading failure.
-
-**Remediation and Acceptance:**
-The operator approved the reviewed local Dockerfile/runbook change and image
-validation with “진행시켜”. The senior developer applied the exact reviewed
-candidate: digest-pinned official `node:24.21.0-trixie-slim` and
-`python:3.13.16-slim-trixie` stages, selective Node/npm copies, required runtime
-libraries, Claude CLI `2.1.295`, strict engine enforcement, and version
-assertions. The deployment runbook and required Infrastructure Design now
-record the update policy and acceptance boundaries.
-
-Independent static QA and 171 focused tests pass. The `linux/amd64` image
-build, strict engine gate, pinned versions, Python/package checks, runtime
-artifact hashes, and isolated dashboard health pass. Overall runtime
-acceptance is **PARTIAL**: Claude help/flag checks remain unreliable under
-local amd64 emulation and need a native amd64 runner or usable emulator.
-Detailed commands, library evidence, and bounded retry outcomes are in the
-session and cross-check. No new source defect is established by this gap.
-
-`claude -p`, startup semantics, environment-backed credentials, trading
-controls, and runtime data are unchanged. Authenticated inference is a
-separate, unperformed check. DEBT-082 remains active until the remaining CLI
-acceptance and now-authorized production remediation are evidenced;
-a local source repair does not change the preceding deployed Node 20 snapshot.
-
-The invoked [team skill](../.claude/skills/team/SKILL.md) required approval
-because deployment configuration was touched. That local implementation gate
-has been satisfied. The operator subsequently authorized commit, push, and
-deployment with “커밋 푸시 배포까지 해줘”; native checks and actual rollout
-verification remain pending. DEBT-082 is not yet resolved.
-
-**Related:**
-- `aidlc-docs/construction/plans/notifications-ops-claude-node-compatibility-plan.md`
-- `aidlc-docs/construction/notifications-ops/nfr-design/claude-node-compatibility.md`
-- `aidlc-docs/construction/notifications-ops/infrastructure-design/claude-node-compatibility.md`
-- `docs/sessions/2026-10-09-notifications-ops-claude-node-compatibility.md`
-- `docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md`
-- [Versioned npm package metadata](https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.295)
-- [Official Node release lifecycle](https://nodejs.org/en/about/previous-releases)
-- [Official Node image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/node)
-- [Official Python image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/python)
-
 ### DEBT-080: `fetch_ohlcv_window` drops ~500 bars per page on >1500-bar windows (silent holes in gate/backtest data) ✅
 
 | Field | Value |
@@ -598,6 +526,88 @@ Done. Sequential cycles shipped (b) opt-in global caps on 2026-05-24; (c-1) stat
 - `src/trading/sub_account.py::RiskPolicy._reject_risk_budget_mode_until_wired_in`
 
 ## Resolved Debt Items
+
+### DEBT-082: Production Claude CLI runs below its declared Node engine range ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-09 |
+| **Resolved** | 2026-10-09 |
+| **Status** | Resolved; current v55 native production compatibility verified |
+| **Component** | `notifications-ops` (primary); `ai-feedback-loop` (secondary) |
+| **Requirements / stories** | US-014, NFR-004, NFR-011; US-004, NFR-002, CON-001 |
+| **Legacy context** | Fly.io deployment / Phase 8.3; Claude CLI integration |
+
+**Description:**
+The preceding Fly v50 deployment of `b1c88a2` produced a package-engine
+compatibility warning. Its 2026-10-09T09:37:06Z remote verification reported
+Node `v20.19.2` and Claude CLI `2.1.295` (`--version` exit 0). This is an
+in-session operational snapshot, not a production refresh in this cycle.
+The current read-only npm query for `@anthropic-ai/claude-code@2.1.295`
+confirms `engines.node >=22.0.0`. Node's official lifecycle page lists Node 20
+as EOL and Node 22/24 as LTS.
+
+The baseline `Dockerfile` installed Debian `nodejs`/`npm` into the floating
+`python:3.13-slim` base, then installed an unversioned Claude package without an
+engine-strict gate. Its Node 18+ comment was stale. A successful `--version`
+check does not prove an authenticated `claude -p` request works.
+
+**Impact:**
+An unsupported Node/CLI combination can fail on less frequently exercised
+CLI paths or on future image rebuilds. No current engine outage is claimed:
+the preceding deployment snapshot showed a completed paper cycle and 159
+consistent artifacts. Medium severity reflects the confirmed compatibility
+and reproducibility gap, not a demonstrated trading failure.
+
+**Remediation and Acceptance:**
+The operator approved the reviewed local Dockerfile/runbook change and image
+validation with “진행시켜”. The senior developer applied the exact reviewed
+candidate: digest-pinned official `node:24.21.0-trixie-slim` and
+`python:3.13.16-slim-trixie` stages, selective Node/npm copies, required runtime
+libraries, Claude CLI `2.1.295`, strict engine enforcement, and version
+assertions. The deployment runbook and required Infrastructure Design now
+record the update policy and acceptance boundaries.
+
+Initial focused tests, the amd64 image build, strict engine gate, packaging,
+and isolated health checks pass. Native remote preflight closes the local
+emulation gap: three retained CLI help outputs expose required flags, and
+Node/Claude versions plus `ldd` pass. Integrated commit `35e14b4` preserves the
+concurrent upstream Codex migration; 2,618 tests, Black, Ruff, and mypy pass.
+
+The first rollout v53 passed initial health then failed production acceptance;
+a v54 rollback overlapped another session's v55 deployment. The overlap
+prevents a clean old/new-image root-cause comparison. Current v55 uses image
+`sha256:9adffd345d6a82d239d2c07b77a6112b4909a414bd12ca5fc0573f9383bcabfe`;
+all 167 runtime artifacts match source `35e14b4`. Native production checks
+verify Node 24.21.0, Python 3.13.16, Claude 2.1.295, three successful CLI
+help/flag checks, and `ldd` exit 0. Dashboard health is restored and a paper
+engine cycle completed at 13:48:32Z after the latest restart. This closes
+DEBT-082's runtime compatibility scope.
+
+The concurrent v55 session activated Codex 0.153.4 and provided its auth file;
+current provider is Codex, not the originally intended Claude-preserving
+rollout. This session's memory-only recovery raised the running machine to
+2 GB; source `fly.toml` now retains that temporary capacity. Neither incident root cause,
+long-term memory sizing, nor authenticated Claude inference is established
+by the compatibility closure. Later source through `3f4864f` for
+DEBT-074/078/084/085/086 was not deployed. Detailed chronology and verification limitations are in the
+session/cross-check; unrelated debt remains separately tracked.
+
+**Related:**
+- `aidlc-docs/construction/plans/notifications-ops-claude-node-compatibility-plan.md`
+- `aidlc-docs/construction/notifications-ops/nfr-design/claude-node-compatibility.md`
+- `aidlc-docs/construction/notifications-ops/infrastructure-design/claude-node-compatibility.md`
+- `docs/sessions/2026-10-09-notifications-ops-claude-node-compatibility.md`
+- `docs/cross-checks/2026-10-09-notifications-ops-claude-node-compatibility.md`
+- [Versioned npm package metadata](https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.295)
+- [Official Node release lifecycle](https://nodejs.org/en/about/previous-releases)
+- [Official Node image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/node)
+- [Official Python image tags](https://raw.githubusercontent.com/docker-library/official-images/master/library/python)
+
+<!--
+Move resolved items here with resolution date and notes.
+
 
 <!--
 Move resolved items here with resolution date and notes.
@@ -1255,18 +1265,19 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 0 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 1 |
+| Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 78 |
+| Resolved (All Time) | 83 |
 
 ---
 
 ## Change History
 
 | Date | Action | Item |
+| 2026-10-09 | Resolved | DEBT-082: native production v55 verifies Node 24.21.0 / Claude 2.1.295, three help/flag checks, ldd, 167 source35e14b4 artifact hashes, healthy dashboard, and a completed paper cycle. v53 failure/v54 rollback overlapped concurrent v55 Codex activation; root cause is not inferred. Temporary 2 GB runtime capacity is retained in source fly.toml; later DEBT-074/078/084/085/086 source through 3f4864f was not deployed. |
 | 2026-10-09 | Resolved | DEBT-086: Legacy unknown states no longer count as observed score acceptance. Dashboard summaries share the canonical acceptance total, include every record once in the generated denominator, and show unknown coverage separately; stored history and the legacy raw gate total remain unchanged. Validation: 32 focused funnel/dashboard tests and the final 2669-test full suite pass (226.93s). Black/Ruff pass on all 30 Python files changed across the five corrections; mypy passes for 123 source files. Frozen default replay verifies 1796 account-directory unknowns (1739 explicit score rejections), plus 112 root legacy rows: 1908 unknown and zero observed acceptance. Mixed/shadow/scored denominators, all enum terminals, unknown-only data and read-only history are covered. |
 | 2026-10-09 | Resolved | DEBT-074: Added observed-attempt, neutral/non-neutral, built-candidate and final-selection counters without changing the legacy fail-closed denominator. The read-only audit identifies fully observed neutral-only history and otherwise explicitly preserves no-signal/selection/history uncertainty instead of asserting missing candidates. Validation: 515 proposal/runtime/dashboard/audit tests, CLI help, changed-file Black/Ruff and mypy (123 source files) pass. Cases include legacy/partial stage coverage, neutral-only, strategy/sizing failure, symbol dedup, top-K, per-account routing, counter-write failure and read-only audit. Frozen VCP replay remains opened (25383 attempts, one persisted linked proposal, no historical stage coverage). |
 | 2026-10-09 | Resolved | DEBT-078: Replaced null reverse-performance-link inference with explicit pending bound-recovery provenance. Paper/live rehydration and repair tools mark actual recovered bounds; a successful non-breaching monitor observation clears the marker persistently. Normal aged SL/TP exits retain their trigger and genuine stale first observations remain conservative. Validation: 559 runtime/trading/tool/performance/import tests pass; changed-file Black/Ruff and source mypy pass (123 files). Real paper and mocked-live 26h normal-open cases retain SL/TP with null reverse links and unchanged PnL/order counts; recovery, restart, IO-failure and concurrent-repair cases pass. |
