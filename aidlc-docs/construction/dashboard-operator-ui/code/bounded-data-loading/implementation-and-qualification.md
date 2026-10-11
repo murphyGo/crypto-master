@@ -15,7 +15,8 @@ and measured snapshot charge reuse preserve exact incident outputs. Full tests:
 1.737s/3.746s; million activity 10.546s still misses 5s. First Home protocol
 readiness fails under measured shared CPU quota throttling; later warm responses
 complete. See [performance follow-up](performance-follow-up.md) and its session.
-Performance CPU / added cost design approval and full NFR acceptance are pending.
+Performance CPU / added cost proposal is deferred by operator `보류` (2026-10-12);
+existing v59 / shared CPU 1 / 2048 MiB are retained. Full NFR acceptance is pending.
 Earlier timing/deployment statements below are historical checkpoints.
 
 Fly v58 now runs `785374b`, including requested-root projection retention for

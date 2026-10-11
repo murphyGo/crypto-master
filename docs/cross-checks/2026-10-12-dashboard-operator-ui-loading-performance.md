@@ -4,7 +4,8 @@
 PASS at query scope. Million-event cold target FAIL (10.546s >5s); requested
 deployment source/health/engine checks PASS, first cold protocol readiness FAIL
 under measured CPU quota throttling; later warm responses complete. Native NFR
-acceptance and proposed CPU-class / cost approval remain pending.
+acceptance remains pending; proposed CPU-class / cost change is deferred by
+operator `보류` (2026-10-12). Existing v59 / shared CPU 1 / 2048 MiB are retained.
 DEBT-083 stays Critical/active.
 
 | Contract | Evidence / verdict |

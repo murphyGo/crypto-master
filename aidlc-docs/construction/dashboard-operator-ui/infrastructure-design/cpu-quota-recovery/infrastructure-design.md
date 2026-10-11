@@ -1,6 +1,6 @@
 # Candidate Infrastructure Design: CPU Quota Recovery
 
-**Date:** 2026-10-12 KST. **Status:** Prepared for operator CPU-class / cost approval; not activated.
+**Date:** 2026-10-12 KST. **Status:** Deferred by operator response `보류`; not approved or activated. Fly v59, shared CPU 1 / 2048 MiB and the existing machine/volume are retained. No additional deployment or compute-cost change was made.
 
 ## Problem and evidence
 
@@ -62,5 +62,5 @@ a new failure or is withdrawn. The cost change does not close the million-event
 5s miss, native viewport/four-session qualification or original resource target.
 
 The [plan](../../../plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md)
-contains the single pending budget choice and the already established provider,
+contains the operator-deferred budget choice and the already established provider,
 storage, network, messaging, monitoring and trading constraints.

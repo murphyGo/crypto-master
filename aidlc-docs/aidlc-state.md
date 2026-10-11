@@ -66,7 +66,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 > balance is depleted and quota throttling grows. Later warm Home/Trading renders
 > complete in 1.443s / 1.251s. Paper/Codex/2 GiB/original volume are preserved.
 > A reviewed performance-1x / 2 GiB infrastructure candidate is prepared; CPU-class
-> / incremental operating-cost approval is pending. Native viewport/four-session
+> / incremental operating-cost proposal is deferred by operator `보류` (2026-10-12).
+> Existing v59 / shared CPU 1 / 2048 MiB remain; no additional deployment or cost
+> change was made. Native viewport/four-session
 > and full resource acceptance remain unqualified. See
 > `construction/plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md`
 > and `docs/sessions/2026-10-12-dashboard-operator-ui-loading-performance.md`.

@@ -91,8 +91,10 @@ at 240s while measured shared-CPU balance is depleted and quota throttling rises
 Later warm Home/Trading renders complete in 1.443s/1.251s. The source optimization
 does not remove this infrastructure bottleneck. The
 [candidate CPU design](../../infrastructure-design/cpu-quota-recovery/infrastructure-design.md)
-is prepared for explicit CPU-class / incremental cost approval; current capacity
-is retained. The session records failed as well as successful observations.
+was prepared for explicit CPU-class / incremental cost approval, then deferred
+by operator `보류` (2026-10-12). Current v59 / shared CPU 1 / 2048 MiB are retained;
+no additional deployment or compute-cost change was made. The session records
+failed as well as successful observations.
 
 Query completion, Streamlit protocol rendering and native visual acceptance
 remain distinct. The Browser connection was retried and still fails during

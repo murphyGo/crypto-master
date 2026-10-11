@@ -1,7 +1,8 @@
 # Infrastructure Design Plan: Dashboard CPU Quota Recovery
 
 - **Unit / debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
-- **Stage:** Infrastructure Design candidate prepared; CPU-class / incremental operating-cost approval pending.
+- **Stage:** Infrastructure Design candidate deferred by the operator (`보류`, 2026-10-12 KST); not approved or activated.
+- **Retained state:** Fly v59 / source `22abf3d`, shared CPU 1 / 2048 MiB, existing machine and volume. No CPU-kind change, additional deployment or incremental compute-cost change was made. Resume this proposal only after a new explicit operator decision.
 - **Requirements / stories:** FR-029/031/032/036/042; NFR-003/007/008/011/012; BDL-NFR-01..08; US-012/014/020/023.
 - **Evidence:** v59 source `22abf3d` is functionally verified; first protocol readiness and query deadlines fail while the shared CPU burst balance approaches zero. Warm Home/Trading responses later complete in 1.443s/1.251s. The infrastructure decision does not waive the remaining cold/memory/native targets.
 - **Existing authorization:** Continued UI performance work and scoped deployment are authorized. The previous performance/rollout plan preserves shared CPU 1 / 2 GiB. An ongoing CPU-class cost increase is a new decision; do not activate it before the operator's answer.
@@ -17,7 +18,7 @@
 
 ## Questions and established constraints
 
-- **Compute / cost choice:** Approve `performance-1x`, 2 GiB, with estimated Tokyo compute cost $43.16 vs current $16.61 per 30 continuous days (+$26.55), excluding tax/traffic/discounts? [Answer]: PENDING.
+- **Compute / cost choice:** Approve `performance-1x`, 2 GiB, with estimated Tokyo compute cost $43.16 vs current $16.61 per 30 continuous days (+$26.55), excluding tax/traffic/discounts? [Answer]: `보류` (2026-10-12 KST). Proposal deferred; existing capacity retained.
 - **Deployment environment:** Existing Fly app, nrt region and machine `6835752b711958`. [Answer]: Existing authorized scope; no new provider/region/machine.
 - **Storage:** Existing encrypted `/data` volume; no migration, index or deletion in this candidate. [Answer]: Existing brownfield constraint.
 - **Messaging:** Existing process-local queue / one reader worker. [Answer]: No infrastructure messaging change.
@@ -28,6 +29,7 @@
 ## Completion
 
 - [x] Concrete design, manifest and pricing evidence prepared
+- [x] Operator deferral recorded; activation and dependent qualification remain on hold
 - [ ] Explicit CPU-class/cost approval recorded
 - [ ] Approved activation verified and documented
 

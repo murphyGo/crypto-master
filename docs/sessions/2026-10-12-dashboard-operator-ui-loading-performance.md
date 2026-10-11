@@ -99,7 +99,11 @@ The [CPU infrastructure candidate](../../aidlc-docs/construction/dashboard-opera
 and exact manifest preserve this image / 2 GiB / machine / volume and change only
 CPU kind to performance. Official Tokyo compute estimate: $16.61→$43.16 per
 30 continuous days (+$26.55), before tax/traffic/discounts. CPU-class / operating
-cost approval is requested and pending; active `fly.toml` remains shared.
+cost approval was requested, then deferred by operator `보류` (2026-10-12 KST).
+Live verification confirms v59 / shared CPU 1 / 2048 MiB with passing health
+checks. No CPU change, additional deployment or compute-cost change was made;
+active `fly.toml` remains shared. Activation and dependent qualification stay
+on hold until a new explicit operator decision.
 
 ## Deployment boundary and remaining work
 

@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; bounded performance follow-up deployed on Fly v59 (`22abf3d`), source/health/engine and later warm protocol responses verified. Cold readiness fails under measured shared-CPU quota throttling; CPU-class/cost design approval and full native/resource acceptance remain outstanding |
+| **Status** | Active; bounded performance follow-up deployed on Fly v59 (`22abf3d`), source/health/engine and later warm protocol responses verified. Cold readiness fails under measured shared-CPU quota throttling; CPU-class/cost proposal deferred by operator `보류` (2026-10-12). Existing shared CPU 1 / 2048 MiB retained; full native/resource acceptance remains outstanding |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -136,7 +136,9 @@ warm Home/Trading renders complete in 1.443s / 1.251s. This additional measured
 CPU bottleneck does not replace the original full-materialization/memory incident.
 A performance-1x / 2 GiB design is prepared, with public Tokyo compute estimate
 $16.61→$43.16 per 30 continuous days (+$26.55, before tax/traffic/discounts).
-CPU-class / cost approval is pending; existing shared capacity is retained.
+The operator deferred the CPU-class / cost proposal with `보류` (2026-10-12 KST).
+Existing v59 / shared CPU 1 / 2048 MiB are retained; no additional deployment or
+compute-cost change was made. Activation and dependent qualification are on hold.
 Native viewport/four-session/resource targets remain unqualified. Debt stays active.
 
 **Related:**
