@@ -1,0 +1,164 @@
+{
+  "source": "352fb0f3c68a76d0de127f8177ea0645aeddc9f5",
+  "method": "cProfile costs include instrumentation; not latency qualification",
+  "profiles": [
+    {
+      "kind": "activity",
+      "total_calls": 26884445,
+      "total_seconds_with_profiler": 11.726217618999963,
+      "hotspots": [
+        {
+          "function": "projections.py:217:add",
+          "calls": 214686,
+          "self_seconds": 2.070900606,
+          "cumulative_seconds": 8.885047250000001
+        },
+        {
+          "function": "projections.py:428:<genexpr>",
+          "calls": 3419126,
+          "self_seconds": 1.083129162,
+          "cumulative_seconds": 1.578078456
+        },
+        {
+          "function": "~:0:<built-in method _imp.create_dynamic>",
+          "calls": 58,
+          "self_seconds": 0.660790836,
+          "cumulative_seconds": 0.661049375
+        },
+        {
+          "function": "~:0:<method 'get' of 'dict' objects>",
+          "calls": 6296854,
+          "self_seconds": 0.6509949420000001,
+          "cumulative_seconds": 0.6509949420000001
+        },
+        {
+          "function": "~:0:<built-in method builtins.any>",
+          "calls": 1709712,
+          "self_seconds": 0.5346877720000001,
+          "cumulative_seconds": 2.112813739
+        },
+        {
+          "function": "~:0:<method 'read' of '_io.BufferedReader' objects>",
+          "calls": 2121,
+          "self_seconds": 0.5136360480000001,
+          "cumulative_seconds": 0.5136360480000001
+        },
+        {
+          "function": "~:0:<method 'to_python' of 'pydantic_core._pydantic_core.SchemaSerializer' objects>",
+          "calls": 214687,
+          "self_seconds": 0.503105801,
+          "cumulative_seconds": 0.503125468
+        },
+        {
+          "function": "decoder.py:350:raw_decode",
+          "calls": 214686,
+          "self_seconds": 0.47432495300000005,
+          "cumulative_seconds": 0.47432495300000005
+        },
+        {
+          "function": "~:0:<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 214689,
+          "self_seconds": 0.434120292,
+          "cumulative_seconds": 0.5980298620000001
+        },
+        {
+          "function": "~:0:<method 'isoformat' of 'datetime.datetime' objects>",
+          "calls": 440694,
+          "self_seconds": 0.427603761,
+          "cumulative_seconds": 0.427603761
+        },
+        {
+          "function": "projections.py:851:build_projection",
+          "calls": 2231,
+          "self_seconds": 0.31254299700000004,
+          "cumulative_seconds": 11.728408666
+        },
+        {
+          "function": "projections.py:108:size",
+          "calls": 29178,
+          "self_seconds": 0.26116636000000004,
+          "cumulative_seconds": 0.5921948450000001
+        }
+      ]
+    },
+    {
+      "kind": "snapshots_all_13_accounts",
+      "total_calls": 109287167,
+      "total_seconds_with_profiler": 24.43670141699999,
+      "hotspots": [
+        {
+          "function": "bounded_read.py:164:json_array_records",
+          "calls": 80499,
+          "self_seconds": 7.542948235000001,
+          "cumulative_seconds": 12.336514628000002
+        },
+        {
+          "function": "projections.py:108:size",
+          "calls": 357474,
+          "self_seconds": 4.861780747,
+          "cumulative_seconds": 10.032505302
+        },
+        {
+          "function": "~:0:<method 'append' of 'bytearray' objects>",
+          "calls": 29888588,
+          "self_seconds": 2.4350770230000003,
+          "cumulative_seconds": 2.4350770230000003
+        },
+        {
+          "function": "~:0:<built-in method builtins.len>",
+          "calls": 30062208,
+          "self_seconds": 1.730224358,
+          "cumulative_seconds": 1.73024207
+        },
+        {
+          "function": "~:0:<built-in method builtins.isinstance>",
+          "calls": 12541156,
+          "self_seconds": 1.17027412,
+          "cumulative_seconds": 1.17027412
+        },
+        {
+          "function": "dataclasses.py:1331:is_dataclass",
+          "calls": 3759257,
+          "self_seconds": 1.096290443,
+          "cumulative_seconds": 1.689764064
+        },
+        {
+          "function": "~:0:<built-in method builtins.id>",
+          "calls": 8908825,
+          "self_seconds": 0.649832921,
+          "cumulative_seconds": 0.649832921
+        },
+        {
+          "function": "~:0:<built-in method sys.getsizeof>",
+          "calls": 4436777,
+          "self_seconds": 0.620774201,
+          "cumulative_seconds": 0.620774201
+        },
+        {
+          "function": "~:0:<method 'add' of 'set' objects>",
+          "calls": 4436790,
+          "self_seconds": 0.5644357760000001,
+          "cumulative_seconds": 0.5644357760000001
+        },
+        {
+          "function": "~:0:<method 'pop' of 'list' objects>",
+          "calls": 4447328,
+          "self_seconds": 0.47107127400000004,
+          "cumulative_seconds": 0.47107127400000004
+        },
+        {
+          "function": "projections.py:618:add",
+          "calls": 80018,
+          "self_seconds": 0.38392522300000004,
+          "cumulative_seconds": 11.989150037
+        },
+        {
+          "function": "~:0:<built-in method builtins.hasattr>",
+          "calls": 3759257,
+          "self_seconds": 0.294270434,
+          "cumulative_seconds": 0.294270434
+        }
+      ]
+    }
+  ]
+}

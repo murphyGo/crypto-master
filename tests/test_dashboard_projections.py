@@ -319,7 +319,7 @@ def test_verified_cache_reuses_compact_state_and_expires_safety_window(
     clock = NOW + timedelta(seconds=1)
     monkeypatch.setattr(
         module,
-        "reverse_jsonl_records",
+        "reverse_jsonl_bytes",
         lambda *_: (_ for _ in ()).throw(AssertionError("unchanged file reread")),
     )
     result = next(
@@ -415,3 +415,97 @@ def test_audit_keeps_newest_candidate_rows_and_declares_lifetime_count(tmp_path)
             if event.candidate_id == "one"
         ][-300:]
     )
+
+
+def test_lazy_activity_details_keep_timeline_and_gate_samples_exact(
+    tmp_path, monkeypatch
+):
+    events = [
+        event(
+            "monitor_pass",
+            at=NOW - timedelta(seconds=i),
+            cid="cycle",
+            context="x" * 1000,
+        )
+        for i in range(1000, 0, -1)
+    ]
+    for reasons in proposals.GATE_REASON_BY_STATE.values():
+        for reason in reasons:
+            events.extend(
+                [
+                    event(
+                        "proposal_rejected",
+                        at=NOW - timedelta(seconds=2),
+                        reason=reason,
+                    ),
+                    event("monitor_pass", reason=reason + "_legacy"),
+                    event("proposal_rejected", gate_reason=reason),
+                ]
+            )
+    # One event can supply two different gate samples; source-order ties
+    # retain the first event, including a legacy match on a non-rejection.
+    reasons = list(proposals.GATE_REASON_BY_STATE.values())
+    events.append(
+        event(
+            "monitor_pass", gate_reason=reasons[0][0], reason=reasons[1][0] + "_legacy"
+        )
+    )
+    legacy = write_events(tmp_path, events)
+    original = ActivityEvent.model_dump
+    serialized = 0
+
+    def counted(self, *args, **kwargs):
+        nonlocal serialized
+        serialized += 1
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(ActivityEvent, "model_dump", counted)
+    result = projection(Query(tmp_path, "activity", at=NOW))
+    assert result["total"] == len(events)
+    assert serialized <= 330  # Rich rows are bounded by display retention.
+    assert [
+        {key: value for key, value in raw.items() if key != "_ordinal"}
+        for raw in result["timeline"]
+    ] == [original(e, mode="json") for e in legacy[-300:]]
+    compact = [ActivityEvent.model_validate(raw) for raw in result["events"]]
+    for gate in proposals.GATE_REASON_BY_STATE:
+        assert proposals.latest_sample_event_for_gate(
+            compact, gate
+        ) == proposals.latest_sample_event_for_gate(legacy, gate)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "[]",
+        '{"timestamp":null}',
+        '{"timestamp":"bad"}',
+        '{"timestamp":"2026-10-10T00:00:00Z","details":[]}',
+    ],
+)
+def test_direct_activity_validation_rejects_old_rows_outside_display_tail(
+    tmp_path, bad
+):
+    write_events(
+        tmp_path,
+        [event("monitor_pass", at=NOW + timedelta(seconds=i)) for i in range(400)],
+    )
+    path = tmp_path / "runtime" / "activity.jsonl"
+    path.write_text(bad + "\n" + path.read_text())
+    with pytest.raises(ReadFailure, match="invalid_record"):
+        projection(Query(tmp_path, "activity", at=NOW))
+
+
+def test_snapshot_accounting_still_rejects_retained_state_over_budget(tmp_path):
+    from tests.test_dashboard_trading import make_snapshot
+
+    directory = tmp_path / "portfolio" / "paper" / "one"
+    directory.mkdir(parents=True)
+    values = [make_snapshot(timestamp=NOW + timedelta(seconds=i)) for i in range(100)]
+    (directory / "snapshots.json").write_text(
+        json.dumps([row.model_dump(mode="json") for row in values])
+    )
+    with pytest.raises(ReadFailure, match="state_budget_exhausted"):
+        projection(
+            Query(tmp_path, "snapshots", accounts=("one",)), Limits(state_bytes=4096)
+        )

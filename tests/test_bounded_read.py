@@ -108,3 +108,25 @@ def test_reverse_jsonl_has_exact_forward_order_and_offsets(
     offsets = [row.pop("_offset") for row in reversed_rows]
     assert reversed_rows == list(reversed(values))
     assert offsets == sorted(offsets, reverse=True)
+
+
+@pytest.mark.parametrize("block", [1, 7, 64, 65536])
+def test_array_scanning_preserves_long_escaped_runs_and_exact_record_limit(
+    tmp_path, monkeypatch, block
+):
+    monkeypatch.setattr(io, "BLOCK_BYTES", block)
+    value = {"text": ('한글🙂\\"{}[]' + "a" * 1000) * 3, "tail": {"n": 1}}
+    raw = json.dumps(value, ensure_ascii=False).encode()
+    path = tmp_path / "rows.json"
+    path.write_bytes(b" \n[ " + raw + b" ]\t\n")
+    assert records(io.json_array_records, path, record_bytes=len(raw)) == [value]
+    with pytest.raises(io.ReadFailure, match="record_too_large"):
+        records(io.json_array_records, path, record_bytes=len(raw) - 1)
+
+
+def test_array_scanning_rejects_invalid_escapes_and_nested_syntax(tmp_path):
+    path = tmp_path / "rows.json"
+    for raw in ('[{"s":"bad\\q"}]', '[{"v":[1,2}]}]', '[{"v":\\1}]'):
+        path.write_text(raw)
+        with pytest.raises(io.ReadFailure, match="malformed_json"):
+            records(io.json_array_records, path)

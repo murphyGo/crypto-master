@@ -188,19 +188,19 @@ def test_unchanged_projection_survives_stale_display_deadline(tmp_path, monkeypa
             service._cache[query.normalized()].evaluated -= (
                 service.limits.stale_seconds + 1
             )
-        original_reader = projections.reverse_jsonl_records
+        original_reader = projections.reverse_jsonl_bytes
 
         def unnecessary_read(*args, **kwargs):
             raise ReadFailure("unexpected_archive_rebuild")
 
-        monkeypatch.setattr(projections, "reverse_jsonl_records", unnecessary_read)
+        monkeypatch.setattr(projections, "reverse_jsonl_bytes", unnecessary_read)
         result = service.request(query)
         assert result.complete and result.data()["total"] == 1
         assert service.stats()["cache_bytes"] <= service.limits.cache_bytes
 
         # Retention for verified reuse cannot make expired or damaged data
         # eligible for display as complete or as labelled stale fallback.
-        monkeypatch.setattr(projections, "reverse_jsonl_records", original_reader)
+        monkeypatch.setattr(projections, "reverse_jsonl_bytes", original_reader)
         path.write_text("broken\n")
         with service._condition:
             service._cache[query.normalized()].evaluated -= (

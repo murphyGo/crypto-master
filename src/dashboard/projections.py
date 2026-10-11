@@ -6,11 +6,13 @@ import heapq
 import json
 import re
 import sys
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
+
+from pydantic import ValidationError
 
 from src.config import get_settings
 from src.dashboard.read_models import Limits, Query, utc_now
@@ -26,6 +28,7 @@ from src.utils.bounded_read import (
     json_array_records,
     json_object,
     jsonl_records,
+    reverse_jsonl_bytes,
     reverse_jsonl_records,
 )
 from src.utils.time import ensure_utc
@@ -125,13 +128,19 @@ class StateBudget:
         return total
 
     def change(self, old: Any, new: Any, *, new_key: bool = False) -> None:
-        delta = self.size(new) - (self.size(old) if old is not None else 0)
+        self.replace(self.size(old) if old is not None else 0, new, new_key=new_key)
+
+    def replace(self, old_charge: int, new: Any, *, new_key: bool = False) -> int:
+        """Replace retained state using its measured charge, without rescanning it."""
+        charge = self.size(new)
+        delta = charge - old_charge
         if self.bytes + delta > self.limits.state_bytes:
             raise ReadFailure("state_budget_exhausted")
         if new_key and self.identities >= self.limits.identities:
             raise ReadFailure("identity_budget_exhausted")
         self.bytes += delta
         self.identities += int(new_key)
+        return charge
 
     def account(self, account: str) -> None:
         if account not in self.accounts:
@@ -156,13 +165,21 @@ class Top:
         self.budget = budget
         self.heap: list[tuple[datetime, int, dict[str, Any]]] = []
 
-    def add(self, at: datetime, ordinal: int, value: dict[str, Any]) -> None:
+    def add(
+        self,
+        at: datetime,
+        ordinal: int,
+        value: dict[str, Any] | Callable[[], dict[str, Any]],
+    ) -> None:
         # On equal timestamps, legacy newest-first tables retain earliest
         # source ordinal. Callers needing the timeline's ascending tail use
         # the opposite ordinal deliberately.
-        entry = (at, -ordinal, value)
-        if len(self.heap) >= self.count and entry[:2] <= self.heap[0][:2]:
+        rank = (at, -ordinal)
+        if len(self.heap) >= self.count and rank <= self.heap[0][:2]:
             return
+        if callable(value):
+            value = value()
+        entry = (*rank, value)
         old = self.heap[0][2] if len(self.heap) >= self.count else None
         self.budget.change(old, value)
         if old is None:
@@ -178,8 +195,19 @@ class Top:
 
 class ActivityProjection:
     def __init__(self, query: Query, budget: StateBudget):
+        from src.dashboard.pages.proposals import GATE_REASON_BY_STATE
+
         self.query, self.budget = query, budget
         self.now = ensure_utc(query.at or utc_now())
+        self.cutoff = self.now - timedelta(hours=24)
+        self.gate_exact: dict[str, set[str]] = {}
+        self.gate_prefix: dict[str, list[tuple[str, str]]] = {}
+        for gate, reasons in GATE_REASON_BY_STATE.items():
+            for reason in reasons:
+                self.gate_exact.setdefault(reason, set()).add(gate)
+                self.gate_prefix.setdefault(reason.partition("_")[0], []).append(
+                    (gate, reason + "_")
+                )
         self.cycles: dict[str, CycleState] = {}
         self.rejected: set[tuple[str | None, str]] = set()
         self.rejected_global: set[str] = set()
@@ -202,28 +230,55 @@ class ActivityProjection:
         key: tuple[str, ...],
         event: ActivityEvent,
         ordinal: int,
-        payload: dict[str, Any],
+        payload: Callable[[], dict[str, Any]],
         *,
         last_tie: bool = False,
     ) -> None:
         old = self.latest.get(key)
         rank = (event.timestamp, ordinal if last_tie else -ordinal)
         if old is None or rank > old[:2]:
+            value = payload()
             self.budget.change(
-                [key, old[2]] if old else None, [key, payload], new_key=old is None
+                [key, old[2]] if old else None, [key, value], new_key=old is None
             )
-            self.latest[key] = (rank[0], rank[1], payload)
+            self.latest[key] = (rank[0], rank[1], value)
 
     def add(self, raw: dict[str, Any], source: Source, ordinal: int) -> None:
         if "timestamp" not in raw:
             raise ReadFailure("missing_timestamp")
         event = ActivityEvent.model_validate(raw)
+        self.add_event(event, ordinal)
+
+    def add_json(self, raw: bytes, ordinal: int) -> None:
+        # Pydantic's JSON decoder validates directly from bounded raw bytes;
+        # avoid decoding a second transient dictionary for every archive row.
+        try:
+            event = ActivityEvent.model_validate_json(raw)
+        except ValidationError as exc:
+            reason = (
+                "malformed_json"
+                if any(error["type"] == "json_invalid" for error in exc.errors())
+                else "invalid_record"
+            )
+            raise ReadFailure(reason) from exc
+        if "timestamp" not in event.model_fields_set:
+            raise ReadFailure("missing_timestamp")
+        self.add_event(event, ordinal)
+
+    def add_event(self, event: ActivityEvent, ordinal: int) -> None:
         typ, details, at = event.event_type, event.details, event.timestamp
         # Validation is one record at a time. The recent timeline owns at
         # most 300 rich rows; the full raw event list is never retained.
-        payload = event.model_dump(mode="json")
-        payload["_ordinal"] = ordinal
-        recent = at >= self.now - timedelta(hours=24)
+        value: dict[str, Any] | None = None
+
+        def payload() -> dict[str, Any]:
+            nonlocal value
+            if value is None:
+                value = event.model_dump(mode="json")
+                value["_ordinal"] = ordinal
+            return value
+
+        recent = at >= self.cutoff
         if recent and typ in _INCIDENTS:
             self.unscoped_incidents.add(at, ordinal, payload)
         if self.query.scope != "Aggregate" and str(
@@ -253,7 +308,7 @@ class ActivityProjection:
             or "stale-quote" in event.message
         ):
             compact = {
-                "timestamp": payload["timestamp"],
+                "timestamp": at.isoformat(),
                 "event_type": typ,
                 "message": "stale-quote" if "stale-quote" in event.message else "",
                 "cycle_id": event.cycle_id,
@@ -275,24 +330,25 @@ class ActivityProjection:
             self.incidents.add(at, ordinal, payload)
         if event.cycle_id:
             cid = event.cycle_id
+            timestamp = at.isoformat()
             if cid not in self.cycles:
-                state = CycleState(first=[at.isoformat(), ordinal])
+                state = CycleState(first=[timestamp, ordinal])
                 self.budget.change(None, [cid, state], new_key=True)
                 self.cycles[cid] = state
             state = self.cycles[cid]
-            if (at.isoformat(), ordinal) < tuple(state["first"]):
-                state["first"] = [at.isoformat(), ordinal]
+            if (timestamp, ordinal) < tuple(state["first"]):
+                state["first"] = [timestamp, ordinal]
             if typ == "cycle_started" and (
-                state["start"] is None or at.isoformat() < state["start"]
+                state["start"] is None or timestamp < state["start"]
             ):
-                state["start"] = at.isoformat()
+                state["start"] = timestamp
             if typ in {"cycle_completed", "cycle_errored"}:
                 previous = state["end"]
-                if previous is None or (at.isoformat(), ordinal) < (
+                if previous is None or (timestamp, ordinal) < (
                     previous[0],
                     previous[1],
                 ):
-                    terminal = [at.isoformat(), ordinal, typ, event.message]
+                    terminal = [timestamp, ordinal, typ, event.message]
                     self.budget.change(previous, terminal)
                     state["end"] = terminal
                 state["error"] |= typ == "cycle_errored"
@@ -422,15 +478,16 @@ class ActivityProjection:
             )
         # Gate samples match on gate_reason OR legacy reason prefix, even
         # for non-rejection event types, matching the existing pure helper.
-        from src.dashboard.pages.proposals import GATE_REASON_BY_STATE
-
-        for gate, reasons in GATE_REASON_BY_STATE.items():
-            if details.get("gate_reason") in reasons or any(
-                str(details.get("reason", "")) == reason
-                or str(details.get("reason", "")).startswith(reason + "_")
-                for reason in reasons
-            ):
-                self._latest(("gate_sample", gate), event, ordinal, payload)
+        gate_reason = details.get("gate_reason")
+        reason = str(details.get("reason", ""))
+        matches = set(self.gate_exact.get(reason, ()))
+        if isinstance(gate_reason, str):
+            matches.update(self.gate_exact.get(gate_reason, ()))
+        for gate, prefix in self.gate_prefix.get(reason.partition("_")[0], ()):
+            if reason.startswith(prefix):
+                matches.add(gate)
+        for gate in matches:
+            self._latest(("gate_sample", gate), event, ordinal, payload)
 
     def finish(self) -> dict[str, Any]:
         from src.dashboard.pages.engine import CycleSummary
@@ -605,7 +662,8 @@ class HistoryProjection:
             "realized_pnl": 0.0,
         }
         self.latest: dict[str, dict[str, Any]] = {}
-        self.curves: dict[str, list[dict[str, Any]]] = {}
+        self.latest_charges: dict[str, int] = {}
+        self.curves: dict[str, list[tuple[dict[str, Any], int]]] = {}
         self.curve_limit = max(4, 4096 // max(1, len(query.accounts)))
         self.sampled = False
         self.candidate_counts: dict[str, int] = {"total": 0}
@@ -696,43 +754,51 @@ class HistoryProjection:
             self.history.add(trade.exit_time or trade.entry_time, ordinal, raw)
         elif kind == "snapshots":
             snapshot = AssetSnapshot.model_validate(raw)
-            raw = snapshot.model_dump(mode="json")
             account = source.account
             self.budget.account(account)
             old = self.latest.get(account)
             if old is None or snapshot.timestamp > datetime.fromisoformat(
                 old["timestamp"]
             ):
-                self.budget.change(old, raw, new_key=old is None)
+                raw = snapshot.model_dump(mode="json")
+                # Charge the account and charge slot as well as the payload;
+                # all integers here fit the same object-size class as zero.
+                self.latest_charges[account] = self.budget.replace(
+                    self.latest_charges.get(account, 0),
+                    [account, raw, 0],
+                    new_key=old is None,
+                )
                 self.latest[account] = raw
             curve = self.curves.setdefault(account, [])
             point = {
                 "timestamp": snapshot.timestamp.isoformat(),
                 "equity": str(snapshot.total_equity),
             }
-            self.budget.change(None, point)
-            curve.append(point)
+            charge = self.budget.replace(0, (point, 0))
+            curve.append((point, charge))
             if len(curve) > self.curve_limit:
                 # Hierarchical adjacent buckets preserve first/latest and
                 # local extrema. This is display sampling, never a total.
-                ordered = sorted(curve, key=lambda point: point["timestamp"])
+                ordered = sorted(curve, key=lambda entry: entry[0]["timestamp"])
                 reduced = [ordered[0]]
                 for i in range(1, len(ordered) - 1, 8):
                     bucket = ordered[i : min(i + 8, len(ordered) - 1)]
                     extrema = {
-                        id(point): point
-                        for point in (
-                            min(bucket, key=lambda point: Decimal(point["equity"])),
-                            max(bucket, key=lambda point: Decimal(point["equity"])),
+                        id(entry[0]): entry
+                        for entry in (
+                            min(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
+                            max(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
                         )
                     }
                     reduced.extend(
-                        sorted(extrema.values(), key=lambda point: point["timestamp"])
+                        sorted(
+                            extrema.values(), key=lambda entry: entry[0]["timestamp"]
+                        )
                     )
                 reduced.append(ordered[-1])
-                self.budget.bytes -= sum(
-                    self.budget.size(point) for point in curve
-                ) - sum(self.budget.size(point) for point in reduced)
+                self.budget.bytes -= sum(entry[1] for entry in curve) - sum(
+                    entry[1] for entry in reduced
+                )
                 self.curves[account] = reduced
                 self.sampled = True
         elif kind == "candidates":
@@ -834,7 +900,10 @@ class HistoryProjection:
             "history": self.history.values(),
             "metrics": self.trade_counts,
             "latest": self.latest,
-            "curves": self.curves,
+            "curves": {
+                account: [entry[0] for entry in curve]
+                for account, curve in self.curves.items()
+            },
             "sampled": self.sampled,
             "candidate_counts": self.candidate_counts,
             "candidates": self.candidates.values(),
@@ -883,21 +952,30 @@ def build_projection(
             "object": json_object,
             "array": json_array_records,
         }[source.format]
-        iterator = reader(source.path, source.generation)
+        iterator = (
+            reverse_jsonl_bytes(source.path, source.generation)
+            if isinstance(reducer, ActivityProjection)
+            else reader(source.path, source.generation)
+        )
         try:
             for raw in iterator:
                 if raw is None:
                     yield None
                     continue
-                ordinal = (
-                    ((manifest.file_count - index - 1) << 48) + raw.pop("_offset")
-                    if query.kind in {"activity", "audit"}
-                    else ordinal
-                )
-                reducer.add(raw, source, ordinal)
+                if isinstance(reducer, ActivityProjection):
+                    offset, record = cast(tuple[int, bytes], raw)
+                    ordinal = ((manifest.file_count - index - 1) << 48) + offset
+                    reducer.add_json(record, ordinal)
+                else:
+                    value = cast(dict[str, Any], raw)
+                    if query.kind == "audit":
+                        ordinal = ((manifest.file_count - index - 1) << 48) + value.pop(
+                            "_offset"
+                        )
+                    reducer.add(value, source, ordinal)
                 ordinal += 1
                 line += 1
-                if ordinal % 256 == 0:
+                if line % 256 == 0:
                     yield None
         except ValueError as exc:
             raise ReadFailure("invalid_record") from exc

@@ -1,0 +1,68 @@
+{
+  "baseline_source": "352fb0f3c68a76d0de127f8177ea0645aeddc9f5",
+  "fixture": "captured-fly-data-20261009T094537Z",
+  "account_count": 13,
+  "query_at_utc": "2026-10-11T00:00:00+00:00",
+  "method": "exact structural equality of full output; raw financial values excluded from evidence",
+  "candidate_runtime_sha256": {
+    "src/utils/bounded_read.py": "0be262d77eadeedb8dacc5766f91ec3b7c6cb411fdb4bdfb0bc242a2a8441e5b",
+    "src/dashboard/projections.py": "c5494f3d81caf2fab6e95b7621f94a5f798c784e385d8874ba48336853a71dc6"
+  },
+  "queries": [
+    {
+      "kind": "activity",
+      "identical_complete_projection": true,
+      "sha256": "7727b74533909d61048f63100ea2ef7f7df5502975cc6b3cc938ca05803ddc72",
+      "encoded_bytes": 319303,
+      "source_coverage": {
+        "captured_bytes": 90064921,
+        "files": 7,
+        "verified": true
+      }
+    },
+    {
+      "kind": "candidates",
+      "identical_complete_projection": true,
+      "sha256": "c649e98ef32c44664ae31d071a31c663ad043d114e82d649c1def9772d0ea9e5",
+      "encoded_bytes": 1823,
+      "source_coverage": {
+        "captured_bytes": 856,
+        "files": 1,
+        "verified": true
+      }
+    },
+    {
+      "kind": "ledger",
+      "identical_complete_projection": true,
+      "sha256": "0a5a00f9c3af00cb410207a84109a4ddd256faa43dde44047f5639e663df88be",
+      "encoded_bytes": 22619,
+      "source_coverage": {
+        "captured_bytes": 889808,
+        "files": 13,
+        "verified": true
+      }
+    },
+    {
+      "kind": "proposals",
+      "identical_complete_projection": true,
+      "sha256": "06b66a020f28af6f3370189c3adb1a50d6fe70b501fbc8ba0c24d02357e8efb3",
+      "encoded_bytes": 25860,
+      "source_coverage": {
+        "captured_bytes": 15119764,
+        "files": 12183,
+        "verified": true
+      }
+    },
+    {
+      "kind": "snapshots",
+      "identical_complete_projection": true,
+      "sha256": "313f21b22e6d23e663a78ddb579452712f3c2a4a8958791b5cac0b2ef4fb796a",
+      "encoded_bytes": 198728,
+      "source_coverage": {
+        "captured_bytes": 30208686,
+        "files": 13,
+        "verified": true
+      }
+    }
+  ]
+}

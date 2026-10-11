@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Generator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,9 @@ from typing import Any
 
 BLOCK_BYTES = 64 * 1024
 RECORD_BYTES = 1024 * 1024
+_STRING_TOKEN = re.compile(rb'["\\]')
+_OBJECT_TOKEN = re.compile(rb'["{}\[\]]')
+_NONSPACE = re.compile(rb"[^\t\n\r ]")
 
 
 class ReadFailure(Exception):
@@ -109,6 +113,24 @@ def reverse_jsonl_records(
     path: Path, generation: Generation, *, record_bytes: int = RECORD_BYTES
 ) -> Generator[dict[str, Any] | None, None, None]:
     """Newest-first blocks; byte offsets preserve original timestamp ties."""
+    iterator = reverse_jsonl_bytes(path, generation, record_bytes=record_bytes)
+    try:
+        for record in iterator:
+            if record is None:
+                yield None
+            else:
+                offset, raw = record
+                value = _object(raw)
+                value["_offset"] = offset
+                yield value
+    finally:
+        iterator.close()
+
+
+def reverse_jsonl_bytes(
+    path: Path, generation: Generation, *, record_bytes: int = RECORD_BYTES
+) -> Generator[tuple[int, bytes] | None, None, None]:
+    """Bounded raw rows for direct model JSON validation, with source offsets."""
     carry = b""
     first = True
     with path.open("rb") as handle:
@@ -145,18 +167,14 @@ def reverse_jsonl_records(
                 if len(raw) > record_bytes:
                     raise ReadFailure("record_too_large")
                 if raw.strip():
-                    value = _object(raw)
-                    value["_offset"] = position + left + 1
-                    yield value
+                    yield position + left + 1, raw
                 right = left
             carry = buffer[:right]
             if len(carry) > record_bytes:
                 raise ReadFailure("record_too_large")
             yield None
         if carry.strip():
-            value = _object(carry)
-            value["_offset"] = 0
-            yield value
+            yield 0, carry
     if Generation.capture(path) != generation:
         raise ReadFailure("source_changed")
 
@@ -176,17 +194,31 @@ def json_array_records(
     quoted = False
     escaped = False
     for block in _blocks(path, generation):
-        # Find structural ASCII bytes while in an object. Processing slices
-        # rather than decoding the whole array also handles UTF-8 boundaries.
-        for char in block:
+        # Scan runs in C, retaining only the current bounded object. Strings
+        # need quote/escape tokens; outside strings only nesting/quotes matter.
+        # Slice boundaries can fall inside UTF-8 sequences without decoding.
+        position = 0
+        while position < len(block):
             if state == "object":
-                if len(pending) >= record_bytes:
+                if escaped:
+                    end = position + 1
+                    match = None
+                else:
+                    token = _STRING_TOKEN if quoted else _OBJECT_TOKEN
+                    match = token.search(block, position)
+                    end = match.end() if match else len(block)
+                if len(pending) + end - position > record_bytes:
                     raise ReadFailure("record_too_large")
-                pending.append(char)
+                pending.extend(block[position:end])
+                position = end
+                if escaped:
+                    escaped = False
+                    continue
+                if match is None:
+                    continue
+                char = block[end - 1]
                 if quoted:
-                    if escaped:
-                        escaped = False
-                    elif char == 92:
+                    if char == 92:
                         escaped = True
                     elif char == 34:
                         quoted = False
@@ -201,11 +233,16 @@ def json_array_records(
                         pending.clear()
                         state = "separator"
                 continue
-            if char in (9, 10, 13, 32):
-                continue
+            match = _NONSPACE.search(block, position)
+            if match is None:
+                break
+            char = block[match.start()]
+            position = match.end()
             if state == "start" and char == 91:
                 state = "first"
             elif state in ("first", "next") and char == 123:
+                if record_bytes < 1:
+                    raise ReadFailure("record_too_large")
                 pending.append(char)
                 depth = 1
                 state = "object"
