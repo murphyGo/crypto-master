@@ -13,8 +13,8 @@
 2. [x] Implement allocation-checked parser scanning, direct bounded activity JSON validation, lazy rich event serialization / grouped gate classification and measured snapshot charge reuse. Preserve validation of every source record, timestamp ties, gate semantics and exact lifetime/window totals. Parser boundary/damage and reducer parity tests pass; five full incident projections match the baseline exactly.
 3. [x] Run targeted dashboard tests (63), full regression (2732 passed in 208.76s), changed-file Black/Ruff and source mypy (129 files); review changed code against the approved contracts. No unresolved source correctness finding; cold/native/resource acceptance stays separate.
 4. [x] Measure the final runtime inputs with 20 cold/cache/revalidation samples on the incident and existing million-record fixture; all complete, source hashes match. Incident activity/snapshot cold p95 1.737s/3.746s; million activity 10.546s still misses 5s. Local RSS evidence is separate from native/shared-guest acceptance.
-5. [ ] Commit and push the scoped source/docs, deploy the exact reviewed SHA, and verify image/source hashes, health, read-only queries, Home/Trading protocol rendering and an engine cycle. Record limitations without closing DEBT-083 prematurely.
-6. [ ] Update implementation notes, session, cross-check, unit state, debt and original outstanding checklist from actual results.
+5. [x] Commit/push `22abf3d`, deploy exact source on Fly v59; 175 source hashes, health and first paper cycle pass. Record partial/failing read-only query and first protocol observations under measured CPU throttling, and later complete warm Home/Trading responses. DEBT-083 remains active; CPU-class/cost candidate is a separate approval.
+6. [x] Update implementation notes, session, cross-check, unit state, debt and original outstanding checklist from actual results, including the failed first readiness, measured CPU quota bottleneck and pending cost/design choice.
 
 ## Verification
 
@@ -30,11 +30,17 @@ git diff --check
 
 ## Completion
 
-- [ ] Implementation and meaningful regression checks recorded
-- [ ] Exact-source performance evidence and deployed verification recorded
-- [ ] Session, cross-check, state, debt and plans reconciled
-- [ ] Unrelated dirty files and runtime data preserved
+- [x] Implementation and meaningful regression checks recorded
+- [x] Exact-source performance evidence and deployed verification recorded, with explicit partial/failing acceptance
+- [x] Session, cross-check, state, debt and plans reconciled
+- [x] Unrelated dirty files and runtime data preserved
 
 ## Remaining acceptance
 
 Native visual and four-session / 10-minute resource qualification requires a working Browser connection. Protocol integration and offline query benchmarks cannot satisfy that criterion. Do not infer the original 1 GiB shared-guest acceptance from the current 2 GiB deployment.
+
+The million cold 5s target and first production readiness remain unmet. The
+reviewed CPU-class / added-cost decision is in the
+[Infrastructure Design plan](dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md).
+This source performance slice is documented and deployed; it does not close
+DEBT-083 or approve a capacity change.

@@ -1,5 +1,16 @@
 # AI-DLC Approval Audit
 
+## 2026-10-12 — Bounded Loading Performance / CPU Infrastructure Decision
+
+- **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
+- **Operator response:** `계속 진행시켜`; earlier `배포도 해줘` authorizes the continued scoped source rollout and ordinary verification.
+- **Source / release:** `22abf3dba6b35f1ba542a729b982bf334498525b`, Fly v59; 2732 regression passes, exact incident projection parity, 20-sample final-input query measurements; 175 runtime hashes, health and first paper cycle pass.
+- **Partial acceptance:** Million cold query p95 10.546s misses 5s. First Home protocol readiness fails its 240s observation under measured shared CPU quota throttling; later warm Home/Trading renders complete in 1.443s/1.251s. Native/resource acceptance remains pending.
+- **New decision:** Performance-1x / 2 GiB candidate is prepared, preserving image/machine/volume/paper/Codex. Estimated Tokyo continuous 30-day compute cost increases $16.61→$43.16 (+$26.55), before tax/traffic/discounts.
+- **Approval status:** CPU-class / incremental cost approval requested, **PENDING**. This is not inferred from prior source/deployment authorization; active Fly configuration remains shared CPU 1 / 2 GiB.
+- **Plans:** `construction/plans/dashboard-operator-ui-bounded-data-loading-performance-plan.md`; `construction/plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md`.
+- **Session:** `docs/sessions/2026-10-12-dashboard-operator-ui-loading-performance.md`.
+
 ## 2026-10-10 — Bounded Dashboard Deployment Authorization and v58 Verification
 
 - **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.

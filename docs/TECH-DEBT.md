@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; bounded containment and requested-root reuse correction deployed/verified on Fly v58 (`785374b`); cold readiness and full native shared-guest/four-session acceptance remain outstanding |
+| **Status** | Active; bounded performance follow-up deployed on Fly v59 (`22abf3d`), source/health/engine and later warm protocol responses verified. Cold readiness fails under measured shared-CPU quota throttling; CPU-class/cost design approval and full native/resource acceptance remain outstanding |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -125,7 +125,26 @@ resource acceptance remains pending; the debt stays Critical/active. See the
 deployment session and cross-check below. The source-only wording above is the
 earlier checkpoint.
 
+**2026-10-12 performance / CPU follow-up:** Fly v59 runs `22abf3d`; 2732
+regression passes, exact incident projection parity, 175 deployed hashes,
+health and the first paper cycle pass. Exact-input 20-sample incident activity
+and 13-account snapshot cold p95 is 1.737s / 3.746s; million-event activity
+10.546s still misses 5s. First Home protocol readiness remains incomplete at
+240s. Live CPU baseline is 0.0625, balance approaches zero and quota throttling
+consumes about 90% of sampled intervals, while memory remains available. Later
+warm Home/Trading renders complete in 1.443s / 1.251s. This additional measured
+CPU bottleneck does not replace the original full-materialization/memory incident.
+A performance-1x / 2 GiB design is prepared, with public Tokyo compute estimate
+$16.61→$43.16 per 30 continuous days (+$26.55, before tax/traffic/discounts).
+CPU-class / cost approval is pending; existing shared capacity is retained.
+Native viewport/four-session/resource targets remain unqualified. Debt stays active.
+
 **Related:**
+- `aidlc-docs/construction/plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md`
+- `aidlc-docs/construction/dashboard-operator-ui/infrastructure-design/cpu-quota-recovery/infrastructure-design.md`
+- `docs/sessions/2026-10-12-dashboard-operator-ui-loading-performance.md`
+- `docs/cross-checks/2026-10-12-dashboard-operator-ui-loading-performance.md`
+- `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-performance-plan.md`
 - `aidlc-docs/construction/plans/dashboard-operator-ui-bounded-data-loading-deployment-plan.md`
 - `docs/sessions/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md`
 - `docs/cross-checks/2026-10-10-dashboard-operator-ui-bounded-data-loading-deployment.md`
@@ -1387,6 +1406,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-10-12 | Updated / deployed | DEBT-083: source performance follow-up `22abf3d` deployed on Fly v59; 2732 regression passes, exact incident projection parity and 20-sample final-input measurements. Source/health/first paper cycle pass; first cold protocol readiness fails under measured CPU quota throttling, while later warm Home/Trading responses complete. Performance CPU / added cost candidate prepared; approval and full NFR acceptance pending. Critical/active retained. |
 | 2026-10-10 | Deployed | DEBT-083: operator requested rollout. Fly v58 runs `785374b`, including retained requested-root projections for verified reuse after slow batches. 2721 regression passes, 175 deployed hashes, health/first paper cycle and complete Home/Trading protocol responses verified. Observed cold Home completion ~33s; exact-final performance/native browser/four-session/shared-guest qualification remains pending. Critical/active retained. |
 | 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |
 | 2026-10-09 | Updated | DEBT-083: `진행시켜` approved Functional Design and presented BDL-NFR targets, authorizing NFR Requirements/Design preparation. Requirements formalized; bounded streaming/cache/coalescing/coverage NFR Design drafted. Corrected Home funnel provenance (proposals only). NFR Design review, implementation, qualification and production acceptance remain pending; other metric/image debts retain their own scope. |

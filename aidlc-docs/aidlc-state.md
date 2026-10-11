@@ -57,6 +57,21 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Latest performance deployment (2026-10-12):** `dashboard-operator-ui` DEBT-083
+> remains Critical/active. Fly v59 runs `22abf3d`; 2732 regression passes, exact
+> incident projection parity, 175 deployed hashes, health and one paper cycle pass.
+> Final-input 20-sample incident activity / 13-account snapshot cold p95 is
+> 1.737s / 3.746s; million activity 10.546s still misses 5s. First Home protocol
+> readiness is incomplete at 240s while shared CPU baseline is 0.0625, burst
+> balance is depleted and quota throttling grows. Later warm Home/Trading renders
+> complete in 1.443s / 1.251s. Paper/Codex/2 GiB/original volume are preserved.
+> A reviewed performance-1x / 2 GiB infrastructure candidate is prepared; CPU-class
+> / incremental operating-cost approval is pending. Native viewport/four-session
+> and full resource acceptance remain unqualified. See
+> `construction/plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md`
+> and `docs/sessions/2026-10-12-dashboard-operator-ui-loading-performance.md`.
+> Earlier deployment/source checkpoints below are historical.
+
 > **Latest deployment (2026-10-10):** `dashboard-operator-ui` DEBT-083 bounded
 > loading is deployed on Fly v58 at runtime source `785374b`. All 175 runtime
 > input hashes match; health and the first paper cycle pass. Deployed-version

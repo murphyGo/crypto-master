@@ -85,6 +85,15 @@ still rebuild the complete projection, so their large-archive cost remains open.
 
 ## Acceptance boundaries
 
+**Deployment follow-up:** Fly v59 runs source `22abf3d`; 175 artifact hashes,
+health and one paper cycle pass. First Home protocol readiness is incomplete
+at 240s while measured shared-CPU balance is depleted and quota throttling rises.
+Later warm Home/Trading renders complete in 1.443s/1.251s. The source optimization
+does not remove this infrastructure bottleneck. The
+[candidate CPU design](../../infrastructure-design/cpu-quota-recovery/infrastructure-design.md)
+is prepared for explicit CPU-class / incremental cost approval; current capacity
+is retained. The session records failed as well as successful observations.
+
 Query completion, Streamlit protocol rendering and native visual acceptance
 remain distinct. The Browser connection was retried and still fails during
 bootstrap because its local runtime service module is missing. No screenshot or

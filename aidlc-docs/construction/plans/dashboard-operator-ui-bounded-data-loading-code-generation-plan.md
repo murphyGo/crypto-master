@@ -36,6 +36,6 @@ git diff --check
 
 ## Outstanding acceptance work
 
-- [ ] Reduce cold/bootstrap and changed-source cost without relaxing budgets or exact semantics; qualify the exact final source with 20 samples.
+- [ ] Meet the remaining complete cold/bootstrap and changed-source target without relaxing budgets or exact semantics. The v59 performance follow-up records exact-input 20-sample measurements: incident activity/snapshots 1.737s/3.746s; million activity 10.546s still misses 5s. Measured production CPU quota throttling has a separate Infrastructure Design/cost decision.
 - [ ] Qualify complete native Home/Trading cold and warm readiness, four sessions for at least 10 minutes, guest memory/health and one full engine cycle on an authorized deployment.
 - [ ] Resolve DEBT-083 only after the approved performance and production criteria pass. Source implementation alone does not close this task's NFR acceptance.

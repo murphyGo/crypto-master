@@ -7,6 +7,17 @@
 performance/production acceptance remains incomplete. DEBT-083 stays active.
 
 **Deployment follow-up:** The operator subsequently requested deployment.
+
+**Latest performance checkpoint (2026-10-12):** Fly v59 runs source `22abf3d`;
+parser scanning, direct activity JSON validation, lazy rich payload retention
+and measured snapshot charge reuse preserve exact incident outputs. Full tests:
+2732 passed. Exact-input 20-sample incident activity/snapshot cold p95 is
+1.737s/3.746s; million activity 10.546s still misses 5s. First Home protocol
+readiness fails under measured shared CPU quota throttling; later warm responses
+complete. See [performance follow-up](performance-follow-up.md) and its session.
+Performance CPU / added cost design approval and full NFR acceptance are pending.
+Earlier timing/deployment statements below are historical checkpoints.
+
 Fly v58 now runs `785374b`, including requested-root projection retention for
 verified reuse after the stale display deadline. Source/process/health/engine
 checks and complete Home/Trading protocol responses are verified in the

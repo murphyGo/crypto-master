@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Bounded loading deployed/verified on Fly v58; complete Home/Trading protocol responses and first engine cycle observed. Cold readiness and native four-session/shared-guest acceptance remain outstanding. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Performance follow-up deployed on Fly v59 (`22abf3d`); source/health/engine and later warm responses verified. Cold readiness fails under measured shared CPU quota throttling. Performance CPU / cost design approval and native/resource acceptance remain outstanding. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | Bounded default routes and requested-root reuse correction deployed at `785374b` (Fly v58); 2721 regression passes, 175 runtime hashes, health/first cycle and complete Home/Trading protocol responses verified. Cold readiness still exceeds the target. Continue bootstrap/changed-source/metadata optimization and exact-final native page/concurrency/guest qualification before closure. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | Fly v59 / `22abf3d`: 2732 regression passes, exact incident parity and final-input 20-sample measurements; 175 deployed hashes, health/first cycle and later warm responses verified. Cold protocol readiness fails with depleted shared CPU credits; performance-1x / 2 GiB design and cost choice await approval. Million-event cold target, native page/concurrency and guest memory qualification remain open. |
 
 DEBT-082 is resolved by native production verification. The concurrent
 DEBT-074/078/084/085/086 implementation closures are preserved in

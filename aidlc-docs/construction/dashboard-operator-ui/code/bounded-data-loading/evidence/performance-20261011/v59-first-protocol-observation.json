@@ -1,0 +1,152 @@
+{
+  "recorded_at_utc": "2026-10-11T15:47:22.411713+00:00",
+  "decoder_streamlit": "1.65.0",
+  "method": "Streamlit WebSocket protocol using canonical navigation hash and advertised availability fragment refresh; not a browser or viewport test",
+  "pages": [
+    {
+      "page": "home",
+      "selected_server_page_hash": "dae0b89ba4f982fd3e5bbc594b64aa2b",
+      "total_seconds": 240.45595462498022,
+      "attempts": [
+        {
+          "run_seconds": 13.873493124963716,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "564abebad3104f48ec930776920f84aa89c211ae051876f9bfbef9cc78eb012b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "171e5d60b830b16ddb5d7e5f8d1deb87c57d859560880283a10989af29e2ff95"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "fb580b3d13ecc51a1e418c4d1316b832ca9c2e90799bb819f94bf00a23db1c0b"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "301ac9baf44a10584012c79165c975df8722d49ac7965ed844c99fcc881fed4b"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "bcf8f21007236d4bf7121481f936ecb4fbd78dccedafbc882e43db7ae130dd25"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 2,
+            "session_status_changed": 1,
+            "navigation": 3,
+            "page_config_changed": 1,
+            "delta": 26,
+            "auto_rerun": 4,
+            "script_finished": 1
+          },
+          "element_types": {
+            "markdown": 7,
+            "heading": 1,
+            "radio": 1,
+            "selectbox": 1,
+            "alert": 8
+          }
+        },
+        {
+          "run_seconds": 4.30745233403286,
+          "metrics": {},
+          "titles": [],
+          "alerts": [
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "5b65a7a70d32d30f69ed9e6d0060efc754bb10586b750f886c6be1355fd9cfb0"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "b453cb7ab26075f47ea129370aef19778267c9230c5659292548551a7ca49e31"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "f532d07682a8b0321bd0403f9f281b5e8ac87a141f76117a117dfcb730a94144"
+            },
+            {
+              "state": "unavailable",
+              "format": 2,
+              "body_sha256": "36fd504fe2e90012799d97fdd856e888deda24274aeaabd21ff3cec2bbeb6ea9"
+            },
+            {
+              "state": "pending",
+              "format": 3,
+              "body_sha256": "68a9b7f0e19abeab7bc6f257f09f9cdd19f1fba8a26265252af06c7076eb9cd1"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "842b0b4b048fbfb5ae908cbc7af1ac78e32bc80e7fb5c4a524fcef864afc93d6"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "720698babc4e49b3c1bbb3bbaf2eb011c97850278589cd98ebe19d6ad779354c"
+            },
+            {
+              "state": "other",
+              "format": 4,
+              "body_sha256": "8a06458e7cd9d449fd91a3d9284ee7f6e43018579d66b1802a790a30efb515e6"
+            }
+          ],
+          "exceptions": [],
+          "data_complete": false,
+          "finish_code": 0,
+          "message_types": {
+            "new_session": 165,
+            "session_status_changed": 327,
+            "navigation": 4,
+            "page_config_changed": 2,
+            "delta": 214,
+            "auto_rerun": 8,
+            "script_finished": 164
+          },
+          "element_types": {
+            "markdown": 14,
+            "heading": 2,
+            "radio": 2,
+            "selectbox": 2,
+            "alert": 16
+          }
+        }
+      ],
+      "status": "incomplete_after_deadline"
+    },
+    {
+      "page": "trading",
+      "status": "probe_failed",
+      "exception_type": "TimeoutError"
+    }
+  ]
+}

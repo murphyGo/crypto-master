@@ -1,0 +1,91 @@
+{
+  "checked_at": "2026-10-11T15:46:30.467937+00:00",
+  "architecture": "x86_64",
+  "artifacts": {
+    "checked": 175,
+    "mismatches": []
+  },
+  "settings": {
+    "trading_mode": "paper",
+    "llm_provider": "codex",
+    "streamlit": "1.65.0"
+  },
+  "runtime_versions": {
+    "python": "3.13.16",
+    "pydantic": "2.14.0",
+    "pydantic-core": "2.50.0",
+    "pandas": "3.0.6",
+    "streamlit": "1.65.0"
+  },
+  "processes": {
+    "engine": {
+      "pid": 653,
+      "rss_kib": 732824,
+      "threads": 2
+    },
+    "dashboard": {
+      "pid": 654,
+      "rss_kib": 63488,
+      "threads": 6
+    }
+  },
+  "memory_kib": {
+    "MemTotal": 2015876,
+    "MemAvailable": 981124,
+    "SwapTotal": 0
+  },
+  "recent_cycles": [
+    {
+      "timestamp": "2026-10-11T13:41:35.377770Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "914393d2-98ed-4dd5-964b-76f039bedf30"
+    },
+    {
+      "timestamp": "2026-10-11T14:11:35.421831Z",
+      "event_type": "cycle_started",
+      "cycle_id": "ac21a72c-81c3-4018-ab01-2a1a981f534f"
+    },
+    {
+      "timestamp": "2026-10-11T14:11:59.114406Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "ac21a72c-81c3-4018-ab01-2a1a981f534f"
+    },
+    {
+      "timestamp": "2026-10-11T14:41:59.161981Z",
+      "event_type": "cycle_started",
+      "cycle_id": "e758b210-2553-4aa0-8855-702b9669130c"
+    },
+    {
+      "timestamp": "2026-10-11T14:42:17.082904Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "e758b210-2553-4aa0-8855-702b9669130c"
+    },
+    {
+      "timestamp": "2026-10-11T15:12:17.175864Z",
+      "event_type": "cycle_started",
+      "cycle_id": "7a9b9a40-bb4c-49cf-9a93-fd31249af8f2"
+    },
+    {
+      "timestamp": "2026-10-11T15:12:34.709663Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "7a9b9a40-bb4c-49cf-9a93-fd31249af8f2"
+    },
+    {
+      "timestamp": "2026-10-11T15:42:34.811044Z",
+      "event_type": "cycle_started",
+      "cycle_id": "24c04907-bd8d-4b18-87a0-ca56587ffbcc"
+    },
+    {
+      "timestamp": "2026-10-11T15:43:25.252002Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "24c04907-bd8d-4b18-87a0-ca56587ffbcc"
+    },
+    {
+      "timestamp": "2026-10-11T15:45:42.179777Z",
+      "event_type": "cycle_started",
+      "cycle_id": "4d3f0e4f-46e2-4591-9b57-2ef02b0ff75b"
+    }
+  ],
+  "cpu_stat": null,
+  "source_commit": "22abf3dba6b35f1ba542a729b982bf334498525b"
+}

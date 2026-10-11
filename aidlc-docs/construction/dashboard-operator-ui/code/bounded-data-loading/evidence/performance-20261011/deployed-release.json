@@ -1,0 +1,56 @@
+{
+  "app": "crypto-master",
+  "hostname": "crypto-master.fly.dev",
+  "release_version": 59,
+  "machine": {
+    "id": "6835752b711958",
+    "state": "started",
+    "region": "nrt",
+    "instance_id": "01M4NT7CGTEVTGYR2A3GBQ41P8",
+    "started_at": "2026-10-11T15:45:33Z",
+    "image": {
+      "registry": "registry.fly.io",
+      "repository": "crypto-master",
+      "tag": "git-22abf3dba6b35f1ba542a729b982bf334498525b",
+      "digest": "sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e",
+      "labels": {
+        "org.opencontainers.image.revision": "22abf3dba6b35f1ba542a729b982bf334498525b"
+      }
+    },
+    "guest": {
+      "cpu_kind": "shared",
+      "cpus": 1,
+      "memory_mb": 2048
+    },
+    "mounts": [
+      {
+        "encrypted": true,
+        "path": "/data",
+        "size_gb": 1,
+        "volume": "vol_4m3l58dkk29y19zv",
+        "name": "data"
+      }
+    ],
+    "release": {
+      "fly_builder_id": "857692db590368",
+      "fly_flyctl_version": "0.4.115",
+      "fly_platform_version": "v2",
+      "fly_process_group": "app",
+      "fly_release_id": "rel_oek82gq9j7l9y6qv",
+      "fly_release_version": "59"
+    },
+    "checks": [
+      {
+        "name": "servicecheck-00-http-8080",
+        "status": "passing",
+        "output": "ok",
+        "updated_at": "2026-10-11T15:45:36.622Z"
+      }
+    ]
+  },
+  "rollback": {
+    "release": 58,
+    "source": "785374bebd12ab18b145b3a1f3de6238b3fe4d4b",
+    "image_digest": "sha256:51eccbe5df64c17b63d8b37da21d1013032d6c3b42d466c4df02f219de7d3184"
+  }
+}
