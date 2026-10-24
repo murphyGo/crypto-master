@@ -10,16 +10,16 @@ from collections.abc import Callable, Generator
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError, create_model
 
 from src.config import get_settings
 from src.dashboard.read_models import Limits, Query, utc_now
 from src.dashboard.sources import Source, discover
 from src.proposal.funnel import FunnelCounts, _classify, _record_timestamp
 from src.proposal.interaction import ProposalRecord
-from src.runtime.activity_events import ActivityEvent
+from src.runtime.activity_events import ActivityEvent, ActivityEventType
 from src.runtime.safety_score import RuntimeSafetyScore
 from src.strategy.trade_history import TradeHistory
 from src.trading.portfolio import AssetSnapshot
@@ -33,6 +33,21 @@ from src.utils.bounded_read import (
     reverse_jsonl_records,
 )
 from src.utils.time import ensure_utc
+
+# JSON carries event names, not Enum instances. Inherit every other field
+# and validator and keep precisely the Enum's accepted values, while avoiding
+# constructing and immediately unwrapping an Enum for every archive row.
+_ActivityReadEvent = create_model(
+    "_ActivityReadEvent",
+    __base__=ActivityEvent,
+    event_type=(
+        cast(Any, Literal)[tuple(event.value for event in ActivityEventType)],
+        ...,
+    ),
+)
+_validate_activity_json: Callable[[bytes], ActivityEvent] = TypeAdapter(
+    _ActivityReadEvent
+).validator.validate_json
 
 _THRESHOLD = re.compile(r"^composite \d+\.\d+ below threshold \d+\.\d+$")
 _COUNTERS = {
@@ -57,13 +72,37 @@ _RISK = {
     "stale_position_detected",
     "stale_position_auto_closed",
 }
+_CURVE_FIXED_CHARGE = (
+    128
+    + sys.getsizeof((None, 0))
+    + sys.getsizeof({"timestamp": "", "equity": ""})
+    + sys.getsizeof("timestamp")
+    + sys.getsizeof("equity")
+    + sys.getsizeof(0)
+)
+_SELECTED_FIXED_CHARGE = (
+    128
+    + sys.getsizeof([None, None, 0])
+    + sys.getsizeof((None, None))
+    + sys.getsizeof(0)
+)
+
+_DETAIL_TYPES = (
+    _RISK
+    | {"proposal_rejected", "market_regime_blocked", "market_regime_degraded"}
+    | {
+        event.value
+        for event in ActivityEventType
+        if event.value.startswith(("derivatives_data_", "funding_oi_crowding_"))
+    }
+)
 
 
 @dataclass(slots=True)
 class CycleState:
     """Fixed slots avoid a repeated dictionary/key set for every cycle."""
 
-    first: list[Any]
+    first: tuple[datetime, int]
     start: datetime | None = None
     end: list[Any] | None = None
     error: bool = False
@@ -78,6 +117,23 @@ class CycleState:
 
     def __setitem__(self, key: str, value: Any) -> None:
         setattr(self, key, value)
+
+
+class _EventPayload:
+    """One short-lived lazy payload, shared by this row's retained slots."""
+
+    __slots__ = ("event", "ordinal", "value")
+
+    def __init__(self, event: ActivityEvent, ordinal: int):
+        self.event = event
+        self.ordinal = ordinal
+        self.value: dict[str, Any] | None = None
+
+    def __call__(self) -> dict[str, Any]:
+        if self.value is None:
+            self.value = self.event.model_dump(mode="json")
+            self.value["_ordinal"] = self.ordinal
+        return self.value
 
 
 def encode(value: Any) -> Any:
@@ -133,7 +189,12 @@ class StateBudget:
 
     def replace(self, old_charge: int, new: Any, *, new_key: bool = False) -> int:
         """Replace retained state using its measured charge, without rescanning it."""
-        charge = self.size(new)
+        return self.reserve(self.size(new), old_charge, new_key=new_key)
+
+    def reserve(
+        self, charge: int, old_charge: int = 0, *, new_key: bool = False
+    ) -> int:
+        """Admit a measured fixed-shape charge with the same global limits."""
         delta = charge - old_charge
         if self.bytes + delta > self.limits.state_bytes:
             raise ReadFailure("state_budget_exhausted")
@@ -175,12 +236,13 @@ class Top:
         # On equal timestamps, legacy newest-first tables retain earliest
         # source ordinal. Callers needing the timeline's ascending tail use
         # the opposite ordinal deliberately.
-        rank = (at, -ordinal)
-        if len(self.heap) >= self.count and rank <= self.heap[0][:2]:
-            return
+        if len(self.heap) >= self.count:
+            oldest = self.heap[0]
+            if at < oldest[0] or at == oldest[0] and -ordinal <= oldest[1]:
+                return
         if callable(value):
             value = value()
-        entry = (*rank, value)
+        entry = (at, -ordinal, value)
         old = self.heap[0][2] if len(self.heap) >= self.count else None
         self.budget.change(old, value)
         if old is None:
@@ -209,6 +271,11 @@ class ActivityProjection:
                 self.gate_prefix.setdefault(reason.partition("_")[0], []).append(
                     (gate, reason + "_")
                 )
+        self.gate_pattern = re.compile(
+            "^(?:"
+            + "|".join(re.escape(reason) for reason in self.gate_exact)
+            + ")(?:_|$)"
+        )
         self.cycles: dict[str, CycleState] = {}
         self.rejected: set[tuple[str | None, str]] = set()
         self.rejected_global: set[str] = set()
@@ -236,13 +303,15 @@ class ActivityProjection:
         last_tie: bool = False,
     ) -> None:
         old = self.latest.get(key)
-        rank = (event.timestamp, ordinal if last_tie else -ordinal)
-        if old is None or rank > old[:2]:
-            value = payload()
-            self.budget.change(
-                [key, old[2]] if old else None, [key, value], new_key=old is None
-            )
-            self.latest[key] = (rank[0], rank[1], value)
+        at = event.timestamp
+        tie = ordinal if last_tie else -ordinal
+        if old is not None and (at < old[0] or at == old[0] and tie <= old[1]):
+            return
+        value = payload()
+        self.budget.change(
+            [key, old[2]] if old else None, [key, value], new_key=old is None
+        )
+        self.latest[key] = (at, tie, value)
 
     def add(self, raw: dict[str, Any], source: Source, ordinal: int) -> None:
         if "timestamp" not in raw:
@@ -254,7 +323,7 @@ class ActivityProjection:
         # Pydantic's JSON decoder validates directly from bounded raw bytes;
         # avoid decoding a second transient dictionary for every archive row.
         try:
-            event = ActivityEvent.model_validate_json(raw)
+            event = _validate_activity_json(raw)
         except ValidationError as exc:
             reason = (
                 "malformed_json"
@@ -270,14 +339,7 @@ class ActivityProjection:
         typ, details, at = event.event_type, event.details, event.timestamp
         # Validation is one record at a time. The recent timeline owns at
         # most 300 rich rows; the full raw event list is never retained.
-        value: dict[str, Any] | None = None
-
-        def payload() -> dict[str, Any]:
-            nonlocal value
-            if value is None:
-                value = event.model_dump(mode="json")
-                value["_ordinal"] = ordinal
-            return value
+        payload = _EventPayload(event, ordinal)
 
         recent = at >= self.cutoff
         if recent and typ in _INCIDENTS:
@@ -291,16 +353,18 @@ class ActivityProjection:
             return
         self.total += 1
         account = str(details.get("sub_account_id", "default"))
-        self.budget.account(account)
+        if account not in self.budget.accounts:
+            self.budget.account(account)
         if typ not in self.types:
             self.budget.change(None, typ, new_key=True)
             self.types.add(typ)
-        self.timeline.add(at, -ordinal, payload)
-        (
-            self._latest(("last_cycle_event",), event, ordinal, payload)
-            if event.cycle_id
-            else None
-        )
+        timeline = self.timeline
+        if len(timeline.heap) < timeline.count or at >= timeline.heap[0][0]:
+            timeline.add(at, -ordinal, payload)
+        if event.cycle_id:
+            previous_cycle_event = self.latest.get(("last_cycle_event",))
+            if previous_cycle_event is None or at >= previous_cycle_event[0]:
+                self._latest(("last_cycle_event",), event, ordinal, payload)
         if typ.startswith("reconciliation_health_"):
             self._latest(("reconciliation",), event, ordinal, payload)
         if recent and (
@@ -329,6 +393,9 @@ class ActivityProjection:
             self.recent.append(compact)
         if recent and typ in _INCIDENTS:
             self.incidents.add(at, ordinal, payload)
+        counter = _COUNTERS.get(typ)
+        if typ == "proposal_rejected" and not details.get("advisory"):
+            counter = "Rejected"
         if event.cycle_id:
             cid = event.cycle_id
             # ActivityEvent normalizes every timestamp to UTC. Keep these
@@ -336,50 +403,72 @@ class ActivityProjection:
             # ISO strings, rather than every lifetime event in each cycle.
             timestamp = at
             if cid not in self.cycles:
-                state = CycleState(first=[timestamp, ordinal])
+                state = CycleState(first=(timestamp, ordinal))
                 self.budget.change(None, [cid, state], new_key=True)
                 self.cycles[cid] = state
             state = self.cycles[cid]
-            if (timestamp, ordinal) < tuple(state["first"]):
-                state["first"] = [timestamp, ordinal]
+            if (timestamp, ordinal) < state.first:
+                state.first = (timestamp, ordinal)
             if typ == "cycle_started" and (
-                state["start"] is None or timestamp < state["start"]
+                state.start is None or timestamp < state.start
             ):
-                state["start"] = timestamp
+                state.start = timestamp
             if typ in {"cycle_completed", "cycle_errored"}:
-                previous = state["end"]
+                previous = state.end
                 if previous is None or (timestamp, ordinal) < (
                     previous[0],
                     previous[1],
                 ):
                     terminal = [timestamp, ordinal, typ, event.message]
                     self.budget.change(previous, terminal)
-                    state["end"] = terminal
-                state["error"] |= typ == "cycle_errored"
-            if typ in _COUNTERS:
-                state[_COUNTERS[typ]] += 1
-            if typ == "proposal_rejected" and not details.get("advisory"):
-                state["Rejected"] += 1
-        row = self.sub.get(account)
-        if (
-            typ in _COUNTERS
-            or typ == "proposal_rejected"
-            and not details.get("advisory")
-        ):
+                    state.end = terminal
+                state.error |= typ == "cycle_errored"
+            if counter:
+                setattr(state, counter, getattr(state, counter) + 1)
+        if counter:
+            row = self.sub.get(account)
             if row is None:
                 row = dict.fromkeys(
                     ("Generated", "Accepted", "Rejected", "Opened", "Closed"), 0
                 )
                 self.budget.change(None, [account, row], new_key=True)
                 self.sub[account] = row
-            row[_COUNTERS.get(typ, "Rejected")] += 1
-        pid_raw = details.get("proposal_id")
-        pid = str(pid_raw) if pid_raw is not None else None
+            row[counter] += 1
         if typ in _COMPANIONS and not details.get("advisory"):
+            pid_raw = details.get("proposal_id")
+            pid = str(pid_raw) if pid_raw is not None else None
             companion = (event.cycle_id, pid, account)
             if companion not in self.companions:
                 self.budget.change(None, companion, new_key=True)
             self.companions[companion] = self.companions.get(companion, 0) + 1
+        if typ in _DETAIL_TYPES:
+            self._add_details(event, ordinal, account, payload)
+        # Gate samples match on gate_reason OR legacy reason prefix, even
+        # for non-rejection event types, matching the existing pure helper.
+        gate_reason = details.get("gate_reason")
+        reason = str(details.get("reason", ""))
+        exact = (
+            self.gate_exact.get(gate_reason) if isinstance(gate_reason, str) else None
+        )
+        legacy = self.gate_pattern.match(reason)
+        if exact or legacy:
+            matches = set(exact or ())
+            if legacy:
+                matches.update(self.gate_exact.get(reason, ()))
+                for gate, prefix in self.gate_prefix.get(reason.partition("_")[0], ()):
+                    if reason.startswith(prefix):
+                        matches.add(gate)
+            for gate in matches:
+                self._latest(("gate_sample", gate), event, ordinal, payload)
+
+    def _add_details(
+        self,
+        event: ActivityEvent,
+        ordinal: int,
+        account: str,
+        payload: Callable[[], dict[str, Any]],
+    ) -> None:
+        typ, details, at = event.event_type, event.details, event.timestamp
         if (
             typ
             in {
@@ -480,25 +569,13 @@ class ActivityProjection:
                 typ == "funding_oi_crowding_observed"
                 and bool(details.get("would_block"))
             )
-        # Gate samples match on gate_reason OR legacy reason prefix, even
-        # for non-rejection event types, matching the existing pure helper.
-        gate_reason = details.get("gate_reason")
-        reason = str(details.get("reason", ""))
-        matches = set(self.gate_exact.get(reason, ()))
-        if isinstance(gate_reason, str):
-            matches.update(self.gate_exact.get(gate_reason, ()))
-        for gate, prefix in self.gate_prefix.get(reason.partition("_")[0], ()):
-            if reason.startswith(prefix):
-                matches.add(gate)
-        for gate in matches:
-            self._latest(("gate_sample", gate), event, ordinal, payload)
 
     def finish(self) -> dict[str, Any]:
         from src.dashboard.pages.engine import CycleSummary
 
         for (cid, pid, account), count in self.companions.items():
             if cid and (pid is None or (cid, pid) not in self.rejected):
-                self.cycles[cid]["Rejected"] += count
+                self.cycles[cid].Rejected += count
             if pid is None or pid not in self.rejected_global:
                 row = self.sub.get(account)
                 if row is None:
@@ -514,11 +591,11 @@ class ActivityProjection:
         if self.budget.bytes + reserve > self.budget.limits.state_bytes:
             raise ReadFailure("state_budget_exhausted")
         self.budget.bytes += reserve
-        ordered = sorted(self.cycles, key=lambda cid: tuple(self.cycles[cid]["first"]))
+        ordered = sorted(self.cycles, key=lambda cid: self.cycles[cid].first)
         ordered.sort(
             key=lambda cid: (
-                self.cycles[cid]["start"] is not None,
-                self.cycles[cid]["start"],
+                self.cycles[cid].start is not None,
+                self.cycles[cid].start,
             ),
             reverse=True,
         )
@@ -528,16 +605,16 @@ class ActivityProjection:
         errored = opened = closed = 0
         for cid in ordered:
             state = self.cycles[cid]
-            start = state["start"]
-            terminal = state["end"]
+            start = state.start
+            terminal = state.end
             end = terminal[0] if terminal else None
             duration = (end - start).total_seconds() if start and end else None
             if duration is not None:
                 duration_sum += duration
                 duration_count += 1
-            errored += int(state["error"])
-            opened += state["Opened"]
-            closed += state["Closed"]
+            errored += int(state.error)
+            opened += state.Opened
+            closed += state.Closed
             if len(cycles) >= 50:
                 continue
             cycles.append(
@@ -546,12 +623,12 @@ class ActivityProjection:
                     started_at=start,
                     completed_at=end,
                     duration_seconds=duration,
-                    proposals_generated=state["Generated"],
-                    proposals_accepted=state["Accepted"],
-                    proposals_rejected=state["Rejected"],
-                    positions_opened=state["Opened"],
-                    positions_closed=state["Closed"],
-                    errored=state["error"],
+                    proposals_generated=state.Generated,
+                    proposals_accepted=state.Accepted,
+                    proposals_rejected=state.Rejected,
+                    positions_opened=state.Opened,
+                    positions_closed=state.Closed,
+                    errored=state.error,
                     error_message=(
                         terminal[3]
                         if terminal and terminal[2] == "cycle_errored"
@@ -671,7 +748,7 @@ class HistoryProjection:
             "wins": 0,
             "realized_pnl": 0.0,
         }
-        self.latest: dict[str, dict[str, Any]] = {}
+        self.latest: dict[str, tuple[datetime, bytes | dict[str, Any]]] = {}
         self.latest_charges: dict[str, int] = {}
         self.curves: dict[str, list[tuple[dict[str, Any], int]]] = {}
         self.curve_limit = max(4, 4096 // max(1, len(query.accounts)))
@@ -693,28 +770,53 @@ class HistoryProjection:
                 else "invalid_record"
             )
             raise ReadFailure(reason) from exc
-        self.add_snapshot(snapshot, source)
+        self.add_snapshot(snapshot, source, raw)
 
-    def add_snapshot(self, snapshot: AssetSnapshot, source: Source) -> None:
+    def add_snapshot(
+        self, snapshot: AssetSnapshot, source: Source, raw: bytes | None = None
+    ) -> None:
         account = source.account
         self.budget.account(account)
         old = self.latest.get(account)
-        if old is None or snapshot.timestamp > datetime.fromisoformat(old["timestamp"]):
-            raw = snapshot.model_dump(mode="json")
+        if old is None or snapshot.timestamp > old[0]:
+            # Retain just one selected bounded row per account. The common
+            # byte path avoids repeatedly serializing discarded history.
+            # Large/legacy dictionary rows retain the normalized old path.
+            payload = (
+                raw
+                if raw is not None and len(raw) <= 65536
+                else snapshot.model_dump(mode="json")
+            )
+            selected = (snapshot.timestamp, payload)
             # Charge the account and charge slot as well as the payload;
             # all integers here fit the same object-size class as zero.
-            self.latest_charges[account] = self.budget.replace(
-                self.latest_charges.get(account, 0),
-                [account, raw, 0],
-                new_key=old is None,
-            )
-            self.latest[account] = raw
+            if isinstance(payload, bytes):
+                charge = (
+                    _SELECTED_FIXED_CHARGE
+                    + sys.getsizeof(account)
+                    + sys.getsizeof(snapshot.timestamp)
+                    + sys.getsizeof(payload)
+                )
+                self.latest_charges[account] = self.budget.reserve(
+                    charge, self.latest_charges.get(account, 0), new_key=old is None
+                )
+            else:
+                self.latest_charges[account] = self.budget.replace(
+                    self.latest_charges.get(account, 0),
+                    [account, selected, 0],
+                    new_key=old is None,
+                )
+            self.latest[account] = selected
         curve = self.curves.setdefault(account, [])
         point = {
             "timestamp": snapshot.timestamp.isoformat(),
             "equity": str(snapshot.total_equity),
         }
-        charge = self.budget.replace(0, (point, 0))
+        charge = self.budget.reserve(
+            _CURVE_FIXED_CHARGE
+            + sys.getsizeof(point["timestamp"])
+            + sys.getsizeof(point["equity"])
+        )
         curve.append((point, charge))
         if len(curve) > self.curve_limit:
             # Hierarchical adjacent buckets preserve first/latest and
@@ -751,6 +853,10 @@ class HistoryProjection:
                 and _THRESHOLD.match(record.rejection_reason)
             ):
                 self.threshold += 1
+            if self.query.window == "threshold":
+                # Trading needs this exact lifetime scalar, not a second
+                # window/group reduction. Every source row still validates.
+                return
             days = {"24h": 1, "7d": 7, "30d": 30}.get(self.query.window)
             field = _classify(record).value
             account = record.sub_account_id or record.proposal.sub_account_id
@@ -878,6 +984,8 @@ class HistoryProjection:
         evaluated = ensure_utc(self.query.at or utc_now())
         if evaluated < self.now:
             raise ReadFailure("evaluation_clock_reversed")
+        if self.query.kind == "proposals" and self.query.window == "threshold":
+            return {"threshold": self.threshold, "evaluated_at": evaluated.isoformat()}
         days = {"24h": 1, "7d": 7, "30d": 30}.get(self.query.window)
         if (
             self.query.kind == "proposals"
@@ -910,6 +1018,25 @@ class HistoryProjection:
                     mapping[key]["total"] += delta
                 self.counts[boundary["field"]] += delta
                 self.counts["total"] += delta
+        latest = {}
+        while self.latest:
+            # Preserve account insertion order without another key array.
+            account = next(iter(self.latest))
+            timestamp, selected = self.latest.pop(account)
+            if isinstance(selected, bytes):
+                snapshot = AssetSnapshot.model_validate_json(selected)
+                # A legacy missing timestamp default belongs to its first
+                # validation, not to this later publication-time decode.
+                snapshot = snapshot.model_copy(update={"timestamp": timestamp})
+                normalized = snapshot.model_dump(mode="json")
+            else:
+                normalized = selected
+            # Admit normalized published state too: compact selected bytes
+            # cannot hide expanded output that exceeds the global cap.
+            self.latest_charges[account] = self.budget.replace(
+                self.latest_charges[account], [account, normalized, 0]
+            )
+            latest[account] = normalized
         return {
             "counts": self.counts,
             "by_strategy": self.by_strategy,
@@ -919,7 +1046,7 @@ class HistoryProjection:
             "open": self.open,
             "history": self.history.values(),
             "metrics": self.trade_counts,
-            "latest": self.latest,
+            "latest": latest,
             "curves": {
                 account: [entry[0] for entry in curve]
                 for account, curve in self.curves.items()
@@ -935,6 +1062,28 @@ class HistoryProjection:
             "audit_total": self.audit_total,
             "evaluated_at": evaluated.isoformat(),
         }
+
+
+def _reduce_activity_source(
+    reducer: ActivityProjection, source: Source, ordinal_base: int
+) -> Generator[None, None, None]:
+    """A typed hot loop with one rank prefix and no per-row dispatch/casts."""
+    iterator = reverse_jsonl_bytes(source.path, source.generation)
+    processed = 0
+    try:
+        for row in iterator:
+            if row is None:
+                yield None
+                continue
+            offset, record = row
+            reducer.add_json(record, ordinal_base + offset)
+            processed += 1
+            if processed % 256 == 0:
+                yield None
+    except ValueError as exc:
+        raise ReadFailure("invalid_record") from exc
+    finally:
+        iterator.close()
 
 
 def build_projection(
@@ -967,37 +1116,31 @@ def build_projection(
     )
     for index, source in enumerate(files):
         line = 0
+        ordinal_base = (manifest.file_count - index - 1) << 48
+        if isinstance(reducer, ActivityProjection):
+            yield from _reduce_activity_source(reducer, source, ordinal_base)
+            continue
         reader = {
             "jsonl": reverse_jsonl_records,
             "object": json_object,
             "array": json_array_records,
         }[source.format]
         iterator = (
-            reverse_jsonl_bytes(source.path, source.generation)
-            if isinstance(reducer, ActivityProjection)
-            else (
-                json_array_bytes(source.path, source.generation)
-                if query.kind == "snapshots"
-                else reader(source.path, source.generation)
-            )
+            json_array_bytes(source.path, source.generation)
+            if query.kind == "snapshots"
+            else reader(source.path, source.generation)
         )
         try:
             for raw in iterator:
                 if raw is None:
                     yield None
                     continue
-                if isinstance(reducer, ActivityProjection):
-                    offset, record = cast(tuple[int, bytes], raw)
-                    ordinal = ((manifest.file_count - index - 1) << 48) + offset
-                    reducer.add_json(record, ordinal)
-                elif query.kind == "snapshots":
+                if query.kind == "snapshots":
                     reducer.add_snapshot_json(cast(bytes, raw), source)
                 else:
                     value = cast(dict[str, Any], raw)
                     if query.kind == "audit":
-                        ordinal = ((manifest.file_count - index - 1) << 48) + value.pop(
-                            "_offset"
-                        )
+                        ordinal = ordinal_base + value.pop("_offset")
                     reducer.add(value, source, ordinal)
                 ordinal += 1
                 line += 1

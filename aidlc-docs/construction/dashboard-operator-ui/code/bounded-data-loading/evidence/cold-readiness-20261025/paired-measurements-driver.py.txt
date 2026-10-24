@@ -1,0 +1,117 @@
+import hashlib,json,resource,statistics,subprocess,sys,time,types
+from datetime import datetime,timedelta,timezone
+from pathlib import Path
+from src.dashboard import app,projections,data_service
+from src.dashboard.read_models import Query
+from tests.test_dashboard_trading import _make_proposal
+from src.proposal.interaction import ProposalRecord
+
+BASE='bf44822c94dcb9da524e35439c60792ce89301f7'
+ROOT=Path.cwd()
+FIX=Path('/private/tmp/crypto-master-shared-cpu-fixtures-20261025')
+PROP=Path('/private/tmp/crypto-master-cold-proposal-fixture-20261025')
+NOW=datetime(2026,10,25,tzinfo=timezone.utc)
+OUT=ROOT/'aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/cold-readiness-20261025/paired-measurements.json'
+base_hashes={}
+for name,path in [('sources','src/dashboard/sources.py'),('projections','src/dashboard/projections.py'),('service','src/dashboard/data_service.py')]:
+ raw=subprocess.check_output(['git','show',f'{BASE}:{path}']);base_hashes[path]=hashlib.sha256(raw).hexdigest()
+ code=raw.decode().replace('from src.dashboard.sources import','from cold_baseline_sources import').replace('from src.dashboard.projections import','from cold_baseline_projections import')
+ mod=types.ModuleType('cold_baseline_'+name);sys.modules[mod.__name__]=mod
+ exec(compile(code,path,'exec'),mod.__dict__)
+Baseline=sys.modules['cold_baseline_service'].DashboardDataService
+if not PROP.exists():
+ directory=PROP/'proposals';directory.mkdir(parents=True)
+ base=ProposalRecord(proposal=_make_proposal('base')).model_dump(mode='json')
+ for index in range(12000):
+  row=json.loads(json.dumps(base));account=f'account-{index%13}'
+  row['proposal'].update(proposal_id=f'proposal-{index}',created_at=(NOW-timedelta(hours=index%100)).isoformat(),technique_name=f'strategy-{index%12}',sub_account_id=account)
+  if index%1000==0:row['proposal']['created_at']=(NOW-timedelta(days=40)).isoformat()
+  if index%101==0:row['proposal']['created_at']=(NOW+timedelta(hours=1)).isoformat()
+  row['sub_account_id']=account
+  row['decision']='rejected' if index%3==0 else ('accepted' if index%3==1 else 'pending')
+  row['rejection_reason']='composite 0.2000 below threshold 0.3000' if index%3==0 else None
+  folder=directory if index%5==0 else directory/account;folder.mkdir(exist_ok=True)
+  (folder/f'{index:05}.json').write_text(json.dumps(row,separators=(',',':')))
+ print('Prepared 12000 proposal records',flush=True)
+if '--prepare-only' in sys.argv:sys.exit(0)
+
+def fingerprint(path):
+ h=hashlib.sha256()
+ with path.open('rb') as f:
+  for block in iter(lambda:f.read(65536),b''):h.update(block)
+ return h.hexdigest()
+
+source_names=['src/dashboard/projections.py','src/dashboard/sources.py','src/dashboard/data_service.py','src/dashboard/pages/trading.py']
+out={'baseline_revision':BASE,'method':'twenty alternating pairs; fresh service per cold query; warmed imports and OS cache; fixed UTC; no concurrent heavy benchmark/test jobs; CPU and wall time; full payload parity except threshold consumer projection','python':sys.version.split()[0],'candidate_sha256':{n:fingerprint(ROOT/n) for n in source_names},'baseline_sha256':base_hashes,'series':[],'fixture_inventory':{}}
+for label,root in [('million',FIX/'million'),('snapshots',FIX/'snapshots'),('proposals',PROP)]:
+ files=sorted(root.rglob('*.json*'));out['fixture_inventory'][label]={'files':len(files),'bytes':sum(p.stat().st_size for p in files),'sha256':{str(p.relative_to(root)):fingerprint(p) for p in files}}
+
+def request(service,query):
+ start=time.monotonic();r=service.request(query)
+ while r.status=='pending' and time.monotonic()-start<120:r=service.request(query,wait=.05)
+ assert r.complete,(query.kind,r.status,r.reason)
+ return r
+
+def measure(service,query):
+ start=time.perf_counter();cpu=time.process_time();r=request(service,query)
+ return r,time.perf_counter()-start,time.process_time()-cpu
+
+def digest(result):return hashlib.sha256(json.dumps(result.data(),sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+def save():
+ OUT.parent.mkdir(parents=True,exist_ok=True);OUT.write_text(json.dumps(out,indent=2)+'\n')
+
+def p95(x):return sorted(x)[max(0,int(len(x)*.95+.999999)-1)]
+
+for label,root,kind,accounts in [('million',FIX/'million','activity',('default',)),('snapshots',FIX/'snapshots','snapshots',tuple(f'account-{i}' for i in range(13))),('proposals',PROP,'proposals',('default',))]:
+ q=Query(root,kind,accounts=accounts,at=NOW)
+ row={'fixture':label,'samples_per_backend':20,'completed_samples':0,'full_payloads_equal':True,'results':{}}
+ for name in ('baseline','candidate'):row['results'][name]={k:[] for k in ('cold_wall','cold_cpu','warm_wall','warm_cpu','revalidate_wall','revalidate_cpu','statuses')}
+ expected=None
+ out['series'].append(row)
+ for sample in range(20):
+  choices=[('baseline',Baseline),('candidate',data_service.DashboardDataService)]
+  if sample%2:choices.reverse()
+  for name,Service in choices:
+   s=Service()
+   try:
+    r,wall,cpu=measure(s,q);h=digest(r)
+    if expected is None:expected=h
+    assert h==expected,(label,name,'cold parity')
+    item=row['results'][name];item['cold_wall'].append(wall);item['cold_cpu'].append(cpu);item['statuses'].append(r.status)
+    row['coverage']=r.data()['source_coverage'];row['full_payload_sha256']=h
+    r,wall2,cpu2=measure(s,q);assert digest(r)==expected
+    item['warm_wall'].append(wall2);item['warm_cpu'].append(cpu2)
+    with s._condition:
+     for e in s._cache.values():e.evaluated-=3
+    r,wall3,cpu3=measure(s,q);assert digest(r)==expected
+    item['revalidate_wall'].append(wall3);item['revalidate_cpu'].append(cpu3)
+    assert s.stats()['cache_bytes']<=s.limits.cache_bytes
+    print(json.dumps({'fixture':label,'sample':sample+1,'backend':name,'cold_wall':round(wall,6),'cold_cpu':round(cpu,6),'revalidate_wall':round(wall3,6)}),flush=True)
+   finally:s.close()
+  row['completed_samples']=sample+1
+  for name in row['results']:
+   row[name+'_summary']={k+'_p95':p95(v) for k,v in row['results'][name].items() if k!='statuses'}
+   row[name+'_summary']['cold_wall_median']=statistics.median(row['results'][name]['cold_wall'])
+  save()
+
+row={'fixture':'home_to_trading_threshold','completed_samples':0,'samples_per_backend':20,'consumer_scalar_and_coverage_equal':True,'results':{'baseline':{'wall':[],'cpu':[]},'candidate':{'wall':[],'cpu':[]}}}
+out['series'].append(row)
+for sample in range(20):
+ choices=[('baseline',Baseline,'lifetime'),('candidate',data_service.DashboardDataService,'threshold')]
+ if sample%2:choices.reverse()
+ for name,Service,window in choices:
+  s=Service()
+  try:
+   home=request(s,Query(PROP,'proposals',window='24h',at=NOW));r,wall,cpu=measure(s,Query(PROP,'proposals',window=window,at=NOW))
+   assert r.data()['threshold']==home.data()['threshold']==4000
+   assert r.data()['source_coverage']==home.data()['source_coverage']
+   assert r.data()['_source_digest']==home.data()['_source_digest']
+   assert r.evaluated_at==home.evaluated_at
+   if name=='candidate':assert 'counts' not in r.data()
+   row['results'][name]['wall'].append(wall);row['results'][name]['cpu'].append(cpu)
+  finally:s.close()
+ row['completed_samples']=sample+1
+ for name in row['results']:row[name+'_summary']={k+'_p95':p95(v) for k,v in row['results'][name].items()}
+ save();print(json.dumps({'fixture':row['fixture'],'sample':sample+1}),flush=True)
+print(json.dumps({'complete':True,'summaries':[{k:v for k,v in row.items() if k.endswith('_summary') or k in ('fixture','completed_samples')} for row in out['series']]}),flush=True)

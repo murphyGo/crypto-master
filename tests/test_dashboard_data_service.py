@@ -4,6 +4,7 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from src.dashboard.data_service import DashboardDataService
@@ -229,4 +230,152 @@ def test_expired_other_root_can_be_evicted_to_admit_new_root(tmp_path):
         assert service.request(Query(tmp_path / "three", "activity")).complete
         assert len({query.root for query in service._cache}) == 2
     finally:
+        service.close()
+
+
+def test_threshold_borrows_only_fresh_matching_complete_funnel_projection(tmp_path):
+    calls = []
+
+    def build(query, limits):
+        calls.append(query)
+        yield {
+            "threshold": 7,
+            "counts": {"total": 2},
+            "_source_digest": "verified",
+            "source_coverage": {"verified": True},
+        }
+
+    service = DashboardDataService(builder=build)
+    try:
+        query = Query(tmp_path, "proposals", window="24h")
+        home = service.request(query)
+        result = service.request(replace(query, window="threshold"))
+        assert result.complete and result.data()["threshold"] == 7
+        assert "counts" not in result.data()
+        assert result.data()["source_coverage"] == {"verified": True}
+        assert result.verified_monotonic == home.verified_monotonic
+        assert len(calls) == 1 and service.stats()["entries"] == 1
+        assert service.stats()["cache_bytes"] <= service.limits.cache_bytes
+
+        for changed in (
+            replace(query, root=tmp_path / "other", window="threshold"),
+            replace(query, source=tmp_path / "different", window="threshold"),
+            replace(
+                query,
+                at=datetime(2026, 10, 25, tzinfo=timezone.utc),
+                window="threshold",
+            ),
+        ):
+            count = len(calls)
+            assert service.request(changed).complete
+            assert len(calls) == count + 1
+    finally:
+        service.close()
+
+
+def test_threshold_borrow_never_renews_source_age_or_hides_failed_revalidation(
+    tmp_path,
+):
+    calls = 0
+
+    def build(query, limits):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise ReadFailure("source_changed")
+        yield {"threshold": 9}
+
+    service = DashboardDataService(builder=build)
+    try:
+        home = Query(tmp_path, "proposals", window="24h")
+        first = service.request(home)
+        threshold = replace(home, window="threshold")
+        assert service.request(threshold).verified_monotonic == first.verified_monotonic
+        with service._condition:
+            service._cache[home.normalized()].evaluated -= (
+                service.limits.fresh_seconds + 1
+            )
+        result = service.request(threshold)
+        assert not result.complete and result.payload is None
+        assert result.reason == "source_changed" and calls == 2
+    finally:
+        service.close()
+
+
+def test_threshold_derivative_bytes_are_charged_and_optional_at_result_limit(tmp_path):
+    def build(query, limits):
+        yield {"threshold": 3, "padding": "x" * 100}
+
+    encoded = len(
+        json.dumps(
+            {"threshold": 3, "padding": "x" * 100}, separators=(",", ":")
+        ).encode()
+    )
+    for result_bytes in (encoded, encoded + 100):
+        service = DashboardDataService(
+            limits=Limits(result_bytes=result_bytes), builder=build
+        )
+        try:
+            query = Query(tmp_path, "proposals", window="24h")
+            assert service.request(query).complete
+            entry = service._cache[query.normalized()]
+            assert (entry.threshold is None) == (result_bytes == encoded)
+            extra = len(entry.threshold.payload) if entry.threshold else 0
+            assert entry.charge == encoded + extra + 4096 + len(
+                repr(query.normalized()).encode()
+            )
+            assert service.stats()["cache_bytes"] <= service.limits.cache_bytes
+        finally:
+            service.close()
+
+
+def test_batch_returns_known_failure_and_verified_sibling_without_waiting_deadline(
+    tmp_path,
+):
+    def build(query, limits):
+        if query.kind == "activity":
+            raise ReadFailure("malformed_json")
+        yield {"open_positions": 1}
+
+    service = DashboardDataService(limits=Limits(wait_seconds=5), builder=build)
+    try:
+        start = time.monotonic()
+        results = service.request_many(
+            [Query(tmp_path, "activity"), Query(tmp_path, "ledger")]
+        )
+        assert time.monotonic() - start < 1
+        assert results["activity"].status == "unavailable"
+        assert results["activity"].reason == "malformed_json"
+        assert (
+            results["ledger"].complete
+            and results["ledger"].data()["open_positions"] == 1
+        )
+    finally:
+        service.close()
+
+
+def test_page_wait_canonicalizes_each_query_once_instead_of_polling_filesystem(
+    tmp_path, monkeypatch
+):
+    release = threading.Event()
+    calls = []
+    normalized = Query.normalized
+
+    def count_normalization(query):
+        calls.append(query.kind)
+        return normalized(query)
+
+    def build(query, limits):
+        release.wait(2)
+        yield {"count": 1}
+
+    monkeypatch.setattr(Query, "normalized", count_normalization)
+    service = DashboardDataService(limits=Limits(wait_seconds=0.12), builder=build)
+    try:
+        kinds = ["activity", "ledger", "snapshots", "proposals"]
+        results = service.request_many([Query(tmp_path, kind) for kind in kinds])
+        assert all(not r.complete for r in results.values())
+        assert calls == kinds
+    finally:
+        release.set()
         service.close()

@@ -731,7 +731,7 @@ def _render_bounded_trading(
             ),
             Query(settings.data_dir, "ledger", mode=mode, accounts=accounts),
             Query(settings.data_dir, "snapshots", mode=mode, accounts=accounts),
-            Query(settings.data_dir, "proposals"),
+            Query(settings.data_dir, "proposals", window="threshold"),
         ]
     )
     with reconciliation_slot:

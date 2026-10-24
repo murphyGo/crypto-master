@@ -13,7 +13,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Generator
 from concurrent.futures import Future
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -28,6 +28,7 @@ class CacheEntry:
     result: ReadResult
     evaluated: float
     charge: int
+    threshold: ReadResult | None = None
 
 
 class DashboardDataService:
@@ -51,7 +52,9 @@ class DashboardDataService:
             self.limits.wait_seconds,
             self.limits.wait_seconds if wait is None else max(0, wait),
         )
-        query = query.normalized()
+        return self._request_normalized(query.normalized(), deadline)
+
+    def _request_normalized(self, query: Query, deadline: float) -> ReadResult:
         with self._condition:
             if self._closed:
                 return ReadResult("unavailable", reason="service_closed")
@@ -60,6 +63,19 @@ class DashboardDataService:
             if entry and now - entry.evaluated <= self.limits.fresh_seconds:
                 self._cache.move_to_end(query)
                 return entry.result
+            if query.kind == "proposals" and query.window == "threshold":
+                # The threshold is lifetime/global in every complete proposal
+                # projection, including Home's 24h funnel. Borrow only that
+                # scalar and its original age/coverage, not windowed counts.
+                for key, cached in reversed(self._cache.items()):
+                    if (
+                        key.kind == "proposals"
+                        and key.root == query.root
+                        and cached.threshold is not None
+                        and now - cached.evaluated <= self.limits.fresh_seconds
+                        and replace(key, window="threshold") == query
+                    ):
+                        return cached.threshold
             error = self._errors.get(query)
             if error and now - error[0] < self.limits.fresh_seconds:
                 return self._fallback(query, error[1])
@@ -118,6 +134,9 @@ class DashboardDataService:
     def request_many(self, queries: list[Query]) -> dict[str, ReadResult]:
         """Share one foreground deadline across independent page sections."""
         deadline = time.monotonic() + self.limits.wait_seconds
+        # Resolve each path once for this page request. Polling pending work
+        # must not repeat filesystem canonicalization or switch root aliases.
+        queries = [query.normalized() for query in queries]
         results: dict[str, ReadResult] = {}
         while True:
             for query in queries:
@@ -128,13 +147,24 @@ class DashboardDataService:
                     or time.monotonic() - previous.verified_monotonic
                     > self.limits.fresh_seconds
                 ):
-                    results[query.kind] = self.request(query, wait=0)
+                    results[query.kind] = self._request_normalized(
+                        query, time.monotonic()
+                    )
             if all(result.complete for result in results.values()):
                 return results
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return results
             with self._condition:
+                if not self._jobs and all(
+                    result.status != "pending"
+                    and result.reason not in {"rebuild_pending", "queue_full"}
+                    for result in results.values()
+                ):
+                    # Known read failures cannot improve while idle inside
+                    # this request. Return verified siblings immediately and
+                    # let the explicit refresh retry, without another 4s wait.
+                    return results
                 self._condition.wait(timeout=min(remaining, 0.05))
 
     def _work(self) -> None:
@@ -188,11 +218,49 @@ class DashboardDataService:
                 result = ReadResult(
                     "complete", payload, evaluated_at, verified_monotonic=evaluated
                 )
+                threshold = None
+                if (
+                    query.kind == "proposals"
+                    and query.window != "threshold"
+                    and "threshold" in data
+                ):
+                    compact = {
+                        key: data[key]
+                        for key in (
+                            "threshold",
+                            "evaluated_at",
+                            "_source_digest",
+                            "source_coverage",
+                        )
+                        if key in data
+                    }
+                    threshold_payload = json.dumps(
+                        compact, separators=(",", ":")
+                    ).encode()
+                    if (
+                        len(payload) + len(threshold_payload)
+                        <= self.limits.result_bytes
+                    ):
+                        threshold = ReadResult(
+                            "complete",
+                            threshold_payload,
+                            evaluated_at,
+                            verified_monotonic=evaluated,
+                        )
                 with self._condition:
                     # Reducers re-evaluate time windows at publication after
                     # verifying the captured sources. Source timestamps remain
                     # separate from this evaluation age.
-                    charge = len(payload) + 4096 + len(repr(query).encode())
+                    charge = (
+                        len(payload)
+                        + (
+                            len(threshold.payload)
+                            if threshold and threshold.payload
+                            else 0
+                        )
+                        + 4096
+                        + len(repr(query).encode())
+                    )
                     previous = self._cache.pop(query, None)
                     if previous:
                         self._cache_bytes -= previous.charge
@@ -204,7 +272,9 @@ class DashboardDataService:
                         self._cache_bytes -= removed.charge
                     if charge > self.limits.cache_bytes:
                         raise ReadFailure("cache_budget_exhausted")
-                    self._cache[query] = CacheEntry(result, evaluated, charge)
+                    self._cache[query] = CacheEntry(
+                        result, evaluated, charge, threshold
+                    )
                     self._cache_bytes += charge
                     self._errors.pop(query, None)
             except Exception as exc:

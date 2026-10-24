@@ -19,7 +19,7 @@ from src.dashboard.read_models import Limits, Query
 from src.dashboard.sources import discover
 from src.proposal.funnel import compute_funnel_counts, compute_funnel_counts_by_strategy
 from src.proposal.interaction import ProposalRecord
-from src.runtime.activity_events import ActivityEvent
+from src.runtime.activity_events import ActivityEvent, ActivityEventType
 from src.runtime.activity_log import ActivityLog
 from src.runtime.safety_score import (
     compute_runtime_safety_score,
@@ -661,3 +661,264 @@ def test_snapshot_accounting_still_rejects_retained_state_over_budget(tmp_path):
         projection(
             Query(tmp_path, "snapshots", accounts=("one",)), Limits(state_bytes=4096)
         )
+
+
+def test_snapshot_history_serializes_only_retained_latest_model(tmp_path, monkeypatch):
+    from src.trading.portfolio import AssetSnapshot
+    from tests.test_dashboard_trading import make_snapshot
+
+    directory = tmp_path / "portfolio" / "paper" / "default"
+    directory.mkdir(parents=True)
+    rows = [
+        make_snapshot(timestamp=NOW + timedelta(seconds=i), quote_balance=str(i))
+        for i in range(1000)
+    ]
+    (directory / "snapshots.json").write_text(
+        "[" + ",".join(row.model_dump_json() for row in rows) + "]"
+    )
+    original = AssetSnapshot.model_dump
+    calls = 0
+
+    def dump(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(AssetSnapshot, "model_dump", dump)
+    result = projection(Query(tmp_path, "snapshots", at=NOW))
+    assert calls == 1
+    assert result["latest"]["default"]["balances"]["USDT"] == "999"
+    assert len(result["curves"]["default"]) == 1000
+
+
+def test_retained_snapshot_payload_charges_nested_balances_before_publication(tmp_path):
+    from tests.test_dashboard_trading import make_snapshot
+
+    directory = tmp_path / "portfolio" / "paper" / "default"
+    directory.mkdir(parents=True)
+    row = make_snapshot(timestamp=NOW).model_dump(mode="json")
+    row["balances"] = {f"currency-{i}": "1.2345" for i in range(2000)}
+    (directory / "snapshots.json").write_text(json.dumps([row]))
+    with pytest.raises(ReadFailure, match="state_budget_exhausted"):
+        projection(Query(tmp_path, "snapshots", at=NOW), Limits(state_bytes=100000))
+
+
+def test_threshold_projection_is_lifetime_and_independent_of_window_group_budgets(
+    tmp_path,
+):
+    from tests.test_dashboard_trading import _make_proposal
+
+    directory = tmp_path / "proposals"
+    directory.mkdir()
+    for index, at in enumerate((NOW, NOW - timedelta(days=40))):
+        proposal = _make_proposal(str(index)).model_copy(
+            update={"created_at": at, "technique_name": f"strategy-{index}"}
+        )
+        record = ProposalRecord(
+            proposal=proposal,
+            decision="rejected",
+            rejection_reason="composite 0.2000 below threshold 0.3000",
+        )
+        (directory / f"{index}.json").write_text(record.model_dump_json())
+    result = projection(
+        Query(tmp_path, "proposals", window="threshold", at=NOW), Limits(strategies=1)
+    )
+    assert result["threshold"] == 2 and "counts" not in result
+    assert result["source_coverage"]["files"] == 2
+    (directory / "old-damaged.json").write_text("broken")
+    with pytest.raises(ReadFailure):
+        projection(Query(tmp_path, "proposals", window="threshold", at=NOW))
+
+
+def test_snapshot_missing_timestamp_keeps_first_validation_time_in_published_latest(
+    tmp_path,
+):
+    from tests.test_dashboard_trading import make_snapshot
+
+    directory = tmp_path / "portfolio" / "paper" / "default"
+    directory.mkdir(parents=True)
+    row = make_snapshot(timestamp=NOW).model_dump(mode="json")
+    row.pop("timestamp")
+    (directory / "snapshots.json").write_text(json.dumps([row]))
+    result = projection(Query(tmp_path, "snapshots", at=NOW))
+    latest = datetime.fromisoformat(
+        result["latest"]["default"]["timestamp"].replace("Z", "+00:00")
+    )
+    curve = datetime.fromisoformat(result["curves"]["default"][0]["timestamp"])
+    assert latest == curve
+
+
+@pytest.mark.parametrize("hidden_kind", ["file", "directory"])
+def test_fast_proposal_manifest_preserves_selected_members_and_generation_digest(
+    tmp_path, hidden_kind
+):
+    from src.dashboard.sources import Manifest
+
+    directory = tmp_path / "proposals"
+    directory.mkdir()
+    names = ["root.json", ".hidden.json", "one/child.json"]
+    for name in names:
+        path = directory / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("{}")
+    for name in [
+        "archive/old.json",
+        "one/deeper/ignored.json",
+        "folder.json/ignored.json",
+        "one/.json",
+    ]:
+        path = directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("not selected")
+    if hidden_kind == "file":
+        (directory / ".json").write_text("not selected")
+    else:
+        (directory / ".json").mkdir()
+        (directory / ".json" / "child.json").write_text("{}")
+        names.append(".json/child.json")
+    (directory / "alias.json").symlink_to(directory / "root.json")
+    names.append("alias.json")
+    query = Query(tmp_path, "proposals").normalized()
+    manifest = discover(query, Limits(), 12)
+    expected = Manifest(Limits(), directory)
+    for name in names:
+        expected.add(directory / name, "object")
+    expected.sort()
+    assert manifest.digest() == expected.digest()
+    assert [
+        source.path.relative_to(directory).as_posix() for source in manifest.files
+    ] == sorted(names)
+    manifest.verify()
+    path = directory / "root.json"
+    old = path.stat()
+    path.write_text("[]")
+    import os
+
+    os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns + 1000000))
+    with pytest.raises(ReadFailure, match="source_changed"):
+        manifest.verify()
+
+
+def test_manifest_verification_releases_directory_handle_after_changed_source(
+    tmp_path, monkeypatch
+):
+    import os
+
+    from src.dashboard import sources
+
+    if os.stat not in os.supports_dir_fd:
+        pytest.skip("Directory-relative stat unsupported on this platform")
+    write_events(tmp_path, [event("cycle_started", cid="c")])
+    manifest = discover(Query(tmp_path, "activity"), Limits(), 12)
+    (tmp_path / "runtime" / "activity.jsonl").write_text("changed\n")
+    opened, closed = [], []
+    original_open, original_close = sources.os.open, sources.os.close
+
+    def tracked_open(*args, **kwargs):
+        fd = original_open(*args, **kwargs)
+        opened.append(fd)
+        return fd
+
+    def tracked_close(fd):
+        closed.append(fd)
+        original_close(fd)
+
+    monkeypatch.setattr(sources.os, "open", tracked_open)
+    monkeypatch.setattr(sources.os, "close", tracked_close)
+    with pytest.raises(ReadFailure, match="source_changed"):
+        manifest.verify()
+    assert len(opened) == 1 and closed == opened
+
+
+@pytest.mark.parametrize("equity", ["0", "-123.4500", "1E+100", "0." + "1" * 200])
+def test_fixed_snapshot_charges_cover_recursive_measurement(tmp_path, equity):
+    from src.dashboard.sources import Source
+    from src.utils.bounded_read import Generation
+    from tests.test_dashboard_trading import make_snapshot
+
+    account = "계정🙂" * 8
+    snapshot = make_snapshot(timestamp=NOW, quote_balance=equity)
+    source = Source(
+        tmp_path, "snapshots.json", Generation(1, 1, 1, 1), "array", account
+    )
+    budget = StateBudget(Limits())
+    reducer = HistoryProjection(Query(tmp_path, "snapshots", at=NOW), budget)
+    reducer.add_snapshot_json(snapshot.model_dump_json().encode(), source)
+    assert reducer.latest_charges[account] >= budget.size(
+        [account, reducer.latest[account], 0]
+    )
+    for point, charge in reducer.curves[account]:
+        assert charge >= budget.size((point, 0))
+
+
+def test_large_ignored_snapshot_field_uses_normalized_fallback_without_false_overflow(
+    tmp_path,
+):
+    from tests.test_dashboard_trading import make_snapshot
+
+    directory = tmp_path / "portfolio" / "paper" / "default"
+    directory.mkdir(parents=True)
+    row = make_snapshot(timestamp=NOW).model_dump(mode="json")
+    row["ignored_legacy_context"] = "x" * 70000
+    (directory / "snapshots.json").write_text(json.dumps([row]))
+    result = projection(Query(tmp_path, "snapshots", at=NOW), Limits(state_bytes=8192))
+    assert result["latest"]["default"] == make_snapshot(timestamp=NOW).model_dump(
+        mode="json"
+    )
+
+
+@pytest.mark.parametrize("event_type", list(ActivityEventType))
+def test_json_read_model_preserves_every_canonical_event_type_and_fields(event_type):
+    from src.dashboard.projections import _ActivityReadEvent, _validate_activity_json
+
+    original = event(
+        event_type,
+        at=NOW,
+        cid="c",
+        sub_account_id="one",
+        reason="stale_quote_no_live_data",
+        nested={"한글": [1, None, True]},
+    )
+    raw = original.model_dump_json()
+    assert _validate_activity_json(raw).model_dump(
+        mode="json"
+    ) == ActivityEvent.model_validate_json(raw).model_dump(mode="json")
+    assert set(_ActivityReadEvent.model_fields) == set(ActivityEvent.model_fields)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        '"event_type":"monitor_pass"',
+        '"event_type":"bad","event_type":"monitor_pass"',
+        '"event_type":"monitor_pass","event_type":"bad"',
+        '"event_type":null',
+        '"event_type":1',
+        '"event_type":"monitor_pass","message":null',
+        '"event_type":"monitor_pass","details":[]',
+        '"event_type":"monitor_pass","details":{"n":NaN}',
+        '"event_type":"monitor_pass","schema_version":"1"',
+    ],
+)
+def test_compiled_json_validation_preserves_canonical_coercion_and_rejection(fields):
+    from pydantic import ValidationError
+
+    from src.dashboard.projections import _validate_activity_json
+
+    raw = '{"timestamp":"2026-10-25T00:00:00Z",' + fields + "}"
+
+    def outcome(validate):
+        try:
+            model = validate(raw)
+            return "valid", json.dumps(model.model_dump(mode="json"), sort_keys=True)
+        except ValidationError as exc:
+            reason = (
+                "malformed_json"
+                if any(r["type"] == "json_invalid" for r in exc.errors())
+                else "invalid_record"
+            )
+            return "invalid", reason
+
+    assert outcome(_validate_activity_json) == outcome(
+        ActivityEvent.model_validate_json
+    )

@@ -1,0 +1,7 @@
+FROM registry.fly.io/crypto-master@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745
+ARG REVISION
+LABEL org.opencontainers.image.revision=$REVISION
+COPY src/dashboard/projections.py /app/src/dashboard/projections.py
+COPY src/dashboard/sources.py /app/src/dashboard/sources.py
+COPY src/dashboard/data_service.py /app/src/dashboard/data_service.py
+COPY src/dashboard/pages/trading.py /app/src/dashboard/pages/trading.py

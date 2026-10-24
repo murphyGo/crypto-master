@@ -1,0 +1,24 @@
+{
+  "baseline": "bf44822c94dcb9da524e35439c60792ce89301f7",
+  "files_sha256": {
+    "src/dashboard/data_service.py": "9c553e252b2cb3291d0e6030d184b8de0e1732ffaf44236bd631048b350e4e77",
+    "src/dashboard/pages/trading.py": "c31b157a9de640863f8847c59a04082cb09ccc1ad333e49e0b5b27a9dd400118",
+    "src/dashboard/projections.py": "ce37cc52152beeab5bb8dc01e47b44cb92ab13fdafe457cc369beb899f922973",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "tests/test_dashboard_data_service.py": "3747a75eecb007f82e0855b31908ae26915cbcf94a2177073968ded36c019e2f",
+    "tests/test_dashboard_projections.py": "8e371ccc2b7d5c3a7fa937092dfcea8f0d37557e5fddd74eb5310b56ed5468e7"
+  },
+  "checks": {
+    "targeted": "171 passed in 3.91s",
+    "full": "2811 passed in 231.38s",
+    "black": "6 files unchanged",
+    "ruff": "All checks passed",
+    "mypy": "129 source files, no issues"
+  },
+  "full_log_sha256": "ded621d7c9c09ee0d8e0b595a54143444d4a12135b1d1bb67bde4864e4d19be5",
+  "code_review": {
+    "findings": [],
+    "reviewed": "source generation proof, ordinal ties, canonical validation, financial output parity, cache/state/result admission, sibling failures, dependency and trading boundaries",
+    "residual": "Cold target still fails; native Browser unavailable; production dependency runtime requires deployment verification."
+  }
+}

@@ -109,6 +109,10 @@ class Manifest:
         self._files.append(packed)
 
     def entries(self, directory: Path) -> Iterator[Path]:
+        for entry in self.scan(directory):
+            yield directory / entry.name
+
+    def scan(self, directory: Path) -> Iterator[os.DirEntry[str]]:
         if not directory.is_dir():
             ancestor = directory.parent
             while not ancestor.is_dir() and ancestor != ancestor.parent:
@@ -123,20 +127,62 @@ class Manifest:
         # At most the parent and one child iterator are open during proposal
         # discovery; names are not accumulated in another unbounded list.
         with os.scandir(directory) as entries:
-            for entry in entries:
-                yield directory / entry.name
+            yield from entries
+
+    def add_entry(self, entry: os.DirEntry[str], *, prefix: bytes = b"") -> None:
+        """Capture proposal metadata once without per-member Path objects."""
+        if not entry.is_file():
+            return
+        try:
+            stat = entry.stat()
+        except FileNotFoundError as exc:
+            raise ReadFailure("source_changed") from exc
+        packed = (
+            prefix
+            + entry.name.encode()
+            + b"\0\0"
+            + struct.pack(
+                "!QQQQ", stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+            )
+            + b"o"
+        )
+        self.bytes += sys.getsizeof(packed) + 32
+        if self.bytes > self.limits.manifest_bytes:
+            raise ReadFailure("manifest_budget_exhausted")
+        self._files.append(packed)
 
     def verify(self) -> None:
+        descriptor = None
         try:
-            for source in self.files:
-                if Generation.capture(source.path) != source.generation:
-                    raise ReadFailure("source_changed")
+            if self._files and os.stat in os.supports_dir_fd:
+                descriptor = os.open(
+                    self.base, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                )
+                for packed in self._files:
+                    relative, _account, metadata = packed.split(b"\0", 2)
+                    stat = os.stat(relative, dir_fd=descriptor)
+                    current = struct.pack(
+                        "!QQQQ",
+                        stat.st_dev,
+                        stat.st_ino,
+                        stat.st_size,
+                        stat.st_mtime_ns,
+                    )
+                    if current != metadata[:32]:
+                        raise ReadFailure("source_changed")
+            else:
+                for source in self.files:
+                    if Generation.capture(source.path) != source.generation:
+                        raise ReadFailure("source_changed")
             # Membership plus per-file checks, never directory mtime alone.
             for path, generation in self.directories.items():
                 if Generation.capture(path) != generation:
                     raise ReadFailure("source_changed")
         except FileNotFoundError as exc:
             raise ReadFailure("source_changed") from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
 
 
 def discover(query: Query, limits: Limits, retention: int) -> Manifest:
@@ -177,13 +223,14 @@ def discover(query: Query, limits: Limits, retention: int) -> Manifest:
             manifest.add(path, "jsonl")
     elif query.kind == "proposals":
         base = query.source or query.root / "proposals"
-        for path in manifest.entries(base):
-            if path.suffix == ".json":
-                manifest.add(path, "object")
-            elif path.is_dir() and path.name != "archive":
-                for child in manifest.entries(path):
-                    if child.suffix == ".json":
-                        manifest.add(child, "object")
+        for entry in manifest.scan(base):
+            if entry.name.endswith(".json") and entry.name != ".json":
+                manifest.add_entry(entry)
+            elif entry.is_dir() and entry.name != "archive":
+                prefix = entry.name.encode() + b"/"
+                for child in manifest.scan(base / entry.name):
+                    if child.name.endswith(".json") and child.name != ".json":
+                        manifest.add_entry(child, prefix=prefix)
         manifest.sort()
     elif query.kind in {"ledger", "snapshots"}:
         store = "trades" if query.kind == "ledger" else "portfolio"
