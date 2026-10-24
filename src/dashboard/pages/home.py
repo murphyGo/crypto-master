@@ -31,6 +31,7 @@ import pandas as pd
 import streamlit as st
 
 from src.config import get_settings
+from src.dashboard.availability import watch_loading
 from src.dashboard.pages import engine as engine_page
 from src.dashboard.pages import feedback as feedback_page
 from src.dashboard.pages import trading as trading_page
@@ -161,6 +162,7 @@ class CommandCenterDiagnosticRow:
     query_params: Mapping[str, str]
 
 
+@watch_loading
 def render_home() -> None:
     """Landing page — overview cards + navigation hints.
 

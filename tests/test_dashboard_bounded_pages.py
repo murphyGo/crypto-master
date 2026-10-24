@@ -91,3 +91,34 @@ def test_trading_bad_activity_retains_verified_ledger_and_no_healthy_banner(
     assert metrics["Open Positions"] == "1"
     assert metrics["Current Equity"] == "100.00 USDT"
     assert not any("No open positions" in message.value for message in at.info)
+
+
+@pytest.mark.parametrize(
+    "page,entry,section_count",
+    [("home", "render_home", 5), ("trading", "render", 4), ("proposals", "render", 2)],
+)
+def test_pending_page_keeps_section_messages_with_one_watcher(
+    bounded_pages, monkeypatch, page, entry, section_count
+):
+    from src.dashboard import availability, data_service
+    from src.dashboard.read_models import ReadResult
+
+    service = data_service.get_data_service()
+    monkeypatch.setattr(
+        service,
+        "request_many",
+        lambda queries: {query.kind: ReadResult("pending") for query in queries},
+    )
+    watchers = []
+    monkeypatch.setattr(
+        availability, "_watch_background", lambda label: watchers.append(label)
+    )
+    at = AppTest.from_string(
+        f"from src.dashboard.pages.{page} import {entry}\n{entry}()"
+    ).run(timeout=10)
+    assert not at.exception
+    assert len(watchers) == 1
+    assert (
+        sum("loading in the background" in row.value for row in at.info)
+        == section_count
+    )

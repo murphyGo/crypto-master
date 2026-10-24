@@ -33,6 +33,7 @@ import streamlit as st
 import yaml
 
 from src.config import get_settings
+from src.dashboard.availability import watch_loading
 from src.dashboard.pages.engine import (
     build_reconciliation_drilldown_dataframe,
     build_reconciliation_status_banner,
@@ -671,6 +672,7 @@ def render(
         st.line_chart(chart_data, use_container_width=True)
 
 
+@watch_loading
 def _render_bounded_trading(
     *, sub_account_ids: list[str] | None, activity_log: ActivityLog | None
 ) -> None:

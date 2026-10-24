@@ -36,6 +36,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
+from src.dashboard.availability import watch_loading
 from src.logger import get_logger
 from src.proposal.funnel import (
     FunnelCounts,
@@ -282,6 +283,7 @@ def build_command_center_summary(counts: FunnelCounts) -> str:
 # =============================================================================
 
 
+@watch_loading
 def render(
     history: ProposalHistory | None = None,
     activity_log: ActivityLog | None = None,

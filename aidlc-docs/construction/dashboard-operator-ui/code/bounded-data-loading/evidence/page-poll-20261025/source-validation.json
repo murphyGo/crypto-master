@@ -1,0 +1,27 @@
+{
+  "baseline_runtime": "7f185bc7c0195e286b32f509c6502e44b3eca844",
+  "files_sha256": {
+    "src/dashboard/availability.py": "988e864eefb29809416c3b9ff397f1b49457cebc5c70e9c2ea74dd22e56ad0fa",
+    "src/dashboard/pages/home.py": "97420a6d30c2e913ea120abdf6e0d24cc0680c043bfc81e5e7e056423f0e5524",
+    "src/dashboard/pages/trading.py": "c5b166582054d5cbbef979a34bfb33bb2e4906fca41d9edc0f66f022f29b086b",
+    "src/dashboard/pages/proposals.py": "9a09c9d4248a58f892bd2074880fabd96f2ca810bb4bf141b4d81cc284b35755",
+    "tests/test_dashboard_availability.py": "2e89c44e1f0a693a1195080b984a0f431d43101d6c463c7427256460b856bb00",
+    "tests/test_dashboard_bounded_pages.py": "8a500387f5b28e5f6f6908045ee41b3025c10b9edbaef851582e0fe2f66c5009"
+  },
+  "checks": {
+    "targeted": "92 passed in 2.56s",
+    "full": "2823 passed in 216.01s",
+    "black": "6 files unchanged",
+    "ruff": "All checks passed",
+    "mypy": "129 source files, no issues"
+  },
+  "reader_files_unchanged": {
+    "src/dashboard/projections.py": "ce37cc52152beeab5bb8dc01e47b44cb92ab13fdafe457cc369beb899f922973",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/dashboard/data_service.py": "9c553e252b2cb3291d0e6030d184b8de0e1732ffaf44236bd631048b350e4e77"
+  },
+  "review": {
+    "findings": [],
+    "residual": "Shared-capacity readiness/health must be observed; no CPU-class, original NFR or native gate is waived."
+  }
+}
