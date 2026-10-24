@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-10-24T20:09:09.191939+00:00",
+  "result": "unavailable",
+  "native_viewport_acceptance": false,
+  "error": "Cannot find module '/Users/user/.codex/plugins/cache/openai-bundled/browser/26.1007.30912/scripts/browser-service.mjs' imported from trusted-worker.js",
+  "selected_browser": null,
+  "recovery": "Connection recovery requested asynchronously; no success response received. Retried supported bootstrap, same failure.",
+  "other_surfaces": "Server WebSocket qualification is separately labelled; no alternative browser or source workaround used."
+}

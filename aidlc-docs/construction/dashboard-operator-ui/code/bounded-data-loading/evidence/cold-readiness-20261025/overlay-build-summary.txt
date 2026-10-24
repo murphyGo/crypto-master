@@ -1,0 +1,10 @@
+#4 [1/5] FROM registry.fly.io/crypto-master@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745
+#6 [2/5] COPY src/dashboard/projections.py /app/src/dashboard/projections.py
+#7 [3/5] COPY src/dashboard/sources.py /app/src/dashboard/sources.py
+#8 [4/5] COPY src/dashboard/data_service.py /app/src/dashboard/data_service.py
+#9 [5/5] COPY src/dashboard/pages/trading.py /app/src/dashboard/pages/trading.py
+#10 pushing manifest for registry.fly.io/crypto-master:git-7f185bc7c0195e286b32f509c6502e44b3eca844-cold@sha256:cad5a65e6c194eb43db0d068a4e4700fb016459d98996a20e0178492b9a96cb6
+#10 pushing manifest for registry.fly.io/crypto-master:git-7f185bc7c0195e286b32f509c6502e44b3eca844-cold@sha256:cad5a65e6c194eb43db0d068a4e4700fb016459d98996a20e0178492b9a96cb6 0.2s done
+image: registry.fly.io/crypto-master:git-7f185bc7c0195e286b32f509c6502e44b3eca844-cold
+image size: 545 MB
+No RUN/install dependency layer; four dashboard files copied on the exact v60 digest.

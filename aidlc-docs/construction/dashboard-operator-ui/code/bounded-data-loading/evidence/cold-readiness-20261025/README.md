@@ -22,3 +22,17 @@ not native browsers. It records full-script completion, metrics/table/chart
 coverage, explicit incomplete states, latency and public health. Remote sampling
 is read-only and observes the existing engine cadence. Neither this test nor the
 2 GiB guest certifies native viewport or the originally declared 1 GiB guest.
+
+`semantic-matrix.json` adds 24 full-builder parity cases across every canonical
+event type, cross-file/time ties and account scopes. `full-test-suite.log.txt`
+and `source-validation.json` record the exact final 2811-test run.
+
+`v61-after-*` records the five-second navigation stress: it fails its public-health
+5s deadline after 210.332s, and all observations remain. Four in-flight page
+rows have the driver's `timeout` status because the global guard ended them;
+they did not independently run out their 30s budget. `v61-20s-*` is a separate
+navigation cadence, not a replacement for the failed test. Each driver version is
+archived. The preliminary harness schema error is explicit. Host metrics are
+unavailable with the existing credential; current throttling is not inferred
+from the guest's internal cgroup counters. `browser-connection.json` records the
+repeated supported-bootstrap failure; native acceptance remains open.

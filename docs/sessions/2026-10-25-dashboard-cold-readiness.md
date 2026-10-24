@@ -113,3 +113,97 @@ in a warmed local process with generated input, not process-cold/native latency.
 
 The fixture and exact source hashes, CPU times, warm times, all observations and
 reproduction drivers are in [cold-readiness evidence](../../aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/cold-readiness-20261025/README.md).
+
+## v61 rollout and initial server stress result
+
+Source `7f185bc7c0195e286b32f509c6502e44b3eca844` was committed/pushed to main
+and deployed as Fly **v61**, image
+`sha256:cad5a65e6c194eb43db0d068a4e4700fb016459d98996a20e0178492b9a96cb6`.
+The overlay copies exactly four dashboard files on the v60 digest; no dependency
+installation occurs. All **175 deployed runtime input hashes** match. Python
+3.13.16 / Streamlit 1.65.0 / Pydantic 2.14.0 / core 2.50.0 / pandas 3.0.6 /
+NumPy 2.5.4 remain the deployed versions.
+
+Machine `6835752b711958`, shared CPU 1 / **2048 MiB** and original volume
+`vol_4m3l58dkk29y19zv` are retained. Paper/Codex `gpt-6-astra` / Claude rollback
+sonnet are verified. The first post-rollout paper cycle starts at
+2026-10-24T19:47:13.774794Z and completes at 19:47:34.702961Z. HTTP health passes.
+The root main checkout fast-forwards to the deployed source; unrelated settings
+and lock hashes remain identical to the preservation snapshot.
+
+A local protocol-driver mistake (`Metric.value` instead of deployed `Metric.body`)
+failed before concurrent observation. The actual descriptor was inspected and
+the metric/arrow element fields corrected. This harness failure is recorded and
+never counted as a successful cold or page sample. The corrected warmup pair
+Home 0.656s / Trading 1.035s uses an already warmed server, **not process-cold**.
+
+The subsequent **four-session, five-second navigation** observation starts
+19:49:20.119258Z and stops at 19:52:50.451578Z (**210.332s**):
+
+- Health: 39/40 pass; the final sample times out at **5.102s**, triggering the
+  prescribed stop guard. The run fails and is not extended to manufacture a pass.
+- Home 74/77 and Trading 75/76 views complete. Four in-flight views remain
+  incomplete when the health guard stops the run. Their driver status says
+  `timeout`, but they did not independently exhaust their full 30s timeout;
+  the global health stop ended them. They remain in the completion denominator.
+- Successful-only p95 Home 0.594s / Trading 1.235s does **not** qualify a series
+  with failures. Required native and cold page acceptance is not claimed.
+- 209 memory samples: dashboard observed RSS growth **19.454 MiB**, conservative
+  process HWM minus warmed RSS **22.582 MiB**, peak guest use **641.781 MiB**.
+  These are current 2 GiB guest observations, not the original 1 GiB qualification.
+- Engine/dashboard PIDs remain 655/656; no restart or sampled memory spike.
+  A whole engine cycle is not inside this short failed test interval.
+
+After stopping its clients, public HTTP health recovers and source/process/
+paper-cycle verification passes again. Current host Prometheus metrics return
+HTTP401 with the existing credential; no credential is printed/persisted or newly
+created. The guest exposes unlimited internal cgroup quota and zero internal
+throttles, which cannot stand in for host quota counters. The cause of the
+transient failure is **not attributed conclusively** to host throttling. Earlier
+CPU evidence is historical; [Fly metric units](https://docs.fly.io/monitoring/metrics#instance-load-and-cpu)
+were checked to distinguish host and guest counters.
+
+A separate **twenty-second navigation** scenario is running with its own phase
+and raw evidence. It neither replaces nor erases the five-second stress failure.
+It must run at least ten minutes and extend over a whole existing engine cycle.
+
+## Additional semantic verification and next contract
+
+A further **24 complete full-output/provenance parity cases** cover all **42**
+canonical event types, eight shuffled inputs, Aggregate/a/b scopes, cross-file
+cycles/companions, exact/legacy simultaneous gates, minimum UTC, offsets,
+cutoff boundaries and future events. Every case matches `bf44822` exactly.
+
+A [new functional design candidate](../../aidlc-docs/construction/dashboard-operator-ui/functional-design/verified-segment-checkpoints/business-logic-model.md)
+proposes disposable verified whole-file checkpoints across restart, with exact
+cross-file merging and unchanged canonical data/financial rules/capacity.
+Modified files validate in full; no size-only append cursor is assumed safe.
+This changes the prior no-durable-checkpoint contract, so it is **awaiting explicit
+functional approval** before NFR/infrastructure design and implementation.
+A candidate 64 MiB derived-disk envelope is not an active setting. Unseeded cold
+bootstrap and all existing acceptance targets remain required; no latency outcome
+is promised by the candidate itself.
+
+## Completed twenty-second server observation
+
+The separate scenario runs **1171.054s (19m31s)**, from 19:58:47.997734Z to
+20:18:19.051838Z. It captures a whole paper cycle: 20:17:34.805551Z to
+20:18:01.491378Z, with twelve monitor passes and no errored event in its captured
+start-to-completion interval. Engine/dashboard PIDs remain 655/656.
+
+It **fails**: 229/230 public health requests pass; the final request times out at
+**5.136s** while the engine cycle/source updates overlap navigation. Home and
+Trading each complete **114/116** views; four in-flight views abort after the
+health guard stops the test. Successful-only p95 is 0.583s / 0.911s, but the
+failure ratio prevents passing acceptance. Peak dashboard RSS/HWM growth over
+the warmed baseline is **8.496 MiB**, guest use **646.059 MiB** on the unchanged
+2 GiB guest. Engine/dashboard CPU increase is 14.26s / 77.07s. These do not
+measure host quota. Public health and source/process verification recover after
+stopping load. Both navigation scenarios remain failed, not replaced by a pass.
+
+Code-path inspection finds each pending section registers its own half-second
+background fragment (five Home sections; four Trading sections). A follow-up
+will coalesce those registrations per page while preserving individual coverage
+messages. This is a source-backed redundancy finding, not a proven attribution
+of either observed health timeout. It requires new exact-source verification and
+rollout before any performance claim.

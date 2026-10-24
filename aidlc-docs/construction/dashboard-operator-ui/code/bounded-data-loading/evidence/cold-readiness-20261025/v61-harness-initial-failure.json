@@ -1,0 +1,7 @@
+{
+  "surface": "local test driver before concurrency sampling",
+  "result": "harness_error",
+  "error": "AttributeError: Metric.value; deployed schema uses Metric.body",
+  "qualification": false,
+  "fix": "Inspect original deployed descriptor, use Metric.body and deployed arrow element names; rerun all observations. No runtime source change."
+}

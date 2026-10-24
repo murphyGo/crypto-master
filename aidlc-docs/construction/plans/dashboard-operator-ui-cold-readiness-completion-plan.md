@@ -14,7 +14,7 @@
 2. [x] Profile the final v60 reducers on the existing generated million-event fixture and inspect page dependency/import cost. Selected typed activity loops/rank checks, compiled canonical JSON validation, bounded selected snapshot rows and measured fixed-shape accounting, native metadata capture/verification, shared lifetime threshold reuse, and one-time request canonicalization. No exchange/writer/persistence change.
 3. [x] Implement bounded CPU reductions while preserving every-record validation, UTC/ties, exact lifetime/window totals, financial outputs and all existing limits. Add meaningful regression/negative tests.
 4. [x] Verify full-output parity and twenty paired cold/warm observations at exact final source. Run targeted/full tests, changed-file Black/Ruff and source mypy; review correctness and resource bounds.
-5. [ ] Deploy the verified source on the unchanged machine using the existing dependency image as base. Verify source hashes, health and complete Home/Trading responses.
+5. [x] Deploy the verified source on the unchanged machine using the existing dependency image as base. Verify source hashes, health and complete Home/Trading responses.
 6. [ ] Run four actual browser sessions alternating Home/Trading for at least ten minutes if Browser connection recovers. Independently exercise server protocol concurrency, guest/process memory, health <5s and a full engine cycle; label each evidence surface precisely.
 7. [ ] Reconcile outstanding acceptance from actual measurements. If a target needs a new persistence/topology contract, prepare the applicable design and concrete approval decision instead of silently changing the approved boundary.
 8. [ ] Update session, cross-check, unit state, debt and plans; commit/push scoped changes and preserve unrelated local work.
@@ -27,8 +27,15 @@
 
 ## Completion
 
-- [ ] Bounded implementation and source verification complete
+- [x] Bounded implementation and source verification complete
 - [ ] Exact performance / deployed / concurrency evidence recorded
 - [ ] Native viewport qualification completed, or actual external blocker explicitly recorded
 - [ ] Remaining NFR/design decisions and debt status reconciled without claiming incomplete acceptance
 - [ ] Scoped commit/push and root preservation verified
+
+## Rollout / qualification checkpoint
+
+- v61 / `7f185bc` deployed on unchanged capacity; 175 hashes, health and first paper cycle pass.
+- Five-second four-session stress fails its 5s health guard at 210.332s; all failed/in-flight observations retained. Original resource/native/cold acceptance remains open.
+- Twenty-second navigation is separately observed for 1171.054s and a full engine cycle; it also fails the health guard (5.136s). A page-poll coalescing follow-up is planned without changing persistence/capacity.
+- Verified whole-file restart checkpoints are documented as a new Functional Design candidate. Approval question is pending; no persistence change implemented.

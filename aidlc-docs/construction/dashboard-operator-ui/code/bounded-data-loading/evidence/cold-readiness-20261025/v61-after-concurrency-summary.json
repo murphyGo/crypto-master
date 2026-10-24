@@ -1,0 +1,41 @@
+{
+  "surface": "four concurrent actual Streamlit WebSocket sessions; not native viewport/browser acceptance",
+  "started_at": "2026-10-24T19:49:20.119258+00:00",
+  "ended_at": "2026-10-24T19:52:50.451578+00:00",
+  "seconds": 210.33232,
+  "clients": 4,
+  "cadence_seconds": 5,
+  "stop_reasons": [
+    "health_failed_or_deadline_exceeded"
+  ],
+  "health_samples": 40,
+  "health_all_ok_under_5s": false,
+  "health_max_seconds": 5.102452459046617,
+  "memory_samples": 209,
+  "warmed_dashboard_baseline_rss_kib": 290344,
+  "engine_full_cycle": null,
+  "pages": {
+    "Home": {
+      "observations": 77,
+      "complete": 74,
+      "incomplete": 3,
+      "complete_seconds_p95": 0.5939624169841409,
+      "all_complete": false
+    },
+    "Trading": {
+      "observations": 76,
+      "complete": 75,
+      "incomplete": 1,
+      "complete_seconds_p95": 1.2346023749560118,
+      "all_complete": false
+    }
+  },
+  "dashboard_peak_rss_kib": 310264,
+  "dashboard_process_hwm_kib": 313468,
+  "observed_dashboard_rss_increase_mib": 19.453125,
+  "conservative_hwm_minus_warmed_rss_mib": 22.58203125,
+  "guest_use_peak_mib": 641.78125,
+  "guest_memtotal_kib": 2015880,
+  "minimum_duration_and_cycle_observed": false,
+  "original_1024_mib_guest_qualification": false
+}

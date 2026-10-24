@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; shared-CPU follow-up deployed on Fly v60 (`38876fc`). 2743 regression passes, 175 runtime hashes, health, first paper cycle and complete Home/Trading protocol responses verified. Home/million-event cold latency and native/resource acceptance remain open. Performance-CPU / added-cost proposal remains deferred; shared CPU 1 / 2048 MiB retained |
+| **Status** | Active; cold-readiness follow-up deployed on Fly v61 (`7f185bc`). 2811 regression passes, 175 runtime hashes, health and first paper cycle verified. Million cold p95 7.872s still fails 5s; five-second four-session stress fails its health guard. Twenty-second qualification also fails health despite a full cycle. Native/original guest acceptance remains open; new checkpoint Functional Design awaits approval. Performance-CPU / added-cost proposal remains deferred; shared CPU 1 / 2048 MiB retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -181,6 +181,23 @@ cross-check. Debt remains Critical/active.
 - `docs/cross-checks/2026-10-09-dashboard-operator-ui-bounded-data-loading-nfr.md`
 - `docs/sessions/2026-10-09-dashboard-operator-ui-bounded-data-loading-design.md`
 - `docs/cross-checks/2026-10-09-dashboard-operator-ui-bounded-data-loading-design.md`
+
+**2026-10-25 cold-readiness follow-up:** Fly v61 / `7f185bc` retains capacity,
+volume, dependencies and paper/Codex controls. 2811 full tests, source mypy/format,
+175 deployed hashes, health and first engine cycle pass. Twenty-pair full-output
+parity shows million cold p95 10.317→7.872s (5s still FAIL), snapshot p95
+3.750→2.149s and lifetime threshold reuse 1.623s→0.221ms. Another 24 complete
+semantic cases across all 42 event types match exactly. Four-session five-second
+navigation fails a health timeout at 210.332s; 39/40 health samples and 149/153
+views complete. Four in-flight views remain incomplete at the global stop.
+Observed dashboard growth/HWM bound is 19.454/22.582 MiB and guest peak 641.781 MiB
+on the current 2 GiB guest, not original 1 GiB qualification. No process restart
+is observed. Host quota metrics are unavailable (HTTP401), so the cause is not
+conclusively attributed. Twenty-second navigation captures a full cycle but also fails health (5.136s). New verified-segment checkpoint Functional Design awaits approval;
+no new persistence or CPU cost is active. See
+`docs/sessions/2026-10-25-dashboard-cold-readiness.md` and
+`aidlc-docs/construction/plans/dashboard-operator-ui-cold-readiness-completion-plan.md`.
+
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

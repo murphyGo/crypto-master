@@ -1,0 +1,53 @@
+{
+  "version": 61,
+  "app": "crypto-master",
+  "machines": [
+    {
+      "id": "6835752b711958",
+      "state": "started",
+      "region": "nrt",
+      "image_ref": {
+        "registry": "registry.fly.io",
+        "repository": "crypto-master",
+        "digest": "sha256:cad5a65e6c194eb43db0d068a4e4700fb016459d98996a20e0178492b9a96cb6",
+        "labels": {
+          "org.opencontainers.image.revision": "7f185bc7c0195e286b32f509c6502e44b3eca844"
+        }
+      },
+      "instance_id": "01M5QQ7FH535XASKMRQVQE8Y31",
+      "updated_at": "2026-10-24T19:47:05Z",
+      "guest": {
+        "cpu_kind": "shared",
+        "cpus": 1,
+        "memory_mb": 2048
+      },
+      "mounts": [
+        {
+          "encrypted": true,
+          "path": "/data",
+          "size_gb": 1,
+          "volume": "vol_4m3l58dkk29y19zv",
+          "name": "data"
+        }
+      ],
+      "release_metadata": {
+        "fly_builder_id": "82d1d71f577298",
+        "fly_flyctl_version": "0.4.115",
+        "fly_platform_version": "v2",
+        "fly_process_group": "app",
+        "fly_release_id": "rel_v6gwzpwmjjne29ok",
+        "fly_release_version": "61"
+      },
+      "checks": [
+        {
+          "name": "servicecheck-00-http-8080",
+          "status": "passing",
+          "output": "ok",
+          "updated_at": "2026-10-24T19:47:08.687Z"
+        }
+      ]
+    }
+  ],
+  "capture_context": "Post-deployment v61 status capture; source verification separately timestamped",
+  "artifact_recorded_at": "2026-10-24T20:06:29.670430+00:00"
+}

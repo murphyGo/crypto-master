@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Shared-CPU read-side follow-up deployed on Fly v60 (`38876fc`); 2743 tests, source/health/first cycle and full Home/Trading protocol responses verified. Existing capacity retained; performance CPU / added-cost proposal remains deferred. Home/million cold and native/resource acceptance remain open. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Cold-readiness follow-up deployed on Fly v61 (`7f185bc`); 2811 tests, 175 hashes, health/first cycle pass. Million cold and five-second stress health target still fail; twenty-second scenario also fails health despite a full cycle. Native/original guest acceptance and checkpoint design approval remain open. CPU/cost proposal stays deferred. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | Fly v60 / `38876fc`: 2743 tests, 175 deployed hashes, health/first cycle and full Home/Trading protocol responses verified; Home 17.502s / Trading 2.480s. Unrelated-directory revalidation improves; million cold p95 remains 10.872s (>5s). Native/concurrency/guest acceptance remains open. Shared CPU 1 / 2048 MiB retained; performance CPU / cost proposal deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | Fly v61 / `7f185bc`: 2811 tests, 175 hashes, health/first cycle pass; million cold p95 7.872s (>5s). Five-second stress fails health deadline; twenty-second scenario also fails health despite a full cycle. Native/original guest acceptance and proposed checkpoint Functional Design approval remain open. Shared CPU 1 / 2048 MiB retained; CPU/cost proposal deferred. |
 
 DEBT-082 is resolved by native production verification. The concurrent
 DEBT-074/078/084/085/086 implementation closures are preserved in

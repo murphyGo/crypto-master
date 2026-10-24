@@ -1,0 +1,8 @@
+{
+  "result": "unavailable",
+  "api": "Fly managed Prometheus query_range, personal organization",
+  "attempts": "existing CLI credential; documented schemes; HTTP401",
+  "credential_handling": "No credential value printed or persisted; no new token created.",
+  "guest_cgroup": "v1 cpu,cpuacct; quota -1 and zero throttled count inside guest. These are not host quota counters.",
+  "conclusion": "Current host throttling is not confirmed by this run. Separate earlier CPU evidence remains historical; current health/page failure, low memory growth and unchanged processes are observed."
+}

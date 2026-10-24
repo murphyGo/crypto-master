@@ -13,7 +13,10 @@ causes complete reduction, and restart discards all verified projection work.
 The four-session five-second navigation test also failed its health deadline;
 current host throttling was not available to confirm its cause. These findings
 justify considering reusable file projections; they do not prove this candidate
-will meet the latency targets.
+will meet the latency targets. The failed five-second test also contains warm
+renders; no cause link between that failure and a changed-file rebuild was
+established. Checkpoints address restart/rebuild work, while render cost and
+higher-frequency navigation need separate evidence and may need another fix.
 
 Retain bounded, validated reduction state for each whole source-file generation.
 After a query or process restart, reuse a compatible checkpoint only after the

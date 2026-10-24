@@ -158,3 +158,22 @@ Next: reduce cold bootstrap and changed-source rebuild cost without relaxing
 the approved resource/semantic limits, then qualify complete native page
 readiness, four-session decoded memory, guest use and engine continuity on an
 authorized deployment. This checkpoint is not a deployment/closure approval.
+
+## 2026-10-25 cold-readiness and concurrency checkpoint
+
+Fly v61 / `7f185bc` runs the next retained-capacity reductions: compiled canonical
+activity reads/typed loops, bounded selected snapshots, metadata verification,
+lifetime threshold reuse and one-time page request normalization. All 2811 tests,
+source mypy/format, 175 deployed hashes, HTTP health and first paper cycle pass.
+Twenty paired local samples preserve exact output/provenance; million empty-cache
+p95 improves 10.317→7.872s but still fails 5s. Snapshot p95 improves
+3.750→2.149s. These are query measurements in a warm process.
+
+Four server sessions alternating every 5s fail the health deadline after
+210.332s; failed/in-flight observations remain in the evidence. A separately
+labelled 20s scenario captures a full engine cycle but also fails health (5.136s). Native Browser remains unavailable;
+current 2 GiB memory samples do not certify the declared 1 GiB target. CPU cost
+proposal stays deferred. New whole-file restart checkpoints are a Functional
+Design candidate awaiting approval, not active persistence. DEBT-083 stays active.
+See [current cross-check](../../../../../docs/cross-checks/2026-10-25-dashboard-cold-readiness.md)
+and [evidence](evidence/cold-readiness-20261025/README.md).

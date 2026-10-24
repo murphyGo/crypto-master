@@ -1,0 +1,39 @@
+import hashlib,json,random,subprocess,sys,tempfile,types
+from datetime import datetime,timedelta,timezone
+from pathlib import Path
+from src.dashboard import projections
+from src.dashboard.read_models import Limits,Query
+from src.dashboard.pages.proposals import GATE_REASON_BY_STATE
+from src.runtime.activity_events import ActivityEventType
+BASE='bf44822c94dcb9da524e35439c60792ce89301f7'
+for name,path in [('sources','src/dashboard/sources.py'),('projections','src/dashboard/projections.py')]:
+ code=subprocess.check_output(['git','show',BASE+':'+path],text=True).replace('from src.dashboard.sources import','from matrix_baseline_sources import')
+ mod=types.ModuleType('matrix_baseline_'+name);sys.modules[mod.__name__]=mod;exec(compile(code,path,'exec'),mod.__dict__)
+old=sys.modules['matrix_baseline_projections']
+now=datetime(2026,10,25,tzinfo=timezone.utc);kinds=[e.value for e in ActivityEventType];gates=sorted({r for values in GATE_REASON_BY_STATE.values() for r in values});results=[]
+with tempfile.TemporaryDirectory(prefix='crypto-dashboard-parity-',dir='/private/tmp') as directory:
+ root=Path(directory);runtime=root/'runtime';runtime.mkdir()
+ for seed in range(8):
+  rng=random.Random(seed);rows=[]
+  for i in range(1512):
+   typ=kinds[i%len(kinds)];at=rng.choice([now-timedelta(days=30),now-timedelta(hours=24,seconds=1),now-timedelta(hours=24),now-timedelta(hours=24)+timedelta(microseconds=1),now,now+timedelta(hours=2),datetime.min.replace(tzinfo=timezone.utc)])
+   if i%7==0:at=at.astimezone(timezone(timedelta(hours=9)))
+   gate=rng.choice(gates);reason=rng.choice(['',gate,gate+'_legacy','not_a_gate',rng.choice(gates)+'_legacy'])
+   details={'sub_account_id':rng.choice(['','default','a','b']),'proposal_id':rng.choice([None,123,'p0','p1','p2']),'symbol':rng.choice(['BTCUSDT','ETHUSDT']),'exchange':'binance','series':rng.choice(['funding','oi']),'timeframe':'1h','gate_reason':gate if i%2 else None,'reason':reason,'advisory':i%3==0,'would_block':i%4==0,'equity':'1000','gross_notional_total':'200','unrealized_pnl_open':'-4','open_stop_risk':'2','side':'long'}
+   rows.append({'timestamp':at.isoformat(),'event_type':typ,'message':'stale-quote' if i%11==0 else str(i),'details':details,'cycle_id':rng.choice([None,'','c0','c1','c2','c3'])})
+  rng.shuffle(rows)
+  for index,name in enumerate(['activity.jsonl','activity.2026-09.jsonl','activity.2026-10.jsonl']):
+   (runtime/name).write_text(''.join(json.dumps(row,separators=(',',':'))+'\n' for row in rows[index::3]))
+  for scope in ['Aggregate','a','b']:
+   q=Query(root,'activity',scope=scope,at=now).normalized();values=[]
+   for builder in [old.build_projection,projections.build_projection]:
+    result=None
+    for value in builder(q,Limits()):
+     if value is not None:result=value
+    assert result is not None
+    values.append(json.dumps(result,sort_keys=True,separators=(',',':')).encode())
+   assert values[0]==values[1],(seed,scope,'full output differs')
+   results.append({'seed':seed,'scope':scope,'records':len(rows),'full_output_equal':True,'payload_sha256':hashlib.sha256(values[1]).hexdigest()})
+out=Path('aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/cold-readiness-20261025')
+(out/'semantic-matrix.json').write_text(json.dumps({'baseline':BASE,'event_types':len(kinds),'seeds':8,'cases':results,'method':'all canonical types, source-order shuffle, cross-file cycles and companions, exact and legacy gate reasons, conflicting matches, global/account scope, minimum UTC, offsets, exact 24h boundary and future events; fixed evaluation; full output and provenance byte equivalence'},indent=2)+'\n')
+print('24 complete baseline/candidate full-output parity cases passed across all',len(kinds),'event types')

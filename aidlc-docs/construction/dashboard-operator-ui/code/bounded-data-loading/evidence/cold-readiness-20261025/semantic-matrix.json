@@ -1,0 +1,176 @@
+{
+  "baseline": "bf44822c94dcb9da524e35439c60792ce89301f7",
+  "event_types": 42,
+  "seeds": 8,
+  "cases": [
+    {
+      "seed": 0,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "3a545ca7040b2e3e139378966f11291cb7eb28451855d74d74994e36a1f7373e"
+    },
+    {
+      "seed": 0,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "7ed91a92b98f6f2030d8144b114299e36354a02998a4557a1f1491274ee08552"
+    },
+    {
+      "seed": 0,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "df75ab7c27a42f2fbfd85af9998c5c59442f502e2e8eab93ab865a0814d59f3b"
+    },
+    {
+      "seed": 1,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "baf9a3a50dd0c164c289fed8742bb5be0ef7a4b7327d9d971be62157038bd677"
+    },
+    {
+      "seed": 1,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "db6a020365d7a30454201580b06979ea011bc25ea99dfd6c9e4b13b5b4fb3cbd"
+    },
+    {
+      "seed": 1,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "134c770b650df051b8cdba4a9272db0f6235f13b537bcf6d773279a528b61753"
+    },
+    {
+      "seed": 2,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "0defbdc8cbc77a9503dc0fa8a2d1df6e6c6cf39895a6cd555bca0e978586ecaa"
+    },
+    {
+      "seed": 2,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "8b3ca38347fdbcc2028d6e6c88c100bba488b242ffa6bea9806363711c3cbf24"
+    },
+    {
+      "seed": 2,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "9a289b39b21b9eefd452a15057c0d5ed953e14c320d9bd604926a9aa3f68bcb0"
+    },
+    {
+      "seed": 3,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "5cf0d74a3d89d54531992ba7202594edcca07542ce0558a57f738d87878a609a"
+    },
+    {
+      "seed": 3,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "c240ec0a0e67f0b9c0b938427b1150b5e910eb0a298118ff9bc54cd02fe53f14"
+    },
+    {
+      "seed": 3,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "6fab1fccdb2c441f59209df44fa76d8b3d1e1b907798bbef6fa3ea6221be688a"
+    },
+    {
+      "seed": 4,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "c54d96915e2480afa29acad2ff1aa78ad250eff3d7020fb15b7f80b5cab75031"
+    },
+    {
+      "seed": 4,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "aae66faf2b7cdf5fb23d394d58d4d95ff1363524694f4d10bb4a74db5e7dea57"
+    },
+    {
+      "seed": 4,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "8f878a01cfdcdceb17ce215d291d3cea22b3be9c4d60b5738f7e770c5bf53a15"
+    },
+    {
+      "seed": 5,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "607c3429394c4d6727077e94d1aa2a093831fa21f787f903a71823bde91708c4"
+    },
+    {
+      "seed": 5,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "67a5eede35d4950369e34654339a576c639c4cf7b8391b6568f425be05911988"
+    },
+    {
+      "seed": 5,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "aa45df78a859c7d23f6b932c3bae878e6102917171b80bb00b6c978b9d60e7db"
+    },
+    {
+      "seed": 6,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "da46806f4c2b1f8521e3d426a7cf885a58d801883d1e3843f7c78bdb77a24315"
+    },
+    {
+      "seed": 6,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "ce397d2a7c6c2d1406b69a87371740ba3e4344c4abc22bf5f8d39f20c197096b"
+    },
+    {
+      "seed": 6,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "42e2fe87df07041640cf2a635763af216fdd1f5b3c9d29e80952eb6b9c59bd59"
+    },
+    {
+      "seed": 7,
+      "scope": "Aggregate",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "e07cbb1c56ccb2c1a4c690e597a8d9bfb81cf50a2ecf8f74b39addce6e014ff5"
+    },
+    {
+      "seed": 7,
+      "scope": "a",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "bf6efe487da8af6cf5341df80258fa467ecaf1bf4b3c2335256d14589804dd00"
+    },
+    {
+      "seed": 7,
+      "scope": "b",
+      "records": 1512,
+      "full_output_equal": true,
+      "payload_sha256": "717ae581991124e1983155f1c0d5af0b4da7258c1a79de3b996506aa23dbfd7e"
+    }
+  ],
+  "method": "all canonical types, source-order shuffle, cross-file cycles and companions, exact and legacy gate reasons, conflicting matches, global/account scope, minimum UTC, offsets, exact 24h boundary and future events; fixed evaluation; full output and provenance byte equivalence"
+}
