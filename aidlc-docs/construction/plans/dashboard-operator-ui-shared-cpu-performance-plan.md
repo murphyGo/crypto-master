@@ -13,10 +13,10 @@
 1. [x] Revalidate current source, Fly capacity, approval boundary and remaining qualification. Isolate work from unrelated local configuration.
 2. [x] Reduce repeated timestamp serialization in activity cycle reductions; directly validate bounded snapshot JSON objects without an intermediate raw dictionary. Preserve UTC normalization, exact source-order ties, every-record validation and financial/curve output.
 3. [x] Reuse unchanged projections after irrelevant directory metadata changes, while retaining per-file generations and publication-time directory verification. Test relevant additions/removals/replacement and concurrent membership changes explicitly.
-4. [ ] Run focused reader/projection/service/page tests, full regression, changed-file Black/Ruff and source mypy. Review against the approved contracts and compare deterministic full projections with the baseline.
+4. [x] Run focused reader/projection/service/page tests, full regression, changed-file Black/Ruff and source mypy. Review against the approved contracts and compare deterministic full projections with the baseline.
 5. [x] Measure final-source cold queries and revalidation with twenty paired baseline/candidate samples on declared generated fixtures. All 120 complete outputs match business fields/coverage. Million cold p95 10.467→10.872s does not improve or meet 5s; snapshots 3.781→3.648s; unrelated-directory revalidation 0.773→0.00398s. Native/guest qualification remains separate.
-6. [ ] Commit/push the verified slice and deploy it to the existing machine, retaining shared CPU 1 / 2048 MiB, existing dependencies where practicable, original volume and paper/Codex settings. Verify actual deployed source/capacity, health, complete Home/Trading protocol responses and engine continuity.
-7. [ ] Update implementation evidence, session, cross-check, unit/debt state and outstanding acceptance. Keep the deferred CPU proposal and unresolved cold/native/resource targets explicit.
+6. [x] Commit/push the verified slice and deploy it to the existing machine, retaining shared CPU 1 / 2048 MiB, existing dependencies where practicable, original volume and paper/Codex settings. Verify actual deployed source/capacity, health, complete Home/Trading protocol responses and engine continuity.
+7. [x] Update implementation evidence, session, cross-check, unit/debt state and outstanding acceptance. Keep the deferred CPU proposal and unresolved cold/native/resource targets explicit.
 
 ## Questions and constraints
 
@@ -25,7 +25,7 @@
 
 ## Completion
 
-- [ ] Source implementation and meaningful tests complete
+- [x] Source implementation and meaningful tests complete
 - [x] Performance and exact semantic comparison evidence recorded
-- [ ] Scoped rollout verified without a capacity change
-- [ ] Session, cross-check, debt and state reconciled
+- [x] Scoped rollout verified without a capacity change
+- [x] Session, cross-check, debt and state reconciled

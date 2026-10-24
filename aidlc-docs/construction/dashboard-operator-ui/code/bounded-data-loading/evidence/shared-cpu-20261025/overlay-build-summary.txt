@@ -1,0 +1,17 @@
+#1 [internal] load build definition from Dockerfile.dashboard-overlay
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#6 [2/4] COPY src/dashboard/projections.py /app/src/dashboard/projections.py
+#7 [3/4] COPY src/dashboard/sources.py /app/src/dashboard/sources.py
+#8 [4/4] COPY src/utils/bounded_read.py /app/src/utils/bounded_read.py
+#9 exporting manifest sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745 done
+#4 [1/4] FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+#9 pushing manifest for registry.fly.io/crypto-master:git-38876fcda9bd5bedba5dd4465fb5905175e38dc2-overlay@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745
+#9 pushing manifest for registry.fly.io/crypto-master:git-38876fcda9bd5bedba5dd4465fb5905175e38dc2-overlay@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745 0.1s done
+image: registry.fly.io/crypto-master:git-38876fcda9bd5bedba5dd4465fb5905175e38dc2-overlay
+image size: 545 MB

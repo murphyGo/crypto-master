@@ -1,0 +1,26 @@
+==> Verifying app config
+Validating fly.toml
+[33mWARN[0m Service HTTP check has a grace period greater than 1 minute (2m0s); this will be lowered to 1 minute
+[32m✓[0m Configuration is valid
+--> Verified app config
+==> Building image
+Searching for image 'registry.fly.io/crypto-master@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745' remotely...
+image found: img_nk3yvlr5l6xlvome
+
+Watch your deployment at https://fly.io/apps/crypto-master/monitoring
+
+--only-machines filter applied, deploying to 1/1 machines
+Updating existing machines in 'crypto-master' with immediate strategy
+> Acquiring lease for 6835752b711958
+> Acquired lease for 6835752b711958
+> Updating machine config for 6835752b711958
+> Updating 6835752b711958 [app]
+> Updated machine config for 6835752b711958
+✔ Machine 6835752b711958 is now in a good state
+> Clearing lease for 6835752b711958
+✔ Cleared lease for 6835752b711958
+Checking DNS configuration for crypto-master.fly.dev
+✓ DNS configuration verified
+
+Visit your newly deployed app at https://crypto-master.fly.dev/
+

@@ -1,0 +1,47 @@
+{
+  "version": 60,
+  "machines": [
+    {
+      "id": "6835752b711958",
+      "state": "started",
+      "guest": {
+        "cpu_kind": "shared",
+        "cpus": 1,
+        "memory_mb": 2048
+      },
+      "mounts": [
+        {
+          "encrypted": true,
+          "path": "/data",
+          "size_gb": 1,
+          "volume": "vol_4m3l58dkk29y19zv",
+          "name": "data"
+        }
+      ],
+      "instance_id": "01M5QGN2SR1RKDXXRS1245EDM5",
+      "region": "nrt",
+      "checks": [
+        {
+          "name": "servicecheck-00-http-8080",
+          "status": "passing",
+          "output": "ok",
+          "updated_at": "2026-10-24T17:52:13.794Z"
+        }
+      ],
+      "image": "registry.fly.io/crypto-master@sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745",
+      "metadata": {
+        "fly_builder_id": "8ed9d79f965478",
+        "fly_flyctl_version": "0.4.115",
+        "fly_platform_version": "v2",
+        "fly_process_group": "app",
+        "fly_release_id": "rel_59glz5g0o194y6k3",
+        "fly_release_version": "60"
+      }
+    }
+  ],
+  "source_revision": "38876fcda9bd5bedba5dd4465fb5905175e38dc2",
+  "image_digest": "sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745",
+  "base_and_rollback_image": "registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e",
+  "build": "Pinned v59 base; only three reviewed source files copied. Temporary build config selects the overlay. Activation uses unchanged root fly.toml.",
+  "capacity_change": false
+}

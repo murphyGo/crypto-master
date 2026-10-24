@@ -57,6 +57,21 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Latest shared-CPU deployment (2026-10-25):** `dashboard-operator-ui` DEBT-083
+> remains Critical/active. Fly v60 runs source `38876fc`; 2743 regression passes,
+> 175 deployed runtime hashes, health and the first post-rollout paper cycle pass.
+> The original machine/volume, shared CPU 1 / 2048 MiB, dependencies and paper/Codex
+> controls remain. First observed Home/Trading protocol completion is 17.502s /
+> 2.480s with no exception or incomplete-data alert. Home readiness still exceeds
+> the target; this is not native or percentile acceptance. Twenty paired samples
+> preserve full business payload/coverage: irrelevant-directory revalidation p95
+> 0.773→0.00398s, snapshots 3.781→3.648s; million activity 10.467→10.872s still
+> misses 5s. Native/four-session/guest qualification remains open. Performance CPU
+> / added-cost proposal stays **DEFERRED**. See
+> `construction/plans/dashboard-operator-ui-shared-cpu-performance-plan.md` and
+> `docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md`.
+> Earlier source/deployment checkpoints below are historical.
+
 > **Latest performance deployment (2026-10-12):** `dashboard-operator-ui` DEBT-083
 > remains Critical/active. Fly v59 runs `22abf3d`; 2732 regression passes, exact
 > incident projection parity, 175 deployed hashes, health and one paper cycle pass.

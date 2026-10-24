@@ -8,6 +8,15 @@ performance/production acceptance remains incomplete. DEBT-083 stays active.
 
 **Deployment follow-up:** The operator subsequently requested deployment.
 
+**Latest retained-capacity checkpoint (2026-10-25):** Fly v60 runs `38876fc`;
+2743 tests, 175 deployed hashes, health, first paper cycle and complete Home /
+Trading protocol responses pass. Same shared CPU 1 / 2048 MiB, dependencies and
+original volume remain; the performance-CPU proposal stays deferred. Home's
+observed 17.502s and million-event p95 10.872s still miss readiness targets;
+native/four-session/guest acceptance remains open. See the
+[session](../../../../../docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md).
+Earlier checkpoints below are historical.
+
 **Latest performance checkpoint (2026-10-12):** Fly v59 runs source `22abf3d`;
 parser scanning, direct activity JSON validation, lazy rich payload retention
 and measured snapshot charge reuse preserve exact incident outputs. Full tests:

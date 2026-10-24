@@ -2,7 +2,8 @@
 
 - **Unit / debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
 - **Stage:** Infrastructure Design candidate deferred by the operator (`보류`, 2026-10-12 KST); not approved or activated.
-- **Retained state:** Fly v59 / source `22abf3d`, shared CPU 1 / 2048 MiB, existing machine and volume. No CPU-kind change, additional deployment or incremental compute-cost change was made. Resume this proposal only after a new explicit operator decision.
+- **State at deferral (2026-10-12):** Fly v59 / source `22abf3d`, shared CPU 1 / 2048 MiB, existing machine and volume. No CPU-kind change, additional deployment or incremental compute-cost change was made at that deferral. Resume this proposal only after a new explicit operator decision.
+- **Subsequent source-only rollout (2026-10-25):** Fly v60 / `38876fc` retains shared CPU 1 / 2048 MiB and the original volume. CPU-class / added-cost proposal remains deferred. The v59 image activation recipe below is historical; refresh the current image and evidence before any renewed capacity approval. See `docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md`.
 - **Requirements / stories:** FR-029/031/032/036/042; NFR-003/007/008/011/012; BDL-NFR-01..08; US-012/014/020/023.
 - **Evidence:** v59 source `22abf3d` is functionally verified; first protocol readiness and query deadlines fail while the shared CPU burst balance approaches zero. Warm Home/Trading responses later complete in 1.443s/1.251s. The infrastructure decision does not waive the remaining cold/memory/native targets.
 - **Existing authorization:** Continued UI performance work and scoped deployment are authorized. The previous performance/rollout plan preserves shared CPU 1 / 2 GiB. An ongoing CPU-class cost increase is a new decision; do not activate it before the operator's answer.

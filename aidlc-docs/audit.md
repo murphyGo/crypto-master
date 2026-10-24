@@ -8,6 +8,7 @@
 - **Work:** Reduce activity timestamp serialization, directly validate bounded snapshot JSON, and reuse unchanged selected sources after irrelevant directory metadata changes. Preserve exact values, every-record validation, publication-time source/membership verification and all existing bounds.
 - **Plan:** `construction/plans/dashboard-operator-ui-shared-cpu-performance-plan.md`.
 - **Session:** `docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md`.
+- **Verified outcome:** Source `38876fc` deployed on Fly v60 with the same shared CPU 1 / 2048 MiB / original volume / paper/Codex controls. 2743 tests, 175 runtime hashes, health, first cycle and complete Home/Trading protocol responses pass. Home/million cold and native/resource acceptance remain open.
 
 ## 2026-10-12 — Bounded Loading Performance / CPU Infrastructure Decision
 

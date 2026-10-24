@@ -31,9 +31,10 @@ append cursor, durable index, writer, cache-age or memory-limit change is made.
 Focused reader/projection/service/default-page checks: **72 passed**, followed
 by two additional early-close descriptor tests included in final broad validation.
 An initial broad run passed 2740 tests in 258.27s before the minimum-timestamp
-sorting edge was covered; final broad validation is recorded separately below.
-Black/Ruff passed for the five changed Python files; mypy passed for 129 source
-files before the final equivalent sort-key correction.
+sorting edge was covered; final broad validation passes **2743 tests in 237.50s** on source `38876fc`.
+Final Black/Ruff pass for all five changed Python files; mypy passes for 129
+source files. Code review has no unresolved source correctness finding. The
+remaining performance/native/resource limitations are not waived.
 
 Twenty alternating baseline/candidate samples use declared generated workloads,
 fresh services and warmed imports/OS caches. UTC evaluation is fixed, and complete
@@ -78,11 +79,40 @@ The protocol observation is distinct from that missing evidence.
 
 ## Rollout and remaining acceptance
 
-Rollout results will record the exact source/image identity, retained capacity,
-health, Home/Trading responses and first engine cycle after deployment. Build from
-the verified v59 image digest to retain deployed dependencies and replace only
-the three reviewed source files. Root `fly.toml`, live controls, runtime data,
-CLI provider/auth and the original volume stay unchanged.
+Fly **v60** runs source **`38876fcda9bd5bedba5dd4465fb5905175e38dc2`**, image
+`sha256:45d057bd3ee44f42651b68f78ea2c7256403f5abc5ae58fec692c7c000375745`.
+Release `rel_59glz5g0o194y6k3`, instance `01M5QGN2SR1RKDXXRS1245EDM5`, existing
+machine `6835752b711958` / nrt. Shared CPU 1 / 2048 MiB and encrypted original
+volume `vol_4m3l58dkk29y19zv` are verified unchanged; Fly health is passing.
+
+All **175 runtime input hashes match**. Python 3.13.16, Streamlit 1.65.0,
+Pandas 3.0.6, Pydantic 2.14.0/core 2.50.0 and NumPy 2.5.4 remain in the pinned
+v59 base. Only the three reviewed source files are copied. Fly's configured
+`build.dockerfile` overrides the CLI Dockerfile flag and resolves relative to
+its config directory; a build-only temporary manifest selects the overlay.
+An initial default-Dockerfile build was cancelled and never deployed. Activation
+uses the **unchanged root `fly.toml`** and exact prepared digest, restricted to
+the existing machine with explicit shared / 1 / 2048 flags. Live controls,
+runtime data, CLI provider/auth and the original volume remain unchanged.
+
+At 2026-10-24T17:53:30Z, source/process verification confirms paper/Codex/Astra
+and Claude rollback. Engine/dashboard RSS is 228592 / 239400 KiB; guest available
+memory is 1418560 KiB. The first post-rollout paper cycle
+`9455e92a-8dfe-4032-90c7-6da46583bab5` starts at 17:52:18.964249Z and completes
+at **17:52:54.073751Z**. This is observed engine continuity, not full resource
+or four-session qualification.
+
+The first observed post-rollout Home/Trading protocol pair completes in
+**17.502s / 2.480s**, with twelve/six metrics, four/three tables and the Trading
+chart. There are no render exceptions or incomplete-availability alerts at
+completion. The Home wait still exceeds the complete-readiness target; these
+single sequential pre/post observations have different cache/startup conditions
+and do not establish a page-latency improvement or native percentile pass.
+
+[Release identity](../../aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/shared-cpu-20261025/deployed-release.json),
+[actual runtime verification](../../aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/shared-cpu-20261025/after-runtime-verification.json)
+and [post-rollout protocol observation](../../aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/shared-cpu-20261025/after-protocol-observation.json)
+retain the scoped operational evidence.
 
 DEBT-083 stays active. Million-event cold latency, native viewport/four-session
 and original guest/resource targets require separate successful evidence. The

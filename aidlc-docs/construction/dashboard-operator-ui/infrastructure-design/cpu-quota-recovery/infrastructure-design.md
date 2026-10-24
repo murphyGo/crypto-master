@@ -1,6 +1,12 @@
 # Candidate Infrastructure Design: CPU Quota Recovery
 
-**Date:** 2026-10-12 KST. **Status:** Deferred by operator response `보류`; not approved or activated. Fly v59, shared CPU 1 / 2048 MiB and the existing machine/volume are retained. No additional deployment or compute-cost change was made.
+**Date:** 2026-10-12 KST. **Status:** Deferred by operator response `보류`; not approved or activated. At deferral, Fly v59, shared CPU 1 / 2048 MiB and the existing machine/volume were retained without an additional deployment or compute-cost change.
+
+**Subsequent source checkpoint (2026-10-25):** Fly v60 / `38876fc` retains shared
+CPU 1 / 2048 MiB and the original volume. The capacity proposal remains deferred;
+the v59 activation image below is historical and must be refreshed from current
+source/deployment evidence before any renewed capacity approval. See the
+[shared-CPU session](../../../../../docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md).
 
 ## Problem and evidence
 

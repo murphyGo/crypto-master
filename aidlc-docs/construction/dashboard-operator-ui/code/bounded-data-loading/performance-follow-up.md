@@ -2,6 +2,15 @@
 
 **Date:** 2026-10-11–12 KST. **Unit/debt:** `dashboard-operator-ui` / DEBT-083.
 
+**Subsequent checkpoint (2026-10-25):** Source `38876fc` is deployed on Fly v60,
+retaining shared CPU 1 / 2048 MiB and the original volume/dependencies. Activity
+timestamp work, direct snapshot JSON validation and irrelevant-directory cache
+invalidation are improved; 2743 tests and 175 deployed hashes pass. Complete
+Home/Trading protocol responses and the first paper cycle are verified, while
+cold/native/resource targets remain open and performance CPU stays deferred.
+See the [shared-CPU session](../../../../../docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md).
+The implementation and measurements below describe the earlier v59 slice.
+
 The operator requested continued work after the v58 rollout. The remaining
 target is complete cold readiness, within the approved read-side budgets and
 exact financial/safety semantics. The [performance plan](../../../plans/dashboard-operator-ui-bounded-data-loading-performance-plan.md)

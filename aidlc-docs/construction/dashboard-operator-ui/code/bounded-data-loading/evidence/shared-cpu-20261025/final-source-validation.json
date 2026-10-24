@@ -1,0 +1,23 @@
+{
+  "source_revision": "38876fcda9bd5bedba5dd4465fb5905175e38dc2",
+  "regression": {
+    "passed": 2743,
+    "seconds": 237.5,
+    "command": ".venv/bin/python -m pytest -q"
+  },
+  "targeted": {
+    "passed_before_additional_descriptor_cases": 72,
+    "additional_descriptor_cases_in_full_regression": 2
+  },
+  "black": "5 files clean",
+  "ruff": "5 files clean",
+  "mypy": "129 source files clean",
+  "review": "No unresolved source correctness finding. Million-event p95, native and guest/resource acceptance remain unqualified.",
+  "sha256": {
+    "src/dashboard/projections.py": "53ca90dc6234540b927a865c706ba6bfaaf54bbee4aaba2d6200c6ebb75fcdfa",
+    "src/dashboard/sources.py": "98dc3c047e2bac9294f729af0ba46dc5bf0f29d3b106d5e1403a58034011c29f",
+    "src/utils/bounded_read.py": "a8cf7940e896db2951dedefd132fff925375d542139c9cbed75d0d620604c017",
+    "tests/test_dashboard_projections.py": "e2e13642898ce6b3244bf5b252794d2ce11829b043d808e2932f5a74a0e0847e",
+    "tests/test_bounded_read.py": "399e46154341244ac769e5747abe91669a4d9e2f5fe6e1cb5629997d5bedea7e"
+  }
+}

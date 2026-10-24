@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; bounded performance follow-up deployed on Fly v59 (`22abf3d`), source/health/engine and later warm protocol responses verified. Cold readiness fails under measured shared-CPU quota throttling; CPU-class/cost proposal deferred by operator `보류` (2026-10-12). Existing shared CPU 1 / 2048 MiB retained; full native/resource acceptance remains outstanding |
+| **Status** | Active; shared-CPU follow-up deployed on Fly v60 (`38876fc`). 2743 regression passes, 175 runtime hashes, health, first paper cycle and complete Home/Trading protocol responses verified. Home/million-event cold latency and native/resource acceptance remain open. Performance-CPU / added-cost proposal remains deferred; shared CPU 1 / 2048 MiB retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -141,7 +141,24 @@ Existing v59 / shared CPU 1 / 2048 MiB are retained; no additional deployment or
 compute-cost change was made. Activation and dependent qualification are on hold.
 Native viewport/four-session/resource targets remain unqualified. Debt stays active.
 
+**2026-10-25 retained-capacity follow-up:** v60 / `38876fc` preserves the original
+machine, encrypted volume, shared CPU 1 / 2048 MiB, dependencies and paper/Codex.
+All 2743 tests and 175 deployed runtime hashes pass; health and the first paper
+cycle complete. Post-rollout Home/Trading protocol responses complete in
+17.502s / 2.480s without exceptions or incomplete-data alerts. These single
+observations do not qualify native/percentile targets; Home remains over target.
+Twenty alternating baseline/candidate samples preserve all business outputs and
+coverage. Unrelated-directory revalidation p95 improves 0.773→0.00398s; snapshot
+p95 3.781→3.648s. Million activity p95 worsens 10.467→10.872s, so neither a tail
+improvement nor the 5s target is claimed. Native/four-session/guest qualification
+remains open, and the performance-CPU proposal stays deferred. See
+`docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md` and the same-date
+cross-check. Debt remains Critical/active.
+
 **Related:**
+- `aidlc-docs/construction/plans/dashboard-operator-ui-shared-cpu-performance-plan.md`
+- `docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md`
+- `docs/cross-checks/2026-10-25-dashboard-shared-cpu-performance.md`
 - `aidlc-docs/construction/plans/dashboard-operator-ui-cpu-quota-infrastructure-design-plan.md`
 - `aidlc-docs/construction/dashboard-operator-ui/infrastructure-design/cpu-quota-recovery/infrastructure-design.md`
 - `docs/sessions/2026-10-12-dashboard-operator-ui-loading-performance.md`
