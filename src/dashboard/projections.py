@@ -25,6 +25,7 @@ from src.strategy.trade_history import TradeHistory
 from src.trading.portfolio import AssetSnapshot
 from src.utils.bounded_read import (
     ReadFailure,
+    json_array_bytes,
     json_array_records,
     json_object,
     jsonl_records,
@@ -63,7 +64,7 @@ class CycleState:
     """Fixed slots avoid a repeated dictionary/key set for every cycle."""
 
     first: list[Any]
-    start: str | None = None
+    start: datetime | None = None
     end: list[Any] | None = None
     error: bool = False
     Generated: int = 0
@@ -330,7 +331,10 @@ class ActivityProjection:
             self.incidents.add(at, ordinal, payload)
         if event.cycle_id:
             cid = event.cycle_id
-            timestamp = at.isoformat()
+            # ActivityEvent normalizes every timestamp to UTC. Keep these
+            # internal comparisons as datetimes; only published rows need
+            # ISO strings, rather than every lifetime event in each cycle.
+            timestamp = at
             if cid not in self.cycles:
                 state = CycleState(first=[timestamp, ordinal])
                 self.budget.change(None, [cid, state], new_key=True)
@@ -511,16 +515,22 @@ class ActivityProjection:
             raise ReadFailure("state_budget_exhausted")
         self.budget.bytes += reserve
         ordered = sorted(self.cycles, key=lambda cid: tuple(self.cycles[cid]["first"]))
-        ordered.sort(key=lambda cid: self.cycles[cid]["start"] or "", reverse=True)
+        ordered.sort(
+            key=lambda cid: (
+                self.cycles[cid]["start"] is not None,
+                self.cycles[cid]["start"],
+            ),
+            reverse=True,
+        )
         cycles: list[CycleSummary] = []
         duration_sum = 0.0
         duration_count = 0
         errored = opened = closed = 0
         for cid in ordered:
             state = self.cycles[cid]
-            start = datetime.fromisoformat(state["start"]) if state["start"] else None
+            start = state["start"]
             terminal = state["end"]
-            end = datetime.fromisoformat(terminal[0]) if terminal else None
+            end = terminal[0] if terminal else None
             duration = (end - start).total_seconds() if start and end else None
             if duration is not None:
                 duration_sum += duration
@@ -673,6 +683,63 @@ class HistoryProjection:
         self.audit = Top(300, budget)
         self.audit_total = 0
 
+    def add_snapshot_json(self, raw: bytes, source: Source) -> None:
+        try:
+            snapshot = AssetSnapshot.model_validate_json(raw)
+        except ValidationError as exc:
+            reason = (
+                "malformed_json"
+                if any(error["type"] == "json_invalid" for error in exc.errors())
+                else "invalid_record"
+            )
+            raise ReadFailure(reason) from exc
+        self.add_snapshot(snapshot, source)
+
+    def add_snapshot(self, snapshot: AssetSnapshot, source: Source) -> None:
+        account = source.account
+        self.budget.account(account)
+        old = self.latest.get(account)
+        if old is None or snapshot.timestamp > datetime.fromisoformat(old["timestamp"]):
+            raw = snapshot.model_dump(mode="json")
+            # Charge the account and charge slot as well as the payload;
+            # all integers here fit the same object-size class as zero.
+            self.latest_charges[account] = self.budget.replace(
+                self.latest_charges.get(account, 0),
+                [account, raw, 0],
+                new_key=old is None,
+            )
+            self.latest[account] = raw
+        curve = self.curves.setdefault(account, [])
+        point = {
+            "timestamp": snapshot.timestamp.isoformat(),
+            "equity": str(snapshot.total_equity),
+        }
+        charge = self.budget.replace(0, (point, 0))
+        curve.append((point, charge))
+        if len(curve) > self.curve_limit:
+            # Hierarchical adjacent buckets preserve first/latest and
+            # local extrema. This is display sampling, never a total.
+            ordered = sorted(curve, key=lambda entry: entry[0]["timestamp"])
+            reduced = [ordered[0]]
+            for i in range(1, len(ordered) - 1, 8):
+                bucket = ordered[i : min(i + 8, len(ordered) - 1)]
+                extrema = {
+                    id(entry[0]): entry
+                    for entry in (
+                        min(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
+                        max(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
+                    )
+                }
+                reduced.extend(
+                    sorted(extrema.values(), key=lambda entry: entry[0]["timestamp"])
+                )
+            reduced.append(ordered[-1])
+            self.budget.bytes -= sum(entry[1] for entry in curve) - sum(
+                entry[1] for entry in reduced
+            )
+            self.curves[account] = reduced
+            self.sampled = True
+
     def add(self, raw: dict[str, Any], source: Source, ordinal: int) -> None:
         kind = self.query.kind
         if kind == "proposals":
@@ -753,54 +820,7 @@ class HistoryProjection:
                 )
             self.history.add(trade.exit_time or trade.entry_time, ordinal, raw)
         elif kind == "snapshots":
-            snapshot = AssetSnapshot.model_validate(raw)
-            account = source.account
-            self.budget.account(account)
-            old = self.latest.get(account)
-            if old is None or snapshot.timestamp > datetime.fromisoformat(
-                old["timestamp"]
-            ):
-                raw = snapshot.model_dump(mode="json")
-                # Charge the account and charge slot as well as the payload;
-                # all integers here fit the same object-size class as zero.
-                self.latest_charges[account] = self.budget.replace(
-                    self.latest_charges.get(account, 0),
-                    [account, raw, 0],
-                    new_key=old is None,
-                )
-                self.latest[account] = raw
-            curve = self.curves.setdefault(account, [])
-            point = {
-                "timestamp": snapshot.timestamp.isoformat(),
-                "equity": str(snapshot.total_equity),
-            }
-            charge = self.budget.replace(0, (point, 0))
-            curve.append((point, charge))
-            if len(curve) > self.curve_limit:
-                # Hierarchical adjacent buckets preserve first/latest and
-                # local extrema. This is display sampling, never a total.
-                ordered = sorted(curve, key=lambda entry: entry[0]["timestamp"])
-                reduced = [ordered[0]]
-                for i in range(1, len(ordered) - 1, 8):
-                    bucket = ordered[i : min(i + 8, len(ordered) - 1)]
-                    extrema = {
-                        id(entry[0]): entry
-                        for entry in (
-                            min(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
-                            max(bucket, key=lambda entry: Decimal(entry[0]["equity"])),
-                        )
-                    }
-                    reduced.extend(
-                        sorted(
-                            extrema.values(), key=lambda entry: entry[0]["timestamp"]
-                        )
-                    )
-                reduced.append(ordered[-1])
-                self.budget.bytes -= sum(entry[1] for entry in curve) - sum(
-                    entry[1] for entry in reduced
-                )
-                self.curves[account] = reduced
-                self.sampled = True
+            self.add_snapshot(AssetSnapshot.model_validate(raw), source)
         elif kind == "candidates":
             from src.feedback.loop import CandidateRecord
 
@@ -955,7 +975,11 @@ def build_projection(
         iterator = (
             reverse_jsonl_bytes(source.path, source.generation)
             if isinstance(reducer, ActivityProjection)
-            else reader(source.path, source.generation)
+            else (
+                json_array_bytes(source.path, source.generation)
+                if query.kind == "snapshots"
+                else reader(source.path, source.generation)
+            )
         )
         try:
             for raw in iterator:
@@ -966,6 +990,8 @@ def build_projection(
                     offset, record = cast(tuple[int, bytes], raw)
                     ordinal = ((manifest.file_count - index - 1) << 48) + offset
                     reducer.add_json(record, ordinal)
+                elif query.kind == "snapshots":
+                    reducer.add_snapshot_json(cast(bytes, raw), source)
                 else:
                     value = cast(dict[str, Any], raw)
                     if query.kind == "audit":

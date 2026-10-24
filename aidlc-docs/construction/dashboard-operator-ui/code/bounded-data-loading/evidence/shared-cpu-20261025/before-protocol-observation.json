@@ -1,0 +1,94 @@
+{
+  "method": "actual deployed-version Streamlit server protocol; one uncontrolled cache observation per page, no native/browser/percentile claim",
+  "pages": [
+    {
+      "page": "Home",
+      "complete": true,
+      "seconds": 14.702341749914922,
+      "messages": 255,
+      "metric_labels": [
+        "Runtime safety",
+        "Last cycle",
+        "Open positions",
+        "Snapshot",
+        "Mode",
+        "Scope",
+        "Sub-accounts",
+        "Actionable events",
+        "Candidates",
+        "Awaiting approval",
+        "Promoted",
+        "Errored"
+      ],
+      "element_counts": {
+        "metric": 12,
+        "dataframe": 4,
+        "table": 0,
+        "arrow_data_frame": 0,
+        "arrow_vega_lite_chart": 0,
+        "vega_lite_chart": 0,
+        "line_chart": 0,
+        "exception": 0
+      },
+      "incomplete_alerts": 0,
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        3,
+        3,
+        3,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ]
+    },
+    {
+      "page": "Trading",
+      "complete": true,
+      "seconds": 2.5039832089096308,
+      "messages": 38,
+      "metric_labels": [
+        "Current Equity",
+        "Open Positions",
+        "Closed Trades",
+        "Win Rate",
+        "Realized P&L",
+        "Proposals rejected (threshold)"
+      ],
+      "element_counts": {
+        "metric": 6,
+        "dataframe": 3,
+        "table": 0,
+        "arrow_data_frame": 0,
+        "arrow_vega_lite_chart": 0,
+        "vega_lite_chart": 1,
+        "line_chart": 0,
+        "exception": 0
+      },
+      "incomplete_alerts": 0,
+      "script_finished_values": [
+        0
+      ]
+    }
+  ]
+}

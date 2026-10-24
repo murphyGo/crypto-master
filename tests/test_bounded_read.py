@@ -23,6 +23,7 @@ def test_array_utf8_nested_escaped_and_whitespace(tmp_path, monkeypatch, block):
     path = tmp_path / "rows.json"
     path.write_text(json.dumps(values, ensure_ascii=False), encoding="utf-8")
     assert records(io.json_array_records, path) == values
+    assert [json.loads(raw) for raw in records(io.json_array_bytes, path)] == values
 
 
 @pytest.mark.parametrize(
@@ -47,6 +48,7 @@ def test_array_total_exceeds_record_budget(tmp_path, monkeypatch):
     "reader,raw",
     [
         (io.json_array_records, '[{"payload":"' + "a" * 1000 + '"}]'),
+        (io.json_array_bytes, '[{"payload":"' + "a" * 1000 + '"}]'),
         (io.jsonl_records, '{"payload":"' + "a" * 1000 + '"}\n'),
         (io.json_object, '{"payload":"' + "a" * 1000 + '"}'),
     ],
@@ -80,6 +82,27 @@ def test_replacement_during_captured_prefix_read_is_rejected(tmp_path):
     replacement.replace(path)
     with pytest.raises(io.ReadFailure, match="source_changed"):
         list(iterator)
+
+
+@pytest.mark.parametrize("reader", [io.json_array_bytes, io.json_array_records])
+def test_array_early_close_releases_source_handle(tmp_path, monkeypatch, reader):
+    path = tmp_path / "rows.json"
+    path.write_text('[{"n":1},{"n":2}]')
+    opened = []
+    original = Path.open
+
+    def track_open(self, *args, **kwargs):
+        handle = original(self, *args, **kwargs)
+        if self == path:
+            opened.append(handle)
+        return handle
+
+    monkeypatch.setattr(Path, "open", track_open)
+    iterator = reader(path, io.Generation.capture(path))
+    assert next(iterator) is not None
+    assert opened and not opened[0].closed
+    iterator.close()
+    assert all(handle.closed for handle in opened)
 
 
 def test_jsonl_large_multibyte_record_split_at_blocks(tmp_path, monkeypatch):

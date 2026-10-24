@@ -72,9 +72,10 @@ class Manifest:
         for packed in self._files:
             digest.update(len(packed).to_bytes(4, "big"))
             digest.update(packed)
-        for path, generation in sorted(self.directories.items()):
-            digest.update(str(path).encode())
-            digest.update(repr(generation).encode())
+        # Discovery captures the exact selected membership every time. An
+        # unrelated sibling or atomic-write temporary file can change a
+        # directory's metadata without changing these inputs. Directories
+        # still participate in verify() to reject changes during this read.
         return digest.hexdigest()
 
     def charge(self, path: Path) -> None:

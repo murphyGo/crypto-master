@@ -3,12 +3,18 @@
 import json
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
+from decimal import InvalidOperation
 
 import pandas as pd
 import pytest
 
 from src.dashboard.pages import engine, home, proposals, trading
-from src.dashboard.projections import build_projection, encode
+from src.dashboard.projections import (
+    HistoryProjection,
+    StateBudget,
+    build_projection,
+    encode,
+)
 from src.dashboard.read_models import Limits, Query
 from src.dashboard.sources import discover
 from src.proposal.funnel import compute_funnel_counts, compute_funnel_counts_by_strategy
@@ -351,6 +357,152 @@ def test_cache_file_replacement_invalidates_and_does_not_increment_old_total(tmp
     )
     assert result["total"] == 1 and result["metrics"]["total_cycles"] == 1
     assert result["safety"]["score"] == 100
+
+
+def test_directory_noise_reuses_verified_activity_but_membership_changes_rebuild(
+    tmp_path, monkeypatch
+):
+    from src.dashboard import projections as module
+
+    write_events(tmp_path, [event("cycle_started", cid="old")])
+    query = Query(tmp_path, "activity", at=NOW)
+    first = projection(query)
+    reader = module.reverse_jsonl_bytes
+
+    def no_reread(*args, **kwargs):
+        pytest.fail("unrelated directory metadata caused an archive rebuild")
+
+    monkeypatch.setattr(module, "reverse_jsonl_bytes", no_reread)
+    (tmp_path / "runtime" / ".writer-temporary").write_text("not an eligible source")
+    refreshed = next(
+        row
+        for row in build_projection(
+            query, Limits(), previous=json.dumps(first).encode()
+        )
+        if row is not None
+    )
+    assert refreshed == first
+    monkeypatch.setattr(module, "reverse_jsonl_bytes", reader)
+    archive = tmp_path / "runtime" / "activity.2026-09.jsonl"
+    archive.write_text(event("cycle_completed", cid="old").model_dump_json() + "\n")
+    added = next(
+        row
+        for row in build_projection(
+            query, Limits(), previous=json.dumps(first).encode()
+        )
+        if row is not None
+    )
+    assert added["total"] == 2 and added["source_coverage"]["files"] == 2
+    archive.unlink()
+    removed = next(
+        row
+        for row in build_projection(
+            query, Limits(), previous=json.dumps(added).encode()
+        )
+        if row is not None
+    )
+    assert removed == first
+
+
+def test_cache_reuse_still_rejects_concurrent_directory_membership_change(
+    tmp_path, monkeypatch
+):
+    from src.dashboard import projections as module
+
+    write_events(tmp_path, [event("cycle_started", cid="old")])
+    query = Query(tmp_path, "activity", at=NOW)
+    previous = json.dumps(projection(query)).encode()
+    refresh = module.refresh_projection
+
+    def changed(*args, **kwargs):
+        data = refresh(*args, **kwargs)
+        (tmp_path / "runtime" / "activity.2026-09.jsonl").write_text("broken\n")
+        return data
+
+    monkeypatch.setattr(module, "refresh_projection", changed)
+    with pytest.raises(ReadFailure, match="source_changed"):
+        list(build_projection(query, Limits(), previous=previous))
+
+
+def test_snapshot_json_matches_dictionary_path_for_numeric_legacy_and_ties(tmp_path):
+    from tests.test_dashboard_trading import make_snapshot
+
+    path = tmp_path / "portfolio" / "paper" / "default" / "snapshots.json"
+    path.parent.mkdir(parents=True)
+    rows = []
+    for value in (1.2345678901234567, 9007199254740993, 1e-20, "123.4500"):
+        row = make_snapshot(timestamp=NOW).model_dump(mode="json")
+        row.update(
+            balances={"USDT": value},
+            realized_pnl=value,
+            current_prices={"BTC/USDT": value},
+        )
+        rows.append(row)
+    path.write_text(json.dumps(rows))
+    query = Query(tmp_path, "snapshots", at=NOW)
+    limits = Limits()
+    source = next(discover(query, limits, 12).files)
+    legacy = HistoryProjection(query, StateBudget(limits))
+    for ordinal, row in enumerate(rows):
+        legacy.add(row, source, ordinal)
+    result = projection(query)
+    expected = legacy.finish()
+    assert {key: result[key] for key in expected} == expected
+    assert result["latest"]["default"]["balances"]["USDT"] == str(
+        rows[0]["balances"]["USDT"]
+    )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ['{"mode":"invalid"}', '{"mode":}', '{"mode":"paper","balances":{"USDT":"bad"}}'],
+)
+def test_direct_snapshot_validation_cannot_skip_damaged_old_row(tmp_path, bad):
+    from tests.test_dashboard_trading import make_snapshot
+
+    path = tmp_path / "portfolio" / "paper" / "default" / "snapshots.json"
+    path.parent.mkdir(parents=True)
+    valid = make_snapshot(timestamp=NOW).model_dump_json()
+    path.write_text("[" + bad + "," + valid + "]")
+    with pytest.raises((ReadFailure, InvalidOperation)):
+        projection(Query(tmp_path, "snapshots", at=NOW))
+
+
+def test_cycle_datetime_reduction_preserves_naive_offset_and_terminal_ties(tmp_path):
+    events = [
+        event("cycle_started", at=NOW.replace(tzinfo=None), cid="a"),
+        event("cycle_errored", at=NOW, cid="a"),
+        event(
+            "cycle_completed", at=NOW.astimezone(timezone(timedelta(hours=9))), cid="a"
+        ),
+        event("position_closed", at=NOW + timedelta(microseconds=1), cid="unstarted"),
+        event("cycle_started", at=NOW + timedelta(microseconds=1), cid="b"),
+    ]
+    legacy = write_events(tmp_path, events)
+    query = Query(tmp_path, "activity", at=NOW)
+    result = projection(query)
+    started = [row for row in legacy if row.cycle_id != "unstarted"]
+    cycles = engine.aggregate_cycles(started)
+    assert result["cycles"][:-1] == encode([asdict(cycle) for cycle in cycles])
+    assert result["cycles"][-1]["cycle_id"] == "unstarted"
+    assert result["cycles"][-1]["started_at"] is None
+    metrics = engine.build_summary_metrics(started, cycles)
+    metrics["total_cycles"] += 1
+    metrics["positions_closed_total"] += 1
+    assert result["metrics"] == encode(metrics)
+
+
+def test_started_minimum_timestamp_cycle_precedes_cycle_without_start(tmp_path):
+    at = datetime.min.replace(tzinfo=timezone.utc)
+    write_events(
+        tmp_path,
+        [
+            event("monitor_pass", at=at, cid="unstarted"),
+            event("cycle_started", at=at, cid="started"),
+        ],
+    )
+    result = projection(Query(tmp_path, "activity", at=NOW))
+    assert [row["cycle_id"] for row in result["cycles"]] == ["started", "unstarted"]
 
 
 def test_missing_timestamp_cannot_become_a_fresh_health_event(tmp_path):

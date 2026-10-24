@@ -1,5 +1,14 @@
 # AI-DLC Approval Audit
 
+## 2026-10-25 — Retained-Capacity Dashboard Source Continuation
+
+- **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.
+- **Operator response:** `gogo` resumes UI source improvements and verification in the existing scope. Prior `배포도 해줘` covers scoped rollout to the existing machine.
+- **Boundary:** Retain shared CPU 1 / 2048 MiB, original volume, paper mode, Codex/Astra and Claude rollback. The performance-CPU / incremental-cost proposal remains **DEFERRED** by `보류`; this continuation does not approve it.
+- **Work:** Reduce activity timestamp serialization, directly validate bounded snapshot JSON, and reuse unchanged selected sources after irrelevant directory metadata changes. Preserve exact values, every-record validation, publication-time source/membership verification and all existing bounds.
+- **Plan:** `construction/plans/dashboard-operator-ui-shared-cpu-performance-plan.md`.
+- **Session:** `docs/sessions/2026-10-25-dashboard-shared-cpu-performance.md`.
+
 ## 2026-10-12 — Bounded Loading Performance / CPU Infrastructure Decision
 
 - **Unit/debt:** `dashboard-operator-ui` / DEBT-083, Critical and active.

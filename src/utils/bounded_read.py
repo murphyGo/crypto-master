@@ -182,6 +182,18 @@ def reverse_jsonl_bytes(
 def json_array_records(
     path: Path, generation: Generation, *, record_bytes: int = RECORD_BYTES
 ) -> Generator[dict[str, Any] | None, None, None]:
+    """Validate and decode each bounded object while preserving checkpoints."""
+    iterator = json_array_bytes(path, generation, record_bytes=record_bytes)
+    try:
+        for raw in iterator:
+            yield _object(raw) if raw is not None else None
+    finally:
+        iterator.close()
+
+
+def json_array_bytes(
+    path: Path, generation: Generation, *, record_bytes: int = RECORD_BYTES
+) -> Generator[bytes | None, None, None]:
     """Incremental object-array parser, including nested/escaped strings.
 
     Allocation is checked before adding bytes to the current object. JSON's
@@ -229,7 +241,7 @@ def json_array_records(
                 elif char in (125, 93):
                     depth -= 1
                     if depth == 0:
-                        yield _object(pending)
+                        yield bytes(pending)
                         pending.clear()
                         state = "separator"
                 continue

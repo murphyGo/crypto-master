@@ -1,0 +1,8 @@
+{
+  "checked_on": "2026-10-25 KST",
+  "complete": false,
+  "reason": "missing_browser_runtime_service",
+  "module": "/Users/user/.codex/plugins/cache/openai-bundled/browser/26.1007.30912/scripts/browser-service.mjs",
+  "native_viewport_qualified": false,
+  "native_four_session_qualified": false
+}

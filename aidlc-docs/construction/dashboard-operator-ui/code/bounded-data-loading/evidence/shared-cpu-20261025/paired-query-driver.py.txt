@@ -1,0 +1,127 @@
+import hashlib
+import json
+import resource
+import statistics
+import subprocess
+import sys
+import time
+import types
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from src.dashboard.data_service import DashboardDataService
+from src.dashboard.read_models import Limits, Query
+from src.dashboard import projections
+from scripts.qualify_dashboard_loading import generate
+
+WORKTREE = Path.cwd()
+FIXTURES = Path('/private/tmp/crypto-master-shared-cpu-fixtures-20261025')
+OUTPUT = WORKTREE / 'aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/shared-cpu-20261025/paired-query-measurements.json'
+BASE = '8ac6d6622dac05f049b07416ce557f922267da0f'
+NOW = datetime(2026, 10, 25, tzinfo=timezone.utc)
+
+baseline_hashes = {}
+for name, path in [('bounded', 'src/utils/bounded_read.py'), ('sources', 'src/dashboard/sources.py'), ('projections', 'src/dashboard/projections.py')]:
+    raw = subprocess.check_output(['git', 'show', f'{BASE}:{path}'])
+    baseline_hashes[path] = hashlib.sha256(raw).hexdigest()
+    code = raw.decode().replace('from src.utils.bounded_read import', 'from comparison_bounded import').replace('from src.dashboard.sources import', 'from comparison_sources import')
+    module = types.ModuleType('comparison_' + name)
+    sys.modules[module.__name__] = module
+    exec(compile(code, path, 'exec'), module.__dict__)
+baseline = sys.modules['comparison_projections']
+
+if not FIXTURES.exists():
+    FIXTURES.mkdir()
+    generate(FIXTURES / 'million')
+    small = FIXTURES / 'noise' / 'runtime'
+    small.mkdir(parents=True)
+    with (small / 'activity.jsonl').open('w') as handle:
+        for index in range(20000):
+            row = {'timestamp': (NOW - timedelta(seconds=index)).isoformat(), 'event_type': 'monitor_pass', 'cycle_id': f'cycle-{index//100}', 'details': {}, 'message': 'monitor_pass'}
+            handle.write(json.dumps(row) + '\n')
+    for account in range(13):
+        path = FIXTURES / 'snapshots' / 'portfolio' / 'paper' / f'account-{account}' / 'snapshots.json'
+        path.parent.mkdir(parents=True)
+        with path.open('w') as handle:
+            handle.write('[')
+            for index in range(6500):
+                row = {'timestamp': (NOW - timedelta(seconds=6500-index)).isoformat(), 'mode': 'paper', 'sub_account_id': f'account-{account}', 'quote_currency': 'USDT', 'balances': {'USDT': str(10000 + (index % 57) - account)}, 'realized_pnl': str(index % 31), 'unrealized_pnl': str(index % 17), 'current_prices': {'BTC/USDT': '65000.0000', 'ETH/USDT': '3500.0000', 'SOL/USDT': '150.0000'}}
+                if index:
+                    handle.write(',')
+                handle.write(json.dumps(row))
+            handle.write(']')
+
+if '--prepare-only' in sys.argv:
+    print('Prepared all fixtures', flush=True)
+    sys.exit(0)
+
+sources = ['src/dashboard/projections.py', 'src/dashboard/sources.py', 'src/utils/bounded_read.py']
+output = {'method': 'twenty alternating paired samples; fresh shared service per cold query, warmed imports/OS cache; fixed query UTC; no concurrent benchmark/test jobs; no browser/shared-guest claim', 'baseline_revision': BASE, 'python': sys.version.split()[0], 'baseline_sha256': baseline_hashes, 'candidate_sha256': {name: hashlib.sha256((WORKTREE/name).read_bytes()).hexdigest() for name in sources}, 'fixture_inventory': {}, 'series': [], 'parity_exclusion': 'Only _source_digest: candidate digest intentionally excludes directory generation. All business fields, exact coverage and evaluation time must match.'}
+for root in ('million', 'snapshots', 'noise'):
+    files = sorted((FIXTURES/root).rglob('*.json*'))
+    output['fixture_inventory'][root] = {'files': len(files), 'bytes': sum(p.stat().st_size for p in files), 'sha256': {str(p.relative_to(FIXTURES)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}}
+
+for fixture, kind, noise in [('million', 'activity', False), ('snapshots', 'snapshots', False), ('noise', 'activity', True)]:
+    query = Query(FIXTURES/fixture, kind, at=NOW, accounts=tuple(f'account-{i}' for i in range(13)) if kind == 'snapshots' else ('default',))
+    timing = {name: [] for name in ('baseline', 'candidate')}
+    statuses = {name: [] for name in timing}
+    expected = None
+    coverage = None
+    rss_start = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024*1024)
+    for sample in range(20):
+        backends = [('baseline', baseline), ('candidate', projections)]
+        if sample % 2:
+            backends.reverse()
+        for name, backend in backends:
+            service = DashboardDataService()
+            def build(q, limits):
+                with service._condition:
+                    entry = service._cache.get(q)
+                    previous = entry.result.payload if entry else None
+                yield from backend.build_projection(q, limits, previous=previous)
+            service._builder = build
+            try:
+                if noise:
+                    result = service.request(query)
+                    while result.status == 'pending':
+                        result = service.request(query, wait=.05)
+                    assert result.complete, (name, result.status, result.reason)
+                    (query.root/'runtime'/'.writer-temporary').write_text(str(sample) + name)
+                    # Overwrite changes file mtime but directory mtime only on
+                    # insertion/removal. Unlink after every timed observation.
+                    with service._condition:
+                        for entry in service._cache.values():
+                            entry.evaluated -= 3
+                started = time.monotonic()
+                result = service.request(query)
+                while result.status == 'pending' and time.monotonic()-started < 240:
+                    result = service.request(query, wait=.05)
+                elapsed = time.monotonic()-started
+                timing[name].append(elapsed)
+                statuses[name].append(result.status + (':' + result.reason if result.reason else ''))
+                assert result.complete, (fixture, name, result.status, result.reason)
+                data = result.data()
+                coverage = data['source_coverage']
+                data.pop('_source_digest')
+                canonical = json.dumps(data, sort_keys=True, separators=(',', ':')).encode()
+                digest = hashlib.sha256(canonical).hexdigest()
+                if expected is None:
+                    expected = digest
+                assert digest == expected, (fixture, sample, name, 'projection parity')
+                print(json.dumps({'fixture': fixture, 'sample': sample+1, 'backend': name, 'seconds': round(elapsed, 6), 'status': result.status}), flush=True)
+            finally:
+                service.close()
+                if noise:
+                    (query.root/'runtime'/'.writer-temporary').unlink(missing_ok=True)
+        row = {'fixture': fixture, 'kind': kind, 'scope': 'generation revalidation after irrelevant directory change' if noise else 'cold query', 'samples_per_backend': 20, 'completed_samples': sample+1, 'seconds': timing, 'statuses': statuses, 'projection_sha256': expected, 'all_business_fields_equal': True, 'coverage': coverage, 'process_start_peak_rss_mib': rss_start, 'process_peak_rss_mib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/(1024*1024)}
+        for name in timing:
+            row[name+'_p95_seconds'] = sorted(timing[name])[max(0, int(len(timing[name])*.95+.999999)-1)]
+            row[name+'_median_seconds'] = statistics.median(timing[name])
+        row['median_reduction_percent'] = (1-row['candidate_median_seconds']/row['baseline_median_seconds'])*100
+        if output['series'] and output['series'][-1]['fixture'] == fixture:
+            output['series'][-1] = row
+        else:
+            output['series'].append(row)
+        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+        OUTPUT.write_text(json.dumps(output, indent=2)+'\n')
+print(json.dumps({'complete': True, 'series': [{k:v for k,v in row.items() if k.endswith('_seconds') or k in ('fixture','all_business_fields_equal','median_reduction_percent')} for row in output['series']]}), flush=True)

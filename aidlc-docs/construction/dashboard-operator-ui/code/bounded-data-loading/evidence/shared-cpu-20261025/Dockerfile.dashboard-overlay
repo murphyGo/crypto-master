@@ -1,0 +1,7 @@
+# Retain the verified v59 dependencies, startup, settings and runtime layout.
+FROM registry.fly.io/crypto-master@sha256:03bf3e7280c36b8c5abcbc65c1edc4a7ce09deaf95ac6e48cdb5bbb35c4f610e
+ARG REVISION
+LABEL org.opencontainers.image.revision=$REVISION
+COPY src/dashboard/projections.py /app/src/dashboard/projections.py
+COPY src/dashboard/sources.py /app/src/dashboard/sources.py
+COPY src/utils/bounded_read.py /app/src/utils/bounded_read.py

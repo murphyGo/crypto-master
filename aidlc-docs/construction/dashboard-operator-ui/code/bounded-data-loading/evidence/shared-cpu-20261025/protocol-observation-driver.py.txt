@@ -1,0 +1,68 @@
+import argparse, asyncio, hashlib, json, time
+from pathlib import Path
+from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+import websockets
+p=argparse.ArgumentParser();p.add_argument('--phase',required=True);a=p.parse_args()
+ds=descriptor_pb2.FileDescriptorSet.FromString(Path('/private/tmp/crypto-master-ui-protocol-20261025.pb').read_bytes())
+pool=descriptor_pool.DescriptorPool()
+for f in ds.file:pool.AddSerializedFile(f.SerializeToString())
+Back=message_factory.GetMessageClass(pool.FindMessageTypeByName('BackMsg'))
+Forward=message_factory.GetMessageClass(pool.FindMessageTypeByName('ForwardMsg'))
+async def main():
+    pages={}; output={'method':'actual deployed-version Streamlit server protocol; one uncontrolled cache observation per page, no native/browser/percentile claim','pages':[]}
+    async with websockets.connect('wss://crypto-master.fly.dev/_stcore/stream',origin='https://crypto-master.fly.dev',subprotocols=['streamlit'],max_size=16*1024*1024,open_timeout=30) as ws:
+        async def send(page_hash='',fragment=''):
+            msg=Back();msg.rerun_script.SetInParent();msg.rerun_script.page_script_hash=page_hash
+            if fragment:msg.rerun_script.fragment_id=fragment;msg.rerun_script.is_auto_rerun=True
+            await ws.send(msg.SerializeToString())
+        for title in ('Home','Trading'):
+            page_hash=pages.get(title,'')
+            if title=='Trading' and not page_hash:raise RuntimeError('Trading navigation hash not advertised')
+            elements={}; fragments={}; start=time.monotonic(); complete=False; finished=[];messages=0
+            await send(page_hash)
+            while time.monotonic()-start<240:
+                try:
+                    raw=await asyncio.wait_for(ws.recv(), timeout=.5)
+                except asyncio.TimeoutError:
+                    now=time.monotonic()
+                    for frag, due in list(fragments.items()):
+                        if now>=due:
+                            await send(page_hash,frag);fragments[frag]=now+.5
+                    continue
+                if isinstance(raw,str):continue
+                msg=Forward.FromString(raw);messages+=1
+                typ=msg.WhichOneof('type')
+                if typ=='navigation':
+                    for page in msg.navigation.app_pages:pages[page.page_name]=page.page_script_hash
+                elif typ=='new_session':
+                    for page in msg.new_session.app_pages:pages[page.page_name]=page.page_script_hash
+                    if not msg.new_session.fragment_ids_this_run:
+                        elements.clear();fragments.clear()
+                elif typ=='auto_rerun':
+                    fragments[msg.auto_rerun.fragment_id]=time.monotonic()+msg.auto_rerun.interval
+                elif typ=='stop_auto_rerun':
+                    fragments.clear()
+                elif typ=='delta' and msg.delta.WhichOneof('type')=='new_element':
+                    el=msg.delta.new_element; kind=el.WhichOneof('type'); key=tuple(msg.metadata.delta_path)
+                    if kind=='metric':value={'type':kind,'label':el.metric.label}
+                    elif kind=='alert':
+                        body=el.alert.body.lower();value={'type':kind,'incomplete':any(s in body for s in ('loading in the background','data could not be verified','current data is unavailable'))}
+                    elif kind=='exception':value={'type':kind}
+                    else:value={'type':kind}
+                    elements[key]=value
+                elif typ=='script_finished':
+                    finished.append(int(msg.script_finished))
+                    counts={k:sum(v['type']==k for v in elements.values()) for k in ('metric','dataframe','table','arrow_data_frame','arrow_vega_lite_chart','vega_lite_chart','line_chart','exception')}
+                    incomplete=sum(v.get('incomplete',False) for v in elements.values())
+                    # Enum 0 is FINISHED_SUCCESSFULLY; fragment completions may
+                    # only be used after the dependent complete sections exist.
+                    metrics=[v['label'] for v in elements.values() if v['type']=='metric']
+                    complete=(counts['metric']>=(12 if title=='Home' else 6) and counts['exception']==0 and incomplete==0)
+                    if title=='Trading':complete=complete and counts['dataframe']+counts['table']>=1 and counts['vega_lite_chart']>=1
+                    if complete:break
+            row={'page':title,'complete':complete,'seconds':time.monotonic()-start,'messages':messages,'metric_labels':metrics if 'metrics' in locals() else [],'element_counts':counts if 'counts' in locals() else {},'incomplete_alerts':incomplete if 'incomplete' in locals() else None,'script_finished_values':finished}
+            output['pages'].append(row);print(json.dumps(row),flush=True)
+            path=Path('aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/shared-cpu-20261025')/(a.phase+'-protocol-observation.json')
+            path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(output,indent=2)+'\n')
+    if not all(row['complete'] for row in output['pages']):raise SystemExit(1)
+asyncio.run(main())
