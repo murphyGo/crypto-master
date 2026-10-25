@@ -1,0 +1,575 @@
+{
+  "captured_at": "2026-10-25T17:41:02.144549+00:00",
+  "runtime_sha256": {
+    "config/runtime_flags.yaml.example": "835bbc91644c1d2b6e5df02b51cda6489c5065296fbdcbcedc287da8eef7b86c",
+    "config/sub_accounts.yaml": "ae02b782fb16f90c5d56ac03327234b6870af9785d9c1d3cee8c7315a1c797be",
+    "config/sub_accounts.yaml.example": "279e7659423b1eb9b06231aa8af136d507cc77071b8c3965184f0409cc5c4d86",
+    "docs/research/strategies/00-priority-matrix.md": "166b585182890d6306f2d06d9b403a95b80c66dfd8851c891719e33b85845e1e",
+    "docs/research/strategies/01-ict-smc.md": "905b123405e627311d9aaf133b02c668302decbeeb89cba91f731808388a8332",
+    "docs/research/strategies/02-chart-patterns.md": "8692d2c308a89cee48333ba1cadffd04baaca62cd08897b0251cc5fc3a0acd0c",
+    "docs/research/strategies/03-breakout-range.md": "5436093bb5d2aca37b78282252f5e78c0e40eba237bb388db5499436b4635244",
+    "docs/research/strategies/04-mean-reversion.md": "5629ceb4cfbdf0d82daebf59985c2d507b912e667b30baf846b4e955790535b2",
+    "docs/research/strategies/05-trend-indicators.md": "db600dc093d690c3896f88baf8ad54e04282b861df549a5e1ea8ebd2f4df06f8",
+    "docs/research/strategies/06-crypto-specific.md": "e8003611420e8c575806c8ca9e1466897740211789871199c833dfe882ad1989",
+    "docs/research/strategies/README.md": "f68bfa3e102903d7a0be360278747395d7622df36e4602ea4e3233c89dc3940b",
+    "pyproject.toml": "4eaad67b475ac7c91d6a59912ea025ca767d83015b86a7434fee9b8b655938cd",
+    "requirements.txt": "d8b868dec80f904eda397d2d1733c1b72ea4514da4b06ae4bfeddf3f6bfa1367",
+    "scripts/__init__.py": "9d55abc7266cdcd840cb925488e71398ea5083ed952b337909072597eb57e809",
+    "scripts/auto_research_candidates.py": "9d5cd498af00552f6a3ec7356d77b90fc9a9b250d14cd91f471ea9d824e654ea",
+    "scripts/backtest_baselines.py": "7df3d957162a592eb40a5008001d0cbd49681feb7e0abc52be76733b92f45dc8",
+    "scripts/backtest_combinations.py": "4228cc773261c1cc2ecb083994e5626a99158ba4ad20daa8ee2e7d6f16590ba1",
+    "scripts/goal_baseline.py": "70b08df39ead42709c5ea4fb58b09c5b1ecd71bbe0424bd8b81f685db86910d7",
+    "scripts/goal_eval.py": "0e015542ff4fd38f3ff08c8245b4ae32866e775f36a2ff54fda164da0cae86d6",
+    "scripts/goal_gamble.py": "25fbda8fbe043ed20f112d5e651115659b6f63a63580153934570ec023a8ced5",
+    "scripts/lint-fix.sh": "2df7be9dc8f987f4424bf2df062236423ad539c7f23017f533a8aa91211420ef",
+    "scripts/lint.sh": "87d65fe6ee06d9fd5808c402b105bfb305cb0f2773a80b33ea607f528f142b9c",
+    "scripts/paper_run_tsmom.py": "d9d02140121bbbf9023fd098f319730a17443e768d4cbf62ed18594f1ab7e0d2",
+    "scripts/qualify_dashboard_loading.py": "b192794667ed806cec3d47fb8bfb0ce2731c43f4ca6f6b9feadb2c4371ac3223",
+    "scripts/run_robustness_gate.py": "42bb239af1eeda08a4859b8ebb3391b9578a1c5cab1317ed53382a0b75acbf31",
+    "src/__init__.py": "0ac058bd2a0288453770cef760e52d03134a72cf0d7e3edae4dd0e277651e639",
+    "src/ai/__init__.py": "9e8d06c4706ab19e0ca639df03fb8bd7c3fcac6e4f2a4db01f13a3d9500341b2",
+    "src/ai/_codex/__init__.py": "b9c407309f01ad1e8fea374a57938e7744c202bbb2cf87976417062e4432c335",
+    "src/ai/_codex/auth.py": "f97db387f1098a5700f123fd6d0135e6317c4af837434a599a890abaa4f9a28d",
+    "src/ai/_codex/policy.py": "408d5a67792e97ef52e42635e9d6e5b9bb1367060a3e3bc49bac52a0aae647a5",
+    "src/ai/_codex/process.py": "e5aafb5dd9ae0b07c0e5435d04992ac90f84982ef93d5201e0a55a09039d9cf4",
+    "src/ai/_codex/runner.py": "ce9eb42c17fba027448311b06721ed1e04445bfb06cce94904aa104cb7424c88",
+    "src/ai/claude.py": "7f44844315e1f7f0202aca59c70a4f660723e6a47619188e27c813ab27c46e16",
+    "src/ai/codex.py": "9734cdd50167bc4e17ecdfc2334f0a99d2cd40851ed5c1f960a0b08d30a8ed26",
+    "src/ai/exceptions.py": "e380e25a6efdb9c1feeef243d7fe1f4606e302c1e8493ec4a47c1a10dc26467f",
+    "src/ai/factory.py": "33f0d7a0be28d24a2d600fcb147ca52143a72d4619685cafe1d1e95020065e76",
+    "src/ai/improver.py": "3e4a0a7ea97fe057047ba8f09692965c975a7234d9b0a2362e4929c0d608ce84",
+    "src/ai/ports.py": "deb75ebb0c13156bc5d1c5bf1a071603c0bb36f44f8affa2720dd7ef0fbb0c49",
+    "src/ai/prompts.py": "53d3bb36975f81abe3d047bcecd4a339af1db7a20f38022cb371f801d78dad24",
+    "src/ai/response.py": "c77b65deada23ab29273894803fce0795a3b06ef4c2a605ae47bedc58960689e",
+    "src/backtest/__init__.py": "1df395a170bc6e7c491db866a4894939d89585c5c6de74d4d22493d66b0f5730",
+    "src/backtest/analyzer.py": "1f132431ce80407807a3bd293e81ef3ecb68e5d4591106023d73a5b72ea8f5fd",
+    "src/backtest/engine.py": "b79ac96822034648be39f5fab39bceb1afa26e1055ab8caa965d5449e69b7eb2",
+    "src/backtest/harness.py": "572429d3c00466b094ec43ff9eea747c1ce224c53815d30709cd0ead0bea8d5a",
+    "src/backtest/metrics.py": "d692af50d4325a95807f0fa93ec62520f2846b95ebe3a1b8eb7c977abeeeb3f3",
+    "src/backtest/multi_account_report.py": "4e38e31f167eabb49adf8cdcb0fed1d8e784e072b86f6ec5956824326dac1d74",
+    "src/backtest/reproducibility.py": "bcb6ebcb71e87db5e153311ce5296f56e288789012c50e50fe2838ed13744dbc",
+    "src/backtest/snapshot.py": "565284705f11941bc9860cad91978a0909652c33f8b6350080358b071034772a",
+    "src/backtest/snapshot_replay.py": "6443379bf8a7ec95574c13f250550baaeb3b08ff6c054134e8fa66c16b4a59f0",
+    "src/backtest/snapshot_v2.py": "ee4d84dbb21c08cd89bb3aa5b8f85bafc2dc6c161a2504e4e113ef2273f3d38d",
+    "src/backtest/validator.py": "a2212e6fc3d5161ed0eaea41db00b1937a0b20527e31ca045a2a68ba6bd5d9ef",
+    "src/config.py": "521118b720ee78721ccca8cac042e05883664cddfd44d6b3143cd44048dd356d",
+    "src/dashboard/__init__.py": "53b61b142dabfdc7d4ea9847221f66b369508bffcdb8862381f366c178002666",
+    "src/dashboard/app.py": "5d73c1dedd9e70046067ab98f86bdd2f2e5ee05dd8c09bc808de4115653547a8",
+    "src/dashboard/availability.py": "988e864eefb29809416c3b9ff397f1b49457cebc5c70e9c2ea74dd22e56ad0fa",
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/data_service.py": "7234835ec208a07c63e148306a51e0e043a6785a44e62ef7981e6c4ee8b74a41",
+    "src/dashboard/pages/__init__.py": "f8cb1ba875e2c367254aed9ce7479a76ea841c9f4162b2bef74461125d3f99a6",
+    "src/dashboard/pages/autopsy.py": "c78c9596a6423d980178430c6d85067c5b756e6ca6eac29cd6e4dff058bddc29",
+    "src/dashboard/pages/engine.py": "95d786bed0cec26a589d1bba4705823d665bad3671e3275482a6e1f4af21b553",
+    "src/dashboard/pages/engine_cross_account_risk.py": "580a8cacdd5bd4b193d17033c16d5e0a181846709589670e7eef0a718edc126d",
+    "src/dashboard/pages/engine_market_regime.py": "4bc85d485dc94ae7cab83db38a5a12567c59077e4c9eceea4c4531d18b0f7758",
+    "src/dashboard/pages/engine_reconciliation.py": "9e5b2924f5faefbad3781b2ffaa81231e26d4d1a006dbd5661e211ea6c70bfba",
+    "src/dashboard/pages/feedback.py": "28fb378934bb68e2064d3bcbaee44d9341ce50dafbc0924f39fe407c8494e5bf",
+    "src/dashboard/pages/home.py": "97420a6d30c2e913ea120abdf6e0d24cc0680c043bfc81e5e7e056423f0e5524",
+    "src/dashboard/pages/ops.py": "eb9c1d27dd12a38b6605cc4e8b4afb803837cd48417fbea535cc5e7c3852a3a0",
+    "src/dashboard/pages/proposals.py": "9a09c9d4248a58f892bd2074880fabd96f2ca810bb4bf141b4d81cc284b35755",
+    "src/dashboard/pages/replay.py": "79f1d6a7ac7601f52ff1a1a3d5ddb7855f221e77380a3b9fc18e5de3b4297484",
+    "src/dashboard/pages/strategies.py": "ae2e8586ecca502aa4708735e8003251cfdf45a30852bb64a24f49fb7385d194",
+    "src/dashboard/pages/trading.py": "c5b166582054d5cbbef979a34bfb33bb2e4906fca41d9edc0f66f022f29b086b",
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/query_params.py": "2473fcb7bc130bd5fa6508b1dcb60a5b9c446bac232e5829e8953e8f211280c8",
+    "src/dashboard/read_models.py": "55fa28e0e50365b1c431b88d0b8750aabd0ce3d677f9f262d026eccaa3464440",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/dashboard/theme.py": "4a2f2b675b6d15c4bfb4c03532a641149cf2b749543488f5fb8de21e668b2694",
+    "src/exceptions.py": "4789c8882db20fed94da7fd61d02f59291c8be07d45669c968a42bfd616bde1a",
+    "src/exchange/__init__.py": "02d212d935649e87a94e6c682b5797fb0701cf8244c0cc2ee80e44a276b9dc55",
+    "src/exchange/base.py": "d2c2559806c81e8a4f761d7420d18b7d515f6fb0b931442f69425ba976ca1fd9",
+    "src/exchange/binance.py": "d88ffb9106da91e7151d3c26fb92b9839687e7692533abe070014a72fcc7cde0",
+    "src/exchange/bybit.py": "8d39a2b518a3cbd2c75f508756c67fd38caf6eb452397eeb875fcc25aa3923bc",
+    "src/exchange/ccxt_base.py": "f8d9b652b3a6eb9e95ab4b1b6bd8b8cbd2c3359a4d8c60dbd3bd991fdd997a15",
+    "src/exchange/derivatives.py": "61317ff1216535d7cf0e5c785d925decf7c23c1a8b77f722d40b7b15b344d3ab",
+    "src/exchange/factory.py": "6696a88c1c3a388eca170061086788e9fb2fb1801095245e5b18b9914d112da7",
+    "src/feedback/__init__.py": "c4ea33b9b0fdc79c50375c2a64ebd6e9a379c53c50e4ec7b3340a6a07bac1681",
+    "src/feedback/audit.py": "20c0f5a06b040c6f1a791a2665d020e40ca1ead0b2c8c162750df767ebd0e90c",
+    "src/feedback/loop.py": "7b7266368fe85a037621016cd7bef4516ed034cceb744ad1b7f2ede7c0937b30",
+    "src/feedback/promotion_lab.py": "5df7b79ebfbc6c48a2b15f00a500b758c902d95cdffad457b4e6aa59f58a24d2",
+    "src/logger.py": "27f786fca3a7f617acc3b1476fefcfff3eb5ce492c9160635fcf8e858e84ae9f",
+    "src/main.py": "f1ccdcbc80ae06a361b521b140ef241209b3a3c4926647b442a53d79298d80f0",
+    "src/models.py": "df68ac630ddfe98badc6cdf308e7a29edda6ac6a9f2bc319ac2b348730215e29",
+    "src/proposal/__init__.py": "beb28b944814dd4250bd4bfdbba45a373d349f545e571bf896c6f08d60eeb7e4",
+    "src/proposal/bounds.py": "0888218e4cf44573c59ed2689357cf766d97076fbbe51efe7031c690ab7107de",
+    "src/proposal/engine.py": "e924e4a0f150a73b954de7847a044037c9672c15c51aac64a26eb1dbaaf201c2",
+    "src/proposal/fail_closed_metrics.py": "3aed1386a1744e7976e4448e3ce175a0ae5fc5faf6ca48494044703d39e9c440",
+    "src/proposal/funnel.py": "9b016b98539bdb164f6d899de15b514527e831b62e41258bd692cdb2338924c9",
+    "src/proposal/interaction.py": "1b8aa0d782cf732d6df2dd0ecf9cf4276f82efbc06d10b48ba03cfd4d9e1e249",
+    "src/proposal/notification.py": "2cb18661349bae5e2c20e0e3405b2723745899e86b9402c9ce0893ee94bd7a2c",
+    "src/proposal/replay.py": "f0b251dfdd7143967fa03710a70e99d2b23a14d58e80888eea475a5cf875d4cb",
+    "src/runtime/__init__.py": "6bf936124b54423b54f40463d9dd66b612536e7bc4ed5528c4eb178627f3d08c",
+    "src/runtime/activity_events.py": "3675866246839b35801a308b1955db7befc1072a8f566bcd098f10deded6289e",
+    "src/runtime/activity_log.py": "5fe11c84b12b41aaf1c19631c955e3cdd0807a618816dbe25a25c4e4c2274ea2",
+    "src/runtime/correlation_governor.py": "129f611f469e2a32aa62b957a7287c2979904e86b2847e7a3142294d1e2b9491",
+    "src/runtime/derivatives_context.py": "ac4fd072c5321c9acacc32a9a9dd536dde0abdd767518a50e51991072b282c34",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/runtime/funding_oi_filter.py": "37450c821ca59f88666cf1645db41721342664b2f1e0ac46c9e574ab4dc49700",
+    "src/runtime/gate_reason.py": "66b769f6a602f7390af8537d6ec34b3d8c894accb5da0dee073c96bd6e97f4d7",
+    "src/runtime/jsonl_rotator.py": "ef0c0654053361dd6cae74114b3a27136d7e7a301037aee88f32002f7d5724a2",
+    "src/runtime/market_regime.py": "42ac52144d1d81d0f60d1c7e815dfacc3f9a3ed3934c47cc1f0102518efde2cf",
+    "src/runtime/position_monitor.py": "f67f5fc2c2dfcdf170ba355aa00f1a9d6f5fe8f2b6ad48d8173fd35102c5da4b",
+    "src/runtime/reconciliation.py": "8f466ab4a5d914e176016dee377c58ced53513e51f999e00970f53fafafc47dc",
+    "src/runtime/runtime_flags.py": "7fe716cffd9088bdb35d830d4e1c845d436f8408ba3658d69bdce38b791bbd92",
+    "src/runtime/safety_reader.py": "e5a6d20bc2fe99eda7d8dee63ae4162db520864444f97655689db78dbb41e1b2",
+    "src/runtime/safety_score.py": "3262a0c4eaec9531f0b8a77ef5ba9dde985706dfdcbb7bac27287da20cc6a2b7",
+    "src/runtime/snapshot_recorder.py": "1b42cbdbd4be76b516af116982922707f207383452547158bbc36eb1f72f5a9d",
+    "src/runtime/strategy_action_snapshot.py": "b112d7a01831610216c58b8b572ce55420731a51a961554319108d4a8ea0dfac",
+    "src/strategy/__init__.py": "67bad00fc9c6a36dc2b6043e02204a47dbca463b0f12b37be320503e19c22595",
+    "src/strategy/base.py": "f6a2f3cb4280d8896013ae4bef461733eddabd960c16ff66f16f4cf990cfbb01",
+    "src/strategy/cost_coverage.py": "72a26fea3595c66951335a973dd86ba91c6eb82eedbbda368f9354a4922fb0fe",
+    "src/strategy/factory.py": "f1ec84804201c0f563e5dce0bd741d558f8945aa6cee5ee0801e5ddbf2628e7b",
+    "src/strategy/indicators.py": "d9519fd8804c5aa1f0c3f67386313d57aa43ea7a26e5d1593a8f47c1e21884cb",
+    "src/strategy/loader.py": "5607bbe64a5453fe1399733df78416ba0974afe70774940c478637889be87426",
+    "src/strategy/market_context.py": "d2893dff916bdaec551f58d7b8a35bbba6feb9e50ebf6f487b05b41f604bfc18",
+    "src/strategy/performance.py": "72b170f2d05d72ed6433e69f9262dd9c387bf56503fa1f89f0c4d2bc8d7b7ec9",
+    "src/strategy/prompt_filters.py": "0a66b69fb7669e5943c6f75118705ae041927a3edd4f999f6f02124716ab30fa",
+    "src/strategy/trade_autopsy.py": "cb6bb26a16082ce6d90a5f7ed644a15e1558b115d9a0a482980c7cbbeb81aea9",
+    "src/strategy/trade_history.py": "01ce4d53f90f260cf5451bb2640bfce52145decf3d86b0d994388136ae0458b1",
+    "src/strategy/tuning.py": "46e1bccc1e4c0913b6c757a8428c0c295035bafce68f6506d02119d229cf3eac",
+    "src/strategy/tuning_evidence.py": "34f9d6088fcb885d6bba7c6369b09b4f345b23b46e4785297a3c0dcf121eb2ca",
+    "src/strategy/tuning_observations.py": "33952353bd604bfe93dafad49cce3911567f35fb24223d3b33be108571b06808",
+    "src/strategy/tuning_recommender.py": "c561a7b738936b836190ece2d598683185ac3a906406c2324845f41a381025a2",
+    "src/tools/__init__.py": "fa056b45651a3fbec354842c875c0bc262a99a0cad88bc1439a25c6be0e0fe12",
+    "src/tools/audit_strategy_funnel_gap.py": "bb4838e99af96d50cc7f78efcc72180d410d0fc7af9ad5b9d232f0f74a13e15f",
+    "src/tools/backfill_paper_sl_tp.py": "bdbfa91694943f189536c2312551dee8ff4570b2115bc8cdc640bb599955549e",
+    "src/tools/close_unrecoverable_paper_trades.py": "341b86c98ec253b586ce4e9ff338244b33ae27b123c30a6409fc054689835b8e",
+    "src/tools/proposal_replay.py": "e46ff424f25202a65430e1193364b409b262de98f6bdb8c250af4c4e8c2c2943",
+    "src/tools/purge_proposals.py": "17bbacb55a8dc7d682ce8b3471c6906839397f4cf60ddd7a28b90e89073133f6",
+    "src/tools/repair_paper_trade_bounds_from_proposals.py": "715970c36a578d92c88378cb162de7d1f5ec60f9e2db26a9bbcb0bb87a284126",
+    "src/tools/report_strategy_costs.py": "341c1b7a0bb3ecaab2eefe047788607e6c9494ddd77f9c90b54f5741d38a542c",
+    "src/trading/__init__.py": "a7790771c221272f8221ba45095bb1b2c18a88fe947ca8ba84df1cdd7a32b6c1",
+    "src/trading/base.py": "56559f679d0f681ecf580ab3dd325e964087c72a62b34cd7c2f60fda56b160c1",
+    "src/trading/experiment_marketplace.py": "95705c2ba2e7b64963a0ec4df70bbe4cf9b50e201f2da107eaf4b489c4b8a1cc",
+    "src/trading/live.py": "23dbd041410a72556988a979ea083a4238a11a046d57e66d6ea7b9ebedeef9e7",
+    "src/trading/paper.py": "e55b22e2563dd56c1b33a546823dfad5afe1d2a35b0ff90b4af0d21856feb6e2",
+    "src/trading/portfolio.py": "ab0e6b5c8e8224e2ec5ede2af3df48dd1df41d1a076ce2b83f8aaf3df6afc803",
+    "src/trading/profile_loader.py": "f18019043d10c65c726746c255b1a36592cee52b7dc2894de3dc006cd83671ef",
+    "src/trading/profiles.py": "833de03577f2e7d4174143cbe8e68cd2502b33c42b9610b864f2d6ec4e7a36af",
+    "src/trading/risk_sizing.py": "de3dcc85e332c8f4959fe0aa74f007dcec0976af890fbb2ebbdfded028a14cc0",
+    "src/trading/strategy.py": "fde92da47aa3ffc6d8533bfcacdb04984f27a63348f7cb0671cdc9b81923a6fd",
+    "src/trading/sub_account.py": "5686edda043e8785afb2673c86f1a9c4545e3329b9dfa473a710448512eefb45",
+    "src/trading/sub_account_migration.py": "773663b44eec32a4bfcdb8e8f7760ef19900449392496ad5887121a3117e4e00",
+    "src/trading/sub_account_registry.py": "f7b5611d561bf1d828c7e2f53f097d878fd413900831e8c46cc47f001082eaff",
+    "src/utils/__init__.py": "bda2e89d9d4fc4076123c83a0a5e81b89530042953b1f48438b33e3a9bbf92cd",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9",
+    "src/utils/io.py": "db6e3c20cc0149dac5b1dd16c5a9a46280bb07a9bf4641e51e314016638d539e",
+    "src/utils/pydantic_mixins.py": "3898c737ea3a4fdb779c8c30b6d3bc7fcd51fa6f6f01d11cf904340a9112734b",
+    "src/utils/time.py": "4ec3898386b13c47d23e0fc52dd2e625809d5f3261987df30d2ab57ff1dbfa8c",
+    "src/utils/trading_math.py": "7f65bc21521bf1ffbd6b13552d3f32d7b10a2084e8661e59b89b942253b057a6",
+    "src/utils/trading_types.py": "71e594fc605de233dff77155d6cbb7c9447a7c6a4eb8a5232c35e4ee0ccc1e7e",
+    "start.sh": "5b5df3312a5546cd909af494e70c3cf5cf974a6cc56cf23232e3c4305a6462e7",
+    "strategies/bollinger_bands.py": "7b45b680f55dfe3029c1238f143280d4f8d5c47050d7384eafebb8151b5a3b37",
+    "strategies/chasulang_ict_smc.md": "ec2d8d3da8e4acba718e916c718c0abd2d9b4a44474b5cb6ed2c31d38c1c4d5f",
+    "strategies/experimental/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "strategies/ma_crossover.py": "e5fcd0ca0feff0c6deb4bab0ceaf1769c6f92f1290bc21bc7025428278ec10dd",
+    "strategies/momentum_pinball_orb.py": "f2d050b463d667dd25d1b2a81f61526c594d71a83b43c64a6982faaff1e3e1ac",
+    "strategies/raschke_holy_grail.py": "1d92e0bd66192ae891c6790dc37d4a777cb97b4bf12f68998eda63112e7bcb8f",
+    "strategies/rsi.py": "4c9700fc1099d9b7ed2ba124e3fa294e3ce6ae2056ecfd62bc823b21a776002f",
+    "strategies/rsi_15m.py": "6449cd0d468b2510788d2f7b5c12952aad48f9c13325e255e5863b0cd1d76ff4",
+    "strategies/rsi_4h.py": "c2e63500ac84720a706c5b858adc4f0bd7e6352b25258aee9119ebff45131b28",
+    "strategies/sample_prompt.md": "e5dfc358c83cffd9ebcb6c5d1b619110f2ab1ada2b2a48e83e635e031cd5f60c",
+    "strategies/session_vwap_pullback.py": "cfd99d74c1460e554fba567079c7a02990f0fd8ed14ec9c7713a5f0be0379bbb",
+    "strategies/tsmom_vol_breakout.py": "558fda7c98aabf05d4789eb272706b9d8c4812dc4e63473358abeba702f5d289",
+    "strategies/turtle_soup_reclaim.py": "2b15f5dba4660273484721bf3198a1c28b8346273862351892c9c28678a6140b",
+    "strategies/vcp_breakout.py": "d9ea80ac414e084d67b566921236b15e0f6cc5c83059839ba7209134f1b34497",
+    "strategies/vwap_mean_reversion.py": "0af264700379a6dab8906285cb21a968101b8935a983853871f457f663cdbb26",
+    "strategies/weinstein_stage2_filter.py": "7ae66b288893fd90b0a9b05e3df93bf1cb6ac4fe50cd1a081d55b6363e52a14c",
+    "trading_profiles/aggressive.yaml": "abc46f19e362118fbfdaff449a76419c406a66ee9aa69da1cc59f39c683636c3",
+    "trading_profiles/conservative.yaml": "fe90a8d80e93a5003c488025984ca40913071fad2523ba21b58b69443c8a4344",
+    "trading_profiles/moderate.yaml": "1fc7a592fcd7570ab8c5525ed1788b7c7418b6208a417c9b09dd761f415351b1",
+    "trading_profiles/scalping.yaml": "a5945204422813865c8f9c630338c17fc85f73779bc06566361975c0e8970b81"
+  },
+  "python": "3.13.16",
+  "dependencies": {
+    "streamlit": "1.65.0",
+    "pandas": "3.0.6",
+    "pydantic": "2.14.0",
+    "pydantic-core": "2.50.0",
+    "numpy": "2.5.4"
+  },
+  "configuration": {
+    "TRADING_MODE": "paper",
+    "LLM_PROVIDER": "codex",
+    "CODEX_CLI_MODEL": "gpt-6-astra",
+    "CLAUDE_CLI_MODEL": "sonnet",
+    "ENGINE_CYCLE_INTERVAL": "1800"
+  },
+  "processes": [
+    {
+      "kind": "engine",
+      "pid": 655,
+      "rss_kib": 211456
+    },
+    {
+      "kind": "dashboard",
+      "pid": 656,
+      "rss_kib": 242380
+    }
+  ],
+  "internal_health": {
+    "status": 200,
+    "body": "ok"
+  },
+  "activity": {
+    "tail_bytes": 4194304,
+    "parse_errors": 0,
+    "since": "2026-10-25T17:39:17Z"
+  },
+  "cycles": [
+    {
+      "timestamp": "2026-10-25T17:39:25.480138Z",
+      "event_type": "cycle_started",
+      "cycle_id": "4e40fc4d-6ad3-47e4-bc6a-0bf307cc51f9",
+      "details": {
+        "cycle_index": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-25T17:39:40.574350Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "4e40fc4d-6ad3-47e4-bc6a-0bf307cc51f9",
+      "details": {
+        "proposals": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "opened": 0,
+        "closed": 0
+      }
+    }
+  ],
+  "event_counts": {
+    "startup": 1,
+    "reconciliation_health_report": 1,
+    "cycle_started": 1,
+    "monitor_pass": 12,
+    "cycle_completed": 1,
+    "sleeping": 1
+  },
+  "errors": [],
+  "settings_mode": "paper",
+  "proposal_checks": [],
+  "proposal_parse_failures": 0,
+  "cap_checks": [],
+  "funding_evidence_readonly": {
+    "account": "ma_crossover",
+    "pnl_basis": "fee_net_excluding_funding",
+    "funding_coverage": "unknown",
+    "ui_summary": "Fee-net; funding not measured; window=30, capital=10000.0 USDT, closed=30, PF=0.16, win=10%, closed_pnl=-3.4%, fail_closed=0%",
+    "capital_assumption": "10000 USDT for rendering smoke only; not a current account-return claim"
+  },
+  "carry_smoke_readonly": {
+    "inputs": [
+      {
+        "path": "/data/performance/ma_crossover/ma_crossover/records.json",
+        "sha256": "4315649be4c48b1ed9c65dcbbe7a468c86f0d881ae8d51df36d78eb18364c9ee"
+      },
+      {
+        "path": "/data/trades/paper/ma_crossover/trades.json",
+        "sha256": "fb44bc19056bb530b00e81efee78085eacaedf31c357c0e9caeeeccf6623e0ce"
+      }
+    ],
+    "funding_coverage": "unknown",
+    "actual_funding_cost": null,
+    "included_trades": 224,
+    "closed_real_records": 224,
+    "scenario_complete": true,
+    "excluded_reasons": {}
+  },
+  "deployed_readonly_replay": {
+    "basis": "current persisted inputs; pure deployed methods; not emitted proposals/cap events; confidence fixed to 1; proposal joins omitted and market marks unknown",
+    "scores": [
+      {
+        "account": "bollinger_band_reversion",
+        "strategy": "bollinger_band_reversion",
+        "version": "1.0.0",
+        "expected_closed_real": 14,
+        "single_sample": 14,
+        "multi_sample": 14,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "bollinger_band_reversion",
+        "strategy": "bollinger_band_reversion",
+        "version": "1.1.0",
+        "expected_closed_real": 52,
+        "single_sample": 52,
+        "multi_sample": 52,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "ma_crossover",
+        "strategy": "ma_crossover",
+        "version": "1.0.0",
+        "expected_closed_real": 224,
+        "single_sample": 224,
+        "multi_sample": 224,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "momentum_pinball_orb",
+        "strategy": "momentum_pinball_orb",
+        "version": "1.0.0",
+        "expected_closed_real": 7,
+        "single_sample": 7,
+        "multi_sample": 7,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "raschke_holy_grail",
+        "strategy": "raschke_holy_grail",
+        "version": "1.0.0",
+        "expected_closed_real": 263,
+        "single_sample": 263,
+        "multi_sample": 263,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_universal",
+        "strategy": "rsi_universal",
+        "version": "1.0.0",
+        "expected_closed_real": 6,
+        "single_sample": 6,
+        "multi_sample": 6,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_universal",
+        "strategy": "rsi_universal",
+        "version": "1.1.0",
+        "expected_closed_real": 157,
+        "single_sample": 157,
+        "multi_sample": 157,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_15m",
+        "strategy": "rsi_15m",
+        "version": "1.0.0",
+        "expected_closed_real": 6,
+        "single_sample": 6,
+        "multi_sample": 6,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_15m",
+        "strategy": "rsi_15m",
+        "version": "1.1.0",
+        "expected_closed_real": 227,
+        "single_sample": 227,
+        "multi_sample": 227,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_4h",
+        "strategy": "rsi_4h",
+        "version": "1.0.0",
+        "expected_closed_real": 6,
+        "single_sample": 6,
+        "multi_sample": 6,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "rsi_4h",
+        "strategy": "rsi_4h",
+        "version": "1.1.0",
+        "expected_closed_real": 20,
+        "single_sample": 20,
+        "multi_sample": 20,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "session_vwap_pullback",
+        "strategy": "session_vwap_pullback",
+        "version": "1.0.0",
+        "expected_closed_real": 8,
+        "single_sample": 8,
+        "multi_sample": 8,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "session_vwap_pullback",
+        "strategy": "session_vwap_pullback",
+        "version": "1.1.0",
+        "expected_closed_real": 47,
+        "single_sample": 47,
+        "multi_sample": 47,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "turtle_soup_reclaim",
+        "strategy": "turtle_soup_reclaim",
+        "version": "1.0.0",
+        "expected_closed_real": 8,
+        "single_sample": 8,
+        "multi_sample": 8,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "vcp_breakout",
+        "strategy": "vcp_breakout",
+        "version": "1.1.0",
+        "expected_closed_real": 1,
+        "single_sample": 1,
+        "multi_sample": 1,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "vwap_mean_reversion",
+        "strategy": "vwap_mean_reversion",
+        "version": "1.0.0",
+        "expected_closed_real": 8,
+        "single_sample": 8,
+        "multi_sample": 8,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "vwap_mean_reversion",
+        "strategy": "vwap_mean_reversion",
+        "version": "1.1.1",
+        "expected_closed_real": 190,
+        "single_sample": 190,
+        "multi_sample": 190,
+        "default_account_sample": 0,
+        "matches": true
+      },
+      {
+        "account": "weinstein_stage2_filter",
+        "strategy": "weinstein_stage2_filter",
+        "version": "1.0.0",
+        "expected_closed_real": 10,
+        "single_sample": 10,
+        "multi_sample": 10,
+        "default_account_sample": 0,
+        "matches": true
+      }
+    ],
+    "shared_tracker_account_unchanged": true,
+    "caps": [
+      {
+        "trade_id": "0dcef016-ec51-4515-9025-a36f7de9a733",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "371f1c44-c533-40ac-ad62-75cbc0216436",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "585ca15a-fa39-45ed-90e9-bffae7bf1811",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "6ddde459-a016-49d0-ac57-08becd480697",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "93ad55e7-9c63-4d4e-9628-54634fb1b9ed",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "2cc0b53b-d187-478e-add3-8db7912b0f61",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      },
+      {
+        "trade_id": "36888f00-bc54-462a-832a-21dd28dc76d7",
+        "monitorable": true,
+        "reconciliation_state": "legacy_no_perf_link"
+      }
+    ],
+    "input_sha256": {
+      "/data/performance/bollinger_band_reversion/bollinger_band_reversion/records.json": "0e9afa90c2eab1bd63a36278d3addd15089ebf2d47f399ca4df18782cab73d82",
+      "/data/trades/paper/bollinger_band_reversion/trades.json": "b3c69952484199acf90dfc6a3290ed84462f8435575ef1c0e49a30c9e487afa2",
+      "/data/performance/ma_crossover/ma_crossover/records.json": "4315649be4c48b1ed9c65dcbbe7a468c86f0d881ae8d51df36d78eb18364c9ee",
+      "/data/trades/paper/ma_crossover/trades.json": "fb44bc19056bb530b00e81efee78085eacaedf31c357c0e9caeeeccf6623e0ce",
+      "/data/performance/momentum_pinball_orb/momentum_pinball_orb/records.json": "e357a34f32bc5892fcafb4d95c4c459d58ca9bd7383a0616460aa89e84ebb7c1",
+      "/data/trades/paper/momentum_pinball_orb/trades.json": "e2a19a90c199808fe77dcd5e197673ce44ac73264787fc1f45b7152262442bcd",
+      "/data/performance/raschke_holy_grail/raschke_holy_grail/records.json": "1b09343c63ac16af3121a90d30781a8cc135ab13ea1f9bde43aac9895eaf3568",
+      "/data/trades/paper/raschke_holy_grail/trades.json": "2a78fb6accdaa0369f9dfec097b2c8e0997b0afba060454a0ea98cad069cafcf",
+      "/data/performance/rsi_universal/rsi_universal/records.json": "54784e13bf2d033fd9fb4f66db143b47f38b3f19d56443eaf64844eb075f3049",
+      "/data/trades/paper/rsi_universal/trades.json": "dc4b4acd412d20805cb79698f7b92d559838cfccd79dd046812e56136bb4a1ef",
+      "/data/performance/rsi_15m/rsi_15m/records.json": "ec334519e3b55bf4fe1416ec1d3584098ba0e17bbacaff0c7d45bb40dadefe05",
+      "/data/trades/paper/rsi_15m/trades.json": "f8fe5664720886eca1118622c224ef877a74fa179d4f921c7a48c4d1c5ac4b64",
+      "/data/performance/rsi_4h/rsi_4h/records.json": "1aea7e54c4bc701c2f1a75f8f5c4f6e2dd76141471bf8ad423ec6d041e6a44ba",
+      "/data/trades/paper/rsi_4h/trades.json": "0ad09a4d18e05daa4611f90e9bb692da6fbfe444ca073039c23d9c102c55236a",
+      "/data/performance/session_vwap_pullback/session_vwap_pullback/records.json": "85c523d737109d775f15b23d46daae8cfbfaa6122da3a1dd3e4dacc64b2823d6",
+      "/data/trades/paper/session_vwap_pullback/trades.json": "60ac38ed2b54ec854004eb222068d04bc19548f38d2011c3f4630db06a26605d",
+      "/data/performance/turtle_soup_reclaim/turtle_soup_reclaim/records.json": "8bb7d4adafea604e63b91ce33ad8e7dfe372e7cb26c5685eb5ec2b4ca78153aa",
+      "/data/trades/paper/turtle_soup_reclaim/trades.json": "94c1b456c5ecbdc6013d6e840c9ccfa7bbe5633de9f4b66b1cfa1edabdb3a4d6",
+      "/data/performance/vcp_breakout/vcp_breakout/records.json": "27b9637ce3c6fdf5958351069c2a6eac39dd2fc632c5ca150410665ea3e78e26",
+      "/data/trades/paper/vcp_breakout/trades.json": "3f9890d2845bc1ea41e76b217b4621f5ee5824f7f07294d22b4ad0cfaa98e64d",
+      "/data/performance/vwap_mean_reversion/vwap_mean_reversion/records.json": "19fca5d2208f5a2b5e5262dd63da634c78bfc1373613fcb1880c7eef9b1f91fc",
+      "/data/trades/paper/vwap_mean_reversion/trades.json": "82ba89074295208144ef1fbd6f37bb4e15d650a8148efbd50fd23e8a679929f7",
+      "/data/performance/weinstein_stage2_filter/weinstein_stage2_filter/records.json": "45c04d8ef1779ee9056454eb6b091a4292ceeb8b34e95bdebd5ea3cee2b7d837",
+      "/data/trades/paper/weinstein_stage2_filter/trades.json": "57ca92917012adf82cdb0b73c40947208514bfb6c5d7a5ad3d07b6345b9ce1c1"
+    },
+    "inputs_unchanged_after": true
+  },
+  "expected_source": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "runtime_files_checked": 180,
+  "runtime_files_match": true,
+  "public_health": {
+    "status": 200,
+    "body": "ok"
+  },
+  "fly": {
+    "release": 64,
+    "machine": "6835752b711958",
+    "instance": "01M5T2A60CT97ACSNWHAY60D12",
+    "image": {
+      "registry": "registry.fly.io",
+      "repository": "crypto-master",
+      "tag": "git-dca38fbf25a9b96ec91400b628bc71513cf3357d",
+      "digest": "sha256:a0e1bd753ba92935c7227bb7c1c5f52fa267eebe2784d1ece99c0a1fab070786",
+      "labels": {
+        "org.opencontainers.image.revision": "dca38fbf25a9b96ec91400b628bc71513cf3357d"
+      }
+    },
+    "state": "started",
+    "guest": {
+      "cpu_kind": "shared",
+      "cpus": 1,
+      "memory_mb": 2048
+    },
+    "mounts": [
+      {
+        "encrypted": true,
+        "path": "/data",
+        "size_gb": 1,
+        "volume": "vol_4m3l58dkk29y19zv",
+        "name": "data"
+      }
+    ],
+    "checks": [
+      {
+        "name": "servicecheck-00-http-8080",
+        "status": "passing",
+        "output": "ok",
+        "updated_at": "2026-10-25T17:39:20.469Z"
+      }
+    ]
+  }
+}

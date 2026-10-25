@@ -18,3 +18,13 @@ acceptance are recorded separately. DEBT-083 stays Critical/active.
 
 See [session](../sessions/2026-10-26-dashboard-runtime-bounded-reads.md) and
 [implementation](../../aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/implementation.md).
+
+## Independent v64 follow-up (2026-10-26 KST)
+
+Adopted `dca38fb` is deployed on v64 with 180 matching runtime hashes,
+internal/public health and a complete first 12-account monitor cycle with zero
+errors. Independent source recheck: 2,916 tests, Black/Ruff11 and mypy134 pass.
+The cycle has zero proposals; it does not prove natural safety-gate execution.
+The separately preserved candidate8053ae0 is not merged/deployed and its results
+are not v64 evidence. Original performance/native/depleted/guest qualification
+remains open. See [independent verification](../sessions/2026-10-26-runtime-safety-v64-independent-verification.md).

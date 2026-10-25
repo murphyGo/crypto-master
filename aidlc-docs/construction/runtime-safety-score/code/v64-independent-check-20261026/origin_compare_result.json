@@ -1,0 +1,35 @@
+{
+  "origin_sha": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "helper_parity_cases": 184,
+  "helper_parity": "PASS",
+  "large_integer_ValueError_skip": {
+    "old": {
+      "failure_type": "ValueError"
+    },
+    "remote": {
+      "failure": "input_unavailable"
+    },
+    "fixture_bytes": 5172,
+    "verdict": "legacy hard-failure preserved; no remote defect"
+  },
+  "candidate_comparison": {
+    "candidate_sha": "8053ae0",
+    "broad_ValueError_catch": "candidate skips non-JSONDecodeError ValueError unlike frozen baseline; do not blindly merge",
+    "runtime_fundamental_caps": {
+      "state_bytes": 16777216,
+      "manifest_bytes": 4194304,
+      "summary_bytes": 2097152,
+      "conditions": 50000,
+      "extra_count": 4096,
+      "extra_bytes": 2097152,
+      "row_bytes": 1048576,
+      "read_bytes": 2147483648,
+      "read_seconds": 30,
+      "cycle_bytes": 4294967296,
+      "cycle_seconds": 60
+    },
+    "integration": "Both pre-order call sites await; typed read failure breaks account proposal loop before normal monitor/snapshot; stored error fresh; cancellation propagates",
+    "recommendation": "Retain origin dca38fb/v64 runtime and unrelated dashboard work; archive8053ae0 candidate; no duplicate merge or deployment recommended",
+    "verified_high_impact_findings": []
+  }
+}

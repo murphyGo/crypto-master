@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; v62 (`d86f76f`) deployed with 2823 tests, 175 hashes/health/engine cycles verified. Final buffered-CPU four-session run records 276/280 complete views, four 30s timeouts; guest 1293.313 MiB exceeds 768. First Home 12.180s exceeds 5s. Engine full-history safety input allocation traced; checkpoint and safety-time/streaming Functional Designs await approval. Native/depleted/original guest targets remain open. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
+| **Status** | Active; runtime streaming and dashboard checkpoints deployed as v64 / `dca38fb`. Independent check: 2,916 tests, Black/Ruff11, mypy134, 180 deployed hashes, health and first 12-account monitor cycle without errors. This is not full dashboard/resource acceptance: unseeded cold/native/depleted/four-session/original 1 GiB guest targets remain open. Historical failed observations are preserved below. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -254,6 +254,17 @@ CPU/cost deferral remain. Existing v63 strategy fixes are preserved; this source
 awaits its separately authorized same-capacity rollout. See
 `docs/sessions/2026-10-26-dashboard-runtime-bounded-reads.md` and
 `aidlc-docs/construction/plans/dashboard-runtime-read-code-generation-plan.md`.
+
+**2026-10-26 independent delivery check:** Concurrent work delivered `dca38fb`
+as Fly v64 while the separate runtime candidate was being qualified. The adopted
+source was rechecked with 2,916 tests, Black/Ruff, 134-file mypy, 180 running-input
+hashes, public/internal health and the first 12-account monitor cycle (zero errors).
+Candidate `8053ae0` is archived, unmerged and not a second deployment. Candidate
+benchmarks do not qualify v64. The first cycle had no proposal, so natural
+safety-gate execution coverage remains distinct from the local tests. Original
+page/native/depleted/guest acceptance remains open; the parallel dashboard
+qualification retains its own measurements. See
+`docs/sessions/2026-10-26-runtime-safety-v64-independent-verification.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
