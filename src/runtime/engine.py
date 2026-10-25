@@ -35,6 +35,7 @@ Related Requirements:
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -101,11 +102,12 @@ from src.runtime.runtime_flags import (
     DEFAULT_RUNTIME_FLAGS_PATH,
     read_trading_freeze,
 )
-from src.runtime.safety_score import (
-    RuntimeSafetyScore,
-    compute_runtime_safety_score,
-    inputs_from_recent_activity_events,
+from src.runtime.safety_inputs import (
+    SafetyReadService,
+    SafetyReadUnavailable,
+    get_safety_read_service,
 )
+from src.runtime.safety_score import RuntimeSafetyScore
 from src.runtime.snapshot_recorder import SnapshotRecorder
 from src.runtime.strategy_action_snapshot import (
     DEFAULT_STRATEGY_ACTION_SNAPSHOT_PATH,
@@ -618,6 +620,7 @@ class TradingEngine:
         mode: Mode = "paper",
         quote_currency: str = "USDT",
         derivatives_context_service: DerivativesContextService | None = None,
+        safety_input_service: SafetyReadService | None = None,
     ) -> None:
         """Initialize the engine.
 
@@ -664,6 +667,7 @@ class TradingEngine:
         self.mode = mode
         self.quote_currency = quote_currency
         self.derivatives_context_service = derivatives_context_service
+        self._safety_input_service = safety_input_service
 
         # Inject the auto-decide callback. The ProposalInteraction
         # handed in by the caller is reused so its ProposalHistory
@@ -704,6 +708,9 @@ class TradingEngine:
         self._strategy_lookup_cache: dict[str, str] | None = None
         self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
         self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
+        self._runtime_safety_evaluated_at: datetime | None = None
+        self._safety_read_seconds = 0.0
+        self._safety_read_bytes = 0
         # HTF trend filter cache. Keyed by ``(symbol, ymd)`` so the
         # natural date rollover invalidates entries; ``run_cycle`` also
         # clears at cycle start so very long-running processes never
@@ -848,18 +855,52 @@ class TradingEngine:
             details=details,
         )
 
-    def _current_runtime_safety_score(
+    async def _current_runtime_safety_score(
         self,
         extra_events: list[ActivityEvent] | None = None,
     ) -> RuntimeSafetyScore:
         if extra_events is None and self._runtime_safety_score_cache is not None:
             return self._runtime_safety_score_cache
-        events = self.activity_log.read_all()
-        if extra_events:
-            events.extend(extra_events)
-        score = compute_runtime_safety_score(inputs_from_recent_activity_events(events))
+        # The accepted contract freezes recency before admission, not after an
+        # archive read. Neither explicit [] nor a failed read may use the cache.
+        evaluated_at = now_utc()
+        remaining_seconds = 60.0 - self._safety_read_seconds
+        remaining_bytes = 4 * 1024**3 - self._safety_read_bytes
+        if remaining_seconds <= 0 or remaining_bytes <= 0:
+            raise SafetyReadUnavailable("safety_cycle_budget_exhausted")
+        if self._safety_input_service is None:
+            self._safety_input_service = get_safety_read_service()
+        started = time.monotonic()
+        charged_bytes = 0
+        charged_seconds = 0.0
+        try:
+            result = await self._safety_input_service.evaluate(
+                self.activity_log,
+                extra_events,
+                now=evaluated_at,
+                max_seconds=min(30.0, remaining_seconds),
+                max_bytes=min(2 * 1024**3, remaining_bytes),
+            )
+            charged_bytes = result.bytes_read
+            charged_seconds = result.elapsed_seconds
+        except SafetyReadUnavailable as exc:
+            charged_bytes = exc.bytes_read
+            charged_seconds = exc.elapsed_seconds
+            raise
+        except asyncio.CancelledError:
+            # A kernel read may still unwind in the quarantined worker. Reserve
+            # its admitted byte allowance; cancellation never resumes proposals.
+            charged_bytes = min(2 * 1024**3, remaining_bytes)
+            raise
+        finally:
+            self._safety_read_seconds += max(
+                charged_seconds, time.monotonic() - started
+            )
+            self._safety_read_bytes += charged_bytes
+        score = result.score
         if extra_events is None:
             self._runtime_safety_score_cache = score
+            self._runtime_safety_evaluated_at = result.evaluated_at
         return score
 
     # ------------------------------------------------------------------
@@ -935,6 +976,9 @@ class TradingEngine:
         self._strategy_lookup_cache = None
         self._runtime_policy_cache = {}
         self._runtime_safety_score_cache = None
+        self._runtime_safety_evaluated_at = None
+        self._safety_read_seconds = 0.0
+        self._safety_read_bytes = 0
         self._htf_trend_cache = {}
         self._accepted_family_signals = {}
         self._market_regime_cache = {}
@@ -993,9 +1037,17 @@ class TradingEngine:
 
                 proposals = await self._scan(cycle_id, result, sub_account, exchange)
                 for proposal in proposals:
-                    await self._handle_proposal(
-                        proposal, cycle_id, result, sub_account, trader, exchange
-                    )
+                    try:
+                        await self._handle_proposal(
+                            proposal, cycle_id, result, sub_account, trader, exchange
+                        )
+                    except SafetyReadUnavailable as exc:
+                        self._record_safety_input_failure(
+                            exc.reason, sub_account_id, cycle_id, result
+                        )
+                        # Stop only this account's remaining risk proposals.
+                        # Its normal monitor/snapshot below must still run once.
+                        break
 
                 await self._position_monitor.monitor(
                     cycle_id, result, sub_account, trader, exchange
@@ -1046,6 +1098,36 @@ class TradingEngine:
             cycle_id=cycle_id,
         )
         return result
+
+    def _record_safety_input_failure(
+        self,
+        reason: str,
+        sub_account_id: str,
+        cycle_id: str,
+        result: CycleResult,
+    ) -> None:
+        """Retain a stable error without retaining worker/source traceback frames."""
+        detail = f"runtime_safety_unavailable:{reason}"
+        logger.warning("Sub-account safety inputs unavailable: %s", reason)
+        self.activity_log.append(
+            ActivityEventType.CYCLE_ERRORED,
+            f"Sub-account {sub_account_id} safety inputs unavailable: {reason}",
+            details={
+                "sub_account_id": sub_account_id,
+                "error_type": "SafetyReadUnavailable",
+                "error_message": detail,
+            },
+            cycle_id=cycle_id,
+        )
+        result.errors.append(
+            EngineError(
+                category=ErrorCategory.SUB_ACCOUNT,
+                symbol=None,
+                detail=f"sub_account[{sub_account_id}]:{detail}",
+                # Never store the raised exception (and its retained frame graph).
+                exception=SafetyReadUnavailable(reason),
+            )
+        )
 
     def _derivatives_symbols(self, sub_accounts: list[SubAccount | None]) -> list[str]:
         """Stable union of every active account's configured scan symbols."""
@@ -1256,7 +1338,7 @@ class TradingEngine:
             self._reject_operator_freeze(proposal, cycle_id, result, events)
             return
 
-        safety_score = self._current_runtime_safety_score(
+        safety_score = await self._current_runtime_safety_score(
             [event.to_activity_event() for event in events]
         )
 
@@ -1467,7 +1549,7 @@ class TradingEngine:
                 )
                 return
 
-            post_incident_safety_score = self._current_runtime_safety_score(
+            post_incident_safety_score = await self._current_runtime_safety_score(
                 [event.to_activity_event() for event in events]
             )
             pause_rejection = self._runtime_safety_pause_gate(

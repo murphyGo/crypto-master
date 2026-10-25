@@ -1,10 +1,11 @@
 # NFR Design Candidate: Streaming Runtime Safety Inputs
 
-**Status:** Prepared for explicit review; not approved or implemented.
-Base streaming/request-time Functional contract is approved for continuation.
+**Status:** Approved for runtime-first implementation by user `진행시켜` on
+2026-10-26 KST, following the concrete review link and runtime-first recommendation.
 The [failure-isolation amendment](../../functional-design/streaming-activity-inputs/failure-isolation-amendment.md)
-and this numerical/resource design require explicit approval together.
-Existing v62/source `d86f76f`, paper/Codex, allocation and canonical data remain.
+is included. Implementation/verification is tracked in the code-generation plan.
+Current runtime is v63/source `f0f3e52`; paper/Codex, allocation and canonical data
+remain. Original v62 observations below are the design baseline.
 
 ## 1. Scope and immutable semantics
 

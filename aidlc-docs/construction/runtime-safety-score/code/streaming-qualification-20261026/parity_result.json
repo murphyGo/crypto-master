@@ -1,0 +1,20 @@
+{
+  "mode": "parity",
+  "cases": 184,
+  "fixed_rows": 2396,
+  "guards": [
+    {
+      "case": "key_limit",
+      "reason": "safety_key_limit"
+    },
+    {
+      "case": "state_limit",
+      "reason": "safety_state_limit"
+    },
+    {
+      "case": "unsupported",
+      "reason": "safety_key_unsupported"
+    }
+  ],
+  "status": "PASS"
+}

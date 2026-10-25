@@ -1,0 +1,23 @@
+{
+  "mode": "reducer_million",
+  "n": 1000000,
+  "seconds": 10.407274500001222,
+  "oracle_seconds": 0.8421594160608947,
+  "maxrss_before_bytes": 150388736,
+  "maxrss_after_bytes": 150634496,
+  "state_bytes": 4455,
+  "distinct_keys": 1,
+  "peak_sampled_live_events": 1,
+  "inputs": {
+    "recent_cycle_errors": 62500,
+    "recent_notification_failures": 62500,
+    "recent_llm_timeouts": 62500,
+    "stale_quote_warnings": 62500,
+    "correlation_warnings": 62500,
+    "liquidation_events": 62500,
+    "cold_start_blocks": 62500,
+    "kill_switch_conditions": 1,
+    "open_drawdown_percent": 0.0
+  },
+  "status": "PASS"
+}

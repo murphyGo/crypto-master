@@ -940,6 +940,7 @@ class TestRunSubAccountWiring:
                 patch("src.main.SubAccountRegistry") as MockRegistry,
                 patch("src.main.build_trader"),
                 patch("src.main.ActivityLog"),
+                patch("src.main.shutdown_shared_safety_read_service") as mock_shutdown,
             ):
                 mock_migrate.return_value = {
                     "trades": 0,
@@ -960,6 +961,7 @@ class TestRunSubAccountWiring:
                 from src.main import run
 
                 asyncio.run(run())
+                mock_shutdown.assert_called_once_with()
 
                 # Called exactly once with the settings.data_dir.
                 mock_migrate.assert_called_once()
@@ -995,6 +997,7 @@ class TestRunSubAccountWiring:
                 patch("src.main.SubAccountRegistry") as MockRegistry,
                 patch("src.main.build_trader") as mock_build_trader,
                 patch("src.main.ActivityLog"),
+                patch("src.main.shutdown_shared_safety_read_service") as mock_shutdown,
             ):
                 mock_migrate.return_value = {
                     "trades": 0,
@@ -1021,6 +1024,7 @@ class TestRunSubAccountWiring:
                 from src.main import run
 
                 asyncio.run(run())
+                mock_shutdown.assert_called_once_with()
 
                 # Registry was constructed with the trader.
                 MockRegistry.assert_called_once()

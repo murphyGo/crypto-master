@@ -1,8 +1,9 @@
 # Proposed Amendment: Safety Read Failure Isolation
 
-**Status:** New functional delta proposed during NFR review; not implemented or
-covered by the earlier base streaming/time approval. Approve with the concrete
-NFR candidate before Code Generation.
+**Status:** Approved with the concrete runtime NFR candidate by user `진행시켜`
+on 2026-10-26 KST, after the runtime-first recommendation and linked review.
+This explicit continuation covers the amendment beyond the earlier base design.
+Implementation and negative-execution verification are tracked separately.
 
 ## Verified current flow
 

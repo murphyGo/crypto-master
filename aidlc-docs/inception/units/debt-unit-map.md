@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | v62 / `d86f76f`: 2823 tests, 175 hashes/health/cycles pass. Final 4-session run records 276/280 complete views and four 30s timeouts; guest peak 1293.313 MiB fails 768. Cold/native/depleted/1 GiB remain open. Base Functional Designs approved; two NFR designs and typed safety-failure monitoring amendment await review. Current capacity/cost gate retained. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Production v63 / `f0f3e52`, 177 hashes and health checked. Runtime NFR and typed-failure monitoring amendment approved 2026-10-26; bounded source implementation passes 3,008 tests and independent review, rollout pending. Dashboard checkpoint remains the separate next step. Original cold/native/depleted/concurrency/1 GiB guest targets remain open; capacity/cost deferral retained. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | v62 / `d86f76f`, 2823 tests, 175 hashes/health/cycles pass. Four 30s views and 1293.313 MiB guest peak fail final qualification. Engine full-history safety input and pause consumer traced; base checkpoint/streaming-time Functional Designs approved. Concrete NFR candidates and monitoring-isolation amendment pending review. Native/depleted/1 GiB and cold goals remain open; cost upgrade stays deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Runtime streaming and explicit failure-isolation amendment approved 2026-10-26; source implementation/compatibility and archived 229,677-row/million-row parity pass with 3,008 tests. Authorized same-capacity rollout pending. Production remains v63 / `f0f3e52`. Prior failed readiness/guest evidence remains; dashboard checkpoints, native/depleted/declared 1 GiB acceptance and deferred CPU/cost are separate. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

@@ -1,0 +1,120 @@
+{
+  "mode": "source_compat",
+  "cases": [
+    {
+      "case": "LF",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "CRLF",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "CR",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "no_final_newline",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "unicode_strip_blanks",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "mixed_skip",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 16,
+        "json_skips": 1,
+        "model_skips": 1,
+        "files_read": 1,
+        "manifest_bytes": 4304,
+        "state_bytes": 4495,
+        "distinct_keys": 1
+      }
+    },
+    {
+      "case": "CRLF_7byte_block_boundaries",
+      "status": "PASS"
+    },
+    {
+      "case": "raw_enum_duplicate_extras",
+      "status": "PASS"
+    },
+    {
+      "case": "nonobject",
+      "status": "PASS",
+      "reason": "safety_nonobject_row"
+    },
+    {
+      "case": "invalid_utf8",
+      "status": "PASS",
+      "reason": "safety_invalid_utf8"
+    },
+    {
+      "case": "oversized_row",
+      "status": "PASS",
+      "reason": "safety_row_limit"
+    },
+    {
+      "case": "legacy_plus_newest_two_archives",
+      "status": "PASS",
+      "diagnostics": {
+        "rows_decoded": 3,
+        "json_skips": 0,
+        "model_skips": 0,
+        "files_read": 3,
+        "manifest_bytes": 11120,
+        "state_bytes": 4136,
+        "distinct_keys": 0
+      }
+    }
+  ],
+  "status": "PASS"
+}

@@ -13,16 +13,36 @@ Related Requirements:
 
 from __future__ import annotations
 
+import sys
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
 from src.runtime.activity_events import ActivityEvent, ActivityEventType
+from src.runtime.gate_reason import GateReason
 from src.utils.time import ensure_utc, now_utc
 
 DEFAULT_RECENT_LOOKBACK_HOURS = 24
+DEFAULT_MAX_SAFETY_KEYS = 50_000
+DEFAULT_MAX_SAFETY_STATE_BYTES = 16 * 1024 * 1024
+
+# Includes the accumulator, fixed counters, empty set and one working tuple.
+# Each retained key also reserves set-table capacity (including resize overlap)
+# independently of its tuple/scalar charge. These are conservative ownership
+# charges, not a claim about process RSS or interpreter allocator behavior.
+_BASE_STATE_CHARGE = 4096
+_SET_ENTRY_RESERVE = 160
+_SCALAR_KEY_TYPES = (type(None), bool, int, float, str, GateReason, ActivityEventType)
+_EVENT_COUNTERS = {
+    ActivityEventType.CYCLE_ERRORED.value: "recent_cycle_errors",
+    ActivityEventType.NOTIFICATION_FAILED.value: "recent_notification_failures",
+    ActivityEventType.LLM_TIMEOUT.value: "recent_llm_timeouts",
+    ActivityEventType.CORRELATION_WARNING.value: "correlation_warnings",
+    ActivityEventType.LIQUIDATED.value: "liquidation_events",
+    ActivityEventType.COLD_START_BLOCKED.value: "cold_start_blocks",
+}
 
 # Default for an absent ``sub_account_id`` — a portfolio-level gate that drops
 # the proposer account collapses to one shared bucket. Centralized here so the
@@ -59,9 +79,9 @@ def event_cycle_id(event: ActivityEvent) -> str | None:
 
     The engine reliably sets the top-level ``cycle_id`` on both the
     paper-advisory and live hard-block branches; we fall back to
-    ``details["cycle_id"]`` for robustness, matching the historical
-    ``event.cycle_id`` ``or`` ``details.get("cycle_id")`` order (default
-    ``None``).
+    ``details["cycle_id"]`` only when that field is ``None``. An empty
+    top-level cycle id remains a distinct identity, matching the historical
+    deduplication behavior.
     """
     cycle_id = event.cycle_id
     if cycle_id is None:
@@ -161,30 +181,207 @@ def format_runtime_safety_summary(score: RuntimeSafetyScore) -> str:
     return f"runtime_safety: {score.score}/100 {score.band.value}"
 
 
+class SafetyAggregationError(RuntimeError):
+    """Incomplete safety input aggregation, exposing only a stable reason."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+class _ActivityAccumulator:
+    """Shared one-pass reduction with the public helpers' legacy key semantics.
+
+    Dashboard and compatibility helpers historically accepted any hashable
+    condition and imposed no cardinality cap. Runtime reads use the bounded
+    subclass below; this private reducer provides no runtime limit switch.
+    """
+
+    def __init__(
+        self,
+        *,
+        lookback_hours: int | None = None,
+        now: datetime | None = None,
+        open_drawdown_percent: float = 0.0,
+    ) -> None:
+        self._conditions: set[tuple[object, object, object]] = set()
+        self._counts = dict.fromkeys(_EVENT_COUNTERS.values(), 0)
+        self._counts["stale_quote_warnings"] = 0
+        self._open_drawdown_percent = open_drawdown_percent
+        self._cutoff = (
+            ensure_utc(now or now_utc()) - timedelta(hours=lookback_hours)
+            if lookback_hours is not None and lookback_hours > 0
+            else None
+        )
+
+    def _check_available(self) -> None:
+        pass
+
+    def _increment(self, field: str) -> None:
+        self._counts[field] += 1
+
+    def _retain_condition(self, condition: tuple[object, object, object]) -> None:
+        self._conditions.add(condition)
+
+    def add(self, event: ActivityEvent) -> None:
+        self._check_available()
+        if self._cutoff is not None and ensure_utc(event.timestamp) < self._cutoff:
+            return
+        field = _EVENT_COUNTERS.get(event.event_type)
+        if field is not None:
+            self._increment(field)
+        if _is_stale_quote(event):
+            self._increment("stale_quote_warnings")
+        if (
+            event.event_type != ActivityEventType.RISK_KILL_SWITCH_TRIPPED.value
+            or event_advisory(event)
+        ):
+            return
+        self._retain_condition(
+            (
+                event_cycle_id(event),
+                event_gate_reason(event),
+                event_sub_account_id(event),
+            )
+        )
+
+    def finish(self) -> RuntimeSafetyInputs:
+        """Return an independent input value without exposing retained keys."""
+        self._check_available()
+        return RuntimeSafetyInputs(
+            **self._counts,
+            kill_switch_conditions=len(self._conditions),
+            open_drawdown_percent=self._open_drawdown_percent,
+        )
+
+
+class SafetyAccumulator(_ActivityAccumulator):
+    """Bounded exact reduction of one canonical event at a time.
+
+    Only counters and the distinct live kill-condition tuples are retained.
+    Raw scalar identities/equality are preserved: in particular, ``True``,
+    ``1`` and ``1.0`` compare equal, and a shared NaN object is not serialized
+    or replaced. Unsupported key objects fail explicitly rather than being
+    normalized into a different safety condition.
+
+    The caller owns source iteration and extra-event lifetimes. Charge its
+    bounded extra container/objects with ``reserved_extra_bytes`` or reserve
+    additional bytes *before* retaining them. Once aggregation fails, neither
+    further input nor ``finish`` can publish partial inputs.
+    """
+
+    def __init__(
+        self,
+        *,
+        lookback_hours: int | None = None,
+        now: datetime | None = None,
+        open_drawdown_percent: float = 0.0,
+        max_distinct_keys: int = DEFAULT_MAX_SAFETY_KEYS,
+        max_state_bytes: int = DEFAULT_MAX_SAFETY_STATE_BYTES,
+        reserved_extra_bytes: int = 0,
+    ) -> None:
+        self._failure_reason: str | None = None
+        self._max_distinct_keys = max_distinct_keys
+        self._max_state_bytes = max_state_bytes
+        self._state_bytes = _BASE_STATE_CHARGE
+        super().__init__(
+            lookback_hours=lookback_hours,
+            now=now,
+            open_drawdown_percent=open_drawdown_percent,
+        )
+        if (
+            type(max_distinct_keys) is not int
+            or not 0 <= max_distinct_keys <= DEFAULT_MAX_SAFETY_KEYS
+        ):
+            self._fail("safety_key_limit")
+        if (
+            type(max_state_bytes) is not int
+            or not self._state_bytes
+            <= max_state_bytes
+            <= DEFAULT_MAX_SAFETY_STATE_BYTES
+        ):
+            self._fail("safety_state_limit")
+        self.reserve_extra_bytes(reserved_extra_bytes)
+
+    @property
+    def state_bytes(self) -> int:
+        """Conservative charge of retained reducer state and reserved extras."""
+        return self._state_bytes
+
+    @property
+    def distinct_keys(self) -> int:
+        return len(self._conditions)
+
+    def _fail(self, reason: str) -> None:
+        self._failure_reason = reason
+        raise SafetyAggregationError(reason)
+
+    def _check_available(self) -> None:
+        if self._failure_reason is not None:
+            raise SafetyAggregationError(self._failure_reason)
+
+    def reserve_extra_bytes(self, additional_bytes: int) -> None:
+        """Reserve owned input/state bytes before retaining that ownership."""
+        self._check_available()
+        if type(additional_bytes) is not int or additional_bytes < 0:
+            self._fail("safety_state_unsupported")
+        if additional_bytes > self._max_state_bytes - self._state_bytes:
+            self._fail("safety_state_limit")
+        self._state_bytes += additional_bytes
+
+    def _increment(self, field: str) -> None:
+        previous = self._counts[field]
+        updated = previous + 1
+        # Counters are exact even after a score penalty saturates. Account
+        # for Python integer growth instead of treating arbitrary counts as
+        # permanently fixed-size storage.
+        growth = sys.getsizeof(updated) - sys.getsizeof(previous)
+        if growth > 0:
+            self.reserve_extra_bytes(growth)
+        self._counts[field] = updated
+
+    def _retain_condition(self, condition: tuple[object, object, object]) -> None:
+        # Validate before hashing/comparison; arbitrary hashable objects may
+        # own unbounded graphs or override equality. Do not coerce their values.
+        if any(type(value) not in _SCALAR_KEY_TYPES for value in condition):
+            self._fail("safety_key_unsupported")
+        if condition in self._conditions:
+            return
+        if len(self._conditions) >= self._max_distinct_keys:
+            self._fail("safety_key_limit")
+        charge = (
+            _SET_ENTRY_RESERVE
+            + sys.getsizeof(condition)
+            + sum(sys.getsizeof(value) for value in condition)
+        )
+        for value in condition:
+            if isinstance(value, (GateReason, ActivityEventType)):
+                # Canonical enum singletons may arrive as raw replay extras.
+                # Keep the object (and its string equality) unchanged; charge
+                # its small owned metadata in addition to the scalar body.
+                charge += (
+                    sys.getsizeof(value.__dict__)
+                    + sys.getsizeof(value.name)
+                    + sys.getsizeof(value.value)
+                )
+        self.reserve_extra_bytes(charge)
+        self._conditions.add(condition)
+
+
 def inputs_from_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     open_drawdown_percent: float = 0.0,
 ) -> RuntimeSafetyInputs:
-    """Aggregate safety inputs from runtime activity events."""
-    return RuntimeSafetyInputs(
-        recent_cycle_errors=_count(events, ActivityEventType.CYCLE_ERRORED),
-        recent_notification_failures=_count(
-            events,
-            ActivityEventType.NOTIFICATION_FAILED,
-        ),
-        recent_llm_timeouts=_count(events, ActivityEventType.LLM_TIMEOUT),
-        stale_quote_warnings=sum(1 for event in events if _is_stale_quote(event)),
-        correlation_warnings=_count(events, ActivityEventType.CORRELATION_WARNING),
-        liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
-        cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
-        kill_switch_conditions=_count_kill_switch_conditions(events),
-        open_drawdown_percent=open_drawdown_percent,
-    )
+    """Reduce once, retaining the legacy helper's uncapped hashable-key contract."""
+    accumulator = _ActivityAccumulator(open_drawdown_percent=open_drawdown_percent)
+    for event in events:
+        accumulator.add(event)
+    return accumulator.finish()
 
 
 def recent_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
     now: datetime | None = None,
@@ -197,17 +394,21 @@ def recent_activity_events(
 
 
 def inputs_from_recent_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
     now: datetime | None = None,
     open_drawdown_percent: float = 0.0,
 ) -> RuntimeSafetyInputs:
     """Aggregate safety inputs from only recent runtime activity events."""
-    return inputs_from_activity_events(
-        recent_activity_events(events, lookback_hours=lookback_hours, now=now),
+    accumulator = _ActivityAccumulator(
+        lookback_hours=lookback_hours,
+        now=now,
         open_drawdown_percent=open_drawdown_percent,
     )
+    for event in events:
+        accumulator.add(event)
+    return accumulator.finish()
 
 
 def compute_runtime_safety_score(
@@ -286,50 +487,6 @@ def compute_runtime_safety_score(
     )
 
 
-def _count(events: list[ActivityEvent], event_type: ActivityEventType) -> int:
-    return sum(1 for event in events if event.event_type == event_type.value)
-
-
-def _count_kill_switch_conditions(events: list[ActivityEvent]) -> int:
-    """Count distinct LIVE kill-switch conditions in ``events``.
-
-    DEBT-068(h): kill-switch trips are persistent portfolio-condition
-    gates that should pull the runtime safety score toward DEGRADED. A
-    single tripped condition can fire on every proposal in a cycle, so
-    raw event counts overstate severity. We instead count DISTINCT
-    ``(cycle_id, gate_reason, sub_account_id)`` tuples — one trip of a
-    given gate, in a given cycle, on a given account, counts once.
-
-    Paper advisories (``details.advisory`` truthy) are EXCLUDED: the
-    score measures live money-safety health, and paper-mode kill
-    switches are advisory-only (the proposal still proceeds). The
-    ``cycle_id`` is read from the event's top-level field (where the
-    engine reliably sets it on both the paper-advisory and live
-    hard-block branches), falling back to ``details`` for robustness.
-    Missing/None ``sub_account_id`` normalizes to ``"__global__"`` so a
-    portfolio-level gate counts once per cycle. The portfolio/global
-    gates (``portfolio_kill_switch`` / ``portfolio_daily_loss_kill_switch``)
-    drop the proposer ``sub_account_id`` at emit time (DEBT-068(h)), so a
-    single global trip that fires across N proposers in one cycle collapses
-    to ONE condition here instead of N. Account-level gates carry a stable
-    real account id and so still count per-account.
-    """
-    conditions: set[tuple[str | None, Any, str]] = set()
-    for event in events:
-        if event.event_type != ActivityEventType.RISK_KILL_SWITCH_TRIPPED.value:
-            continue
-        if event_advisory(event):
-            continue
-        conditions.add(
-            (
-                event_cycle_id(event),
-                event_gate_reason(event),
-                event_sub_account_id(event),
-            )
-        )
-    return len(conditions)
-
-
 def _is_stale_quote(event: ActivityEvent) -> bool:
     reason = event_reason(event)
     return "stale_quote" in reason or "stale-quote" in event.message
@@ -348,11 +505,15 @@ def _apply_penalty(
 
 
 __all__ = [
+    "DEFAULT_MAX_SAFETY_KEYS",
+    "DEFAULT_MAX_SAFETY_STATE_BYTES",
     "GLOBAL_SUB_ACCOUNT_SENTINEL",
     "RuntimeSafetyBand",
     "RuntimeSafetyInputs",
     "RuntimeSafetyPolicy",
     "RuntimeSafetyScore",
+    "SafetyAccumulator",
+    "SafetyAggregationError",
     "compute_runtime_safety_score",
     "event_advisory",
     "event_cycle_id",

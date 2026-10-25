@@ -2591,23 +2591,29 @@ def test_runtime_policy_for_id_is_cached_per_cycle(tmp_path: Path) -> None:
     assert calls == 1
 
 
-def test_runtime_safety_score_is_cached_per_cycle(tmp_path: Path) -> None:
+async def test_runtime_safety_score_is_cached_per_cycle(tmp_path: Path) -> None:
+    from src.runtime.safety_inputs import SafetyReadService
+
     engine, mocks = build_engine(tmp_path=tmp_path)
-    calls = 0
-    original = mocks["activity_log"].read_all
-
-    def counted_read_all() -> list[object]:
-        nonlocal calls
-        calls += 1
-        return original()
-
-    mocks["activity_log"].read_all = counted_read_all
-
-    first = engine._current_runtime_safety_score()
-    second = engine._current_runtime_safety_score()
-
-    assert first is second
-    assert calls == 1
+    service = SafetyReadService()
+    engine._safety_input_service = service
+    mocks["activity_log"].read_all = MagicMock(
+        side_effect=AssertionError("runtime must not materialize archive")
+    )
+    try:
+        first = await engine._current_runtime_safety_score()
+        captured_at = engine._runtime_safety_evaluated_at
+        mocks["activity_log"].append(ActivityEventType.CYCLE_ERRORED)
+        second = await engine._current_runtime_safety_score()
+        assert first is second
+        assert engine._runtime_safety_evaluated_at == captured_at
+        fresh = await engine._current_runtime_safety_score([])
+        assert fresh.inputs.recent_cycle_errors == 1
+        assert first.inputs.recent_cycle_errors == 0
+        assert engine._runtime_safety_evaluated_at == captured_at
+        mocks["activity_log"].read_all.assert_not_called()
+    finally:
+        service.close()
 
 
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:

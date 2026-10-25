@@ -1,0 +1,25 @@
+{
+  "git_sha": "4b714fdc4c4da8d76be79000dc3b385a0c5cb6a1",
+  "files": [
+    {
+      "source": "src/runtime/safety_score.py",
+      "saved": "/private/tmp/crypto-master-safety-quant-20261026/old_safety_score.py",
+      "sha256": "89bd5f987150e2287ab1570f1891f71ac5ab06a2f280109494875154e34629fe"
+    },
+    {
+      "source": "src/runtime/engine.py",
+      "saved": "/private/tmp/crypto-master-safety-quant-20261026/old_engine.py",
+      "sha256": "7d57124df86c1503b8a06fbaa19263ba151a6232bd9ce454004d7a22db5bb054"
+    },
+    {
+      "source": "src/runtime/activity_log.py",
+      "saved": "/private/tmp/crypto-master-safety-quant-20261026/old_activity_log.py",
+      "sha256": "5fe11c84b12b41aaf1c19631c955e3cdd0807a618816dbe25a25c4e4c2274ea2"
+    },
+    {
+      "source": "src/runtime/activity_events.py",
+      "saved": "/private/tmp/crypto-master-safety-quant-20261026/old_activity_events.py",
+      "sha256": "3675866246839b35801a308b1955db7befc1072a8f566bcd098f10deded6289e"
+    }
+  ]
+}

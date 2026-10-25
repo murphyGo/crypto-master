@@ -1,0 +1,30 @@
+{
+  "mode": "legacy_compat",
+  "hashable_shape_inputs": {
+    "recent_cycle_errors": 0,
+    "recent_notification_failures": 0,
+    "recent_llm_timeouts": 0,
+    "stale_quote_warnings": 0,
+    "correlation_warnings": 0,
+    "liquidation_events": 0,
+    "cold_start_blocks": 0,
+    "kill_switch_conditions": 6,
+    "open_drawdown_percent": 0.0
+  },
+  "unhashable_still_TypeError": [
+    "cycle_id:list",
+    "cycle_id:dict",
+    "gate_reason:list",
+    "gate_reason:dict",
+    "sub_account_id:list",
+    "sub_account_id:dict"
+  ],
+  "unbounded_helper_distinct_keys": 50001,
+  "runtime_guard_unchanged": {
+    "reason": "safety_state_limit",
+    "failed_input_index": 47413,
+    "retained_keys": 47413,
+    "state_bytes": 16777188
+  },
+  "status": "PASS"
+}

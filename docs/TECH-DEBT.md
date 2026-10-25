@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; v62 (`d86f76f`) deployed with 2823 tests, 175 hashes/health/engine cycles verified. Final buffered-CPU four-session run records 276/280 complete views, four 30s timeouts; guest 1293.313 MiB exceeds 768. First Home 12.180s exceeds 5s. Engine full-history safety input allocation traced; checkpoint and safety-time/streaming Functional Designs await approval. Native/depleted/original guest targets remain open. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
+| **Status** | Critical/active. Production remains v63 (`f0f3e52`), 177 runtime hashes and health verified. Runtime streaming NFR and typed-failure monitoring amendment approved 2026-10-26; source implementation passes 3,008 tests, independent compatibility review and quality checks. Authorized rollout pending. Archived 229,677-row and million-row fixed-time parity pass locally. Dashboard checkpoint is separate; cold/native/depleted/four-session/original 1 GiB guest acceptance stays open. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -239,6 +239,25 @@ Critical/active; native/depleted/declared-guest/cold qualification remains open.
 Current v62/shared CPU1/2048 MiB/original volume/paper-Codex and CPU/cost deferral
 remain. See `aidlc-docs/construction/plans/dashboard-runtime-read-followup-nfr-review.md`
 and `docs/sessions/2026-10-25-dashboard-runtime-read-nfr-design.md`.
+
+**2026-10-26 runtime source-stage follow-up:** User `진행시켜` approves the
+concrete runtime NFR and explicit failure-isolation amendment. The bounded
+runtime reader/reducer and both engine score sites are implemented with
+request-time UTC, exact fixed-time safety math and one shared worker. Typed
+unavailable input stops remaining account proposals while preserving one normal
+monitor/snapshot pass, including existing protective stops. Source, lifecycle,
+compatibility and quality checks pass; final full regression is 3,008 passed in
+61.62s. Authorized rollout remains pending; this is not deployment or
+debt closure. Production is v63 / `f0f3e52`, with 177 hashes and health checked.
+Read-only archived v62 evidence has 229,677 rows / 95,961,644 bytes across seven
+files, exact score 70/degraded with 57 correlation warnings, and unchanged hashes.
+The final million-row local source also matches exactly in 7.451s with 4,495-byte state
+and 4,448-byte manifest. Local process high-water RSS 149.77 MiB is not reader growth
+or original guest qualification. Dashboard checkpoint work is the separate next
+bounded step; all failed readiness/native/depleted/declared-guest targets and
+CPU/cost deferral remain. See
+`docs/sessions/2026-10-26-runtime-safety-streaming.md`, its cross-check, and
+`aidlc-docs/construction/plans/runtime-safety-score-streaming-activity-code-generation-plan.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

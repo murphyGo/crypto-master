@@ -1,12 +1,16 @@
 # Dashboard and Runtime Read Follow-up: Concrete Review
 
-**Status:** Two NFR candidates and one newly identified functional amendment are
-ready for explicit review. Base Functional Designs were approved by operator
-`나머지도 계속 진행해줘`; no new implementation or runtime activation occurs here.
+**Status:** Base Functional Designs were approved by operator
+`나머지도 계속 진행해줘`. On 2026-10-26, user `진행시켜` approved the concrete
+runtime NFR and explicit failure-isolation amendment after the runtime-first
+recommendation. That runtime slice passes 3,008 tests, source-quality checks and
+independent review; rollout remains pending. The dashboard checkpoint candidate
+remains a separate next bounded step. Track the runtime slice in its
+[implementation plan](runtime-safety-score-streaming-activity-code-generation-plan.md).
 
-## Choices requiring approval
+## Reviewed choices and subsequent implementation boundary
 
-| Area | Concrete proposed choice |
+| Area | Concrete design choice |
 |---|---|
 | Runtime failure isolation | On typed unavailable safety inputs, record the existing account error and stop remaining risk proposals for that account, but run its existing position monitor/snapshot once. This restores protective work the old broad guard skipped. No new order/rejection/fill/duplicate notification is invented. |
 | Runtime worker | One process-owned lazy daemon worker, one active/zero queued jobs. Timeout/quarantine never creates another worker; no event-loop disk IO. |
@@ -26,7 +30,9 @@ ready for explicit review. Base Functional Designs were approved by operator
 - [Runtime NFR patterns](../runtime-safety-score/nfr-design/streaming-activity-inputs/nfr-design-patterns.md) and [components](../runtime-safety-score/nfr-design/streaming-activity-inputs/logical-components.md)
 - [Dashboard NFR patterns](../dashboard-operator-ui/nfr-design/verified-segment-checkpoints/nfr-design-patterns.md) and [components](../dashboard-operator-ui/nfr-design/verified-segment-checkpoints/logical-components.md)
 
-After explicit approval, implement/independently test the runtime memory slice
-first, then the dashboard checkpoint slice, followed by the previously authorized
-same-capacity exact-source rollout. Any additional Fly/mount/process/credential
-change reopens infrastructure review. No stage approval is inferred for that.
+The explicit continuation now authorizes implementation/independent testing of
+the runtime memory slice first, with the previously authorized same-capacity
+exact-source rollout after source verification. Dashboard checkpoints remain the
+next separate bounded step; their activation is not claimed by this runtime
+source checkpoint. Any additional Fly/mount/process/credential change reopens
+infrastructure review. No stage approval is inferred for such a change.

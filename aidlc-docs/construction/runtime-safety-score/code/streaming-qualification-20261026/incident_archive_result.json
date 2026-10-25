@@ -1,0 +1,77 @@
+{
+  "mode": "incident_archive",
+  "label": "Read-only archived Fly v62 snapshot, not current production",
+  "baseline_source_commit": "4b714fdc4c4da8d76be79000dc3b385a0c5cb6a1",
+  "evaluated_at": "2026-10-25T10:50:02+00:00",
+  "retention_months": 12,
+  "files": [
+    {
+      "name": "activity.2026-04.jsonl",
+      "bytes": 697885,
+      "sha256": "01a641498367e94845db8d54453d8988fbe4e15aafc24335b276e0359ce9f46d"
+    },
+    {
+      "name": "activity.2026-05.jsonl",
+      "bytes": 32565913,
+      "sha256": "1f1fec8d772cf5abe846c0b7e151cd5dddabdad81c53e373c00caaa493db26f5"
+    },
+    {
+      "name": "activity.2026-06.jsonl",
+      "bytes": 20539330,
+      "sha256": "1b06a3f0619018ca8dee0c6f051b224d4e08bad94f10d5fb64e54a7e2823a196"
+    },
+    {
+      "name": "activity.2026-07.jsonl",
+      "bytes": 11889501,
+      "sha256": "fdd4c44ff68de4e5e1783892e61272dafbe7464ac935a2eb58a38c21dde48a9b"
+    },
+    {
+      "name": "activity.2026-08.jsonl",
+      "bytes": 11683240,
+      "sha256": "8deb473aabafe2454183de2af571ccf74bbc22d8f3da2f7dfd4077f660166658"
+    },
+    {
+      "name": "activity.2026-09.jsonl",
+      "bytes": 11132814,
+      "sha256": "791b730b0bba72cff6ed6f6204f913662a2f34a8c67a061eb99fa1f967f7c7cc"
+    },
+    {
+      "name": "activity.2026-10.jsonl",
+      "bytes": 7452961,
+      "sha256": "75efd7e861c73466facab3d4d92a5dee1c54abf3c433384aa568c55c11435370"
+    }
+  ],
+  "hashes_unchanged": true,
+  "prior_rows": 229677,
+  "prior_seconds": 2.7849724589614198,
+  "current_seconds": 1.6630105830263346,
+  "bytes_read": 95961644,
+  "diagnostics": {
+    "rows_decoded": 229677,
+    "json_skips": 0,
+    "model_skips": 0,
+    "files_read": 7,
+    "manifest_bytes": 26672,
+    "state_bytes": 4136,
+    "distinct_keys": 0
+  },
+  "score": {
+    "score": 70,
+    "band": "degraded",
+    "inputs": {
+      "recent_cycle_errors": 0,
+      "recent_notification_failures": 0,
+      "recent_llm_timeouts": 0,
+      "stale_quote_warnings": 0,
+      "correlation_warnings": 57,
+      "liquidation_events": 0,
+      "cold_start_blocks": 0,
+      "kill_switch_conditions": 0,
+      "open_drawdown_percent": 0.0
+    },
+    "factors": [
+      "correlation warnings=57 (-30)"
+    ]
+  },
+  "status": "PASS"
+}

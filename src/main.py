@@ -51,6 +51,7 @@ from src.proposal.notification import (
 from src.runtime.activity_log import ActivityLog
 from src.runtime.derivatives_context import DerivativesContextService
 from src.runtime.engine import EngineConfig, TradingEngine
+from src.runtime.safety_inputs import shutdown_shared_safety_read_service
 from src.strategy.loader import load_all_strategies
 from src.strategy.performance import PerformanceTracker
 from src.trading.base import Trader
@@ -570,6 +571,9 @@ async def run() -> None:
     try:
         await engine.run_forever()
     finally:
+        # Process-owned daemon: cancel cooperatively without blocking shutdown
+        # on a stuck filesystem syscall or constructing a replacement worker.
+        shutdown_shared_safety_read_service()
         await registry.disconnect_owned_exchanges()
         await exchange.disconnect()
 
