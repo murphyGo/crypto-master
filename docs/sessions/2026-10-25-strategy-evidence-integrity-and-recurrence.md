@@ -135,7 +135,8 @@ by changing code.
    unrelated UI work. Never tune repeatedly against the same selection window.
 6. Operational qualification is separate: verify deployed source SHA and compare
    new proposals' sample counts to actual prior same-account/version closes.
-   This turn has no deployment authorization and makes no production-fix claim.
+   That original source-only checkpoint had no deployment authorization and made
+   no production-fix claim; the subsequent authorized rollout is recorded below.
 
 ## Review and verification
 
@@ -172,8 +173,13 @@ those concurrent documents are preserved. Each correction includes its own
 source/tests, plan and debt registration. The final series commit also includes
 this combined verification and recurrence record.
 
-Rollout will use a clean tracked-source context, preserve the existing machine,
-volume, shared CPU / 2048 MiB and paper/Codex settings, verify deployed hashes
-and health, then inspect a new engine cycle and persisted account-scoped scores.
+The authorized rollout used a clean tracked-source context and preserved the
+existing machine, volume, shared CPU / 2048 MiB and paper/Codex settings. It
+verified deployed hashes and health, then inspected the first engine cycle and
+replayed persisted account-scoped scores read-only.
 No trading policy or unrelated DEBT-083 design is activated by this deployment.
 The operational follow-up records the final source and observed runtime results.
+Deployment completed as Fly v63 / `f0f3e52` on 2026-10-26 KST, with 177 matching
+runtime hashes, health/first-cycle pass and read-only deployed-method verification.
+See [production rollout](2026-10-26-strategy-evidence-production-rollout.md) for
+the exact scope, including no natural proposal/cap event in the first cycle.

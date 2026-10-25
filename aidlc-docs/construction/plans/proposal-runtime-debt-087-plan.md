@@ -41,3 +41,12 @@ passed in 52.83s; changed-file Black/Ruff and 131-file mypy pass. Independent
 QA/quant review and fixed-snapshot replay recorded in
 `docs/sessions/2026-10-25-strategy-evidence-integrity-and-recurrence.md` and
 `docs/cross-checks/2026-10-25-strategy-evidence-integrity.md`.
+
+## Subsequent authorized rollout
+
+The user explicitly requested separate commits/pushes, then deployment and
+operational verification. All three corrections are deployed on Fly v63 /
+`f0f3e52` (2026-10-26 KST): 177 runtime hashes, health and first engine cycle
+pass. Deployed-method read-only checks pass; no new natural proposal/cap event
+occurred in the first cycle. Full evidence and coverage limits:
+`docs/sessions/2026-10-26-strategy-evidence-production-rollout.md`.

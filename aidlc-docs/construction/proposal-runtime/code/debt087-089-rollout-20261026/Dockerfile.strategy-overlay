@@ -1,0 +1,11 @@
+FROM registry.fly.io/crypto-master@sha256:648811287f22e13d85fe9b4f0f2743e23bdb905e56c0885a0251bf5911dbc868
+LABEL org.opencontainers.image.revision="f0f3e524eda0ac8b5dcab0b0aad9dfaf8e100291"
+COPY src/dashboard/pages/strategies.py /app/src/dashboard/pages/strategies.py
+COPY src/proposal/engine.py /app/src/proposal/engine.py
+COPY src/runtime/engine.py /app/src/runtime/engine.py
+COPY src/strategy/cost_coverage.py /app/src/strategy/cost_coverage.py
+COPY src/strategy/performance.py /app/src/strategy/performance.py
+COPY src/strategy/tuning_evidence.py /app/src/strategy/tuning_evidence.py
+COPY src/strategy/tuning_observations.py /app/src/strategy/tuning_observations.py
+COPY src/strategy/tuning_recommender.py /app/src/strategy/tuning_recommender.py
+COPY src/tools/report_strategy_costs.py /app/src/tools/report_strategy_costs.py

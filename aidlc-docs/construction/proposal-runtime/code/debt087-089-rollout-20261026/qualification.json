@@ -1,0 +1,15 @@
+{
+  "all_runtime_hashes_match": true,
+  "preserved_machine_volume_resources": true,
+  "preserved_python_libraries_and_runtime_configuration": true,
+  "public_and_internal_health_200": true,
+  "one_engine_one_dashboard": true,
+  "first_cycle_completed_without_activity_error": true,
+  "real_proposals_observed": 0,
+  "real_cap_events_observed": 0,
+  "readonly_account_version_scores": 18,
+  "readonly_open_cap_rows": 7,
+  "readonly_input_files_unchanged": 24,
+  "actual_funding_remains_unknown": true,
+  "scope": "rollout and initial operational health; no newly emitted proposal/cap-event path observed in first cycle"
+}

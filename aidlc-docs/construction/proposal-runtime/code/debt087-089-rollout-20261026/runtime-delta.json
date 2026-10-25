@@ -1,0 +1,17 @@
+{
+  "before_source": "d86f76fda1b91bc337b06db2050722379c3f8701",
+  "after_source": "f0f3e524eda0ac8b5dcab0b0aad9dfaf8e100291",
+  "changes": {
+    "src/dashboard/pages/strategies.py": "modified",
+    "src/proposal/engine.py": "modified",
+    "src/runtime/engine.py": "modified",
+    "src/strategy/cost_coverage.py": "added",
+    "src/strategy/performance.py": "modified",
+    "src/strategy/tuning_evidence.py": "modified",
+    "src/strategy/tuning_observations.py": "modified",
+    "src/strategy/tuning_recommender.py": "modified",
+    "src/tools/report_strategy_costs.py": "added"
+  },
+  "removed": [],
+  "configuration_unchanged": true
+}

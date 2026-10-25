@@ -742,7 +742,7 @@ Done. Sequential cycles shipped (b) opt-in global caps on 2026-05-24; (c-1) stat
 |-------|-------|
 | **Priority** | High |
 | **Created** | 2026-10-25 |
-| **Status** | Resolved in source/tests; not deployed |
+| **Status** | Resolved; deployed on Fly v63 / f0f3e52; initial operation verified |
 | **Resolved** | 2026-10-25 |
 | **Action-item type** | bug |
 | **Component** | `proposal-runtime` (primary); `strategy-framework`, `sub-account-capital-segmentation` (secondary) |
@@ -781,8 +781,8 @@ closed eligibility excludes pending/synthetic rows. Fourteen persisted-history
 regressions include the real `build_engine` tracker and close→persist→next-score
 path. Fixed decision-time replay recovers MA 221, Raschke 262, RSI15m 224 samples
 from prior zero scores. Combined three-fix source verification: full suite 2,865 passed; changed-file Black/Ruff and
-131-file mypy pass. Production qualification remains separate because this
-slice is not deployed. Session/cross-check: `2026-10-25-strategy-evidence-integrity*`.
+131-file mypy pass. Subsequent Fly v63 rollout verifies 177 runtime hashes and initial operation;
+12-account/18-version read-only deployed scoring matches persisted history. Session/cross-check: `2026-10-25-strategy-evidence-integrity*`.
 
 ### DEBT-088: Cap telemetry marks supported no-performance-link positions unmonitorable ✅
 
@@ -790,7 +790,7 @@ slice is not deployed. Session/cross-check: `2026-10-25-strategy-evidence-integr
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-10-25 |
-| **Status** | Resolved in source/tests; not deployed |
+| **Status** | Resolved; deployed on Fly v63 / f0f3e52; initial operation verified |
 | **Resolved** | 2026-10-25 |
 | **Action-item type** | bug |
 | **Component** | `proposal-funnel-audit` (primary); `runtime-reconciliation` (secondary) |
@@ -824,7 +824,8 @@ with persisted no-link bounds and reject malformed bounds/core data.
 states now produce structural `monitorable=true`; additive reconciliation state
 preserves provenance. Degraded/unrecoverable remain false. Seven real cap-event
 cases cover persisted bounds and no-link rows without changing caps or closes.
-Combined three-fix source verification: full suite 2,865 passed, source/type/style checks pass. Not deployed.
+Combined three-fix source verification: full suite 2,865 passed, source/type/style checks pass. Fly v63 deployment and initial operation verified;
+all seven current open-cap rows pass deployed read-only rendering.
 
 ### DEBT-089: Economic evidence does not expose funding-cost coverage ✅
 
@@ -832,7 +833,7 @@ Combined three-fix source verification: full suite 2,865 passed, source/type/sty
 |-------|-------|
 | **Priority** | Medium |
 | **Created** | 2026-10-25 |
-| **Status** | Resolved in approved observability/sensitivity scope; not deployed; actual funding settlement accounting remains outside scope |
+| **Status** | Resolved in approved observability/sensitivity scope; deployed on Fly v63 / f0f3e52; actual funding settlement accounting remains outside scope |
 | **Resolved** | 2026-10-25 |
 | **Action-item type** | code-improvement |
 | **Component** | `strategy-framework` (primary); `strategy-tuning`, `dashboard-operator-ui` (secondary) |
@@ -871,7 +872,8 @@ and incomplete-input coverage; they never modify cash or report hypothetical
 cost as actual funding. Twenty-one new regressions and 72 focused tests pass.
 All 1,247 active closed trades replay through twelve account reports with input
 hashes unchanged. Quant review accepted after mixed-account/CLI error fixes.
-Combined three-fix source verification: full suite 2,865 passed. Actual funding remains unknown by design.
+Combined three-fix source verification: full suite 2,865 passed. Actual funding remains unknown by design. Fly v63 reporting/carry smoke passes
+on deployed code and data; see the 2026-10-26 production-rollout session.
 
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range ✅
 
@@ -1620,6 +1622,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-10-26 | Deployed / verified | DEBT-087/088/089 individually pushed, Fly v63 / f0f3e52 deployed. All 177 hashes, health and first 12-account monitor cycle pass. No new proposal/cap event occurred; deployed read-only replay covers 18 account/version scores and seven open rows. Funding remains unknown. |
 | 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-25 | Added / resolved | DEBT-088: cap-blocker monitorability; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-25 | Added / resolved | DEBT-089: funding coverage and carry sensitivity; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |

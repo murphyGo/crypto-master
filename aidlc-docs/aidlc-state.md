@@ -57,14 +57,18 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
-> **Strategy evidence corrections (2026-10-25):** DEBT-087/088/089 source/tests
-> complete: account-scoped proposal history, cap-blocker monitorability, funding coverage and carry sensitivity. Primary units: proposal-runtime, proposal-funnel-audit, strategy-framework.
-> The combined three-fix source verification passed 2,865 tests, changed-file
-> Black/Ruff, 131-file mypy and fixed-snapshot replay. Each correction is
-> committed separately. User subsequently authorized commit/push and deployment
-> with operational verification; rollout is pending at this checkpoint.
-> Applied account policies and runtime data remain unchanged. DEBT-083 and
-> its independent design/activation gates remain separate.
+> **Strategy evidence rollout (2026-10-26 KST):** DEBT-087/088/089 were committed
+> and pushed separately (`052764e`, `79ef547`, `f0f3e52`), then deployed with
+> explicit operator authorization as Fly **v63 / f0f3e52**. All 177 runtime
+> hashes match; existing machine/volume/resources/dependencies and paper/Codex
+> configuration remain. Health and the first 12-account monitor cycle pass with
+> zero activity errors. No new proposal/cap event occurred in that cycle;
+> separate deployed read-only replay passes 18 account/version score checks,
+> seven current open-cap rows and funding-coverage reporting, preserving 24
+> input hashes. Source gate: 2,865 tests, Black/Ruff and 131-file mypy pass.
+> Actual funding remains unknown. DEBT-083 and its independent design/activation
+> gates remain separate. Evidence and observed coverage limits:
+> `docs/sessions/2026-10-26-strategy-evidence-production-rollout.md`.
 
 > **Latest follow-up design checkpoint (2026-10-25):** Operator
 > `나머지도 계속 진행해줘` approves the presented base runtime streaming/request-time

@@ -1,6 +1,8 @@
 # Cross-check: strategy evidence integrity, DEBT-087/088/089
 
-Date: 2026-10-25. Scope: source/tests, not deployment or strategy promotion.
+Date: 2026-10-25. Original scope: source/tests. Subsequent authorized rollout and
+initial operational verification completed on 2026-10-26 KST; strategy promotion
+remains outside scope.
 
 | Unit / debt | Requirement / story | Implementation and actual-path evidence | Verdict |
 |-------------|---------------------|-----------------------------------------|---------|
@@ -8,7 +10,7 @@ Date: 2026-10-25. Scope: source/tests, not deployment or strategy promotion.
 | proposal-funnel-audit / 088 | FR-014/036, NFR-007; US-012/023 | Structural monitorability includes supported no-link positions, separate taxonomy; 7 symbol/total cap event controls; actual risk/close logic unchanged | Pass |
 | strategy-framework / 089 | FR-005/021, NFR-006/007; US-012/019 | Funding unknown carried from evidence to persistence/UI; legacy basis unspecified; separate input-hashed pure adverse carry CLI; 21 new regression cases | Pass within approved observability scope |
 | Runtime-data preservation | NFR-007/008 | Snapshot read-only; no runtime ledger/repair/migration; all cost input hashes unchanged | Pass |
-| Source / deployment distinction | CON-003 | Source-only checkpoint complete; user subsequently authorized separate commits/pushes and rollout with fresh operational verification. Applied policy remains unchanged | Rollout pending |
+| Source / deployment distinction | CON-003 | Three separate commits pushed; Fly v63 runs f0f3e52 with 177 matching hashes, preserved paper configuration, health and first-cycle pass. No new proposal/cap event occurred; separate deployed read-only replay passes | Initial operational verification passed; natural-event coverage unobserved |
 
 ## Verification
 
@@ -34,6 +36,10 @@ Date: 2026-10-25. Scope: source/tests, not deployment or strategy promotion.
   beneath `aidlc-docs/`.
 - Session and recurrence analysis:
   `docs/sessions/2026-10-25-strategy-evidence-integrity-and-recurrence.md`.
+- Rollout: `docs/sessions/2026-10-26-strategy-evidence-production-rollout.md`;
+  18 account/version score checks, seven current open-cap rows and funding
+  reporting pass read-only; 24 input hashes unchanged.
 - Existing historical repairs, unknown regimes/funding and independent OOS are
   explicit research limitations, not assertions of new runtime bugs. No edge,
-  strategy logic, all-cost profitability, or production correction is certified.
+  strategy logic or all-cost profitability is certified. Rollout evidence is
+  limited to the recorded initial operation and read-only checks.

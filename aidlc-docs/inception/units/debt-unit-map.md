@@ -21,8 +21,10 @@ when debt is added or resolved, then refresh this map.
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.
 Combined three-fix verification: 2,865 tests and fixed-snapshot replay pass.
-Deployment is authorized after separate commits; operational qualification
-is pending. Existing DEBT-083 design/activation gates remain independent.
+All three were individually pushed and deployed on Fly v63 / f0f3e52 on
+2026-10-26 KST. Source hashes, health/first-cycle and deployed read-only replay
+pass; new natural proposal/cap events were absent in the observed cycle.
+Existing DEBT-083 design/activation gates remain independent.
 Actual funding settlement accounting is outside DEBT-089's closed scope.
 
 DEBT-082 is resolved by native production verification. The concurrent
