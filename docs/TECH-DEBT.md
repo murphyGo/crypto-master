@@ -240,6 +240,21 @@ Current v62/shared CPU1/2048 MiB/original volume/paper-Codex and CPU/cost deferr
 remain. See `aidlc-docs/construction/plans/dashboard-runtime-read-followup-nfr-review.md`
 and `docs/sessions/2026-10-25-dashboard-runtime-read-nfr-design.md`.
 
+**2026-10-26 bounded-read source gate:** Combined approval `gogo` covers both
+NFRs, the typed failure/monitor amendment and implementation/verification/same-
+capacity rollout. Source/tests are complete:2916 full passes, Black/Ruff11 files,
+mypy134. Runtime streaming preserves exact fixed-time score output; three million
+input pairs reduce added peak RSS from2487.7–2703.5 MiB to0.84–1.28 MiB.
+Twenty seeded projection pairs preserve complete payloads: million p957.817→0.695s,
+snapshots2.087→0.070s. Small proposal cache regression is retained and excluded
+through canonical admission (final20 pairs1.327/1.367s, no cache speedup claimed).
+Unseeded million11.143s still exceeds5s; no native/depleted/original1GiB acceptance
+or debt closure is inferred. Original capacity/volume/paper-Codex and performance
+CPU/cost deferral remain. Existing v63 strategy fixes are preserved; this source
+awaits its separately authorized same-capacity rollout. See
+`docs/sessions/2026-10-26-dashboard-runtime-bounded-reads.md` and
+`aidlc-docs/construction/plans/dashboard-runtime-read-code-generation-plan.md`.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |

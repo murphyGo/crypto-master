@@ -15,10 +15,13 @@ from collections.abc import Callable, Generator
 from concurrent.futures import Future
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.dashboard.read_models import Limits, Query, ReadResult, utc_now
 from src.utils.bounded_read import ReadFailure
+
+if TYPE_CHECKING:
+    from src.dashboard.checkpoint_store import CheckpointStore
 
 Builder = Callable[[Query, Limits], Generator[dict[str, Any] | None, None, None]]
 
@@ -32,8 +35,24 @@ class CacheEntry:
 
 
 class DashboardDataService:
-    def __init__(self, *, limits: Limits | None = None, builder: Builder | None = None):
+    def __init__(
+        self,
+        *,
+        limits: Limits | None = None,
+        builder: Builder | None = None,
+        checkpoint_store: CheckpointStore | None = None,
+    ):
         self.limits = limits or Limits()
+        self.checkpoint_store = checkpoint_store
+        self._index_reservation = (
+            min(4 * 1024 * 1024, self.limits.cache_bytes // 4)
+            if checkpoint_store is not None
+            else 0
+        )
+        if checkpoint_store is not None:
+            checkpoint_store.index_reservation = min(
+                checkpoint_store.index_reservation, self._index_reservation
+            )
         self._builder = builder or self._build_cached
         self._condition = threading.Condition()
         self._cache: OrderedDict[Query, CacheEntry] = OrderedDict()
@@ -115,7 +134,9 @@ class DashboardDataService:
         with self._condition:
             entry = self._cache.get(query)
             previous = entry.result.payload if entry else None
-        yield from build_projection(query, limits, previous=previous)
+        yield from build_projection(
+            query, limits, previous=previous, checkpoint_store=self.checkpoint_store
+        )
 
     def _fallback(self, query: Query, reason: str) -> ReadResult:
         entry = self._cache.get(query)
@@ -265,12 +286,13 @@ class DashboardDataService:
                     if previous:
                         self._cache_bytes -= previous.charge
                     while self._cache and (
-                        self._cache_bytes + charge > self.limits.cache_bytes
+                        self._cache_bytes + charge
+                        > self.limits.cache_bytes - self._index_reservation
                         or len(self._cache) >= self.limits.cache_entries
                     ):
                         _, removed = self._cache.popitem(last=False)
                         self._cache_bytes -= removed.charge
-                    if charge > self.limits.cache_bytes:
+                    if charge > self.limits.cache_bytes - self._index_reservation:
                         raise ReadFailure("cache_budget_exhausted")
                     self._cache[query] = CacheEntry(
                         result, evaluated, charge, threshold
@@ -309,7 +331,7 @@ class DashboardDataService:
     def stats(self) -> dict[str, int]:
         with self._condition:
             return {
-                "cache_bytes": self._cache_bytes,
+                "cache_bytes": self._cache_bytes + self._index_reservation,
                 "entries": len(self._cache),
                 "admitted": len(self._jobs),
                 "workers": int(self._thread.is_alive()),
@@ -332,5 +354,15 @@ def get_data_service() -> DashboardDataService:
     global _singleton
     with _singleton_lock:
         if _singleton is None:
-            _singleton = DashboardDataService()
+            import os
+
+            from src.config import get_settings
+            from src.dashboard.checkpoint_store import CheckpointStore
+
+            store = (
+                CheckpointStore(get_settings().data_dir)
+                if os.environ.get("DASHBOARD_CHECKPOINTS_ENABLED", "1") != "0"
+                else None
+            )
+            _singleton = DashboardDataService(checkpoint_store=store)
         return _singleton

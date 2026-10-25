@@ -13,6 +13,7 @@ Related Requirements:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -161,30 +162,72 @@ def format_runtime_safety_summary(score: RuntimeSafetyScore) -> str:
     return f"runtime_safety: {score.score}/100 {score.band.value}"
 
 
+_INPUT_FIELDS = {
+    ActivityEventType.CYCLE_ERRORED.value: "recent_cycle_errors",
+    ActivityEventType.NOTIFICATION_FAILED.value: "recent_notification_failures",
+    ActivityEventType.LLM_TIMEOUT.value: "recent_llm_timeouts",
+    ActivityEventType.CORRELATION_WARNING.value: "correlation_warnings",
+    ActivityEventType.LIQUIDATED.value: "liquidation_events",
+    ActivityEventType.COLD_START_BLOCKED.value: "cold_start_blocks",
+}
+
+
+class SafetyAccumulator:
+    """One-pass exact reduction; runtime supplies admission before retained keys."""
+
+    def __init__(
+        self,
+        *,
+        max_conditions: int | None = None,
+        reserve: Callable[[Any], None] | None = None,
+        open_drawdown_percent: float = 0.0,
+    ) -> None:
+        self.inputs = RuntimeSafetyInputs(open_drawdown_percent=open_drawdown_percent)
+        self.conditions: set[tuple[Any, Any, Any]] = set()
+        self.max_conditions = max_conditions
+        self.reserve = reserve
+
+    def add(self, event: ActivityEvent) -> None:
+        field = _INPUT_FIELDS.get(event.event_type)
+        if field is not None:
+            setattr(self.inputs, field, getattr(self.inputs, field) + 1)
+        if _is_stale_quote(event):
+            self.inputs.stale_quote_warnings += 1
+        if (
+            event.event_type == ActivityEventType.RISK_KILL_SWITCH_TRIPPED.value
+            and not event_advisory(event)
+        ):
+            key = (
+                event_cycle_id(event),
+                event_gate_reason(event),
+                event_sub_account_id(event),
+            )
+            if key not in self.conditions:
+                if (
+                    self.max_conditions is not None
+                    and len(self.conditions) >= self.max_conditions
+                ):
+                    raise ValueError("condition_limit")
+                if self.reserve is not None:
+                    self.reserve(key)
+                self.conditions.add(key)
+        self.inputs.kill_switch_conditions = len(self.conditions)
+
+
 def inputs_from_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     open_drawdown_percent: float = 0.0,
 ) -> RuntimeSafetyInputs:
-    """Aggregate safety inputs from runtime activity events."""
-    return RuntimeSafetyInputs(
-        recent_cycle_errors=_count(events, ActivityEventType.CYCLE_ERRORED),
-        recent_notification_failures=_count(
-            events,
-            ActivityEventType.NOTIFICATION_FAILED,
-        ),
-        recent_llm_timeouts=_count(events, ActivityEventType.LLM_TIMEOUT),
-        stale_quote_warnings=sum(1 for event in events if _is_stale_quote(event)),
-        correlation_warnings=_count(events, ActivityEventType.CORRELATION_WARNING),
-        liquidation_events=_count(events, ActivityEventType.LIQUIDATED),
-        cold_start_blocks=_count(events, ActivityEventType.COLD_START_BLOCKED),
-        kill_switch_conditions=_count_kill_switch_conditions(events),
-        open_drawdown_percent=open_drawdown_percent,
-    )
+    """Aggregate exact safety inputs in one pass, without retaining events."""
+    accumulator = SafetyAccumulator(open_drawdown_percent=open_drawdown_percent)
+    for event in events:
+        accumulator.add(event)
+    return accumulator.inputs
 
 
 def recent_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
     now: datetime | None = None,
@@ -197,15 +240,24 @@ def recent_activity_events(
 
 
 def inputs_from_recent_activity_events(
-    events: list[ActivityEvent],
+    events: Iterable[ActivityEvent],
     *,
     lookback_hours: int = DEFAULT_RECENT_LOOKBACK_HOURS,
     now: datetime | None = None,
     open_drawdown_percent: float = 0.0,
 ) -> RuntimeSafetyInputs:
     """Aggregate safety inputs from only recent runtime activity events."""
+    cutoff = (
+        ensure_utc(now or now_utc()) - timedelta(hours=lookback_hours)
+        if lookback_hours > 0
+        else None
+    )
     return inputs_from_activity_events(
-        recent_activity_events(events, lookback_hours=lookback_hours, now=now),
+        (
+            event
+            for event in events
+            if cutoff is None or ensure_utc(event.timestamp) >= cutoff
+        ),
         open_drawdown_percent=open_drawdown_percent,
     )
 

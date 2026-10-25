@@ -1,0 +1,48 @@
+import hashlib,json,statistics,sys,time
+from datetime import datetime,timezone
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()))
+from src.dashboard.checkpoint_store import CheckpointStore
+from src.dashboard.data_service import DashboardDataService
+from src.dashboard.read_models import Query
+OUT=Path('/private/tmp/crypto-master-proposal-admission-final-20261026.json')
+AT=datetime(2026,10,25,tzinfo=timezone.utc)
+FIX=Path('/private/tmp/crypto-master-shared-cpu-fixtures-20261025')
+BASE=Path('/private/tmp/crypto-master-proposal-admission-store-20261026');BASE.mkdir(exist_ok=True)
+SOURCE_PATHS=['src/dashboard/checkpoint_store.py','src/dashboard/segment_checkpoints.py','src/dashboard/projections.py','src/dashboard/data_service.py','src/runtime/safety_reader.py','src/runtime/safety_score.py','src/runtime/engine.py','src/utils/bounded_read.py']
+source_hashes={name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in SOURCE_PATHS}
+out={'source_sha256':source_hashes,'method':'20 paired canonical empty-service vs seeded disk/new-service; fixed UTC; warmed imports and OS cache; not full page or native/depleted qualification','series':[]}
+def measure(q,store):
+ s=DashboardDataService(checkpoint_store=store)
+ try:
+  start=time.perf_counter();r=s.request(q)
+  while r.status=='pending' and time.perf_counter()-start<120:r=s.request(q,wait=.05)
+  if not r.complete:raise RuntimeError((q.kind,r.status,r.reason))
+  elapsed=time.perf_counter()-start
+  fingerprint=hashlib.sha256(json.dumps(r.data(),sort_keys=True,separators=(',',':')).encode()).hexdigest()
+  return elapsed,fingerprint,s.stats()
+ finally:s.close()
+def p95(rows):return sorted(rows)[max(0,int(len(rows)*.95+.999999)-1)]
+for name,root,kind,accounts in [('proposals',Path('/private/tmp/crypto-master-cold-proposal-fixture-20261025'),'proposals',('default',))]:
+ folder=BASE/name;folder.mkdir(exist_ok=True)
+ q=Query(root,kind,accounts=accounts,at=AT)
+ store=CheckpointStore(folder)
+ seed,expected,stats=measure(q,store)
+ row={'fixture':name,'first_unseeded_seconds':seed,'canonical':[],'seeded_restart':[],'full_payloads_equal':True,'samples':0}
+ out['series'].append(row)
+ for sample in range(20):
+  variants=[('canonical',None),('seeded_restart',CheckpointStore(folder))]
+  if sample%2:variants.reverse()
+  for backend,current in variants:
+   wall,fp,stats=measure(q,current)
+   assert fp==expected,(name,backend,'payload mismatch')
+   row[backend].append(wall)
+   if current is not None:row['last_cache_hits']=current.hits;row['last_cache_files']=len(list(current.base.iterdir()));row['last_disk_bytes']=current._usage()[0]
+  row['samples']=sample+1
+  row['canonical_p95']=p95(row['canonical']);row['seeded_p95']=p95(row['seeded_restart'])
+  OUT.write_text(json.dumps(out,indent=2)+'\n')
+  print(json.dumps({'fixture':name,'samples':sample+1,'canonical':row['canonical'][-1],'seeded':row['seeded_restart'][-1],'hits':row['last_cache_hits']}),flush=True)
+
+assert {name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in SOURCE_PATHS}==source_hashes,"source changed during measurement"
+out["source_frozen_verified"]=True
+OUT.write_text(json.dumps(out,indent=2)+"\n")

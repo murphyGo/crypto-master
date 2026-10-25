@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -20,6 +20,7 @@ RECORD_BYTES = 1024 * 1024
 _STRING_TOKEN = re.compile(rb'["\\]')
 _OBJECT_TOKEN = re.compile(rb'["{}\[\]]')
 _NONSPACE = re.compile(rb"[^\t\n\r ]")
+_LINE_ENDINGS = re.compile(rb"\r\n?|\n")
 
 
 class ReadFailure(Exception):
@@ -43,7 +44,12 @@ class Generation:
         return cls(stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
 
 
-def _blocks(path: Path, generation: Generation) -> Iterator[bytes]:
+def _blocks(
+    path: Path,
+    generation: Generation,
+    *,
+    before_read: Callable[[int], None] | None = None,
+) -> Iterator[bytes]:
     with path.open("rb") as handle:
         stat = os.fstat(handle.fileno())
         if (
@@ -53,7 +59,10 @@ def _blocks(path: Path, generation: Generation) -> Iterator[bytes]:
             raise ReadFailure("source_changed")
         remaining = generation.size
         while remaining:
-            block = handle.read(min(BLOCK_BYTES, remaining))
+            length = min(BLOCK_BYTES, remaining)
+            if before_read is not None:
+                before_read(length)
+            block = handle.read(length)
             if not block:
                 raise ReadFailure("source_changed")
             remaining -= len(block)
@@ -95,6 +104,41 @@ def jsonl_records(
     # append cannot certify the safety/reconciliation view as complete.
     if pending.strip():
         raise ReadFailure("partial_record")
+
+
+def legacy_text_rows(
+    path: Path,
+    generation: Generation,
+    *,
+    record_bytes: int = RECORD_BYTES,
+    before_read: Callable[[int], None] | None = None,
+) -> Generator[str | None, None, None]:
+    """Bounded UTF-8/universal-newline rows for the legacy runtime policy.
+
+    Unlike strict dashboard JSONL, the runtime accepts a final non-newline row,
+    uses Unicode text strip, and decides malformed-row handling at its adapter.
+    ``None`` marks a block checkpoint; CRLF spanning blocks is one newline.
+    """
+    pending = bytearray()
+    skip_lf = False
+    for block in _blocks(path, generation, before_read=before_read):
+        start = int(skip_lf and block.startswith(b"\n"))
+        skip_lf = False
+        for match in _LINE_ENDINGS.finditer(block, start):
+            end = match.start()
+            if len(pending) + end - start > record_bytes:
+                raise ReadFailure("record_too_large")
+            pending.extend(block[start:end])
+            yield pending.decode("utf-8").strip()
+            pending.clear()
+            start = match.end()
+            skip_lf = block[match.start() :] == b"\r"
+        if len(pending) + len(block) - start > record_bytes:
+            raise ReadFailure("record_too_large")
+        pending.extend(block[start:])
+        yield None
+    if pending:
+        yield pending.decode("utf-8").strip()
 
 
 def json_object(

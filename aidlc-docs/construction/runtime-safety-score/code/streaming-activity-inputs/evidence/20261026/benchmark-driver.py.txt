@@ -1,0 +1,35 @@
+import argparse,asyncio,hashlib,json,os,resource,subprocess,sys,time,types
+from datetime import datetime,timezone
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()))
+from src.runtime.activity_log import ActivityLog
+from src.runtime.safety_reader import SafetyReadService,SafetyCycleBudget
+FIX=Path('/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity')
+OUT=Path('/private/tmp/crypto-master-bounded-runtime-benchmark-20261026.json')
+p=argparse.ArgumentParser();p.add_argument('--worker',choices=['legacy','candidate']);a=p.parse_args()
+AT=datetime(2026,10,25,tzinfo=timezone.utc)
+if a.worker:
+ baseline=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+ started=time.perf_counter();cpu=time.process_time()
+ if a.worker=='legacy':
+  raw=subprocess.check_output(['git','show','d86f76f:src/runtime/safety_score.py'])
+  mod=types.ModuleType('benchmark_legacy_safety');sys.modules[mod.__name__]=mod;exec(compile(raw,'legacy_safety.py','exec'),mod.__dict__)
+  rows=ActivityLog(path=FIX.with_suffix('.jsonl')).read_all()
+  result=mod.compute_runtime_safety_score(mod.inputs_from_recent_activity_events(rows,now=AT)).model_dump(mode='json')
+ else:
+  import src.runtime.safety_reader as reader
+  reader.now_utc=lambda:AT
+  service=SafetyReadService()
+  try:result=asyncio.run(service.score(FIX,12,[],SafetyCycleBudget())).model_dump(mode='json')
+  finally:service.close()
+ peak=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+ print(json.dumps({'backend':a.worker,'seconds':time.perf_counter()-started,'cpu':time.process_time()-cpu,'baseline_mib':baseline/1048576,'peak_mib':peak/1048576,'growth_mib':(peak-baseline)/1048576,'output':result}));sys.exit(0)
+rows=[];expected=None
+for sample in range(3):
+ for backend in (['legacy','candidate'] if sample%2==0 else ['candidate','legacy']):
+  r=subprocess.run([sys.executable,__file__,'--worker',backend],capture_output=True,text=True,check=True,timeout=180)
+  value=json.loads(r.stdout.strip().splitlines()[-1]);value['sample']=sample+1
+  if expected is None:expected=value['output']
+  assert value['output']==expected,(backend,'full safety output parity')
+  rows.append(value);OUT.write_text(json.dumps({'fixture':'existing million events/10 monthly files','method':'3 alternating pairs; independent subprocess peak RSS; fixed UTC; warm OS cache/import variants; not page p95 acceptance','source_revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'samples':rows,'exact_full_score_parity':True},indent=2)+'\n')
+  print(json.dumps({k:v for k,v in value.items() if k!='output'}),flush=True)

@@ -1,8 +1,9 @@
 # Dashboard and Runtime Read Follow-up: Concrete Review
 
-**Status:** Two NFR candidates and one newly identified functional amendment are
-ready for explicit review. Base Functional Designs were approved by operator
-`나머지도 계속 진행해줘`; no new implementation or runtime activation occurs here.
+**Status:** Operator `gogo` approved this combined NFR/functional amendment and
+its presented implementation, test and same-capacity rollout sequence. Approval
+is recorded in audit.md; no repeated stage permission is needed for that scope.
+Implementation is in verification; original acceptance/debt closure remains open.
 
 ## Choices requiring approval
 

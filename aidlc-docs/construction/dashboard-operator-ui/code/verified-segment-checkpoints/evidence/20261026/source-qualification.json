@@ -1,0 +1,59 @@
+{
+  "tests": {
+    "pytest": {
+      "passed": 2916,
+      "seconds": 60.35
+    },
+    "mypy_source_files": 134,
+    "black_changed_files": 11,
+    "ruff_changed_files": 11
+  },
+  "source_sha256": {
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/data_service.py": "7234835ec208a07c63e148306a51e0e043a6785a44e62ef7981e6c4ee8b74a41",
+    "src/runtime/safety_reader.py": "e5a6d20bc2fe99eda7d8dee63ae4162db520864444f97655689db78dbb41e1b2",
+    "src/runtime/safety_score.py": "3262a0c4eaec9531f0b8a77ef5ba9dde985706dfdcbb7bac27287da20cc6a2b7",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9"
+  },
+  "matrix": [
+    {
+      "fixture": "million",
+      "samples": 20,
+      "first_unseeded_seconds": 11.143179791979492,
+      "canonical_p95": 7.816588083049282,
+      "seeded_p95": 0.695177000015974,
+      "full_payloads_equal": true,
+      "last_cache_hits": 10,
+      "last_disk_bytes": 6135808
+    },
+    {
+      "fixture": "snapshots",
+      "samples": 20,
+      "first_unseeded_seconds": 2.355976208928041,
+      "canonical_p95": 2.0871005000080913,
+      "seeded_p95": 0.07002583402208984,
+      "full_payloads_equal": true,
+      "last_cache_hits": 13,
+      "last_disk_bytes": 385024
+    },
+    {
+      "fixture": "small_proposals_canonical_admission",
+      "samples": 20,
+      "canonical_p95": 1.326639916980639,
+      "optional_store_p95": 1.3665468340041116,
+      "full_payloads_equal": true,
+      "cache_hits": 0
+    }
+  ],
+  "qualification": "Local fixed-UTC data-service projections with warm imports/OS cache. Not full-page/native/depleted/original-1GiB acceptance.",
+  "source_boundary": "Activity/snapshot20-pair run preceded the sole small-proposal-admission conditional. Other7 application files are identical; proposal branch is separately20-pair measured on the final8 hashes. Full2916-test gate follows the final conditional.",
+  "remaining": [
+    "unseeded million11.143s exceeds5s",
+    "native Browser bootstrap missing packaged service",
+    "current2GiB cannot certify declared1GiB",
+    "depleted CPU and final server concurrency unqualified before rollout"
+  ]
+}

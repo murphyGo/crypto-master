@@ -652,3 +652,9 @@ dependency, live network, or runtime `data/` action occurred.
 - Explicit approval for the combined candidates is pending. No tool permission is treated as that approval.
 
 - Combined approval question presented asynchronously at this closeout checkpoint; recorded 2026-10-25T11:46:47.398185+00:00. Options cover implementation/testing/same-capacity rollout or requested design changes. No answer received as of this record.
+
+## 2026-10-25T13:57:43.066399+00:00 — Combined NFR / Functional Amendment and Implementation Approval
+
+- Exact operator response: `gogo` after the combined concrete request.
+- Approves both NFR designs, typed safety-read monitoring amendment, presented implementation/test sequence and same-capacity rollout. No repeated stage permission is requested for the same scope.
+- Code plan: `aidlc-docs/construction/plans/dashboard-runtime-read-code-generation-plan.md`; runtime first then checkpoints. Cost/capacity deferral remains. Root concurrent changes preserved.

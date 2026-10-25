@@ -1,6 +1,6 @@
 # NFR Design Candidate: Streaming Runtime Safety Inputs
 
-**Status:** Prepared for explicit review; not approved or implemented.
+**Status:** Approved by operator `gogo` for implementation, verification and same-capacity rollout; not yet implemented.
 Base streaming/request-time Functional contract is approved for continuation.
 The [failure-isolation amendment](../../functional-design/streaming-activity-inputs/failure-isolation-amendment.md)
 and this numerical/resource design require explicit approval together.

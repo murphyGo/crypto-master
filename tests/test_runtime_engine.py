@@ -2591,23 +2591,24 @@ def test_runtime_policy_for_id_is_cached_per_cycle(tmp_path: Path) -> None:
     assert calls == 1
 
 
-def test_runtime_safety_score_is_cached_per_cycle(tmp_path: Path) -> None:
+@pytest.mark.asyncio
+async def test_runtime_safety_score_is_cached_per_cycle(tmp_path: Path) -> None:
     engine, mocks = build_engine(tmp_path=tmp_path)
-    calls = 0
-    original = mocks["activity_log"].read_all
+    from src.runtime.safety_reader import safety_read_service
 
-    def counted_read_all() -> list[object]:
-        nonlocal calls
-        calls += 1
-        return original()
-
-    mocks["activity_log"].read_all = counted_read_all
-
-    first = engine._current_runtime_safety_score()
-    second = engine._current_runtime_safety_score()
-
-    assert first is second
-    assert calls == 1
+    service = safety_read_service()
+    with patch.object(service, "score", wraps=service.score) as score_read:
+        with patch.object(
+            mocks["activity_log"],
+            "read_all",
+            side_effect=AssertionError("archive materialization"),
+        ):
+            first = await engine._current_runtime_safety_score()
+            second = await engine._current_runtime_safety_score()
+            assert first is second
+            assert score_read.await_count == 1
+            await engine._current_runtime_safety_score(extra_events=[])
+            assert score_read.await_count == 2
 
 
 async def test_cap_blocks_opposite_side_same_symbol(tmp_path: Path) -> None:
@@ -9437,3 +9438,98 @@ async def test_strategy_action_diff_runs_once_per_process(tmp_path: Path) -> Non
     assert len(events) == 1
     assert events[0]["prior_action"] == "pause"
     assert events[0]["new_action"] == "scout"
+
+
+@pytest.mark.parametrize("mode", ["paper", "live"])
+@pytest.mark.parametrize("pause", [None, 80])
+@pytest.mark.parametrize("failure_call", [1, 2])
+async def test_unavailable_safety_blocks_entry_but_keeps_monitor(
+    tmp_path: Path, mode: str, pause: int | None, failure_call: int
+) -> None:
+    from src.runtime.safety_reader import SafetyReadUnavailable
+    from src.runtime.safety_score import (
+        RuntimeSafetyInputs,
+        compute_runtime_safety_score,
+    )
+
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=make_proposal(composite=2.0),
+        config=EngineConfig(
+            auto_approve_threshold=1.0, runtime_safety_pause_min_score=pause
+        ),
+    )
+    engine.mode = mode
+    good = compute_runtime_safety_score(RuntimeSafetyInputs())
+    calls = (
+        [SafetyReadUnavailable("read_limit")]
+        if failure_call == 1
+        else [good, SafetyReadUnavailable("read_limit")]
+    )
+    engine._current_runtime_safety_score = AsyncMock(side_effect=calls)
+    with patch.object(
+        engine._position_monitor, "monitor", new_callable=AsyncMock
+    ) as monitor:
+        with patch.object(
+            engine, "_record_portfolio_snapshot", new_callable=AsyncMock
+        ) as snapshot:
+            result = await engine.run_cycle()
+    mocks["trader"].open_position.assert_not_awaited()
+    monitor.assert_awaited_once()
+    snapshot.assert_awaited_once()
+    assert len(result.errors) == 1
+    assert isinstance(result.errors[0].exception, SafetyReadUnavailable)
+    assert result.errors[0].exception.__traceback__ is None
+    assert (
+        mocks["notification_dispatcher"].notify_proposal.await_count == failure_call - 1
+    )
+
+
+async def test_safety_task_cancel_is_not_a_recoverable_account_error(
+    tmp_path: Path,
+) -> None:
+    engine, mocks = build_engine(tmp_path=tmp_path, btc_proposal=make_proposal())
+    engine._current_runtime_safety_score = AsyncMock(side_effect=asyncio.CancelledError)
+    with patch.object(
+        engine._position_monitor, "monitor", new_callable=AsyncMock
+    ) as monitor:
+        with pytest.raises(asyncio.CancelledError):
+            await engine.run_cycle()
+    monitor.assert_not_awaited()
+    mocks["trader"].open_position.assert_not_awaited()
+
+
+async def test_typed_safety_failure_preserves_later_account_monitoring(
+    tmp_path: Path,
+) -> None:
+    from src.runtime.safety_reader import SafetyReadUnavailable
+
+    engine, _ = build_engine(tmp_path=tmp_path)
+    accounts = [
+        SubAccount(
+            id=name,
+            name=name,
+            mode="paper",
+            exchange_ref="default",
+            initial_balance={"USDT": Decimal("10000")},
+        )
+        for name in ("alpha", "beta")
+    ]
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        accounts, {name: make_mock_trader() for name in ("alpha", "beta")}
+    )
+    engine._scan = AsyncMock(return_value=[make_proposal(), make_proposal()])
+    engine._handle_proposal = AsyncMock(
+        side_effect=[SafetyReadUnavailable("read_limit"), None, None]
+    )
+    with patch.object(
+        engine._position_monitor, "monitor", new_callable=AsyncMock
+    ) as monitor:
+        with patch.object(
+            engine, "_record_portfolio_snapshot", new_callable=AsyncMock
+        ) as snapshot:
+            result = await engine.run_cycle()
+    assert engine._scan.await_count == 2
+    assert engine._handle_proposal.await_count == 3
+    assert monitor.await_count == 2 and snapshot.await_count == 2
+    assert len(result.errors) == 1

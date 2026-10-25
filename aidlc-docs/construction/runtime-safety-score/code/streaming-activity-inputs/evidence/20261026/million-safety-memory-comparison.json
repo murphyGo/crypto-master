@@ -1,0 +1,189 @@
+{
+  "fixture": "existing million events/10 monthly files",
+  "method": "3 alternating pairs; independent subprocess peak RSS; fixed UTC; warm OS cache/import variants; not page p95 acceptance",
+  "source_revision": "6444fe59de1d4db646ea69de412e2ef27577c648",
+  "samples": [
+    {
+      "backend": "legacy",
+      "seconds": 22.71825945796445,
+      "cpu": 18.819902,
+      "baseline_mib": 119.5,
+      "peak_mib": 2673.25,
+      "growth_mib": 2553.75,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 1
+    },
+    {
+      "backend": "candidate",
+      "seconds": 8.77112729207147,
+      "cpu": 8.58113,
+      "baseline_mib": 119.828125,
+      "peak_mib": 121.109375,
+      "growth_mib": 1.28125,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 1
+    },
+    {
+      "backend": "candidate",
+      "seconds": 8.786376083036885,
+      "cpu": 8.599864,
+      "baseline_mib": 119.6875,
+      "peak_mib": 120.796875,
+      "growth_mib": 1.109375,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 2
+    },
+    {
+      "backend": "legacy",
+      "seconds": 19.824466833961196,
+      "cpu": 17.430671,
+      "baseline_mib": 119.875,
+      "peak_mib": 2607.53125,
+      "growth_mib": 2487.65625,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 2
+    },
+    {
+      "backend": "legacy",
+      "seconds": 15.009858915931545,
+      "cpu": 14.052677999999998,
+      "baseline_mib": 120.75,
+      "peak_mib": 2824.28125,
+      "growth_mib": 2703.53125,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 3
+    },
+    {
+      "backend": "candidate",
+      "seconds": 8.685014792019501,
+      "cpu": 8.559595,
+      "baseline_mib": 120.515625,
+      "peak_mib": 121.359375,
+      "growth_mib": 0.84375,
+      "output": {
+        "score": 10,
+        "band": "pause_recommended",
+        "inputs": {
+          "recent_cycle_errors": 0,
+          "recent_notification_failures": 130,
+          "recent_llm_timeouts": 0,
+          "stale_quote_warnings": 11,
+          "correlation_warnings": 130,
+          "liquidation_events": 0,
+          "cold_start_blocks": 0,
+          "kill_switch_conditions": 0,
+          "open_drawdown_percent": 0.0
+        },
+        "factors": [
+          "notification failures=130 (-30)",
+          "stale quote warnings=11 (-30)",
+          "correlation warnings=130 (-30)"
+        ]
+      },
+      "sample": 3
+    }
+  ],
+  "exact_full_score_parity": true,
+  "candidate_runtime_sha256": {
+    "src/runtime/safety_reader.py": "e5a6d20bc2fe99eda7d8dee63ae4162db520864444f97655689db78dbb41e1b2",
+    "src/runtime/safety_score.py": "3262a0c4eaec9531f0b8a77ef5ba9dde985706dfdcbb7bac27287da20cc6a2b7",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9"
+  },
+  "source_note": "Measurement used fixed UTC and default-zero drawdown. Subsequent helper negative-input validation and idempotent-close fixes preserve these measured default outputs; final source is independently regression tested."
+}

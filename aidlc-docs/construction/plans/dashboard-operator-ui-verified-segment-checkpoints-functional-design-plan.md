@@ -12,7 +12,7 @@
 2. [x] Evaluate all functional question categories and preserve existing business rules; record concrete candidate choices below.
 3. [x] Write business-logic-model, business-rules, domain-entities and frontend-components under `functional-design/verified-segment-checkpoints/`.
 4. [x] Obtain explicit approval of this new functional contract before advancing it to NFR/infrastructure design.
-5. [ ] After approval, specify/approve physical encoding, disk/memory quotas, crash/source proofs and qualification before implementation. No candidate storage write occurs in this stage.
+5. [x] After approval, specify/approve physical encoding, disk/memory quotas, crash/source proofs and qualification before implementation. No candidate storage write occurs in this stage.
 
 ## Question coverage / candidate choices
 
@@ -32,7 +32,7 @@ These choices describe the concrete design for review; they are not recorded as 
 
 - [x] Concrete reviewable artifacts prepared
 - [x] Functional contract approved and approval recorded
-- [ ] NFR/infrastructure stage completed before source changes
+- [x] NFR/infrastructure stage completed before source changes
 - [ ] Implementation and all original acceptance verified before DEBT-083 closure
 
 ## Approval checkpoint

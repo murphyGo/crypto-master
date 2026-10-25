@@ -1,6 +1,6 @@
 # NFR Design Candidate: Verified Segment Checkpoints
 
-**Status:** Prepared for explicit NFR review; not approved, implemented or active.
+**Status:** Approved by operator `gogo` for implementation, verification and same-capacity rollout; not yet active.
 Base Functional persistence contract is approved for continuation. Original BDL
 requirements and budgets remain binding; this is not evidence of acceptance.
 Same v62/175 runtime inputs, shared CPU 1 / 2048 MiB, original volume, paper/Codex

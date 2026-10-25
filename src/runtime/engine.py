@@ -101,10 +101,13 @@ from src.runtime.runtime_flags import (
     DEFAULT_RUNTIME_FLAGS_PATH,
     read_trading_freeze,
 )
+from src.runtime.safety_reader import (
+    SafetyCycleBudget,
+    SafetyReadUnavailable,
+    safety_read_service,
+)
 from src.runtime.safety_score import (
     RuntimeSafetyScore,
-    compute_runtime_safety_score,
-    inputs_from_recent_activity_events,
 )
 from src.runtime.snapshot_recorder import SnapshotRecorder
 from src.runtime.strategy_action_snapshot import (
@@ -704,6 +707,7 @@ class TradingEngine:
         self._strategy_lookup_cache: dict[str, str] | None = None
         self._runtime_policy_cache: dict[str, AccountRuntimePolicy] = {}
         self._runtime_safety_score_cache: RuntimeSafetyScore | None = None
+        self._safety_read_budget = SafetyCycleBudget()
         # HTF trend filter cache. Keyed by ``(symbol, ymd)`` so the
         # natural date rollover invalidates entries; ``run_cycle`` also
         # clears at cycle start so very long-running processes never
@@ -848,16 +852,19 @@ class TradingEngine:
             details=details,
         )
 
-    def _current_runtime_safety_score(
+    async def _current_runtime_safety_score(
         self,
         extra_events: list[ActivityEvent] | None = None,
     ) -> RuntimeSafetyScore:
         if extra_events is None and self._runtime_safety_score_cache is not None:
             return self._runtime_safety_score_cache
-        events = self.activity_log.read_all()
-        if extra_events:
-            events.extend(extra_events)
-        score = compute_runtime_safety_score(inputs_from_recent_activity_events(events))
+        rotator = self.activity_log._rotator
+        score = await safety_read_service().score(
+            rotator.base_path,
+            rotator.retention_months,
+            extra_events,
+            self._safety_read_budget,
+        )
         if extra_events is None:
             self._runtime_safety_score_cache = score
         return score
@@ -935,6 +942,7 @@ class TradingEngine:
         self._strategy_lookup_cache = None
         self._runtime_policy_cache = {}
         self._runtime_safety_score_cache = None
+        self._safety_read_budget = SafetyCycleBudget()
         self._htf_trend_cache = {}
         self._accepted_family_signals = {}
         self._market_regime_cache = {}
@@ -993,9 +1001,34 @@ class TradingEngine:
 
                 proposals = await self._scan(cycle_id, result, sub_account, exchange)
                 for proposal in proposals:
-                    await self._handle_proposal(
-                        proposal, cycle_id, result, sub_account, trader, exchange
-                    )
+                    try:
+                        await self._handle_proposal(
+                            proposal, cycle_id, result, sub_account, trader, exchange
+                        )
+                    except SafetyReadUnavailable as unavailable:
+                        # A failed risk-input read cannot admit a new entry, but
+                        # must not suppress protective management of open trades.
+                        reason = str(unavailable)
+                        self.activity_log.append(
+                            ActivityEventType.CYCLE_ERRORED,
+                            f"Safety inputs unavailable: {reason}",
+                            details={
+                                "sub_account_id": sub_account_id,
+                                "error_type": "SafetyReadUnavailable",
+                                "error_message": reason,
+                            },
+                            cycle_id=cycle_id,
+                        )
+                        result.errors.append(
+                            EngineError(
+                                category=ErrorCategory.SUB_ACCOUNT,
+                                symbol=None,
+                                detail=f"sub_account[{sub_account_id}]:{reason}",
+                                # Fresh exception: do not retain source/worker frames.
+                                exception=SafetyReadUnavailable(reason),
+                            )
+                        )
+                        break
 
                 await self._position_monitor.monitor(
                     cycle_id, result, sub_account, trader, exchange
@@ -1256,7 +1289,7 @@ class TradingEngine:
             self._reject_operator_freeze(proposal, cycle_id, result, events)
             return
 
-        safety_score = self._current_runtime_safety_score(
+        safety_score = await self._current_runtime_safety_score(
             [event.to_activity_event() for event in events]
         )
 
@@ -1467,7 +1500,7 @@ class TradingEngine:
                 )
                 return
 
-            post_incident_safety_score = self._current_runtime_safety_score(
+            post_incident_safety_score = await self._current_runtime_safety_score(
                 [event.to_activity_event() for event in events]
             )
             pause_rejection = self._runtime_safety_pause_gate(

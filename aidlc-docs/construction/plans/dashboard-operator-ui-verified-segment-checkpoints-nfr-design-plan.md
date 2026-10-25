@@ -11,8 +11,8 @@
 3. [x] Resolve concrete resource, failure, compatibility, invalidation, lifecycle and storage choices; evaluate every NFR question category.
 4. [x] Write NFR patterns, logical components, implementation/test sequence and acceptance matrix.
 5. [x] Cross-check safety flow, non-associative reductions, dynamic defaults, source proof and global resource accounting; validate docs/evidence.
-6. [ ] Present the concrete candidate and receive explicit NFR approval (plus runtime failure-isolation amendment where applicable).
-7. [ ] Only then enter Code Generation / Build & Test and previously authorized same-capacity rollout; preserve unrelated root edits.
+6. [x] Present the concrete candidate and receive explicit NFR approval (plus runtime failure-isolation amendment where applicable).
+7. [x] Only then enter Code Generation / Build & Test and previously authorized same-capacity rollout; preserve unrelated root edits.
 
 ## Questions / source of answers
 
@@ -21,12 +21,12 @@
 - **Performance:** [Answer]: Original complete-page cold p95 <=5s / warm <=2s and health <5s, no ignored failures. No-checkpoint and depleted conditions stay separate; proposed work budgets are not acceptance proof.
 - **Security:** [Answer]: No credential/provider/exchange changes, no raw diagnostics, only private disposable cache when applicable. Existing canonical files and live intent remain intact.
 - **Components:** [Answer]: Existing Python/stdlib and approved data service; no new Fly process/database/service/paid allocation. Detailed internal components and disk choices are proposed below.
-- **Approval:** [Answer]: Pending for these concrete NFR choices. Earlier Functional approval and tool execution permissions do not approve them.
+- **Approval:** [Answer]: Operator `gogo` explicitly continues the combined review request covering both NFR designs, the failure amendment, implementation, verification and same-capacity rollout. Recorded 2026-10-25T13:57:43.066399+00:00. Cost/capacity deferral remains.
 
 ## Completion
 
 - [x] Reviewable design and documentation QA complete
-- [ ] NFR design explicitly approved
+- [x] NFR design explicitly approved
 - [ ] Implementation/verification/rollout completed after approval
 - [ ] Original acceptance actually passed before debt closure
 

@@ -9,7 +9,7 @@
 2. [x] Identify fixed-time invariants, source ordering, extras/cache, error and timing differences.
 3. [x] Prepare logic/rules/entities/frontend-consumer artifacts under `functional-design/streaming-activity-inputs/`.
 4. [x] Receive explicit functional approval before the next NFR stage.
-5. [ ] Define/review read/state/time budgets, clock reversal and guarded failure integration in NFR design.
+5. [x] Define/review read/state/time budgets, clock reversal and guarded failure integration in NFR design.
 6. [ ] Only after applicable approvals: implement, independently cross-check safety/pause behavior, qualify the exact source and obtain scoped rollout evidence.
 
 ## Questions / concrete candidate choices

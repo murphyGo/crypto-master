@@ -10,7 +10,7 @@ from collections.abc import Callable, Generator
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pydantic import TypeAdapter, ValidationError, create_model
 
@@ -33,6 +33,9 @@ from src.utils.bounded_read import (
     reverse_jsonl_records,
 )
 from src.utils.time import ensure_utc
+
+if TYPE_CHECKING:
+    from src.dashboard.checkpoint_store import CheckpointStore
 
 # JSON carries event names, not Enum instances. Inherit every other field
 # and validator and keep precisely the Enum's accepted values, while avoiding
@@ -292,6 +295,9 @@ class ActivityProjection:
         self.types: set[str] = set()
         self.crowding = {"evaluated": 0, "would_block": 0, "skipped": 0}
         self.total = 0
+        self.checkpoint_eligible = True
+        self.rejection_index: set[tuple[str | None, str]] | None = None
+        self.rejection_index_bytes = 0
 
     def _latest(
         self,
@@ -425,6 +431,20 @@ class ActivityProjection:
                 state.error |= typ == "cycle_errored"
             if counter:
                 setattr(state, counter, getattr(state, counter) + 1)
+        if typ == "proposal_rejected" and self.rejection_index is not None:
+            pid_raw = details.get("proposal_id")
+            if pid_raw is not None:
+                key = (event.cycle_id, str(pid_raw))
+                if key not in self.rejection_index:
+                    charge = self.budget.size(key) + 128
+                    if self.rejection_index_bytes + charge > 256 * 1024:
+                        self.budget.bytes -= self.rejection_index_bytes
+                        self.rejection_index = None
+                        self.rejection_index_bytes = 0
+                    else:
+                        self.budget.reserve(charge)
+                        self.rejection_index_bytes += charge
+                        self.rejection_index.add(key)
         if counter:
             row = self.sub.get(account)
             if row is None:
@@ -730,6 +750,22 @@ class ActivityProjection:
         return output
 
 
+def proposal_state(record: ProposalRecord) -> dict[str, Any]:
+    return {
+        "timestamp": _record_timestamp(record),
+        "threshold": int(
+            bool(
+                record.decision == "rejected"
+                and record.rejection_reason
+                and _THRESHOLD.match(record.rejection_reason)
+            )
+        ),
+        "field": _classify(record).value,
+        "account": record.sub_account_id or record.proposal.sub_account_id,
+        "strategy": record.proposal.technique_name,
+    }
+
+
 class HistoryProjection:
     def __init__(self, query: Query, budget: StateBudget):
         self.query, self.budget = query, budget
@@ -846,71 +882,7 @@ class HistoryProjection:
         kind = self.query.kind
         if kind == "proposals":
             record = ProposalRecord.model_validate(raw)
-            ts = _record_timestamp(record)
-            if (
-                record.decision == "rejected"
-                and record.rejection_reason
-                and _THRESHOLD.match(record.rejection_reason)
-            ):
-                self.threshold += 1
-            if self.query.window == "threshold":
-                # Trading needs this exact lifetime scalar, not a second
-                # window/group reduction. Every source row still validates.
-                return
-            days = {"24h": 1, "7d": 7, "30d": 30}.get(self.query.window)
-            field = _classify(record).value
-            account = record.sub_account_id or record.proposal.sub_account_id
-            strategy = record.proposal.technique_name
-            self.budget.account(account)
-            self.budget.strategy(strategy)
-            if days is not None and ts >= self.now - timedelta(days=days):
-                descriptor = {
-                    "timestamp": ts.isoformat(),
-                    "field": field,
-                    "account": account,
-                    "strategy": strategy,
-                }
-                self.budget.change(None, descriptor, new_key=True)
-                self.window_records.append(descriptor)
-            for mapping, key in (
-                (self.by_account, account),
-                (self.by_strategy, strategy),
-            ):
-                if key not in mapping:
-                    row = dict.fromkeys(FunnelCounts.model_fields, 0)
-                    self.budget.change(None, [key, row], new_key=True)
-                    mapping[key] = row
-            if days is not None and self.query.at is None:
-                cutoff = self.now - timedelta(days=days)
-                if cutoff <= ts <= cutoff + timedelta(
-                    seconds=30
-                ) or self.now < ts <= self.now + timedelta(seconds=30):
-                    boundary = {
-                        "timestamp": ts.isoformat(),
-                        "field": field,
-                        "account": account,
-                        "strategy": strategy,
-                    }
-                    self.budget.change(None, boundary, new_key=True)
-                    self.boundaries.append(boundary)
-            if days is not None and not (
-                self.now - timedelta(days=days) <= ts <= self.now
-            ):
-                return
-            self.budget.account(account)
-            self.budget.strategy(strategy)
-            self.counts[field] += 1
-            self.counts["total"] += 1
-            for mapping, key in (
-                (self.by_account, account),
-                (self.by_strategy, strategy),
-            ):
-                if key not in mapping:
-                    row = dict.fromkeys(FunnelCounts.model_fields, 0)
-                    self.budget.change(None, [key, row], new_key=True)
-                    mapping[key] = row
-                mapping[key][field] += 1
-                mapping[key]["total"] += 1
+            self.add_proposal_state(proposal_state(record))
         elif kind == "ledger":
             trade = TradeHistory.model_validate(raw)
             self.budget.account(source.account)
@@ -979,6 +951,66 @@ class HistoryProjection:
                 return
             self.audit_total += 1
             self.audit.add(audit.timestamp, ordinal, audit.model_dump(mode="json"))
+
+    def add_proposal_state(self, state: dict[str, Any]) -> None:
+        ts = state["timestamp"]
+        self.threshold += state["threshold"]
+        if self.query.window == "threshold":
+            # Trading needs this exact lifetime scalar, not a second
+            # window/group reduction. Every source row still validates.
+            return
+        days = {"24h": 1, "7d": 7, "30d": 30}.get(self.query.window)
+        field = state["field"]
+        account = state["account"]
+        strategy = state["strategy"]
+        self.budget.account(account)
+        self.budget.strategy(strategy)
+        if days is not None and ts >= self.now - timedelta(days=days):
+            descriptor = {
+                "timestamp": ts.isoformat(),
+                "field": field,
+                "account": account,
+                "strategy": strategy,
+            }
+            self.budget.change(None, descriptor, new_key=True)
+            self.window_records.append(descriptor)
+        for mapping, key in (
+            (self.by_account, account),
+            (self.by_strategy, strategy),
+        ):
+            if key not in mapping:
+                row = dict.fromkeys(FunnelCounts.model_fields, 0)
+                self.budget.change(None, [key, row], new_key=True)
+                mapping[key] = row
+        if days is not None and self.query.at is None:
+            cutoff = self.now - timedelta(days=days)
+            if cutoff <= ts <= cutoff + timedelta(
+                seconds=30
+            ) or self.now < ts <= self.now + timedelta(seconds=30):
+                boundary = {
+                    "timestamp": ts.isoformat(),
+                    "field": field,
+                    "account": account,
+                    "strategy": strategy,
+                }
+                self.budget.change(None, boundary, new_key=True)
+                self.boundaries.append(boundary)
+        if days is not None and not (self.now - timedelta(days=days) <= ts <= self.now):
+            return
+        self.budget.account(account)
+        self.budget.strategy(strategy)
+        self.counts[field] += 1
+        self.counts["total"] += 1
+        for mapping, key in (
+            (self.by_account, account),
+            (self.by_strategy, strategy),
+        ):
+            if key not in mapping:
+                row = dict.fromkeys(FunnelCounts.model_fields, 0)
+                self.budget.change(None, [key, row], new_key=True)
+                mapping[key] = row
+            mapping[key][field] += 1
+            mapping[key]["total"] += 1
 
     def finish(self) -> dict[str, Any]:
         evaluated = ensure_utc(self.query.at or utc_now())
@@ -1087,10 +1119,31 @@ def _reduce_activity_source(
 
 
 def build_projection(
-    query: Query, limits: Limits, *, previous: bytes | None = None
+    query: Query,
+    limits: Limits,
+    *,
+    previous: bytes | None = None,
+    checkpoint_store: CheckpointStore | None = None,
 ) -> Generator[dict[str, Any] | None, None, None]:
     budget = StateBudget(limits)
+    if checkpoint_store is not None:
+        checkpoint_store.index_reservation = min(
+            checkpoint_store.index_reservation, limits.cache_bytes // 4
+        )
+    cache_prepared = (
+        checkpoint_store is not None
+        and query.kind in {"activity", "proposals", "snapshots"}
+        and len(query.accounts) == len(set(query.accounts))
+        and checkpoint_store.prepare(query)
+    )
     manifest = discover(query, limits, get_settings().log_retention_months)
+    # Small proposal JSON objects already validate cheaply. Measured pack/key/
+    # proof overhead exceeds the saved parse cost below this average size.
+    # Keep their canonical path and existing fresh scalar reuse unchanged.
+    if query.kind == "proposals" and sum(
+        source.generation.size for source in manifest.files
+    ) < 16 * 1024 * max(1, manifest.file_count):
+        cache_prepared = False
     digest = manifest.digest()
     if previous is not None:
         cached = json.loads(previous)
@@ -1108,93 +1161,158 @@ def build_projection(
         if query.kind == "activity"
         else HistoryProjection(query, budget)
     )
-    ordinal = 0
-    files = (
-        manifest.reverse_files
-        if query.kind in {"activity", "audit"}
-        else manifest.files
-    )
-    for index, source in enumerate(files):
-        line = 0
-        ordinal_base = (manifest.file_count - index - 1) << 48
-        if isinstance(reducer, ActivityProjection):
-            yield from _reduce_activity_source(reducer, source, ordinal_base)
-            continue
-        reader = {
-            "jsonl": reverse_jsonl_records,
-            "object": json_object,
-            "array": json_array_records,
-        }[source.format]
-        iterator = (
-            json_array_bytes(source.path, source.generation)
-            if query.kind == "snapshots"
-            else reader(source.path, source.generation)
-        )
+    segments = None
+    if (
+        cache_prepared
+        and checkpoint_store is not None
+        and manifest.bytes + 64 * manifest.file_count <= limits.manifest_bytes
+    ):
+        manifest.bytes += 64 * manifest.file_count
+        from src.dashboard.checkpoint_store import CacheMiss
+        from src.dashboard.segment_checkpoints import SegmentCheckpoints
+
         try:
-            for raw in iterator:
-                if raw is None:
-                    yield None
-                    continue
-                if query.kind == "snapshots":
-                    reducer.add_snapshot_json(cast(bytes, raw), source)
-                else:
-                    value = cast(dict[str, Any], raw)
-                    if query.kind == "audit":
-                        ordinal = ordinal_base + value.pop("_offset")
-                    reducer.add(value, source, ordinal)
-                ordinal += 1
-                line += 1
-                if line % 256 == 0:
-                    yield None
-        except ValueError as exc:
-            raise ReadFailure("invalid_record") from exc
-        finally:
-            iterator.close()
-    if isinstance(reducer, ActivityProjection) and reducer.companions:
-        # The companion set is compact. A second bounded pass records only
-        # sibling ids needed by those companions, rather than all lifetime
-        # rejected proposal identities (most have no companion at all).
-        pids = {pid for _, pid, _ in reducer.companions if pid is not None}
-        budget.change(None, pids)
-        for source in manifest.files:
-            iterator = jsonl_records(source.path, source.generation)
+            segments = SegmentCheckpoints(
+                checkpoint_store.session(query), budget, reducer
+            )
+            yield from segments.start()
+        except (CacheMiss, OSError):
+            segments = None
+    try:
+        joins: list[Source] = []
+        proofs = bytearray()
+        ordinal = 0
+        files = (
+            manifest.reverse_files
+            if query.kind in {"activity", "audit"}
+            else manifest.files
+        )
+        for index, source in enumerate(files):
+            line = 0
+            ordinal_base = (manifest.file_count - index - 1) << 48
+            accelerated = False
+            if segments is not None and segments.enabled:
+                source_identity = segments.session.key(source)
+                proofs.extend(source_identity)
+                accelerated = yield from segments.reduce(
+                    source, ordinal_base, source_identity
+                )
+            if accelerated:
+                continue
+            if isinstance(reducer, ActivityProjection):
+                if segments is not None:
+                    joins.append(source)
+                yield from _reduce_activity_source(reducer, source, ordinal_base)
+                continue
+            reader = {
+                "jsonl": reverse_jsonl_records,
+                "object": json_object,
+                "array": json_array_records,
+            }[source.format]
+            iterator = (
+                json_array_bytes(source.path, source.generation)
+                if query.kind == "snapshots"
+                else reader(source.path, source.generation)
+            )
             try:
                 for raw in iterator:
                     if raw is None:
                         yield None
                         continue
-                    if raw.get("event_type") != "proposal_rejected":
-                        continue
-                    details = raw.get("details") or {}
-                    if query.scope != "Aggregate" and str(
-                        details.get("sub_account_id", "")
-                    ) not in {"", query.scope}:
-                        continue
-                    pid = (
-                        str(details["proposal_id"])
-                        if details.get("proposal_id") is not None
-                        else None
-                    )
-                    if pid not in pids:
-                        continue
-                    key = (raw.get("cycle_id"), pid)
-                    if key not in reducer.rejected:
-                        budget.change(None, key, new_key=True)
-                        reducer.rejected.add(key)
-                    if pid not in reducer.rejected_global:
-                        budget.change(None, pid, new_key=True)
-                        reducer.rejected_global.add(pid)
+                    if query.kind == "snapshots":
+                        reducer.add_snapshot_json(cast(bytes, raw), source)
+                    else:
+                        value = cast(dict[str, Any], raw)
+                        if query.kind == "audit":
+                            ordinal = ordinal_base + value.pop("_offset")
+                        reducer.add(value, source, ordinal)
+                    ordinal += 1
+                    line += 1
+                    if line % 256 == 0:
+                        yield None
+            except ValueError as exc:
+                raise ReadFailure("invalid_record") from exc
             finally:
                 iterator.close()
-    manifest.verify()
-    result = reducer.finish()
-    result["_source_digest"] = digest
-    result["source_coverage"] = {
-        "files": manifest.file_count,
-        "captured_bytes": sum(source.generation.size for source in manifest.files),
-        "verified": True,
-    }
-    yield result
+        if isinstance(reducer, ActivityProjection) and reducer.companions:
+            # The companion set is compact. A second bounded pass records only
+            # sibling ids needed by those companions, rather than all lifetime
+            # rejected proposal identities (most have no companion at all).
+            pids = {pid for _, pid, _ in reducer.companions if pid is not None}
+            budget.change(None, pids)
+            if segments is not None:
+                for rejected in segments.rejections:
+                    if rejected is None:
+                        continue
+                    for key in rejected:
+                        _cid, rejected_pid = key
+                        if rejected_pid not in pids:
+                            continue
+                        if key not in reducer.rejected:
+                            budget.change(None, key, new_key=True)
+                            reducer.rejected.add(key)
+                        if rejected_pid not in reducer.rejected_global:
+                            budget.change(None, rejected_pid, new_key=True)
+                            reducer.rejected_global.add(rejected_pid)
+                joins.extend(segments.join_sources)
+            for source in (joins if segments is not None else manifest.files):
+                iterator = jsonl_records(source.path, source.generation)
+                try:
+                    for raw in iterator:
+                        if raw is None:
+                            yield None
+                            continue
+                        if raw.get("event_type") != "proposal_rejected":
+                            continue
+                        details = raw.get("details") or {}
+                        if query.scope != "Aggregate" and str(
+                            details.get("sub_account_id", "")
+                        ) not in {"", query.scope}:
+                            continue
+                        pid = (
+                            str(details["proposal_id"])
+                            if details.get("proposal_id") is not None
+                            else None
+                        )
+                        if pid not in pids:
+                            continue
+                        key = (raw.get("cycle_id"), pid)
+                        if key not in reducer.rejected:
+                            budget.change(None, key, new_key=True)
+                            reducer.rejected.add(key)
+                        if pid not in reducer.rejected_global:
+                            budget.change(None, pid, new_key=True)
+                            reducer.rejected_global.add(pid)
+                finally:
+                    iterator.close()
+        manifest.verify()
+        if segments is not None and segments.enabled:
+            for proof_index, source in enumerate(
+                manifest.reverse_files if query.kind == "activity" else manifest.files
+            ):
+                expected = proofs[proof_index * 32 : (proof_index + 1) * 32]
+                with source.path.open("rb") as handle:
+                    import os
+
+                    if (
+                        segments.session.key(source, os.fstat(handle.fileno()))
+                        != expected
+                    ):
+                        raise ReadFailure("source_changed")
+        result = reducer.finish()
+        if segments is not None:
+            yield from segments.flush()
+        manifest.verify()
+        result["_source_digest"] = digest
+        result["source_coverage"] = {
+            "files": manifest.file_count,
+            "captured_bytes": sum(source.generation.size for source in manifest.files),
+            "verified": True,
+        }
+        yield result
+    finally:
+        if segments is not None:
+            segments.close()
 
 
 def refresh_projection(

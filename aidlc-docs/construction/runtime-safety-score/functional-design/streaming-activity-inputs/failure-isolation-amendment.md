@@ -1,8 +1,6 @@
 # Proposed Amendment: Safety Read Failure Isolation
 
-**Status:** New functional delta proposed during NFR review; not implemented or
-covered by the earlier base streaming/time approval. Approve with the concrete
-NFR candidate before Code Generation.
+**Status:** Explicitly approved together with both concrete NFR candidates by operator `gogo`; implementation/verification/same-capacity rollout authorized. Earlier base Functional approval is superseded by this combined approval.
 
 ## Verified current flow
 

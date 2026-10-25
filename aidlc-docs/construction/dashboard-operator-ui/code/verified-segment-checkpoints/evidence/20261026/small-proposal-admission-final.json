@@ -1,0 +1,71 @@
+{
+  "source_sha256": {
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/data_service.py": "7234835ec208a07c63e148306a51e0e043a6785a44e62ef7981e6c4ee8b74a41",
+    "src/runtime/safety_reader.py": "e5a6d20bc2fe99eda7d8dee63ae4162db520864444f97655689db78dbb41e1b2",
+    "src/runtime/safety_score.py": "3262a0c4eaec9531f0b8a77ef5ba9dde985706dfdcbb7bac27287da20cc6a2b7",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9"
+  },
+  "method": "20 paired canonical empty-service vs seeded disk/new-service; fixed UTC; warmed imports and OS cache; not full page or native/depleted qualification",
+  "series": [
+    {
+      "fixture": "proposals",
+      "first_unseeded_seconds": 5.106859375024214,
+      "canonical": [
+        1.2972971249837428,
+        1.3726344580063596,
+        1.098149084020406,
+        1.1056097500259057,
+        1.1605875419918448,
+        1.2416442909743637,
+        1.2625447090249509,
+        1.2432937499834225,
+        1.1422590829897672,
+        1.125271041993983,
+        1.12331645807717,
+        1.1454653339460492,
+        1.2250827080570161,
+        1.2112785839708522,
+        1.223533874959685,
+        1.1563587499549612,
+        1.1758473339723423,
+        1.2922562919557095,
+        1.0866662500193343,
+        1.326639916980639
+      ],
+      "seeded_restart": [
+        1.2397754590492696,
+        1.3404635000042617,
+        1.1067147919675335,
+        1.1689677499234676,
+        1.226280500064604,
+        1.1874593750108033,
+        1.19067645794712,
+        1.1314399170223624,
+        1.179717916995287,
+        1.2178575420984998,
+        1.3665468340041116,
+        1.246630375040695,
+        1.1926525000017136,
+        1.1089415419846773,
+        1.3819747080560774,
+        1.180480208946392,
+        1.1207832919899374,
+        1.1007847500732169,
+        1.264218374970369,
+        1.1409027500776574
+      ],
+      "full_payloads_equal": true,
+      "samples": 20,
+      "last_cache_hits": 0,
+      "last_cache_files": 0,
+      "last_disk_bytes": 8192,
+      "canonical_p95": 1.326639916980639,
+      "seeded_p95": 1.3665468340041116
+    }
+  ],
+  "source_frozen_verified": true
+}

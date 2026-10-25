@@ -1,0 +1,5 @@
+FROM registry.fly.io/crypto-master@sha256:106055713d985c44720c6386de719c500dff8113dfdc894dab8b2b0b54fc3187
+ARG REVISION
+LABEL org.opencontainers.image.revision=$REVISION
+COPY src /app/src
+RUN python -m compileall -q /app/src

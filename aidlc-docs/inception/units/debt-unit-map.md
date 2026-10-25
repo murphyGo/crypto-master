@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | v62 / `d86f76f`: 2823 tests, 175 hashes/health/cycles pass. Final 4-session run records 276/280 complete views and four 30s timeouts; guest peak 1293.313 MiB fails 768. Cold/native/depleted/1 GiB remain open. Base Functional Designs approved; two NFR designs and typed safety-failure monitoring amendment await review. Current capacity/cost gate retained. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Approved bounded runtime/checkpoint source gate:2916 tests, Black/Ruff11, mypy134; exact seeded projection parity. Same-capacity rollout pending; unseeded/native/depleted/original1GiB remain open; CPU/cost deferred. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | v62 / `d86f76f`, 2823 tests, 175 hashes/health/cycles pass. Four 30s views and 1293.313 MiB guest peak fail final qualification. Engine full-history safety input and pause consumer traced; base checkpoint/streaming-time Functional Designs approved. Concrete NFR candidates and monitoring-isolation amendment pending review. Native/depleted/1 GiB and cold goals remain open; cost upgrade stays deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Approved streaming/typed-failure/checkpoint implementation verified with2916 tests and exact output evidence. V63 strategy work preserved. Same-capacity rollout and original cold/native/depleted/1GiB qualification remain; cost upgrade deferred. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.
