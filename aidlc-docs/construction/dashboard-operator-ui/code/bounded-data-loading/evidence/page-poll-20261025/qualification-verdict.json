@@ -1,0 +1,30 @@
+{
+  "overall_original_acceptance": "not_passed",
+  "server_observation_seconds": 1415.830023,
+  "observed_views": 280,
+  "complete_views": 276,
+  "actual_30_second_timeouts": 4,
+  "health_all_pass_under_5s": true,
+  "health_max_seconds": 1.2858176250010729,
+  "dashboard_growth_limit_pass": true,
+  "dashboard_growth_mib": 21.65234375,
+  "guest_peak_mib": 1293.3125,
+  "original_guest_ceiling_768_mib_pass": false,
+  "original_1024_mib_allocation_qualified": false,
+  "engine_peak_rss_kib": 899748,
+  "engine_peak_rss_mib": 878.66015625,
+  "full_engine_cycle": "f7cdc283-73cd-4b37-9f04-d2b030e36b13",
+  "maximum_background_watchers": 1,
+  "native_qualification": false,
+  "depleted_cpu_qualification": false,
+  "initial_cpu_burst_seconds": 459.290025324,
+  "final_cpu_burst_seconds": 410.21003324800006,
+  "host_throttle_observed": false,
+  "cold_home_5s_target_pass": false,
+  "runtime_safety_code_changed": false,
+  "pending_designs": [
+    "dashboard verified-segment checkpoints Functional Design",
+    "runtime safety streaming/evaluation-time Functional Design"
+  ],
+  "measurement_limit": "Driver records completed/timeout views; unfinished requests at the deliberate normal observation boundary may be cancelled without a row. Those are not successful samples. Four actual 30s timeouts and guest-memory failure independently make the run fail."
+}

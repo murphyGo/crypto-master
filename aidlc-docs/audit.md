@@ -602,3 +602,34 @@ dependency, live network, or runtime `data/` action occurred.
   prepared and approval requested asynchronously. No approval received as of this
   record; NFR/infrastructure/code/storage work for the candidate has not started.
 - **Recorded at:** 2026-10-25T05:09:09.194339+09:00 (record time).
+
+## 2026-10-25 — Page Watcher Follow-up under Existing Authorization
+
+- **Unit / debt:** `dashboard-operator-ui` / DEBT-083 Critical/active.
+- **Scope:** Same-capacity bounded UI follow-up after actual v61 qualification
+  failures; individual section messages and half-second timing are preserved.
+- **Delivered:** `d86f76f`, 2823 regression passes, v62 deployment and 175 runtime
+  hashes/health/first/later engine cycles verified. Original CPU/RAM/volume and
+  paper/Codex controls retained. No runtime-data or persistent-cache write added.
+- **Measurement boundary:** Initial Home 12.180s still exceeds 5s; final server
+  observation has substantial CPU burst credit. No causal/depleted/native/1 GiB
+  qualification inferred. Earlier failures remain recorded.
+- **Approval boundary:** Tool execution permissions are not functional-design
+  approval. The proposed durable checkpoint contract still awaits an operator
+  response; NFR/infrastructure/code for it have not begun. CPU/cost remains deferred.
+
+## 2026-10-25 — Final v62 Qualification and Safety Design Boundary
+
+- Four-session buffered-CPU observation: 23m36s, 276/280 recorded complete views,
+  four true 30s timeouts, 280/280 health samples and whole engine cycle. Dashboard
+  growth 21.652 MiB; guest 1293.313 MiB fails original 768 target. DEBT-083 active.
+- Source 175 hashes, paper/Codex/original capacity/volume and post-load recovery
+  verified; root unrelated configuration/lock preserved.
+- Whole-history engine safety input allocation traced, with actual pause-gate
+  consumption. New read-only streaming Functional Design explicitly proposes an
+  entry-time UTC snapshot, a potentially conservative behavior difference at the
+  24h edge. It is not presented as unchanged timing and is not implemented.
+- Explicit functional approval requested for runtime safety before NFR design;
+  earlier checkpoint design approval is also pending. Execution permissions do
+  not approve either contract. No live mode, safety threshold, runtime data or
+  allocation/cost change is inferred.

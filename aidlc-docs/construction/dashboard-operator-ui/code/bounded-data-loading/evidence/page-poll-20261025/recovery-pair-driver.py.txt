@@ -1,0 +1,69 @@
+import argparse,asyncio,base64,hashlib,json,shlex,time
+from datetime import datetime,timezone
+from pathlib import Path
+from google.protobuf import descriptor_pb2,descriptor_pool,message_factory
+import aiohttp,websockets
+
+p=argparse.ArgumentParser();p.add_argument('--seconds',type=int,default=600);p.add_argument('--max-seconds',type=int,default=2100);p.add_argument('--phase',default='after');p.add_argument('--cadence',type=float,default=5);args=p.parse_args()
+OUT=Path('aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/page-poll-20261025')
+OUT.mkdir(parents=True,exist_ok=True)
+ds=descriptor_pb2.FileDescriptorSet.FromString(Path('/private/tmp/crypto-master-ui-protocol-20261025.pb').read_bytes());pool=descriptor_pool.DescriptorPool()
+for f in ds.file:pool.AddSerializedFile(f.SerializeToString())
+Back=message_factory.GetMessageClass(pool.FindMessageTypeByName('BackMsg'));Forward=message_factory.GetMessageClass(pool.FindMessageTypeByName('ForwardMsg'))
+pages={};stop=asyncio.Event();reason=[];observations=[];health=[];memory=[];cycles={}
+
+class Client:
+ def __init__(self,identifier):self.identifier=identifier;self.ws=None
+ async def __aenter__(self):
+  self.ws=await websockets.connect('wss://crypto-master.fly.dev/_stcore/stream',origin='https://crypto-master.fly.dev',subprotocols=['streamlit'],max_size=16*1024*1024,open_timeout=20)
+  return self
+ async def __aexit__(self,*exc):await self.ws.close()
+ async def send(self,page_hash='',fragment=''):
+  b=Back();b.rerun_script.SetInParent();b.rerun_script.page_script_hash=page_hash
+  if fragment:b.rerun_script.fragment_id=fragment;b.rerun_script.is_auto_rerun=True
+  await self.ws.send(b.SerializeToString())
+ async def view(self,page,timeout=60):
+  page_hash=pages.get(page,'');elements={};fragments={};start=time.monotonic();started_at=datetime.now(timezone.utc).isoformat();messages=0;status='timeout';finished=[];max_watchers=0;auto_reruns=0
+  await self.send(page_hash)
+  while time.monotonic()-start<timeout and not stop.is_set():
+   try:raw=await asyncio.wait_for(self.ws.recv(),timeout=.5)
+   except asyncio.TimeoutError:
+    now=time.monotonic()
+    for frag,due in list(fragments.items()):
+     if now>=due:await self.send(page_hash,frag);fragments[frag]=now+.5
+    continue
+   if isinstance(raw,str):continue
+   msg=Forward.FromString(raw);messages+=1;typ=msg.WhichOneof('type')
+   if typ=='navigation':
+    for item in msg.navigation.app_pages:pages[item.page_name]=item.page_script_hash
+   elif typ=='new_session':
+    for item in msg.new_session.app_pages:pages[item.page_name]=item.page_script_hash
+    if not msg.new_session.fragment_ids_this_run:elements.clear();fragments.clear()
+   elif typ=='auto_rerun':
+    fragments[msg.auto_rerun.fragment_id]=time.monotonic()+msg.auto_rerun.interval;auto_reruns+=1;max_watchers=max(max_watchers,len(fragments))
+   elif typ=='stop_auto_rerun':fragments.clear()
+   elif typ=='delta' and msg.delta.WhichOneof('type')=='new_element':
+    el=msg.delta.new_element;kind=el.WhichOneof('type');kind={'arrow_data_frame':'dataframe','arrow_vega_lite_chart':'vega_lite_chart'}.get(kind,kind);value={'kind':kind}
+    if kind=='metric':value.update(label=el.metric.label,value_sha256=hashlib.sha256(el.metric.body.encode()).hexdigest(),placeholder=el.metric.body in ('','—','-'))
+    if kind=='alert':value['incomplete']=any(t in el.alert.body.lower() for t in ('loading in the background','data could not be verified','current data is unavailable'))
+    elements[tuple(msg.metadata.delta_path)]=value
+   elif typ=='script_finished':
+    finished.append(int(msg.script_finished))
+    if int(msg.script_finished)!=0:continue
+    counts={k:sum(v['kind']==k for v in elements.values()) for k in ('metric','dataframe','table','vega_lite_chart','exception')};missing=sum(v.get('incomplete',False) for v in elements.values())
+    complete=counts['metric']>=(12 if page=='Home' else 6) and counts['exception']==0 and missing==0
+    if page=='Trading':complete=complete and counts['dataframe']+counts['table']>0 and counts['vega_lite_chart']>0
+    if complete:status='complete';break
+    if not fragments:status='incomplete';break
+  counts={k:sum(v['kind']==k for v in elements.values()) for k in ('metric','dataframe','table','vega_lite_chart','exception')}
+  if stop.is_set() and status=='timeout':status='aborted_after_guard_stop'
+  return {'started_at':started_at,'client':self.identifier,'page':page,'status':status,'seconds':time.monotonic()-start,'messages':messages,'elements':counts,'incomplete_alerts':sum(v.get('incomplete',False) for v in elements.values()),'metrics':[v for v in elements.values() if v['kind']=='metric'],'script_finished_values':finished,'maximum_background_watchers':max_watchers,'auto_rerun_registrations':auto_reruns}
+
+
+async def recovery_main():
+ async with Client('recovery') as client:
+  rows=[await client.view(page,timeout=120) for page in ('Home','Trading')]
+ (OUT/'v62-recovery-pair.json').write_text(json.dumps(rows,indent=2)+'\n')
+ print(json.dumps([{k:r[k] for k in ('page','status','seconds','maximum_background_watchers','incomplete_alerts')} for r in rows]),flush=True)
+ assert all(r['status']=='complete' for r in rows)
+asyncio.run(recovery_main())

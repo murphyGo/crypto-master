@@ -9,9 +9,9 @@
 2. [x] Add a render-scoped watcher collector in `availability.py`; apply to Home, bounded Trading and standalone Funnel, including nested render behavior. Do not use private Streamlit context or persistent session flags.
 3. [x] Test one watcher for multiple pending sections, separate coverage messages, terminal/complete states, exception cleanup, nested calls and concurrent render isolation.
 4. [x] Run focused/full tests, changed-file Black/Ruff and source mypy. Keep prior projection hashes/measurement claims tied to unchanged code.
-5. [ ] Roll out exact verified source on original capacity/dependencies, verify runtime hashes/health/paper cycle and record protocol behavior.
-6. [ ] Qualify actual final concurrency with all failures retained. Keep native/original guest and cold target unqualified unless actual evidence passes; preserve deferred cost gate.
-7. [ ] Update session/cross-check/state/debt and commit/push scoped evidence; preserve unrelated root work.
+5. [x] Roll out exact verified source on original capacity/dependencies, verify runtime hashes/health/paper cycle and record protocol behavior.
+6. [x] Measure actual final concurrency with all failures retained. Keep native/original guest and cold target unqualified unless actual evidence passes; preserve deferred cost gate.
+7. [x] Update session/cross-check/state/debt and commit/push scoped evidence; preserve unrelated root work.
 
 - **New persistence question:** [Answer]: Pending separate Functional Design review; this change adds no persistence.
 - **Capacity question:** [Answer]: Existing shared CPU 1 / 2048 MiB; performance CPU / added cost remains deferred.
@@ -22,3 +22,23 @@
 - Observable checks: five Home/four Trading/two Funnel pending states each retain their messages while registering one watcher. Nested calls, each concurrent session and exception/rerun-like BaseException cleanup are checked. Standalone availability behavior stays compatible.
 - Activity/source/data-service hashes match v61. Its query comparisons are unchanged-reader evidence, not a new page-readiness claim.
 - Host metrics were recovered by using the CLI JSON token's actual scheme. Earlier HTTP401 records remain historical; burst falls near zero and host throttling rises around the failed observation windows. No credential was printed/persisted or created.
+
+## Deployed checkpoint
+
+v62 / `d86f76f` passes 175 deployed hashes, health and first/later paper cycles.
+The first app pair is Home 12.180s / Trading 1.149s, with at most one watcher.
+Final four-session twenty-second observation is running with about 459 CPU-seconds
+of initial burst credit. This is buffered-condition evidence; depleted CPU,
+native Browser, original guest and cold acceptance remain open. No approval has
+arrived for the new persistence contract.
+
+## Final outcome
+
+Observed 23m36s / 276 of 280 recorded views complete, four true 30s timeouts.
+Health all 280 passes, max 1.286s; a full engine cycle completes. One watcher is
+confirmed. Dashboard growth 21.652 MiB passes; guest 1293.313 MiB fails 768.
+CPU remains buffered with zero throttle. Acceptance FAIL and DEBT-083 active.
+Post-load recovery and final 175 hashes/controls pass. No new engine safety or
+derived storage code is implemented. Functional reviews are the next gated work;
+native connection remains an external blocker. Scoped docs/evidence are sealed
+without treating failed acceptance as a completed NFR.

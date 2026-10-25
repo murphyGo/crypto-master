@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Cold-readiness follow-up deployed on Fly v61 (`7f185bc`); 2811 tests, 175 hashes, health/first cycle pass. Million cold and five-second stress health target still fail; twenty-second scenario also fails health despite a full cycle. Native/original guest acceptance and checkpoint design approval remain open. CPU/cost proposal stays deferred. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | v62 / `d86f76f`: 2823 tests, 175 hashes/health/cycles pass. Final 4-session run records 276/280 complete views and four 30s timeouts; guest peak 1293.313 MiB fails 768. Cold/native/depleted/1 GiB and two Functional Design approvals remain open. Current capacity/cost gate retained. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` | Fly v61 / `7f185bc`: 2811 tests, 175 hashes, health/first cycle pass; million cold p95 7.872s (>5s). Five-second stress fails health deadline; twenty-second scenario also fails health despite a full cycle. Native/original guest acceptance and proposed checkpoint Functional Design approval remain open. Shared CPU 1 / 2048 MiB retained; CPU/cost proposal deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | v62 / `d86f76f`, 2823 tests, 175 hashes/health/cycles pass. Four 30s views and 1293.313 MiB guest peak fail final qualification. Engine full-history safety input and pause consumer traced; checkpoint/streaming-time Functional Designs pending. Native/depleted/1 GiB and cold goals remain open; cost upgrade stays deferred. |
 
 DEBT-082 is resolved by native production verification. The concurrent
 DEBT-074/078/084/085/086 implementation closures are preserved in

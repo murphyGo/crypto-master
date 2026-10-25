@@ -1,0 +1,10 @@
+#4 [1/5] FROM registry.fly.io/crypto-master@sha256:cad5a65e6c194eb43db0d068a4e4700fb016459d98996a20e0178492b9a96cb6
+#6 [2/5] COPY src/dashboard/availability.py /app/src/dashboard/availability.py
+#7 [3/5] COPY src/dashboard/pages/home.py /app/src/dashboard/pages/home.py
+#8 [4/5] COPY src/dashboard/pages/proposals.py /app/src/dashboard/pages/proposals.py
+#9 [5/5] COPY src/dashboard/pages/trading.py /app/src/dashboard/pages/trading.py
+#10 pushing manifest for registry.fly.io/crypto-master:git-d86f76fda1b91bc337b06db2050722379c3f8701-page-poll@sha256:648811287f22e13d85fe9b4f0f2743e23bdb905e56c0885a0251bf5911dbc868
+#10 pushing manifest for registry.fly.io/crypto-master:git-d86f76fda1b91bc337b06db2050722379c3f8701-page-poll@sha256:648811287f22e13d85fe9b4f0f2743e23bdb905e56c0885a0251bf5911dbc868 0.1s done
+image: registry.fly.io/crypto-master:git-d86f76fda1b91bc337b06db2050722379c3f8701-page-poll
+image size: 545 MB
+No RUN/install dependency layer; four files only.

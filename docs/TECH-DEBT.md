@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; cold-readiness follow-up deployed on Fly v61 (`7f185bc`). 2811 regression passes, 175 runtime hashes, health and first paper cycle verified. Million cold p95 7.872s still fails 5s; five-second four-session stress fails its health guard. Twenty-second qualification also fails health despite a full cycle. Native/original guest acceptance remains open; new checkpoint Functional Design awaits approval. Performance-CPU / added-cost proposal remains deferred; shared CPU 1 / 2048 MiB retained |
+| **Status** | Active; v62 (`d86f76f`) deployed with 2823 tests, 175 hashes/health/engine cycles verified. Final buffered-CPU four-session run records 276/280 complete views, four 30s timeouts; guest 1293.313 MiB exceeds 768. First Home 12.180s exceeds 5s. Engine full-history safety input allocation traced; checkpoint and safety-time/streaming Functional Designs await approval. Native/depleted/original guest targets remain open. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -198,6 +198,31 @@ no new persistence or CPU cost is active. See
 `docs/sessions/2026-10-25-dashboard-cold-readiness.md` and
 `aidlc-docs/construction/plans/dashboard-operator-ui-cold-readiness-completion-plan.md`.
 
+
+**2026-10-25 page-poll follow-up:** v62 / `d86f76f` coalesces pending sections
+into one half-second watcher per render. 2823 tests, 175 deployed hashes, health
+and first/later paper cycles pass; original capacity/volume/paper/Codex remain.
+First observed Home 12.180s / Trading 1.149s is one pair, not cold percentile
+acceptance. The four-session twenty-second test is in progress; its initial burst
+credit is about 459 CPU-seconds, so any buffered pass cannot prove depleted CPU
+recovery or causality. Earlier v61 failures remain. CLI token scheme correction
+recovers host telemetry; no credential was exposed/stored/created. New persistent
+checkpoints remain a Functional Design proposal awaiting explicit approval.
+See `docs/sessions/2026-10-25-dashboard-page-poll-coalescing.md`.
+
+**2026-10-25 final v62 qualification:** 23m36s / four 20s sessions: 276/280
+recorded views complete, four actual 30s timeouts, all 280 health samples pass
+(max 1.286s), whole paper cycle completes. Dashboard growth is 21.652 MiB,
+while guest peak is 1293.313 MiB and engine RSS 878.660 MiB. Original 768 MiB
+ceiling fails; 1 GiB/native/depleted acceptance is not qualified. Burst remains
+~459→410 CPU-seconds with zero throttle, so quota alone does not explain these
+failures. Post-load Home/Trading recover 0.597s/0.515s; 175 hashes and controls
+remain. Engine safety input calls `ActivityLog.read_all()` and the result feeds
+actual pause gating; its proposed streamed UTC snapshot needs separate explicit
+functional approval. No engine safety code/policy or persistence is changed.
+`runtime-safety-score` and `proposal-runtime` are related owners for that next
+contract. See the final page-poll session/cross-check and
+`aidlc-docs/construction/plans/runtime-safety-score-streaming-activity-functional-design-plan.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

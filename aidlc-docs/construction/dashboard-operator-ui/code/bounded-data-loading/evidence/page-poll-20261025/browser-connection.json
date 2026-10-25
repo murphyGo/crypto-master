@@ -1,0 +1,7 @@
+{
+  "result": "unavailable",
+  "native_qualification": false,
+  "error": "Cannot find module '/Users/user/.codex/plugins/cache/openai-bundled/browser/26.1007.30912/scripts/browser-service.mjs' imported from trusted-worker.js",
+  "method": "Supported bootstrap retry; no selected browser or alternate source workaround",
+  "artifact_recorded_at": "2026-10-25T10:24:51.839300+00:00"
+}

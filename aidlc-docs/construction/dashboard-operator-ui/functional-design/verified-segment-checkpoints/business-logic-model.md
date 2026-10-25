@@ -64,3 +64,13 @@ specify bounded encoding/decoding, disk quota and cleanup, crash-safe publicatio
 source/version proof, concurrency, permissions, free-space handling, resource
 measurement and rollback before implementation. A 64 MiB derived-disk envelope
 on the existing volume is a candidate for that next stage, not an activated setting.
+
+## Later qualification finding
+
+v62 also records four true 30s page timeouts with substantial CPU credit and
+zero throttle; guest peak 1293.313 MiB includes engine peak RSS 878.660 MiB.
+Whole-history safety scoring in the engine is a separate allocation path and
+feeds actual pause decisions. This checkpoint candidate alone is not a complete
+resource remedy or permission to change that gate. A separate runtime-safety-score
+Functional Design is pending; the next NFR review must reconcile shared-process
+memory and mutable-source coverage rather than assume a cache fixes both.

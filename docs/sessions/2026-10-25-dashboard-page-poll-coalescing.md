@@ -47,3 +47,86 @@ for durable file checkpoints remains awaiting approval and is not implemented.
 Pending exact-source rollout and separate protocol/concurrency evidence. Original
 cold, native, four-session and declared guest targets are retained. All failed
 or aborted observations must remain; no completion claim is made at this checkpoint.
+
+## Deployment / initial observation
+
+Source `d86f76fda1b91bc337b06db2050722379c3f8701` is pushed and deployed on Fly
+**v62**, image `sha256:648811287f22e13d85fe9b4f0f2743e23bdb905e56c0885a0251bf5911dbc868`.
+All **175 runtime hashes** match. Machine/volume, shared CPU 1 / 2048 MiB,
+Python/Streamlit/Pydantic/Pandas/NumPy versions and paper/Codex/Claude controls
+remain. First complete post-deployment cycle runs
+2026-10-25T03:47:14.646139Z–03:47:52.451427Z; later completed cycles are verified.
+The root main checkout fast-forwards to `d86f76f`; unrelated settings/lock hashes
+still match the original preservation snapshot.
+
+The first observed app navigation after restart completes Home **12.180s** and
+Trading **1.149s**, with full metrics/tables/chart coverage, no exception or
+incomplete alert at completion. Actual Home background watchers peak at **one**;
+Trading has none in that pair. This single pair includes app-script import work
+but excludes earlier HTTP-server startup and is not twenty process-cold samples.
+The 5s Home readiness target remains unmet.
+
+Four twenty-second server sessions started at the recorded protocol timestamp
+and are observing an existing full engine cycle. Initial host telemetry shows
+about **459 CPU-seconds of burst credit and zero throttle**, unlike the depleted
+v61 failure windows. The long idle period between tool permission confirmations
+and UI observation changes capacity conditions. Any passing result is restricted
+to that measured buffered condition; it is not a causal A/B or proof of depleted
+shared-CPU acceptance. Exact timing, data/version and CPU conditions remain in
+[raw evidence](../../aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/page-poll-20261025/README.md).
+
+The optional new checkpoint Functional Design still awaits an operator response;
+no approval was inferred from execution permissions for deployment/read-only
+qualification tools. No durable cache or extra CPU cost is active.
+
+## Final observed result: acceptance not passed
+
+The four-session twenty-second scenario lasts **1415.830s (23m36s)**. It records
+**276/280 complete views** (138/140 on each page), plus four genuine **30s page
+timeouts** during the engine cycle. All **280 health samples pass**, maximum
+**1.286s**. Successful-only p95 Home **0.620s** / Trading **0.829s** is not a
+passing readiness series because the failures remain. This is server-protocol
+observation, not native viewport acceptance.
+
+The full paper cycle runs **09:52:48.578812Z–09:53:33.020625Z** with twelve monitor
+passes and a completed proposal path, without an errored event in the captured
+cycle. Engine/dashboard PIDs stay 654/655. Actual background watchers never
+exceed **one**. Dashboard RSS/HWM growth is **21.652 MiB**, below its 256 MiB
+criterion; whole-guest peak is **1293.313 MiB**, above **768 MiB**, on the actual
+2 GiB allocation. Engine RSS peaks at **899748 KiB (878.660 MiB)** during the run,
+which alone exceeds that whole-guest budget. Do not sum process RSS to derive
+VM use; the guest figure uses MemTotal minus MemAvailable.
+
+Host metrics retain roughly 459 CPU-seconds initially and 410 seconds finally,
+with **zero host throttle throughout this observation**. This run therefore
+shows that quota exhaustion is not a sufficient explanation for every timeout.
+It does not isolate source mutation, allocator or scheduling causes, and is not
+a depleted-CPU A/B. The positive watcher/health observations do not close the
+cold, failed-view, memory, native or original 1 GiB acceptance gaps.
+
+At the deliberate normal end the harness cancels unfinished requests; this
+version records completed/timeout views but may omit such boundary-censored
+requests. They are not counted as successes. The four independent 30s timeouts
+are retained, so this limitation cannot turn the failed run into acceptance.
+The raw driver exits 1 for incomplete views; `qualification-verdict.json` also
+checks the original memory ceiling rather than relying on process exit alone.
+
+After load stops, a separate single-client recovery pair completes Home **0.597s**
+and Trading **0.515s**, with no incomplete alert/exception. Final source checks
+still match all 175 inputs, original volume/capacity/paper/Codex settings and
+continued engine cycles. Public health is HTTP200. Existing v62 is retained;
+no further engine algorithm, storage, allocation or trading-policy change is made.
+
+## Follow-up boundary
+
+A source trace confirms engine `_current_runtime_safety_score` still invokes
+`ActivityLog.read_all()` before 24h reduction, including explicit replay-list
+calls that bypass its `None`-only cache. The same score is consumed by an actual
+runtime pause gate. This is a concrete archive-sized allocation path, consistent
+with the peak but not an isolated allocation profile. Changing lazy evaluation
+also changes when default UTC is acquired at the 24h edge. A separate
+[runtime-safety-score Functional Design](../../aidlc-docs/construction/runtime-safety-score/functional-design/streaming-activity-inputs/business-logic-model.md)
+proposes explicit request-time anchoring, same fixed-time math and guarded bounded
+streaming. Its possible conservative pause difference is explicit and **not
+implemented or approved**. The earlier persistent checkpoint candidate is also
+still approval-pending. Tool permissions were not treated as design approvals.

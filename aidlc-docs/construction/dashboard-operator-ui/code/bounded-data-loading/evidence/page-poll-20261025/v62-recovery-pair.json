@@ -1,0 +1,156 @@
+[
+  {
+    "started_at": "2026-10-25T10:00:59.627743+00:00",
+    "client": "recovery",
+    "page": "Home",
+    "status": "complete",
+    "seconds": 0.5970619580475613,
+    "messages": 76,
+    "elements": {
+      "metric": 12,
+      "dataframe": 4,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Runtime safety",
+        "value_sha256": "3c8cab8b47d6d0ac0e1bb0a3c209b836f5cf1a61e851626dc7a5d7f011a7e5dd",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Last cycle",
+        "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open positions",
+        "value_sha256": "4ec9599fc203d176a301536c2e091a19bc852759b255bd6818810a42c5fed14a",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Snapshot",
+        "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Mode",
+        "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Scope",
+        "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Sub-accounts",
+        "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Actionable events",
+        "value_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Awaiting approval",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Promoted",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Errored",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  },
+  {
+    "started_at": "2026-10-25T10:01:00.224815+00:00",
+    "client": "recovery",
+    "page": "Trading",
+    "status": "complete",
+    "seconds": 0.5150551249971613,
+    "messages": 38,
+    "elements": {
+      "metric": 6,
+      "dataframe": 3,
+      "table": 0,
+      "vega_lite_chart": 1,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Current Equity",
+        "value_sha256": "6aed1df040bc79c31dfcd3f5232bc6a4d54c98db04762f1cf223bbe8a54fc603",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open Positions",
+        "value_sha256": "4ec9599fc203d176a301536c2e091a19bc852759b255bd6818810a42c5fed14a",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Closed Trades",
+        "value_sha256": "d8ed8ca27d83a63df6982905ea53b4613b9d7974edcee06f301cf43d63177f47",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Win Rate",
+        "value_sha256": "358971b941b4fc7b5e739bef78da7139a95dd34acf14e8dec7879312e8ee045b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Realized P&L",
+        "value_sha256": "fe8bf787a7550aa0e485b627f378db4fb3a92bb3d90b9f7a2aa2946b94448b91",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Proposals rejected (threshold)",
+        "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  }
+]

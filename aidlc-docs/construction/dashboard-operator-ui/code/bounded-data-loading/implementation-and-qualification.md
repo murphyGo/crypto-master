@@ -177,3 +177,29 @@ proposal stays deferred. New whole-file restart checkpoints are a Functional
 Design candidate awaiting approval, not active persistence. DEBT-083 stays active.
 See [current cross-check](../../../../../docs/cross-checks/2026-10-25-dashboard-cold-readiness.md)
 and [evidence](evidence/cold-readiness-20261025/README.md).
+
+## 2026-10-25 page watcher follow-up
+
+v62 / `d86f76f` shares one half-second loading watcher per Home, bounded Trading
+or standalone Funnel render while retaining individual coverage messages.
+2823 full tests, 175 deployed hashes, format/mypy, HTTP health and first/later
+paper cycles pass. Reader/service/source code hashes remain v61's unchanged
+query evidence; no new financial or persistence semantics are implemented.
+First observed Home 12.180s / Trading 1.149s is one pair and leaves cold
+readiness unaccepted. Final four-session observation is separately recorded
+with about 459 CPU-seconds initial burst credit; a buffered result cannot prove
+recovery from quota exhaustion. v61 failed scenarios remain historical evidence.
+Native/declared guest and new checkpoint Functional Design approval stay open;
+performance CPU/cost proposal remains deferred. See
+[current cross-check](../../../../../docs/cross-checks/2026-10-25-dashboard-page-poll-coalescing.md).
+
+### Final v62 verdict
+
+Acceptance remains **not passed**: recorded 276/280 full views, four 30s timeouts,
+guest 1293.313 MiB vs 768. Health 280/280 (max 1.286s) and whole engine cycle pass;
+one watcher and dashboard growth 21.652 MiB are verified. CPU is buffered/zero
+throttle, not depleted qualification. First Home 12.180s, native and original
+1 GiB remain open. Recovery Home/Trading 0.597s/0.515s and final source/control
+checks pass. Engine whole-history safety input and actual pause consumer require
+a separate approved Functional/NFR contract before modification. No runtime
+safety or persistent-cache change is active.
