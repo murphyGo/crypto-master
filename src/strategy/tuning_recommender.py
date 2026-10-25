@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.strategy.cost_coverage import FundingCoverage, PnlBasis
 from src.strategy.performance import TechniquePerformance
 from src.strategy.tuning import StrategyAction, ThresholdSpec
 
@@ -63,6 +64,9 @@ class RecommenderEvidence:
     max_drawdown_pct: float
     fail_closed_rate: float
     economic_complete: bool = True
+    # Completeness above is fee-net/account/window only, never all-cost PnL.
+    pnl_basis: PnlBasis = "fee_net_excluding_funding"
+    funding_coverage: FundingCoverage = "unknown"
     coverage_note: str = ""
     window_closed_trades: int | None = None
     capital_base: float | None = None

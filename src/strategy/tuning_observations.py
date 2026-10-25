@@ -17,6 +17,7 @@ from urllib.parse import quote
 from pydantic import BaseModel, Field
 
 from src.config import get_settings
+from src.strategy.cost_coverage import FundingCoverage, PnlBasis
 from src.strategy.tuning import StrategyAction
 from src.strategy.tuning_recommender import RecommenderEvidence
 from src.utils.io import atomic_write_text
@@ -37,6 +38,8 @@ class StrategyTuningEvidenceSnapshot(BaseModel):
     max_drawdown_pct: float
     fail_closed_rate: float = Field(ge=0.0, le=1.0)
     economic_complete: bool = False
+    pnl_basis: PnlBasis = "legacy_unspecified"
+    funding_coverage: FundingCoverage = "unknown"
     coverage_note: str = "legacy observation has no account/window basis"
     window_closed_trades: int | None = None
     capital_base: float | None = None
@@ -55,6 +58,8 @@ class StrategyTuningEvidenceSnapshot(BaseModel):
             max_drawdown_pct=evidence.max_drawdown_pct,
             fail_closed_rate=evidence.fail_closed_rate,
             economic_complete=evidence.economic_complete,
+            pnl_basis=evidence.pnl_basis,
+            funding_coverage=evidence.funding_coverage,
             coverage_note=evidence.coverage_note,
             window_closed_trades=evidence.window_closed_trades,
             capital_base=evidence.capital_base,

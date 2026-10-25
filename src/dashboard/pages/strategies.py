@@ -161,6 +161,7 @@ def build_summary_dataframe(
                 "Technique": info.name,
                 "Version": info.version,
                 "Type": info.technique_type,
+                "Funding Costs": "Not measured",
                 "Symbols": ", ".join(info.symbols) if info.symbols else "—",
                 "Total Trades": perf.total_trades,
                 "Wins": perf.net_wins,
@@ -352,13 +353,16 @@ def _format_evidence_summary(evidence: RecommenderEvidence) -> str:
     pf = (
         f"{evidence.profit_factor:.2f}" if evidence.profit_factor is not None else "n/a"
     )
+    cost_note = "Fee-net; funding not measured"
+    if evidence.pnl_basis == "legacy_unspecified":
+        cost_note = "Legacy cost basis unspecified; funding not measured"
     if not evidence.economic_complete:
         return (
-            f"Economic evidence unavailable: {evidence.coverage_note}; "
+            f"Economic evidence unavailable: {evidence.coverage_note}; {cost_note}; "
             f"closed={evidence.closed_trades}; fail_closed={evidence.fail_closed_rate * 100:.0f}%"
         )
     return (
-        f"window={evidence.window_closed_trades}, capital={evidence.capital_base} {evidence.quote_currency}, "
+        f"{cost_note}; window={evidence.window_closed_trades}, capital={evidence.capital_base} {evidence.quote_currency}, "
         f"closed={evidence.closed_trades}, "
         f"PF={pf}, "
         f"win={evidence.win_rate * 100:.0f}%, "

@@ -57,8 +57,8 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
-> **Strategy evidence corrections (2026-10-25):** DEBT-087/088 source/tests
-> complete: account-scoped proposal history, cap-blocker monitorability. Primary units: proposal-runtime, proposal-funnel-audit.
+> **Strategy evidence corrections (2026-10-25):** DEBT-087/088/089 source/tests
+> complete: account-scoped proposal history, cap-blocker monitorability, funding coverage and carry sensitivity. Primary units: proposal-runtime, proposal-funnel-audit, strategy-framework.
 > The combined three-fix source verification passed 2,865 tests, changed-file
 > Black/Ruff, 131-file mypy and fixed-snapshot replay. Each correction is
 > committed separately. User subsequently authorized commit/push and deployment

@@ -1,0 +1,258 @@
+{
+  "snapshot": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z",
+  "scenario": "constant adverse 0.0001 per 8h, fractional intervals, actual trade holding time; not funding settlement",
+  "rows": [
+    {
+      "account": "bollinger_band_reversion",
+      "n": 66,
+      "included": 66,
+      "scenario_complete": true,
+      "fee_net": "693.2818346832275946574473353",
+      "adverse_carry": "35.70166841335069444444444446",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/bollinger_band_reversion/bollinger_band_reversion/records.json",
+          "sha256": "0e9afa90c2eab1bd63a36278d3addd15089ebf2d47f399ca4df18782cab73d82"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/bollinger_band_reversion/trades.json",
+          "sha256": "b3c69952484199acf90dfc6a3290ed84462f8435575ef1c0e49a30c9e487afa2"
+        }
+      ]
+    },
+    {
+      "account": "ma_crossover",
+      "n": 223,
+      "included": 223,
+      "scenario_complete": true,
+      "fee_net": "-985.2678462706063263827302442",
+      "adverse_carry": "164.9725378705451388888888888",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/ma_crossover/ma_crossover/records.json",
+          "sha256": "49cfff6272eac7c9ad615e3c0ea96baa9ec652e3cb006b39b7830277c2fd19e6"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/ma_crossover/trades.json",
+          "sha256": "a332cccc886f9f871fc1a81da8a272b49dfe98e07394d283e0e8337f2a64de6e"
+        }
+      ]
+    },
+    {
+      "account": "momentum_pinball_orb",
+      "n": 7,
+      "included": 7,
+      "scenario_complete": true,
+      "fee_net": "-186.0393130662463319964738454",
+      "adverse_carry": "40.89897969159027777777777777",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/momentum_pinball_orb/momentum_pinball_orb/records.json",
+          "sha256": "e357a34f32bc5892fcafb4d95c4c459d58ca9bd7383a0616460aa89e84ebb7c1"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/momentum_pinball_orb/trades.json",
+          "sha256": "e2a19a90c199808fe77dcd5e197673ce44ac73264787fc1f45b7152262442bcd"
+        }
+      ]
+    },
+    {
+      "account": "raschke_holy_grail",
+      "n": 262,
+      "included": 262,
+      "scenario_complete": true,
+      "fee_net": "-167.2346162272423338988346772",
+      "adverse_carry": "132.3000454960069444444444443",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/raschke_holy_grail/raschke_holy_grail/records.json",
+          "sha256": "d16e5372df5c987ba6e64b41be2f1c0f81124a9ba2d0af4c38893e15f35a1df4"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/raschke_holy_grail/trades.json",
+          "sha256": "72dd805625e1bf9f8a1ace68e28e45869a65092e72c5678260dd1648a898c4f2"
+        }
+      ]
+    },
+    {
+      "account": "rsi_15m",
+      "n": 230,
+      "included": 230,
+      "scenario_complete": true,
+      "fee_net": "943.6654215950889825477022664",
+      "adverse_carry": "73.97535431647916666666666668",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/rsi_15m/rsi_15m/records.json",
+          "sha256": "4dfb05773f7890c2c4e9b96c757eb0ef3efe5088c1dcfb2398d9dc49d9661324"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/rsi_15m/trades.json",
+          "sha256": "72367190a415f79c83ef793cb61ed044bee220a468a6b22751f231cd2dffc9ca"
+        }
+      ]
+    },
+    {
+      "account": "rsi_4h",
+      "n": 26,
+      "included": 26,
+      "scenario_complete": true,
+      "fee_net": "447.2538310810092684068638070",
+      "adverse_carry": "45.41878080974652777777777780",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/rsi_4h/rsi_4h/records.json",
+          "sha256": "1aea7e54c4bc701c2f1a75f8f5c4f6e2dd76141471bf8ad423ec6d041e6a44ba"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/rsi_4h/trades.json",
+          "sha256": "0ad09a4d18e05daa4611f90e9bb692da6fbfe444ca073039c23d9c102c55236a"
+        }
+      ]
+    },
+    {
+      "account": "rsi_universal",
+      "n": 163,
+      "included": 163,
+      "scenario_complete": true,
+      "fee_net": "1391.183854621564013840911177",
+      "adverse_carry": "72.64364178985763888888888889",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/rsi_universal/rsi_universal/records.json",
+          "sha256": "54784e13bf2d033fd9fb4f66db143b47f38b3f19d56443eaf64844eb075f3049"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/rsi_universal/trades.json",
+          "sha256": "dc4b4acd412d20805cb79698f7b92d559838cfccd79dd046812e56136bb4a1ef"
+        }
+      ]
+    },
+    {
+      "account": "session_vwap_pullback",
+      "n": 54,
+      "included": 54,
+      "scenario_complete": true,
+      "fee_net": "735.3882215738222919204417688",
+      "adverse_carry": "81.73268059395833333333333336",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/session_vwap_pullback/session_vwap_pullback/records.json",
+          "sha256": "2bad0f6e163b486dfd69458fde92baf3fe7814317c22651152c1d0413f5f1291"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/session_vwap_pullback/trades.json",
+          "sha256": "9b9fc514aea9fd4c165842841d7316b7cc8e9c8cba618e293c4cad5eb9515797"
+        }
+      ]
+    },
+    {
+      "account": "turtle_soup_reclaim",
+      "n": 8,
+      "included": 8,
+      "scenario_complete": true,
+      "fee_net": "-406.6036864950914833289221711",
+      "adverse_carry": "16.57012551437847222222222222",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/turtle_soup_reclaim/turtle_soup_reclaim/records.json",
+          "sha256": "8bb7d4adafea604e63b91ce33ad8e7dfe372e7cb26c5685eb5ec2b4ca78153aa"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/turtle_soup_reclaim/trades.json",
+          "sha256": "94c1b456c5ecbdc6013d6e840c9ccfa7bbe5633de9f4b66b1cfa1edabdb3a4d6"
+        }
+      ]
+    },
+    {
+      "account": "vcp_breakout",
+      "n": 1,
+      "included": 1,
+      "scenario_complete": true,
+      "fee_net": "-6.686815899375765472477046864",
+      "adverse_carry": "4.202460246684027777777777778",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/vcp_breakout/vcp_breakout/records.json",
+          "sha256": "27b9637ce3c6fdf5958351069c2a6eac39dd2fc632c5ca150410665ea3e78e26"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/vcp_breakout/trades.json",
+          "sha256": "3f9890d2845bc1ea41e76b217b4621f5ee5824f7f07294d22b4ad0cfaa98e64d"
+        }
+      ]
+    },
+    {
+      "account": "vwap_mean_reversion",
+      "n": 197,
+      "included": 197,
+      "scenario_complete": true,
+      "fee_net": "626.0786677146216923657406411",
+      "adverse_carry": "72.97137459405555555555555556",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/vwap_mean_reversion/vwap_mean_reversion/records.json",
+          "sha256": "4c384e541f33dce77fa89187afc8fc8d2750c102887b60ecc52f30a6542213f9"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/vwap_mean_reversion/trades.json",
+          "sha256": "ab54b510a6e378605308c78b97cf77f9f43f447d8437cdeb03f96487eeca3728"
+        }
+      ]
+    },
+    {
+      "account": "weinstein_stage2_filter",
+      "n": 10,
+      "included": 10,
+      "scenario_complete": true,
+      "fee_net": "-457.9240809106039266290410316",
+      "adverse_carry": "59.68451099971499735963786180",
+      "actual_funding": null,
+      "unchanged": true,
+      "excluded": {},
+      "inputs": [
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/performance/weinstein_stage2_filter/weinstein_stage2_filter/records.json",
+          "sha256": "45c04d8ef1779ee9056454eb6b091a4292ceeb8b34e95bdebd5ea3cee2b7d837"
+        },
+        {
+          "path": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z/trades/paper/weinstein_stage2_filter/trades.json",
+          "sha256": "57ca92917012adf82cdb0b73c40947208514bfb6c5d7a5ad3d07b6345b9ce1c1"
+        }
+      ]
+    }
+  ]
+}

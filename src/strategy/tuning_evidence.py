@@ -25,6 +25,8 @@ def evidence_from_records(
     Unknown timestamps invalidate the window; unknown amounts within the
     selected window invalidate economic conclusions. No rows are guessed away.
     Account/strategy/version isolation belongs to the calling tracker.
+    Economic completeness is fee-net completeness; actual funding remains
+    unmeasured and is exposed separately without changing applied policy.
     """
     if window_closed_trades < 1:
         raise ValueError("window_closed_trades must be positive")
@@ -93,6 +95,8 @@ def evidence_from_records(
         max_drawdown_pct=float(drawdown),
         fail_closed_rate=fail_closed_rate,
         economic_complete=complete,
+        pnl_basis="fee_net_excluding_funding",
+        funding_coverage="unknown",
         quote_currency=quote_currency,
         coverage_note="; ".join(dict.fromkeys(problems)),
         window_closed_trades=window_closed_trades,

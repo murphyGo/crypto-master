@@ -826,6 +826,53 @@ preserves provenance. Degraded/unrecoverable remain false. Seven real cap-event
 cases cover persisted bounds and no-link rows without changing caps or closes.
 Combined three-fix source verification: full suite 2,865 passed, source/type/style checks pass. Not deployed.
 
+### DEBT-089: Economic evidence does not expose funding-cost coverage ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-25 |
+| **Status** | Resolved in approved observability/sensitivity scope; not deployed; actual funding settlement accounting remains outside scope |
+| **Resolved** | 2026-10-25 |
+| **Action-item type** | code-improvement |
+| **Component** | `strategy-framework` (primary); `strategy-tuning`, `dashboard-operator-ui` (secondary) |
+
+**Description:**
+The same Fly snapshot contains 1,247 active closed trades, with fee-net PnL
+but no settled funding amount/coverage. `TradeHistory.calculate_pnl` and paper
+close accounting subtract trading fees only. Performance/recommendation
+evidence does not distinguish fee-net completeness from funding completeness.
+Verdict: verified missing measurement metadata; actual funding cost and its
+sign are unknown. Existing derivatives-data v1 explicitly excludes cost
+modeling, so this is a reporting improvement, not proof of a cash-accounting
+regression or a strategy loss.
+
+**Impact:**
+Operators can overread fee-net evidence as all-cost economics. Legacy data
+cannot establish an actual zero funding amount or mainnet profitability.
+
+**Suggested Resolution:**
+Add conservative backward-compatible funding availability and fee-net basis
+metadata to economic evidence, persisted observations, and visible reports.
+Provide a pure, reproducible holding-time/notional carry sensitivity with
+explicit assumptions and incomplete-input coverage. Keep hypothetical carry
+separate from actual PnL, do not fetch market data implicitly, mutate ledger
+cash, alter applied policy, or claim a promotion gate was qualified.
+
+**Related:**
+- FR-005, FR-021; NFR-006/007; US-012, US-019.
+- `aidlc-docs/construction/plans/strategy-framework-debt-089-plan.md`
+
+**Implementation and verification:** Fee-net basis/funding-unknown metadata now
+survives evidence→observation→dashboard, with conservative legacy defaults.
+The pure carry helper and read-only `src.tools.report_strategy_costs` use actual
+fill notional/holding times, explicit rate/interval assumptions, input hashes,
+and incomplete-input coverage; they never modify cash or report hypothetical
+cost as actual funding. Twenty-one new regressions and 72 focused tests pass.
+All 1,247 active closed trades replay through twelve account reports with input
+hashes unchanged. Quant review accepted after mixed-account/CLI error fixes.
+Combined three-fix source verification: full suite 2,865 passed. Actual funding remains unknown by design.
+
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range ✅
 
 | Field | Value |
@@ -1565,7 +1612,7 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 85 |
+| Resolved (All Time) | 86 |
 
 ---
 
@@ -1575,6 +1622,7 @@ Move resolved items here with resolution date and notes.
 |------|--------|------|
 | 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-25 | Added / resolved | DEBT-088: cap-blocker monitorability; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
+| 2026-10-25 | Added / resolved | DEBT-089: funding coverage and carry sensitivity; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-12 | Updated / deployed | DEBT-083: source performance follow-up `22abf3d` deployed on Fly v59; 2732 regression passes, exact incident projection parity and 20-sample final-input measurements. Source/health/first paper cycle pass; first cold protocol readiness fails under measured CPU quota throttling, while later warm Home/Trading responses complete. Performance CPU / added cost candidate prepared; approval and full NFR acceptance pending. Critical/active retained. |
 | 2026-10-10 | Deployed | DEBT-083: operator requested rollout. Fly v58 runs `785374b`, including retained requested-root projections for verified reuse after slow batches. 2721 regression passes, 175 deployed hashes, health/first paper cycle and complete Home/Trading protocol responses verified. Observed cold Home completion ~33s; exact-final performance/native browser/four-session/shared-guest qualification remains pending. Critical/active retained. |
 | 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |
