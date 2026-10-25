@@ -1,9 +1,10 @@
 # Verified Segment Checkpoints: Functional Design Candidate
 
-**Status:** Proposed, awaiting explicit functional-design approval. No checkpoint
-writer or storage has been implemented or activated. Existing bounded loading
-remains the deployed behavior. This is a new persistence contract, separate from
-the deferred performance-CPU/cost proposal.
+**Status:** Base Functional Design approved for NFR continuation by operator
+`나머지도 계속 진행해줘` on 2026-10-25. No implementation or activation is
+inferred for unreviewed NFR budgets. Runtime-safety failure-isolation amendment
+and both NFR designs remain proposed until their concrete review. Existing
+v62 runtime/storage/controls remain unchanged.
 
 ## Problem and intended behavior
 

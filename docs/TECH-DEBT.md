@@ -224,6 +224,22 @@ functional approval. No engine safety code/policy or persistence is changed.
 contract. See the final page-poll session/cross-check and
 `aidlc-docs/construction/plans/runtime-safety-score-streaming-activity-functional-design-plan.md`.
 
+**2026-10-25 NFR continuation:** Operator `나머지도 계속 진행해줘` approves
+the previously presented base streaming/request-time and checkpoint Functional
+Designs. Existing BDL requirements are formalized without relaxing any failed
+target. Concrete NFR candidates propose one bounded runtime worker (16 MiB active
+state, 30s/read) and 64 MiB total optional checkpoint disk on the existing volume.
+A separately labelled Functional amendment is necessary: today's broad account
+exception guard skips monitor/snapshot after a safety-read error. The proposed
+typed-failure adapter blocks remaining new entries but preserves that existing
+position-management work, potentially allowing normal protective closes the old
+failure path skipped. This amendment and both NFR designs require explicit review;
+no code, cache namespace, canonical data or deployment is changed. DEBT-083 stays
+Critical/active; native/depleted/declared-guest/cold qualification remains open.
+Current v62/shared CPU1/2048 MiB/original volume/paper-Codex and CPU/cost deferral
+remain. See `aidlc-docs/construction/plans/dashboard-runtime-read-followup-nfr-review.md`
+and `docs/sessions/2026-10-25-dashboard-runtime-read-nfr-design.md`.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |

@@ -1,9 +1,10 @@
 # Streaming Runtime Safety Inputs: Functional Design Candidate
 
-**Status:** Proposed; explicit functional approval required. No runtime-safety
-source, live/paper policy or trading behavior has been changed by this candidate.
-Primary unit `runtime-safety-score`; related `proposal-runtime`,
-`persistence-data-integrity` and dashboard DEBT-083.
+**Status:** Base Functional Design approved for NFR continuation by operator
+`나머지도 계속 진행해줘` on 2026-10-25. No implementation or activation is
+inferred for unreviewed NFR budgets. Runtime-safety failure-isolation amendment
+and both NFR designs remain proposed until their concrete review. Existing
+v62 runtime/storage/controls remain unchanged.
 
 ## Evidence and responsibility
 
@@ -76,3 +77,12 @@ dedup budgets and their exact behavior remain unapproved until that next stage.
 The candidate is expected to remove the archive-sized retention path. It does
 not promise the whole-guest or readiness targets will pass; repeated reads,
 other engine allocators and mutable source verification still need measurement.
+
+## Proposed failure-isolation amendment
+
+The base streaming/time contract is now approved for NFR continuation. Subsequent
+source inspection shows the broad per-account exception guard also skips that
+account's monitor/snapshot. A separately labelled
+[failure-isolation amendment](failure-isolation-amendment.md) proposes blocking
+risk entries while keeping existing position management. This new failure-flow
+change is **not** inferred from the base approval; review it with the NFR design.

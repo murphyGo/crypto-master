@@ -1,0 +1,27 @@
+{
+  "recorded_at": "2026-10-25T11:39:28.263195+00:00",
+  "git_baseline": "070fa966a82399a1f189076b9cdd891bd7609e8f",
+  "fly_version": 62,
+  "runtime_source": "d86f76fda1b91bc337b06db2050722379c3f8701",
+  "machine": "6835752b711958",
+  "capacity": {
+    "cpu_kind": "shared",
+    "cpus": 1,
+    "memory_mb": 2048
+  },
+  "volume": "vol_4m3l58dkk29y19zv",
+  "df_kib": {
+    "total": 997076,
+    "used": 197504,
+    "available": 731580
+  },
+  "cache_namespace_created": false,
+  "source_or_runtime_data_changed": false,
+  "meaning": "Read-only snapshot; free space is not a reservation. No cache or safety worker implemented.",
+  "native_browser_retry": {
+    "outcome": "bootstrap_failed",
+    "reason": "missing_packaged_browser_service_module",
+    "missing_module": "/Users/user/.codex/plugins/cache/openai-bundled/browser/26.1007.30912/scripts/browser-service.mjs",
+    "qualification": "Not performed; no substitute browser or unsupported repair used."
+  }
+}

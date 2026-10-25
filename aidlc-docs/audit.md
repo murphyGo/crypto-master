@@ -633,3 +633,22 @@ dependency, live network, or runtime `data/` action occurred.
   earlier checkpoint design approval is also pending. Execution permissions do
   not approve either contract. No live mode, safety threshold, runtime data or
   allocation/cost change is inferred.
+
+## 2026-10-25T11:21:35.006589+00:00 — Follow-up Functional Approval and NFR Continuation
+
+- Exact operator response: `나머지도 계속 진행해줘` after explicit incomplete status and pending follow-up designs.
+- Approve presented base streaming/time and checkpoint Functional contracts for NFR continuation; carry forward existing BDL targets without re-requesting the same acceptance approval.
+- New numeric NFR budgets, failure-isolation amendment and storage mechanics remain reviewable proposals, not approved code.
+- Source inspection confirms the existing per-account exception guard can skip that account's monitor/snapshot. A safety-focused amendment will explicitly preserve position management while blocking entries on unavailable inputs; it is not silently included in prior approval.
+- v62/source d86f76f, original capacity/volume/paper-Codex and CPU/cost deferral remain. No application/runtime-data change is made.
+- Timestamp is record time, not an asserted message time.
+
+## 2026-10-25T11:45:21.601813+00:00 — Concrete NFR and Monitoring Amendment Review
+
+- Two NFR candidates and a separately labelled typed safety-read failure-isolation Functional amendment are prepared. Base Functional approval is not extended to these new choices.
+- Review: `aidlc-docs/construction/plans/dashboard-runtime-read-followup-nfr-review.md`. Runtime reader limits/worker and total64 MiB disposable checkpoint mechanics are concrete; original acceptance/cost deferral retained.
+- Supported native Browser bootstrap retried; packaged service missing. No unsupported workaround used. Native qualification remains open.
+- Application/runtime data/cache namespace/deployment unchanged. Root concurrent source/tests/docs preserved; isolated documentation only.
+- Explicit approval for the combined candidates is pending. No tool permission is treated as that approval.
+
+- Combined approval question presented asynchronously at this closeout checkpoint; recorded 2026-10-25T11:46:47.398185+00:00. Options cover implementation/testing/same-capacity rollout or requested design changes. No answer received as of this record.
