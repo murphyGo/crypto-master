@@ -736,6 +736,54 @@ Done. Sequential cycles shipped (b) opt-in global caps on 2026-05-24; (c-1) stat
 
 ## Resolved Debt Items
 
+### DEBT-087: Proposal scoring reads default-account performance for every lab ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-10-25 |
+| **Status** | Resolved in source/tests; not deployed |
+| **Resolved** | 2026-10-25 |
+| **Action-item type** | bug |
+| **Component** | `proposal-runtime` (primary); `strategy-framework`, `sub-account-capital-segmentation` (secondary) |
+
+**Description:**
+Verified against Fly v62 (`d86f76f`) and snapshot
+`/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z`.
+All 1,275 proposals in the preceding 30 days have `score.sample_size=0`.
+`proposals/ma_crossover/086cf1a4-55d9-4b32-903b-2666c6f89fa0.json`
+has zero history despite 221 same-version, non-synthetic performance records
+closed before its decision. Raschke proposal
+`1b8b2951-7ffe-4439-b88d-7a42a6dc9bc0` has 262 such prior closes.
+`src/main.py` injects one default-scoped `PerformanceTracker`; selection and
+live cold-start checks in `src/proposal/engine.py` omit the proposal account,
+while `src/runtime/snapshot_recorder.py` scopes writes correctly.
+Verdict: verified; full 1,275-proposal structural sample, not strategy-edge evidence.
+
+**Impact:**
+Scores, candidate ranking, and live cold-start evidence use the wrong account.
+Current paper approval thresholds are zero; no realized loss or score rejection
+caused by this defect is asserted.
+
+**Suggested Resolution:**
+Carry explicit account scope through historical selection/scoring/live checks;
+retain injected tracker roots and legacy default behavior. Exercise persisted
+opposing account histories, version/synthetic/closed eligibility, public proposal
+entry points, and runtime composition. Replay the fixed Fly snapshot read-only.
+
+**Related:**
+- FR-005, FR-011, FR-036; US-005, US-009; DEBT-070/084/085 are distinct fixes.
+- `aidlc-docs/construction/plans/proposal-runtime-debt-087-plan.md`
+
+**Implementation and verification:** Explicit immutable per-call account scope
+now reaches BTC/alt single/multi selectors, scoring, and live cold-start checks;
+closed eligibility excludes pending/synthetic rows. Fourteen persisted-history
+regressions include the real `build_engine` tracker and close→persist→next-score
+path. Fixed decision-time replay recovers MA 221, Raschke 262, RSI15m 224 samples
+from prior zero scores. Combined three-fix source verification: full suite 2,865 passed; changed-file Black/Ruff and
+131-file mypy pass. Production qualification remains separate because this
+slice is not deployed. Session/cross-check: `2026-10-25-strategy-evidence-integrity*`.
+
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range ✅
 
 | Field | Value |
@@ -1475,7 +1523,7 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 83 |
+| Resolved (All Time) | 84 |
 
 ---
 
@@ -1483,6 +1531,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-12 | Updated / deployed | DEBT-083: source performance follow-up `22abf3d` deployed on Fly v59; 2732 regression passes, exact incident projection parity and 20-sample final-input measurements. Source/health/first paper cycle pass; first cold protocol readiness fails under measured CPU quota throttling, while later warm Home/Trading responses complete. Performance CPU / added cost candidate prepared; approval and full NFR acceptance pending. Critical/active retained. |
 | 2026-10-10 | Deployed | DEBT-083: operator requested rollout. Fly v58 runs `785374b`, including retained requested-root projections for verified reuse after slow batches. 2721 regression passes, 175 deployed hashes, health/first paper cycle and complete Home/Trading protocol responses verified. Observed cold Home completion ~33s; exact-final performance/native browser/four-session/shared-guest qualification remains pending. Critical/active retained. |
 | 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |

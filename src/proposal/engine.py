@@ -633,9 +633,13 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
-        if self._cold_start_blocks_live(symbol, strategies=strategies):
+        if self._cold_start_blocks_live(
+            symbol, strategies=strategies, sub_account_id=sub_account_id
+        ):
             return None
-        selection = self._select_best_technique(symbol, strategies=strategies)
+        selection = self._select_best_technique(
+            symbol, strategies=strategies, sub_account_id=sub_account_id
+        )
         if selection is None:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return None
@@ -681,9 +685,13 @@ class ProposalEngine:
         entry point (Phase 11.2 / DEBT-002). When omitted, a fresh
         local dict is used so direct callers (e.g. tests) still work.
         """
-        if self._cold_start_blocks_live(symbol, strategies=strategies):
+        if self._cold_start_blocks_live(
+            symbol, strategies=strategies, sub_account_id=sub_account_id
+        ):
             return []
-        selections = self._select_all_techniques(symbol, strategies=strategies)
+        selections = self._select_all_techniques(
+            symbol, strategies=strategies, sub_account_id=sub_account_id
+        )
         if not selections:
             logger.info(f"No applicable technique for {symbol}; skipping proposal")
             return []
@@ -1232,6 +1240,8 @@ class ProposalEngine:
         self,
         symbol: str,
         strategies: list[BaseStrategy] | None = None,
+        *,
+        sub_account_id: str = "default",
     ) -> tuple[BaseStrategy, TechniquePerformance | None] | None:
         """Pick the technique most likely to produce a useful proposal.
 
@@ -1240,8 +1250,8 @@ class ProposalEngine:
         ranks them by:
 
         1. ``edge_factor`` (positive expected value), descending.
-        2. ``total_trades``, descending — more data wins ties.
-        3. Lex-first by name, descending — deterministic last resort.
+        2. Closed real trade count, descending — more data wins ties.
+        3. Lex-first by name — deterministic last resort.
 
         If no strategy has any history at all, returns the
         lex-first applicable strategy with ``perf=None`` so the caller
@@ -1259,14 +1269,14 @@ class ProposalEngine:
         ranked: list[tuple[BaseStrategy, TechniquePerformance]] = []
         for strategy in applicable:
             perf = self.performance_tracker.get_performance(
-                strategy.name, strategy.version
+                strategy.name, strategy.version, sub_account_id=sub_account_id
             )
             ranked.append((strategy, perf))
 
         # DEBT-070: rank on real trade count so synthetic
         # reconciliation-close rows can't inflate a technique's
         # tie-breaker over peers with genuine live closes.
-        any_history = any(perf.real_trade_count > 0 for _, perf in ranked)
+        any_history = any(perf.closed_real_trade_count > 0 for _, perf in ranked)
         if not any_history:
             # Cold-start: nobody has run yet. Pick deterministically.
             applicable.sort(key=lambda s: s.name)
@@ -1282,7 +1292,7 @@ class ProposalEngine:
             # lex-first name wins ties deterministically.
             # DEBT-070: tie-break on real trade count, not raw
             # total (which includes synthetic reconciliation closes).
-            return (-edge, -perf.real_trade_count, strategy.name)
+            return (-edge, -perf.closed_real_trade_count, strategy.name)
 
         ranked.sort(key=key)
         best_strategy, best_perf = ranked[0]
@@ -1291,13 +1301,15 @@ class ProposalEngine:
         # leaning on a synthetic-only history.
         return (
             best_strategy,
-            best_perf if best_perf.real_trade_count > 0 else None,
+            best_perf if best_perf.closed_real_trade_count > 0 else None,
         )
 
     def _cold_start_blocks_live(
         self,
         symbol: str,
         strategies: list[BaseStrategy] | None = None,
+        *,
+        sub_account_id: str = "default",
     ) -> bool:
         """Phase 24.1 / DEBT-034: live mode + no qualifying technique → block.
 
@@ -1337,12 +1349,12 @@ class ProposalEngine:
         max_trades = 0
         for strategy in applicable:
             perf = self.performance_tracker.get_performance(
-                strategy.name, strategy.version
+                strategy.name, strategy.version, sub_account_id=sub_account_id
             )
             # DEBT-065: gate on real (non-synthetic) trade count so
             # operator reconciliation-close rows can't inflate a
             # strategy past ``min_closed_trades_for_live_promotion``.
-            real_count = perf.real_trade_count
+            real_count = perf.closed_real_trade_count
             per_technique[strategy.name] = real_count
             if real_count > max_trades:
                 max_trades = real_count
@@ -1368,6 +1380,7 @@ class ProposalEngine:
                 ),
                 details={
                     "symbol": symbol,
+                    "sub_account_id": sub_account_id,
                     "reason": "cold_start_below_min_closed_trades",
                     "min_closed_trades_for_live_promotion": threshold,
                     "max_trades_observed": max_trades,
@@ -1380,6 +1393,8 @@ class ProposalEngine:
         self,
         symbol: str,
         strategies: list[BaseStrategy] | None = None,
+        *,
+        sub_account_id: str = "default",
     ) -> list[tuple[BaseStrategy, TechniquePerformance | None]]:
         """Phase 10.6: every applicable technique for ``symbol``.
 
@@ -1405,7 +1420,7 @@ class ProposalEngine:
         results: list[tuple[BaseStrategy, TechniquePerformance | None]] = []
         for strategy in applicable:
             perf = self.performance_tracker.get_performance(
-                strategy.name, strategy.version
+                strategy.name, strategy.version, sub_account_id=sub_account_id
             )
             # Treat zero-history records as None so ``_score`` takes
             # the cold-start branch — consistent with
@@ -1413,7 +1428,9 @@ class ProposalEngine:
             # DEBT-070: gate on real trade count, mirroring
             # ``_select_best_technique`` so a synthetic-only history
             # doesn't push a technique out of the cold-start branch.
-            results.append((strategy, perf if perf.real_trade_count > 0 else None))
+            results.append(
+                (strategy, perf if perf.closed_real_trade_count > 0 else None)
+            )
         return results
 
     def _score(
@@ -1485,12 +1502,12 @@ class ProposalEngine:
         # score. Synthetic reconciliation-close rows encode no real
         # signal outcome, so they must not pull the blend toward the
         # edge-driven term.
-        if perf is None or perf.real_trade_count == 0:
+        if perf is None or perf.closed_real_trade_count == 0:
             sample_size = 0
             win_rate = 0.0
             expected_value = 0.0
         else:
-            sample_size = perf.real_trade_count
+            sample_size = perf.closed_real_trade_count
             win_rate = perf.win_rate
             expected_value = perf.avg_pnl_percent
 

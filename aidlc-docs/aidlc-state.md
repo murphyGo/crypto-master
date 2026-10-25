@@ -57,6 +57,15 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Strategy evidence corrections (2026-10-25):** DEBT-087 source/tests
+> complete: account-scoped proposal history. Primary units: proposal-runtime.
+> The combined three-fix source verification passed 2,865 tests, changed-file
+> Black/Ruff, 131-file mypy and fixed-snapshot replay. Each correction is
+> committed separately. User subsequently authorized commit/push and deployment
+> with operational verification; rollout is pending at this checkpoint.
+> Applied account policies and runtime data remain unchanged. DEBT-083 and
+> its independent design/activation gates remain separate.
+
 > **Latest follow-up design checkpoint (2026-10-25):** Operator
 > `나머지도 계속 진행해줘` approves the presented base runtime streaming/request-time
 > and dashboard checkpoint Functional Designs for continuation. Existing BDL NFR

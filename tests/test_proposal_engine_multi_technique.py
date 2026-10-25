@@ -80,7 +80,9 @@ def _engine_with_exchange(
     tracker = MagicMock(spec=PerformanceTracker)
     perf_records = perf_records or {}
 
-    def _get_perf(name: str, version: str | None = None) -> TechniquePerformance:
+    def _get_perf(
+        name: str, version: str | None = None, *, sub_account_id: str | None = None
+    ) -> TechniquePerformance:
         return perf_records.get(name, make_perf(name, version or "1.0.0"))
 
     tracker.get_performance.side_effect = _get_perf

@@ -1,0 +1,44 @@
+{
+  "snapshot": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z",
+  "rows": [
+    {
+      "account": "ma_crossover",
+      "proposal_id": "086cf1a4-55d9-4b32-903b-2666c6f89fa0",
+      "decision_at": "2026-10-25T03:47:16.593771Z",
+      "prior_closed_real_count": 221,
+      "stored_sample_size": 0,
+      "corrected_sample_size": 221,
+      "stored_composite": 0.028840579096828255,
+      "corrected_composite": 0.055643013098809896,
+      "method": "current unchanged score formula; scoped records exited strictly before decision; no forward outcomes",
+      "proposal_sha256": "1cf414db7144c3bef7ac7812594ff7033c876df737c87ada566331159d1701dc",
+      "read_only": true
+    },
+    {
+      "account": "raschke_holy_grail",
+      "proposal_id": "1b8b2951-7ffe-4439-b88d-7a42a6dc9bc0",
+      "decision_at": "2026-10-25T09:52:52.951674Z",
+      "prior_closed_real_count": 262,
+      "stored_sample_size": 0,
+      "corrected_sample_size": 262,
+      "stored_composite": 0.295909083721255,
+      "corrected_composite": 0.592733930622686,
+      "method": "current unchanged score formula; scoped records exited strictly before decision; no forward outcomes",
+      "proposal_sha256": "75f0698a2674b9dde7b3b103dcaf3ca033055613cb4d23f5bb6728b925e08d4a",
+      "read_only": true
+    },
+    {
+      "account": "rsi_15m",
+      "proposal_id": "35a5459f-ac86-4188-8a81-4f4efc2ce0f6",
+      "decision_at": "2026-10-25T09:21:51.747021Z",
+      "prior_closed_real_count": 224,
+      "stored_sample_size": 0,
+      "corrected_sample_size": 224,
+      "stored_composite": 0.010101854245478848,
+      "corrected_composite": 0.020819724143251426,
+      "method": "current unchanged score formula; scoped records exited strictly before decision; no forward outcomes",
+      "proposal_sha256": "079c8c8e4007845fb56e69de65ab964d15f8ef80d1e987546f2537d6a3f66ec0",
+      "read_only": true
+    }
+  ]
+}

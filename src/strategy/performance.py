@@ -308,19 +308,28 @@ class TechniquePerformance(BaseModel):
 
     @property
     def real_trade_count(self) -> int:
-        """Closed-trade count excluding synthetic reconciliation rows.
+        """Non-synthetic record count, including pending analyses.
 
         DEBT-065: ``total_trades`` intentionally includes synthetic
         reconciliation-close rows so operator-facing record counts stay
         honest (see the comment in :meth:`from_records` and the
         ``synthetic``/``reconciliation_close`` markers at
-        ``PerformanceRecord``). Promotion-gating consumers
-        (``ProposalEngine._cold_start_blocks_live`` and ``_score``'s
-        ``sample_size``) must read *this* property instead, so
-        synthetic markers cannot inflate a strategy past the live
-        cold-start threshold.
+        ``PerformanceRecord``). This preserves the historical count
+        contract. Proposal scoring and the live cold-start guard use
+        ``closed_real_trade_count`` so pending rows cannot qualify.
         """
         return self.total_trades - self.synthetic_count
+
+    @property
+    def closed_real_trade_count(self) -> int:
+        """Completed, non-synthetic history eligible for proposal scoring.
+
+        ``real_trade_count`` retains its historical record-count contract.
+        Pending analyses have no realized outcome and must not qualify a
+        strategy for live trading or increase its score's sample weight.
+        ``pending`` already excludes synthetic rows in ``from_records``.
+        """
+        return self.real_trade_count - self.pending
 
     @classmethod
     def from_records(
@@ -819,17 +828,26 @@ class PerformanceTracker:
         self,
         technique_name: str,
         version: str | None = None,
+        *,
+        sub_account_id: str | None = None,
     ) -> TechniquePerformance:
         """Get aggregated performance metrics for a technique.
 
         Args:
             technique_name: Name of the technique.
             version: Optional version filter.
+            sub_account_id: Optional explicit read scope. Uses the injected
+                data root without changing this tracker's account or writers.
 
         Returns:
             TechniquePerformance with aggregated metrics.
         """
-        records = self.load_records(technique_name, version)
+        reader = self
+        if sub_account_id is not None and sub_account_id != self.sub_account_id:
+            reader = PerformanceTracker(
+                data_dir=self.data_dir, sub_account_id=sub_account_id
+            )
+        records = reader.load_records(technique_name, version)
         technique_version = version or (
             records[-1].technique_version if records else ""
         )
