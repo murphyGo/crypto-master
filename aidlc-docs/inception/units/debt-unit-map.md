@@ -18,8 +18,8 @@ when debt is added or resolved, then refresh this map.
 |------|----------|--------------|-----------------|-----------------|
 | DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | v62 / `d86f76f`, 2823 tests, 175 hashes/health/cycles pass. Four 30s views and 1293.313 MiB guest peak fail final qualification. Engine full-history safety input and pause consumer traced; base checkpoint/streaming-time Functional Designs approved. Concrete NFR candidates and monitoring-isolation amendment pending review. Native/depleted/1 GiB and cold goals remain open; cost upgrade stays deferred. |
 
-DEBT-087 were registered and resolved in source/tests on 2026-10-25.
-Primary units: `proposal-runtime`.
+DEBT-087/088 were registered and resolved in source/tests on 2026-10-25.
+Primary units: `proposal-runtime`, `proposal-funnel-audit`.
 Combined three-fix verification: 2,865 tests and fixed-snapshot replay pass.
 Deployment is authorized after separate commits; operational qualification
 is pending. Existing DEBT-083 design/activation gates remain independent.

@@ -784,6 +784,48 @@ from prior zero scores. Combined three-fix source verification: full suite 2,865
 131-file mypy pass. Production qualification remains separate because this
 slice is not deployed. Session/cross-check: `2026-10-25-strategy-evidence-integrity*`.
 
+### DEBT-088: Cap telemetry marks supported no-performance-link positions unmonitorable ✅
+
+| Field | Value |
+|-------|-------|
+| **Priority** | Medium |
+| **Created** | 2026-10-25 |
+| **Status** | Resolved in source/tests; not deployed |
+| **Resolved** | 2026-10-25 |
+| **Action-item type** | bug |
+| **Component** | `proposal-funnel-audit` (primary); `runtime-reconciliation` (secondary) |
+
+**Description:**
+Verified on the same Fly snapshot as DEBT-087. Recent cap-blocker payloads
+559/559 label valid bounded trades `monitorable:false` (163 unique trades;
+158 later close normally). Exact evidence: `runtime/activity.2026-10.jsonl:17490`,
+MA trade `4cae0049-7cc1-49fc-a4f0-7bf7c7d78dd8`, false at 03:47:30 UTC but
+normal SL close at 06:50:04 UTC on October 25. `_build_cap_blocker_payload`
+maps only taxonomy state `monitorable` to true, excluding the supported
+`legacy_no_perf_link` state. The forward performance ID is normally absent
+until close; reverse closed-record linkage is intact.
+Verdict: verified; structural telemetry census, not a monitoring outage.
+
+**Impact:**
+Operators can mistake a valid cap blocker for a position the engine cannot
+monitor. Actual SL/TP execution and risk gates continue working.
+
+**Suggested Resolution:**
+Separate reconciliation taxonomy/provenance from structural monitorability.
+Expose the state additively and include valid no-link rows in the boolean;
+preserve false for degraded/unrecoverable rows. Cover actual public cap events
+with persisted no-link bounds and reject malformed bounds/core data.
+
+**Related:**
+- FR-014, FR-036; US-012, US-023; DEBT-064/066/078 historical contracts.
+- `aidlc-docs/construction/plans/proposal-funnel-audit-debt-088-plan.md`
+
+**Implementation and verification:** Both monitorable and legacy-no-perf-link
+states now produce structural `monitorable=true`; additive reconciliation state
+preserves provenance. Degraded/unrecoverable remain false. Seven real cap-event
+cases cover persisted bounds and no-link rows without changing caps or closes.
+Combined three-fix source verification: full suite 2,865 passed, source/type/style checks pass. Not deployed.
+
 ### DEBT-082: Production Claude CLI runs below its declared Node engine range ✅
 
 | Field | Value |
@@ -1523,7 +1565,7 @@ Move resolved items here with resolution date and notes.
 | High | 0 |
 | Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 84 |
+| Resolved (All Time) | 85 |
 
 ---
 
@@ -1532,6 +1574,7 @@ Move resolved items here with resolution date and notes.
 | Date | Action | Item |
 |------|--------|------|
 | 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
+| 2026-10-25 | Added / resolved | DEBT-088: cap-blocker monitorability; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-12 | Updated / deployed | DEBT-083: source performance follow-up `22abf3d` deployed on Fly v59; 2732 regression passes, exact incident projection parity and 20-sample final-input measurements. Source/health/first paper cycle pass; first cold protocol readiness fails under measured CPU quota throttling, while later warm Home/Trading responses complete. Performance CPU / added cost candidate prepared; approval and full NFR acceptance pending. Critical/active retained. |
 | 2026-10-10 | Deployed | DEBT-083: operator requested rollout. Fly v58 runs `785374b`, including retained requested-root projections for verified reuse after slow batches. 2721 regression passes, 175 deployed hashes, health/first paper cycle and complete Home/Trading protocol responses verified. Observed cold Home completion ~33s; exact-final performance/native browser/four-session/shared-guest qualification remains pending. Critical/active retained. |
 | 2026-10-10 | Updated | DEBT-083: approved NFR Design implemented through bounded readers, single-worker service, compact generation-verified reuse and six default pages. Functional containment tests pass. 214,686/1M-event offline queries complete within local memory bounds, but cold p95 5.150s/21.614s misses the target; native browser/guest/four-session/engine acceptance and rollout remain outstanding. Debt stays Critical/active. |

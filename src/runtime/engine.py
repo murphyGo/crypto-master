@@ -93,6 +93,7 @@ from src.runtime.position_monitor import (
     PositionMonitor,
 )
 from src.runtime.reconciliation import (
+    OpenTradeState,
     classify_open_trade,
     compute_health_report,
 )
@@ -3961,12 +3962,16 @@ class TradingEngine:
           falls back to ``None`` to match the pre-cache contract —
           operators still get the first-order signal (``entry_price``
           + ``age_seconds`` + ``monitorable`` + ``symbol``).
-        * ``monitorable`` — coordinate from
-          :func:`src.runtime.reconciliation.classify_open_trade`;
-          ``True`` iff the row's classified state is ``MONITORABLE``.
-          A blocker that is *not* monitorable is the exact "blocked
-          by a position the engine cannot close" case spec §3 calls
-          out.
+        * ``monitorable`` — structural SL/TP monitorability from
+          :func:`src.runtime.reconciliation.classify_open_trade`.
+          Both ``MONITORABLE`` and ``LEGACY_NO_PERF_LINK`` have the
+          fields needed for normal monitoring; the optional forward
+          performance link does not determine whether bounds work.
+          This does not guarantee exchange availability or a successful
+          close. Degraded/unrecoverable rows remain ``False``.
+        * ``reconciliation_state`` — the classifier's full state, so
+          optional-link provenance remains visible independently of
+          structural monitorability.
         * ``technique_name`` — joined back through the proposal
           history (`trade_id` -> `technique_name`) when available;
           ``None`` for orphan trades.
@@ -4032,7 +4037,10 @@ class TradingEngine:
                 "sub_account_id": trade.sub_account_id,
             }
             classification = classify_open_trade(row, set())
-            monitorable = classification.state == "monitorable"
+            monitorable = classification.state in (
+                OpenTradeState.MONITORABLE,
+                OpenTradeState.LEGACY_NO_PERF_LINK,
+            )
 
             payload.append(
                 {
@@ -4044,6 +4052,7 @@ class TradingEngine:
                     "age_seconds": age_seconds,
                     "unrealized_pnl_percent": unrealized_pnl_percent,
                     "monitorable": monitorable,
+                    "reconciliation_state": classification.state,
                     "technique_name": strategy_lookup.get(trade.id),
                     "proposal_record_id": proposal_id_by_trade.get(trade.id),
                     "cap_value": cap,

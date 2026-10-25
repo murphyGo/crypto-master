@@ -5336,6 +5336,7 @@ async def test_build_cap_blocker_payload_shape(tmp_path: Path) -> None:
         "entry_time",
         "age_seconds",
         "monitorable",
+        "reconciliation_state",
         "unrealized_pnl_percent",
         "technique_name",
         "proposal_record_id",
@@ -5614,6 +5615,118 @@ async def test_symbol_cap_rejection_carries_symbol_cap_final_state(
     assert len(blockers) == 1
     assert blockers[0]["trade_id"] == "t-bnb-existing"
     assert blockers[0]["symbol"] == "BNB/USDT"
+
+
+@pytest.mark.parametrize("cap_reason", ["symbol_cap", "total_cap"])
+@pytest.mark.parametrize(
+    ("performance_record_id", "stop_loss", "expected_state", "monitorable"),
+    [
+        (None, Decimal("49500"), "legacy_no_perf_link", True),
+        ("perf-linked", Decimal("49500"), "monitorable", True),
+        (None, None, "degraded", False),
+    ],
+)
+async def test_cap_event_reports_structural_monitorability(
+    tmp_path: Path,
+    cap_reason: str,
+    performance_record_id: str | None,
+    stop_loss: Decimal | None,
+    expected_state: str,
+    monitorable: bool,
+) -> None:
+    """Persisted bounds work without a forward performance link (DEBT-088)."""
+    tracker = TradeHistoryTracker(data_dir=tmp_path / "trades")
+    existing = make_trade(
+        trade_id="bounded-cap-blocker",
+        entry_time=now_utc(),
+        performance_record_id=performance_record_id,
+    ).model_copy(update={"stop_loss": stop_loss, "take_profit": Decimal("51500")})
+    tracker.save_trade(existing)
+    persisted = TradeHistoryTracker(data_dir=tmp_path / "trades").get_open_trades(
+        mode="paper"
+    )
+    assert len(persisted) == 1
+    proposal = make_proposal(proposal_id="cap-monitorability", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        open_trades=persisted,
+        config=EngineConfig(
+            auto_approve_threshold=1.0,
+            max_open_positions_per_symbol=1,
+        ),
+    )
+    if cap_reason == "total_cap":
+        cap_account = SubAccount(
+            id="default",
+            name="Total-cap test",
+            mode="paper",
+            exchange_ref="default",
+            risk_policy=RiskPolicy(max_open_positions_total=1),
+        )
+        engine.sub_account_registry = FakeSubAccountRegistry(
+            [cap_account], {"default": mocks["trader"]}
+        )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_awaited()
+    mocks["trader"].close_position.assert_not_awaited()
+    rejections = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )
+    assert len(rejections) == 1
+    event = rejections[0]
+    assert event.details["gate_reason"] == cap_reason
+    blocker = event.details["blocking_trades"][0]
+    assert blocker["trade_id"] == existing.id
+    assert blocker["monitorable"] is monitorable
+    assert blocker["reconciliation_state"] == expected_state
+    assert blocker["cap_value"] == blocker["current_open_count"] == 1
+    assert mocks["history"].load(proposal.proposal_id).final_state == (
+        f"gate_rejected_{cap_reason}"
+    )
+
+
+async def test_cap_event_keeps_unrecoverable_blocker_unmonitorable(
+    tmp_path: Path,
+) -> None:
+    """Bounds alone do not make a trade with missing core fields monitorable."""
+    existing = make_trade(symbol="", entry_time=now_utc()).model_copy(
+        update={"stop_loss": Decimal("49500"), "take_profit": Decimal("51500")}
+    )
+    proposal = make_proposal(proposal_id="unrecoverable-cap", composite=2.0)
+    engine, mocks = build_engine(
+        tmp_path=tmp_path,
+        btc_proposal=proposal,
+        open_trades=[existing],
+        config=EngineConfig(auto_approve_threshold=1.0),
+    )
+    cap_account = SubAccount(
+        id="default",
+        name="Unrecoverable cap test",
+        mode="paper",
+        exchange_ref="default",
+        risk_policy=RiskPolicy(max_open_positions_total=1),
+    )
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [cap_account], {"default": mocks["trader"]}
+    )  # type: ignore[assignment]
+
+    result = await engine.run_cycle()
+
+    assert result.proposals_rejected == 1
+    assert result.positions_opened == 0
+    mocks["trader"].open_position.assert_not_awaited()
+    event = mocks["activity_log"].filter(
+        event_type=ActivityEventType.PROPOSAL_REJECTED
+    )[0]
+    assert event.details["gate_reason"] == "total_cap"
+    blocker = event.details["blocking_trades"][0]
+    assert blocker["monitorable"] is False
+    assert blocker["reconciliation_state"] == "unrecoverable"
 
 
 async def test_accepted_proposal_advances_to_trade_opened_final_state(

@@ -197,6 +197,7 @@ gate_rejection.details = {
       age_seconds: int              # now_utc() - entry_time at decision time
       unrealized_pnl_percent: float # at decision time, against current ticker
       monitorable: bool             # coordinate with runtime-reconciliation
+      reconciliation_state: str     # preserve optional-link provenance
       technique_name: str
       proposal_record_id: str | None  # link back to the blocker's proposal
     },
@@ -205,11 +206,13 @@ gate_rejection.details = {
 }
 ```
 
-`monitorable` carries the boolean from the `runtime-reconciliation` state
-taxonomy (open trade has a live monitor cycle observing it). An open trade
-that is counting toward the cap but is *not* monitorable is exactly the
-operator-facing case "I am blocked by a position the engine cannot even
-close" — that should surface in the funnel UI.
+`monitorable` reports structural SL/TP monitorability from the
+`runtime-reconciliation` taxonomy: both `monitorable` and
+`legacy_no_perf_link` are true; degraded/unrecoverable are false.
+`reconciliation_state` preserves the separate provenance classification.
+The optional forward performance ID is not required for normal monitoring.
+This field does not establish an active monitor heartbeat, fresh market data,
+exchange availability, or a guaranteed successful close (DEBT-088).
 
 The correlation gate uses the same diagnostic shape for its blocker (a
 sibling trade in another sub-account), with `reason="correlation_blocked"`
