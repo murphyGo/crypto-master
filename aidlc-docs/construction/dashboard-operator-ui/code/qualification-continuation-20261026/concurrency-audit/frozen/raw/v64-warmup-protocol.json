@@ -1,0 +1,169 @@
+[
+  {
+    "started_at": "2026-10-25T17:40:54.488729+00:00",
+    "client": "warmup",
+    "page": "Home",
+    "status": "complete",
+    "seconds": 17.83788037498016,
+    "messages": 167,
+    "elements": {
+      "metric": 12,
+      "dataframe": 4,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Runtime safety",
+        "value_sha256": "3c8cab8b47d6d0ac0e1bb0a3c209b836f5cf1a61e851626dc7a5d7f011a7e5dd",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Last cycle",
+        "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open positions",
+        "value_sha256": "6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Snapshot",
+        "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Mode",
+        "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Scope",
+        "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Sub-accounts",
+        "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Actionable events",
+        "value_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Awaiting approval",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Promoted",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Errored",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      2,
+      0
+    ],
+    "maximum_background_watchers": 1,
+    "auto_rerun_registrations": 1
+  },
+  {
+    "started_at": "2026-10-25T17:41:12.325830+00:00",
+    "client": "warmup",
+    "page": "Trading",
+    "status": "complete",
+    "seconds": 0.9598935000831261,
+    "messages": 38,
+    "elements": {
+      "metric": 6,
+      "dataframe": 3,
+      "table": 0,
+      "vega_lite_chart": 1,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Current Equity",
+        "value_sha256": "848cc583ce0bc328bd7ddacfa4986bc3086987efa481f1d452b366ed945ce9fe",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open Positions",
+        "value_sha256": "6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Closed Trades",
+        "value_sha256": "23b0cc711cca646227414df7e7acb15e878b93723280f388f33f24b5dab92b0b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Win Rate",
+        "value_sha256": "79868d5e710643436b362f345e3f44a6c3280d77aeea1b85a2415e81ac91a851",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Realized P&L",
+        "value_sha256": "1a81df11f1c072ada4291143a4de8d47a1115cbfd4a42e6e9527d5c4035ea971",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Proposals rejected (threshold)",
+        "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  }
+]

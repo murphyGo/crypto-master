@@ -1,0 +1,1761 @@
+{
+  "method": "Single-thread cProfile.runcall over exact build_projection generator; both variants have identical warmed lazy imports and hash-read OS cache. One each, diagnosis only; no latency acceptance.",
+  "supersedes": "Threaded profile attribution is unreliable on this Python3.13 run: foreground poll frames contaminate parent/cumulative accounting. Original service output/parity remains valid and artifacts retained.",
+  "source_sha256_before": {
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/data_service.py": "7234835ec208a07c63e148306a51e0e043a6785a44e62ef7981e6c4ee8b74a41",
+    "src/dashboard/read_models.py": "55fa28e0e50365b1c431b88d0b8750aabd0ce3d677f9f262d026eccaa3464440",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/runtime/activity_events.py": "3675866246839b35801a308b1955db7befc1072a8f566bcd098f10deded6289e",
+    "src/runtime/safety_reader.py": "e5a6d20bc2fe99eda7d8dee63ae4162db520864444f97655689db78dbb41e1b2",
+    "src/runtime/safety_score.py": "3262a0c4eaec9531f0b8a77ef5ba9dde985706dfdcbb7bac27287da20cc6a2b7",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9",
+    "src/utils/time.py": "4ec3898386b13c47d23e0fc52dd2e625809d5f3261987df30d2ab57ff1dbfa8c",
+    "src/config.py": "521118b720ee78721ccca8cac042e05883664cddfd44d6b3143cd44048dd356d"
+  },
+  "fixture_before": [
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-01.jsonl",
+      "bytes": 63845242,
+      "rows": 100000,
+      "mtime_ns": 1792862011741481265,
+      "sha256": "14fcd1cadc0012c1ce278e2881a797ab1ca88653e889059fd8e1701223a389a2"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-02.jsonl",
+      "bytes": 64067480,
+      "rows": 100000,
+      "mtime_ns": 1792862012448942231,
+      "sha256": "729545c05cafe56570bfeaa3708e1727a4f6a3806637179a25626d47f492a032"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-03.jsonl",
+      "bytes": 64068080,
+      "rows": 100000,
+      "mtime_ns": 1792862013056274763,
+      "sha256": "912363c8dc30ba848a395fb1cf6fa5209beb4becd5fad6cae7a6dd229c0e2af3"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-04.jsonl",
+      "bytes": 64067352,
+      "rows": 100000,
+      "mtime_ns": 1792862013677199507,
+      "sha256": "f1818205e625fe08baf2af2dbc4d312a3c3fb04ad8467cd265e9bcff1a90871f"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-05.jsonl",
+      "bytes": 64067480,
+      "rows": 100000,
+      "mtime_ns": 1792862014354078629,
+      "sha256": "4fd29a0cacfce9c1a013423c96ef3e3070be9e6eb3fd75353d69e511e5610d58"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-06.jsonl",
+      "bytes": 64068072,
+      "rows": 100000,
+      "mtime_ns": 1792862015033902311,
+      "sha256": "17a7faeacb0f9d0a055b8c27d46eed9ff48866b949fd4fb32b75384145e1e593"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-07.jsonl",
+      "bytes": 64067360,
+      "rows": 100000,
+      "mtime_ns": 1792862015647443908,
+      "sha256": "5060343f33323e1a920310214cd1380e11354439eb3b9b4d195346464ab00105"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-08.jsonl",
+      "bytes": 64067472,
+      "rows": 100000,
+      "mtime_ns": 1792862016247702864,
+      "sha256": "a509e494241ea8e2774b11cf40a46f330cd993bfa63c13fdf4d6f8c5c0314e26"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-09.jsonl",
+      "bytes": 64068080,
+      "rows": 100000,
+      "mtime_ns": 1792862016858750844,
+      "sha256": "5631dcd9793901962e7f4ebe42d7804b2b891e11a8287bf313de1e9ff9db2a8d"
+    },
+    {
+      "path": "/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million/runtime/activity.2026-10.jsonl",
+      "bytes": 64067352,
+      "rows": 100000,
+      "mtime_ns": 1792862017460517412,
+      "sha256": "29203884e4e2b25c22c693b6620ed5e05814c4aefa3098d15745cad2fcccb327"
+    }
+  ],
+  "fixture_bytes": 640453970,
+  "fixture_rows": 1000000,
+  "fixed_utc": "2026-10-25T00:00:00+00:00",
+  "variants": [
+    {
+      "variant": "canonical_sync",
+      "instrumented_wall_seconds": 10.537800999940373,
+      "full_payload_sha256": "84777425c45acb6e70fe32f45554daabe08787278eb51543c789f8f08e1922e7",
+      "full_payload_bytes": 311060,
+      "source_coverage": {
+        "files": 10,
+        "captured_bytes": 640453970,
+        "verified": true
+      },
+      "top_cumulative": [
+        {
+          "file": "/private/tmp/crypto-master-v64-cold-profile-20261026/profile_core.py",
+          "line": 38,
+          "function": "consume",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.0035939020000000004,
+          "cumulative_seconds": 10.537650542000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1121,
+          "function": "build_projection",
+          "primitive_calls": 13679,
+          "calls": 13679,
+          "self_seconds": 0.003954175,
+          "cumulative_seconds": 10.534056640000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1099,
+          "function": "_reduce_activity_source",
+          "primitive_calls": 13687,
+          "calls": 13687,
+          "self_seconds": 0.5315072630000001,
+          "cumulative_seconds": 10.478353257
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 328,
+          "function": "add_json",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.522593914,
+          "cumulative_seconds": 8.40730263
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 344,
+          "function": "add_event",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 3.626617421,
+          "cumulative_seconds": 5.681710753
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 1.857426497,
+          "cumulative_seconds": 2.1337504860000003
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/bounded_read.py",
+          "line": 174,
+          "function": "reverse_jsonl_bytes",
+          "primitive_calls": 1009787,
+          "calls": 1009787,
+          "self_seconds": 0.706988283,
+          "cumulative_seconds": 1.539496946
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "primitive_calls": 5817987,
+          "calls": 5817987,
+          "self_seconds": 0.6409679580000001,
+          "cumulative_seconds": 0.6409679580000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 190,
+          "function": "change",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.0060104450000000005,
+          "cumulative_seconds": 0.5272640230000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 193,
+          "function": "replace",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.013660985,
+          "cumulative_seconds": 0.521253578
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 171,
+          "function": "size",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.21093672600000002,
+          "cumulative_seconds": 0.49845275800000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'rfind' of 'bytes' objects>",
+          "primitive_calls": 1019537,
+          "calls": 1019537,
+          "self_seconds": 0.43883559800000005,
+          "cumulative_seconds": 0.43883559800000005
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/runtime/activity_events.py",
+          "line": 485,
+          "function": "_coerce_timestamp_to_utc",
+          "primitive_calls": 1000271,
+          "calls": 1000271,
+          "self_seconds": 0.191455921,
+          "cumulative_seconds": 0.276408857
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 484,
+          "function": "_add_details",
+          "primitive_calls": 90000,
+          "calls": 90000,
+          "self_seconds": 0.129999999,
+          "cumulative_seconds": 0.245482893
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'match' of 're.Pattern' objects>",
+          "primitive_calls": 1000105,
+          "calls": 1000105,
+          "self_seconds": 0.225937312,
+          "cumulative_seconds": 0.225937312
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "primitive_calls": 2090755,
+          "calls": 2090778,
+          "self_seconds": 0.195583171,
+          "cumulative_seconds": 0.195589334
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'read' of '_io.BufferedReader' objects>",
+          "primitive_calls": 9782,
+          "calls": 9782,
+          "self_seconds": 0.17038096800000002,
+          "cumulative_seconds": 0.17038096800000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "primitive_calls": 1471454,
+          "calls": 1471454,
+          "self_seconds": 0.160792227,
+          "cumulative_seconds": 0.160792227
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'startswith' of 'str' objects>",
+          "primitive_calls": 1184622,
+          "calls": 1184622,
+          "self_seconds": 0.134214905,
+          "cumulative_seconds": 0.134214905
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'strip' of 'bytes' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.10421744200000001,
+          "cumulative_seconds": 0.10421744200000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/time.py",
+          "line": 68,
+          "function": "ensure_utc",
+          "primitive_calls": 1000273,
+          "calls": 1000273,
+          "self_seconds": 0.08495414400000001,
+          "cumulative_seconds": 0.08495414400000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 130,
+          "function": "__init__",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.07729431,
+          "cumulative_seconds": 0.07729431
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 306,
+          "function": "model_fields_set",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.069247477,
+          "cumulative_seconds": 0.069247477
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "function": "is_dataclass",
+          "primitive_calls": 122892,
+          "calls": 122892,
+          "self_seconds": 0.041684570000000004,
+          "cumulative_seconds": 0.06474851100000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 593,
+          "function": "finish",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.007186906000000001,
+          "cumulative_seconds": 0.048319083000000006
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 233,
+          "function": "add",
+          "primitive_calls": 40820,
+          "calls": 40820,
+          "self_seconds": 0.020019012000000003,
+          "cumulative_seconds": 0.047373784
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'list' objects>",
+          "primitive_calls": 42554,
+          "calls": 42554,
+          "self_seconds": 0.018807511000000002,
+          "cumulative_seconds": 0.045945843
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "primitive_calls": 351363,
+          "calls": 351363,
+          "self_seconds": 0.041272324,
+          "cumulative_seconds": 0.041277574000000004
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1308,
+          "function": "fields",
+          "primitive_calls": 10050,
+          "calls": 10050,
+          "self_seconds": 0.023552844,
+          "cumulative_seconds": 0.03498964
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.id>",
+          "primitive_calls": 359032,
+          "calls": 359032,
+          "self_seconds": 0.030683659000000002,
+          "cumulative_seconds": 0.030683659000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.setattr>",
+          "primitive_calls": 250320,
+          "calls": 250320,
+          "self_seconds": 0.029758845000000003,
+          "cumulative_seconds": 0.030008800000000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 302,
+          "function": "_latest",
+          "primitive_calls": 44546,
+          "calls": 44546,
+          "self_seconds": 0.022466277,
+          "cumulative_seconds": 0.029991214000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method sys.getsizeof>",
+          "primitive_calls": 154166,
+          "calls": 154166,
+          "self_seconds": 0.029883935,
+          "cumulative_seconds": 0.029883935
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 187,
+          "function": "<genexpr>",
+          "primitive_calls": 100000,
+          "calls": 100000,
+          "self_seconds": 0.018056117,
+          "cumulative_seconds": 0.027138332
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'pop' of 'list' objects>",
+          "primitive_calls": 204186,
+          "calls": 204186,
+          "self_seconds": 0.022549923000000003,
+          "cumulative_seconds": 0.022549923000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'add' of 'set' objects>",
+          "primitive_calls": 154740,
+          "calls": 154740,
+          "self_seconds": 0.021599964000000003,
+          "cumulative_seconds": 0.021599964000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'seek' of '_io.BufferedReader' objects>",
+          "primitive_calls": 9777,
+          "calls": 9777,
+          "self_seconds": 0.020490015,
+          "cumulative_seconds": 0.020490015
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.hasattr>",
+          "primitive_calls": 123132,
+          "calls": 123132,
+          "self_seconds": 0.011937353000000001,
+          "cumulative_seconds": 0.011937353000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.sorted>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.009773999,
+          "cumulative_seconds": 0.01061196
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 197,
+          "function": "reserve",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.009139835,
+          "cumulative_seconds": 0.009139835
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1323,
+          "function": "<genexpr>",
+          "primitive_calls": 100600,
+          "calls": 100600,
+          "self_seconds": 0.008582733,
+          "cumulative_seconds": 0.008582733
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'sort' of 'list' objects>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.006630315,
+          "cumulative_seconds": 0.008043416000000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 142,
+          "function": "encode",
+          "primitive_calls": 1,
+          "calls": 7986,
+          "self_seconds": 0.005031225,
+          "cumulative_seconds": 0.007416583
+        },
+        {
+          "file": "<frozen importlib._bootstrap>",
+          "line": 1349,
+          "function": "_find_and_load",
+          "primitive_calls": 1,
+          "calls": 5,
+          "self_seconds": 2.8918000000000003e-05,
+          "cumulative_seconds": 0.007043334
+        },
+        {
+          "file": "<frozen importlib._bootstrap>",
+          "line": 1304,
+          "function": "_find_and_load_unlocked",
+          "primitive_calls": 1,
+          "calls": 5,
+          "self_seconds": 2.7705000000000003e-05,
+          "cumulative_seconds": 0.0069708750000000005
+        }
+      ],
+      "top_self": [
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 344,
+          "function": "add_event",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 3.626617421,
+          "cumulative_seconds": 5.681710753
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 1.857426497,
+          "cumulative_seconds": 2.1337504860000003
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/bounded_read.py",
+          "line": 174,
+          "function": "reverse_jsonl_bytes",
+          "primitive_calls": 1009787,
+          "calls": 1009787,
+          "self_seconds": 0.706988283,
+          "cumulative_seconds": 1.539496946
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "primitive_calls": 5817987,
+          "calls": 5817987,
+          "self_seconds": 0.6409679580000001,
+          "cumulative_seconds": 0.6409679580000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1099,
+          "function": "_reduce_activity_source",
+          "primitive_calls": 13687,
+          "calls": 13687,
+          "self_seconds": 0.5315072630000001,
+          "cumulative_seconds": 10.478353257
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 328,
+          "function": "add_json",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.522593914,
+          "cumulative_seconds": 8.40730263
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'rfind' of 'bytes' objects>",
+          "primitive_calls": 1019537,
+          "calls": 1019537,
+          "self_seconds": 0.43883559800000005,
+          "cumulative_seconds": 0.43883559800000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'match' of 're.Pattern' objects>",
+          "primitive_calls": 1000105,
+          "calls": 1000105,
+          "self_seconds": 0.225937312,
+          "cumulative_seconds": 0.225937312
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 171,
+          "function": "size",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.21093672600000002,
+          "cumulative_seconds": 0.49845275800000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "primitive_calls": 2090755,
+          "calls": 2090778,
+          "self_seconds": 0.195583171,
+          "cumulative_seconds": 0.195589334
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/runtime/activity_events.py",
+          "line": 485,
+          "function": "_coerce_timestamp_to_utc",
+          "primitive_calls": 1000271,
+          "calls": 1000271,
+          "self_seconds": 0.191455921,
+          "cumulative_seconds": 0.276408857
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'read' of '_io.BufferedReader' objects>",
+          "primitive_calls": 9782,
+          "calls": 9782,
+          "self_seconds": 0.17038096800000002,
+          "cumulative_seconds": 0.17038096800000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "primitive_calls": 1471454,
+          "calls": 1471454,
+          "self_seconds": 0.160792227,
+          "cumulative_seconds": 0.160792227
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'startswith' of 'str' objects>",
+          "primitive_calls": 1184622,
+          "calls": 1184622,
+          "self_seconds": 0.134214905,
+          "cumulative_seconds": 0.134214905
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 484,
+          "function": "_add_details",
+          "primitive_calls": 90000,
+          "calls": 90000,
+          "self_seconds": 0.129999999,
+          "cumulative_seconds": 0.245482893
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'strip' of 'bytes' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.10421744200000001,
+          "cumulative_seconds": 0.10421744200000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/time.py",
+          "line": 68,
+          "function": "ensure_utc",
+          "primitive_calls": 1000273,
+          "calls": 1000273,
+          "self_seconds": 0.08495414400000001,
+          "cumulative_seconds": 0.08495414400000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 130,
+          "function": "__init__",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.07729431,
+          "cumulative_seconds": 0.07729431
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 306,
+          "function": "model_fields_set",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.069247477,
+          "cumulative_seconds": 0.069247477
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "function": "is_dataclass",
+          "primitive_calls": 122892,
+          "calls": 122892,
+          "self_seconds": 0.041684570000000004,
+          "cumulative_seconds": 0.06474851100000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "primitive_calls": 351363,
+          "calls": 351363,
+          "self_seconds": 0.041272324,
+          "cumulative_seconds": 0.041277574000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.id>",
+          "primitive_calls": 359032,
+          "calls": 359032,
+          "self_seconds": 0.030683659000000002,
+          "cumulative_seconds": 0.030683659000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method sys.getsizeof>",
+          "primitive_calls": 154166,
+          "calls": 154166,
+          "self_seconds": 0.029883935,
+          "cumulative_seconds": 0.029883935
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.setattr>",
+          "primitive_calls": 250320,
+          "calls": 250320,
+          "self_seconds": 0.029758845000000003,
+          "cumulative_seconds": 0.030008800000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1308,
+          "function": "fields",
+          "primitive_calls": 10050,
+          "calls": 10050,
+          "self_seconds": 0.023552844,
+          "cumulative_seconds": 0.03498964
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'pop' of 'list' objects>",
+          "primitive_calls": 204186,
+          "calls": 204186,
+          "self_seconds": 0.022549923000000003,
+          "cumulative_seconds": 0.022549923000000003
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 302,
+          "function": "_latest",
+          "primitive_calls": 44546,
+          "calls": 44546,
+          "self_seconds": 0.022466277,
+          "cumulative_seconds": 0.029991214000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'add' of 'set' objects>",
+          "primitive_calls": 154740,
+          "calls": 154740,
+          "self_seconds": 0.021599964000000003,
+          "cumulative_seconds": 0.021599964000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'seek' of '_io.BufferedReader' objects>",
+          "primitive_calls": 9777,
+          "calls": 9777,
+          "self_seconds": 0.020490015,
+          "cumulative_seconds": 0.020490015
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 233,
+          "function": "add",
+          "primitive_calls": 40820,
+          "calls": 40820,
+          "self_seconds": 0.020019012000000003,
+          "cumulative_seconds": 0.047373784
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'list' objects>",
+          "primitive_calls": 42554,
+          "calls": 42554,
+          "self_seconds": 0.018807511000000002,
+          "cumulative_seconds": 0.045945843
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 187,
+          "function": "<genexpr>",
+          "primitive_calls": 100000,
+          "calls": 100000,
+          "self_seconds": 0.018056117,
+          "cumulative_seconds": 0.027138332
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 193,
+          "function": "replace",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.013660985,
+          "cumulative_seconds": 0.521253578
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.hasattr>",
+          "primitive_calls": 123132,
+          "calls": 123132,
+          "self_seconds": 0.011937353000000001,
+          "cumulative_seconds": 0.011937353000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.sorted>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.009773999,
+          "cumulative_seconds": 0.01061196
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 197,
+          "function": "reserve",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.009139835,
+          "cumulative_seconds": 0.009139835
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1323,
+          "function": "<genexpr>",
+          "primitive_calls": 100600,
+          "calls": 100600,
+          "self_seconds": 0.008582733,
+          "cumulative_seconds": 0.008582733
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 593,
+          "function": "finish",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.007186906000000001,
+          "cumulative_seconds": 0.048319083000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'sort' of 'list' objects>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.006630315,
+          "cumulative_seconds": 0.008043416000000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 190,
+          "function": "change",
+          "primitive_calls": 20643,
+          "calls": 20643,
+          "self_seconds": 0.0060104450000000005,
+          "cumulative_seconds": 0.5272640230000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 142,
+          "function": "encode",
+          "primitive_calls": 1,
+          "calls": 7986,
+          "self_seconds": 0.005031225,
+          "cumulative_seconds": 0.007416583
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1121,
+          "function": "build_projection",
+          "primitive_calls": 13679,
+          "calls": 13679,
+          "self_seconds": 0.003954175,
+          "cumulative_seconds": 10.534056640000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-v64-cold-profile-20261026/profile_core.py",
+          "line": 38,
+          "function": "consume",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.0035939020000000004,
+          "cumulative_seconds": 10.537650542000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.min>",
+          "primitive_calls": 9794,
+          "calls": 9794,
+          "self_seconds": 0.002082851,
+          "cumulative_seconds": 0.002082851
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'total_seconds' of 'datetime.timedelta' objects>",
+          "primitive_calls": 10000,
+          "calls": 10000,
+          "self_seconds": 0.0018775320000000001,
+          "cumulative_seconds": 0.0018775320000000001
+        }
+      ],
+      "function_calls": 23960257
+    },
+    {
+      "variant": "fresh_checkpoint_sync",
+      "instrumented_wall_seconds": 14.665046915994026,
+      "full_payload_sha256": "84777425c45acb6e70fe32f45554daabe08787278eb51543c789f8f08e1922e7",
+      "full_payload_bytes": 311060,
+      "source_coverage": {
+        "files": 10,
+        "captured_bytes": 640453970,
+        "verified": true
+      },
+      "top_cumulative": [
+        {
+          "file": "/private/tmp/crypto-master-v64-cold-profile-20261026/profile_core.py",
+          "line": 38,
+          "function": "consume",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.004102364,
+          "cumulative_seconds": 14.664911542
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1121,
+          "function": "build_projection",
+          "primitive_calls": 13716,
+          "calls": 13716,
+          "self_seconds": 0.006384944,
+          "cumulative_seconds": 14.660809178000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/segment_checkpoints.py",
+          "line": 217,
+          "function": "reduce",
+          "primitive_calls": 13720,
+          "calls": 13720,
+          "self_seconds": 0.005869778,
+          "cumulative_seconds": 14.481688951
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1099,
+          "function": "_reduce_activity_source",
+          "primitive_calls": 13687,
+          "calls": 13687,
+          "self_seconds": 0.528410073,
+          "cumulative_seconds": 11.462379502000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 328,
+          "function": "add_json",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.5280256210000001,
+          "cumulative_seconds": 8.765955508000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 344,
+          "function": "add_event",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 3.6729250390000003,
+          "cumulative_seconds": 6.01432075
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 171,
+          "function": "size",
+          "primitive_calls": 44438,
+          "calls": 44438,
+          "self_seconds": 1.40782661,
+          "cumulative_seconds": 3.190288032
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/bounded_read.py",
+          "line": 174,
+          "function": "reverse_jsonl_bytes",
+          "primitive_calls": 1009787,
+          "calls": 1009787,
+          "self_seconds": 0.7145515010000001,
+          "cumulative_seconds": 2.1679621300000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 1.8755476180000001,
+          "cumulative_seconds": 2.1554268260000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 138,
+          "function": "encode_state",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_seconds": 0.0006205430000000001,
+          "cumulative_seconds": 2.124125459
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 165,
+          "function": "node",
+          "primitive_calls": 10,
+          "calls": 13771,
+          "self_seconds": 0.025931984,
+          "cumulative_seconds": 2.123422873
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 190,
+          "function": "change",
+          "primitive_calls": 34454,
+          "calls": 34454,
+          "self_seconds": 0.009394731,
+          "cumulative_seconds": 1.12736455
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 193,
+          "function": "replace",
+          "primitive_calls": 34454,
+          "calls": 34454,
+          "self_seconds": 0.021874192,
+          "cumulative_seconds": 1.117969819
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'read' of '_io.BufferedReader' objects>",
+          "primitive_calls": 10086,
+          "calls": 10086,
+          "self_seconds": 0.8164950350000001,
+          "cumulative_seconds": 0.8164950350000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "primitive_calls": 5834052,
+          "calls": 5834052,
+          "self_seconds": 0.6532729030000001,
+          "cumulative_seconds": 0.6532729030000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "primitive_calls": 4991458,
+          "calls": 4991458,
+          "self_seconds": 0.490938931,
+          "cumulative_seconds": 0.490938931
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'rfind' of 'bytes' objects>",
+          "primitive_calls": 1019537,
+          "calls": 1019537,
+          "self_seconds": 0.434110753,
+          "cumulative_seconds": 0.434110753
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/segment_checkpoints.py",
+          "line": 124,
+          "function": "_merge_activity",
+          "primitive_calls": 10,
+          "calls": 10,
+          "self_seconds": 0.009791681,
+          "cumulative_seconds": 0.427036831
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "function": "is_dataclass",
+          "primitive_calls": 902839,
+          "calls": 902839,
+          "self_seconds": 0.268533431,
+          "cumulative_seconds": 0.415436422
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 65,
+          "function": "_wire",
+          "primitive_calls": 27461,
+          "calls": 279327,
+          "self_seconds": 0.208088556,
+          "cumulative_seconds": 0.33891877200000003
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/runtime/activity_events.py",
+          "line": 485,
+          "function": "_coerce_timestamp_to_utc",
+          "primitive_calls": 1000271,
+          "calls": 1000271,
+          "self_seconds": 0.194809486,
+          "cumulative_seconds": 0.279959662
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 233,
+          "function": "add",
+          "primitive_calls": 46790,
+          "calls": 46790,
+          "self_seconds": 0.024687909,
+          "cumulative_seconds": 0.275810563
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 484,
+          "function": "_add_details",
+          "primitive_calls": 90000,
+          "calls": 90000,
+          "self_seconds": 0.135717885,
+          "cumulative_seconds": 0.27057236300000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'list' objects>",
+          "primitive_calls": 327541,
+          "calls": 327541,
+          "self_seconds": 0.11767173700000001,
+          "cumulative_seconds": 0.261022542
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'match' of 're.Pattern' objects>",
+          "primitive_calls": 1000425,
+          "calls": 1000425,
+          "self_seconds": 0.230862471,
+          "cumulative_seconds": 0.230862471
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.id>",
+          "primitive_calls": 2912747,
+          "calls": 2912747,
+          "self_seconds": 0.215477516,
+          "cumulative_seconds": 0.215477516
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "primitive_calls": 2143988,
+          "calls": 2144871,
+          "self_seconds": 0.198595714,
+          "cumulative_seconds": 0.198741089
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1308,
+          "function": "fields",
+          "primitive_calls": 70051,
+          "calls": 70051,
+          "self_seconds": 0.11731253800000001,
+          "cumulative_seconds": 0.18465114500000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method sys.getsizeof>",
+          "primitive_calls": 1119958,
+          "calls": 1119958,
+          "self_seconds": 0.16846613600000002,
+          "cumulative_seconds": 0.16846613600000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'pop' of 'list' objects>",
+          "primitive_calls": 1785656,
+          "calls": 1785656,
+          "self_seconds": 0.16661035000000002,
+          "cumulative_seconds": 0.16661035000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'add' of 'set' objects>",
+          "primitive_calls": 1130148,
+          "calls": 1130148,
+          "self_seconds": 0.15123507900000002,
+          "cumulative_seconds": 0.15123507900000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 187,
+          "function": "<genexpr>",
+          "primitive_calls": 600000,
+          "calls": 600000,
+          "self_seconds": 0.090611302,
+          "cumulative_seconds": 0.143350805
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'startswith' of 'str' objects>",
+          "primitive_calls": 1185252,
+          "calls": 1185252,
+          "self_seconds": 0.134712246,
+          "cumulative_seconds": 0.134712246
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 159,
+          "function": "emit",
+          "primitive_calls": 13842,
+          "calls": 13842,
+          "self_seconds": 0.015958174000000002,
+          "cumulative_seconds": 0.12033384200000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 593,
+          "function": "finish",
+          "primitive_calls": 1,
+          "calls": 1,
+          "self_seconds": 0.007487512000000001,
+          "cumulative_seconds": 0.10999562500000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'strip' of 'bytes' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.104827531,
+          "cumulative_seconds": 0.104827531
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "primitive_calls": 951619,
+          "calls": 951619,
+          "self_seconds": 0.100318344,
+          "cumulative_seconds": 0.100318344
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 183,
+          "function": "dumps",
+          "primitive_calls": 13884,
+          "calls": 13884,
+          "self_seconds": 0.012275919000000001,
+          "cumulative_seconds": 0.09618222700000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/time.py",
+          "line": 68,
+          "function": "ensure_utc",
+          "primitive_calls": 1000283,
+          "calls": 1000283,
+          "self_seconds": 0.085156217,
+          "cumulative_seconds": 0.085156217
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+          "line": 183,
+          "function": "encode",
+          "primitive_calls": 13884,
+          "calls": 13884,
+          "self_seconds": 0.0103307,
+          "cumulative_seconds": 0.080594756
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'sort' of 'list' objects>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.07869991200000001,
+          "cumulative_seconds": 0.07982691700000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 130,
+          "function": "__init__",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.07755063200000001,
+          "cumulative_seconds": 0.07755063200000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.hasattr>",
+          "primitive_calls": 903056,
+          "calls": 903056,
+          "self_seconds": 0.073052606,
+          "cumulative_seconds": 0.073052606
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 306,
+          "function": "model_fields_set",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.06818231100000001,
+          "cumulative_seconds": 0.06818231100000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+          "line": 205,
+          "function": "iterencode",
+          "primitive_calls": 13884,
+          "calls": 13884,
+          "self_seconds": 0.066072818,
+          "cumulative_seconds": 0.066072818
+        }
+      ],
+      "top_self": [
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 344,
+          "function": "add_event",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 3.6729250390000003,
+          "cumulative_seconds": 6.01432075
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 1.8755476180000001,
+          "cumulative_seconds": 2.1554268260000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 171,
+          "function": "size",
+          "primitive_calls": 44438,
+          "calls": 44438,
+          "self_seconds": 1.40782661,
+          "cumulative_seconds": 3.190288032
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'read' of '_io.BufferedReader' objects>",
+          "primitive_calls": 10086,
+          "calls": 10086,
+          "self_seconds": 0.8164950350000001,
+          "cumulative_seconds": 0.8164950350000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/bounded_read.py",
+          "line": 174,
+          "function": "reverse_jsonl_bytes",
+          "primitive_calls": 1009787,
+          "calls": 1009787,
+          "self_seconds": 0.7145515010000001,
+          "cumulative_seconds": 2.1679621300000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "primitive_calls": 5834052,
+          "calls": 5834052,
+          "self_seconds": 0.6532729030000001,
+          "cumulative_seconds": 0.6532729030000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 1099,
+          "function": "_reduce_activity_source",
+          "primitive_calls": 13687,
+          "calls": 13687,
+          "self_seconds": 0.528410073,
+          "cumulative_seconds": 11.462379502000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 328,
+          "function": "add_json",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.5280256210000001,
+          "cumulative_seconds": 8.765955508000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "primitive_calls": 4991458,
+          "calls": 4991458,
+          "self_seconds": 0.490938931,
+          "cumulative_seconds": 0.490938931
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'rfind' of 'bytes' objects>",
+          "primitive_calls": 1019537,
+          "calls": 1019537,
+          "self_seconds": 0.434110753,
+          "cumulative_seconds": 0.434110753
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "function": "is_dataclass",
+          "primitive_calls": 902839,
+          "calls": 902839,
+          "self_seconds": 0.268533431,
+          "cumulative_seconds": 0.415436422
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'match' of 're.Pattern' objects>",
+          "primitive_calls": 1000425,
+          "calls": 1000425,
+          "self_seconds": 0.230862471,
+          "cumulative_seconds": 0.230862471
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.id>",
+          "primitive_calls": 2912747,
+          "calls": 2912747,
+          "self_seconds": 0.215477516,
+          "cumulative_seconds": 0.215477516
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 65,
+          "function": "_wire",
+          "primitive_calls": 27461,
+          "calls": 279327,
+          "self_seconds": 0.208088556,
+          "cumulative_seconds": 0.33891877200000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "primitive_calls": 2143988,
+          "calls": 2144871,
+          "self_seconds": 0.198595714,
+          "cumulative_seconds": 0.198741089
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/runtime/activity_events.py",
+          "line": 485,
+          "function": "_coerce_timestamp_to_utc",
+          "primitive_calls": 1000271,
+          "calls": 1000271,
+          "self_seconds": 0.194809486,
+          "cumulative_seconds": 0.279959662
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method sys.getsizeof>",
+          "primitive_calls": 1119958,
+          "calls": 1119958,
+          "self_seconds": 0.16846613600000002,
+          "cumulative_seconds": 0.16846613600000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'pop' of 'list' objects>",
+          "primitive_calls": 1785656,
+          "calls": 1785656,
+          "self_seconds": 0.16661035000000002,
+          "cumulative_seconds": 0.16661035000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'add' of 'set' objects>",
+          "primitive_calls": 1130148,
+          "calls": 1130148,
+          "self_seconds": 0.15123507900000002,
+          "cumulative_seconds": 0.15123507900000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 484,
+          "function": "_add_details",
+          "primitive_calls": 90000,
+          "calls": 90000,
+          "self_seconds": 0.135717885,
+          "cumulative_seconds": 0.27057236300000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'startswith' of 'str' objects>",
+          "primitive_calls": 1185252,
+          "calls": 1185252,
+          "self_seconds": 0.134712246,
+          "cumulative_seconds": 0.134712246
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'list' objects>",
+          "primitive_calls": 327541,
+          "calls": 327541,
+          "self_seconds": 0.11767173700000001,
+          "cumulative_seconds": 0.261022542
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1308,
+          "function": "fields",
+          "primitive_calls": 70051,
+          "calls": 70051,
+          "self_seconds": 0.11731253800000001,
+          "cumulative_seconds": 0.18465114500000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'strip' of 'bytes' objects>",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.104827531,
+          "cumulative_seconds": 0.104827531
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.getattr>",
+          "primitive_calls": 951619,
+          "calls": 951619,
+          "self_seconds": 0.100318344,
+          "cumulative_seconds": 0.100318344
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 187,
+          "function": "<genexpr>",
+          "primitive_calls": 600000,
+          "calls": 600000,
+          "self_seconds": 0.090611302,
+          "cumulative_seconds": 0.143350805
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/utils/time.py",
+          "line": 68,
+          "function": "ensure_utc",
+          "primitive_calls": 1000283,
+          "calls": 1000283,
+          "self_seconds": 0.085156217,
+          "cumulative_seconds": 0.085156217
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'sort' of 'list' objects>",
+          "primitive_calls": 11,
+          "calls": 11,
+          "self_seconds": 0.07869991200000001,
+          "cumulative_seconds": 0.07982691700000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 130,
+          "function": "__init__",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.07755063200000001,
+          "cumulative_seconds": 0.07755063200000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.hasattr>",
+          "primitive_calls": 903056,
+          "calls": 903056,
+          "self_seconds": 0.073052606,
+          "cumulative_seconds": 0.073052606
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 306,
+          "function": "model_fields_set",
+          "primitive_calls": 1000000,
+          "calls": 1000000,
+          "self_seconds": 0.06818231100000001,
+          "cumulative_seconds": 0.06818231100000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+          "line": 205,
+          "function": "iterencode",
+          "primitive_calls": 13884,
+          "calls": 13884,
+          "self_seconds": 0.066072818,
+          "cumulative_seconds": 0.066072818
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1323,
+          "function": "<genexpr>",
+          "primitive_calls": 700610,
+          "calls": 700610,
+          "self_seconds": 0.052315653000000004,
+          "cumulative_seconds": 0.052315653000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'isoformat' of 'datetime.datetime' objects>",
+          "primitive_calls": 33714,
+          "calls": 33714,
+          "self_seconds": 0.032101266,
+          "cumulative_seconds": 0.032101266
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.setattr>",
+          "primitive_calls": 250260,
+          "calls": 250260,
+          "self_seconds": 0.02967012,
+          "cumulative_seconds": 0.029867779
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 165,
+          "function": "node",
+          "primitive_calls": 10,
+          "calls": 13771,
+          "self_seconds": 0.025931984,
+          "cumulative_seconds": 2.123422873
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 233,
+          "function": "add",
+          "primitive_calls": 46790,
+          "calls": 46790,
+          "self_seconds": 0.024687909,
+          "cumulative_seconds": 0.275810563
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 302,
+          "function": "_latest",
+          "primitive_calls": 44555,
+          "calls": 44555,
+          "self_seconds": 0.022834486,
+          "cumulative_seconds": 0.034259429
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 193,
+          "function": "replace",
+          "primitive_calls": 34454,
+          "calls": 34454,
+          "self_seconds": 0.021874192,
+          "cumulative_seconds": 1.117969819
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'seek' of '_io.BufferedReader' objects>",
+          "primitive_calls": 9777,
+          "calls": 9777,
+          "self_seconds": 0.020827505,
+          "cumulative_seconds": 0.020827505
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/checkpoint_store.py",
+          "line": 159,
+          "function": "emit",
+          "primitive_calls": 13842,
+          "calls": 13842,
+          "self_seconds": 0.015958174000000002,
+          "cumulative_seconds": 0.12033384200000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/src/dashboard/projections.py",
+          "line": 197,
+          "function": "reserve",
+          "primitive_calls": 40707,
+          "calls": 40707,
+          "self_seconds": 0.015565323,
+          "cumulative_seconds": 0.015565323
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'values' of 'dict' objects>",
+          "primitive_calls": 120188,
+          "calls": 120188,
+          "self_seconds": 0.014896265,
+          "cumulative_seconds": 0.014896265
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method _io.open>",
+          "primitive_calls": 203,
+          "calls": 203,
+          "self_seconds": 0.014651852000000002,
+          "cumulative_seconds": 0.014899092000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 183,
+          "function": "dumps",
+          "primitive_calls": 13884,
+          "calls": 13884,
+          "self_seconds": 0.012275919000000001,
+          "cumulative_seconds": 0.09618222700000001
+        }
+      ],
+      "function_calls": 37978634,
+      "checkpoint_hits": 0,
+      "checkpoint_store": "/private/tmp/crypto-master-v64-cold-profile-20261026/fresh-sync-only-this-run/.dashboard-read-cache/v1",
+      "checkpoint_bytes": 6055204
+    }
+  ],
+  "source_hashes_unchanged": true,
+  "fixture_hashes_metadata_unchanged": true,
+  "full_payloads_equal": true,
+  "matches_actual_service_payload": true,
+  "environment": {
+    "python": "3.13.0 (main, Oct  7 2024, 05:02:14) [Clang 16.0.0 (clang-1600.0.26.4)]",
+    "platform": "macOS-15.5-arm64-arm-64bit-Mach-O",
+    "pydantic": "2.13.3",
+    "streamlit": "1.57.0"
+  }
+}

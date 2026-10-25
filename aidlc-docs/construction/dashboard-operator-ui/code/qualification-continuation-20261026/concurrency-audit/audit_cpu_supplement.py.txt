@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Read the later saved CPU proof offline without rewriting the initial freeze."""
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+OUT = Path('/private/tmp/crypto-master-v64-qualification-20261026')
+SOURCE = Path('/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-cpu-final.json')
+SUPPLEMENT = OUT / 'cpu-supplement'
+RAW = SUPPLEMENT / 'v64-cpu-final.json'
+MANIFEST = SUPPLEMENT / 'manifest.json'
+
+
+def at(value):
+    return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+
+
+def main():
+    SUPPLEMENT.mkdir(exist_ok=True)
+    if not RAW.exists():
+        before = SOURCE.stat()
+        data = SOURCE.read_bytes()
+        after = SOURCE.stat()
+        assert (before.st_ino, before.st_size, before.st_mtime_ns) == (after.st_ino, after.st_size, after.st_mtime_ns)
+        RAW.write_bytes(data)
+        manifest = {'captured_at':datetime.now(timezone.utc).isoformat(),
+                    'source':str(SOURCE), 'relative_copy':str(RAW.relative_to(OUT)),
+                    'bytes':len(data), 'source_mtime_ns':after.st_mtime_ns,
+                    'sha256':hashlib.sha256(data).hexdigest(),
+                    'auditor_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                    'initial_freeze_untouched':True}
+        MANIFEST.write_text(json.dumps(manifest, indent=2)+'\n')
+        RAW.chmod(0o444)
+        MANIFEST.chmod(0o444)
+    manifest = json.loads(MANIFEST.read_text())
+    data = RAW.read_bytes()
+    assert len(data) == manifest['bytes']
+    assert hashlib.sha256(data).hexdigest() == manifest['sha256']
+    payload = json.loads(data)
+    original = json.loads((OUT/'audit-results.json').read_text())
+    window = original['window']
+    start, end = at(window['start']), at(window['end'])
+    series = {}
+    identities = []
+    for item in payload.get('data',{}).get('result',[]):
+        name = item['metric']['__name__']
+        identities.append(item['metric'])
+        values = sorted((float(t),float(v)) for t,v in item['values'])
+        observed = [v for t,v in values if start <= t <= end]
+        gaps = [b[0]-a[0] for a,b in zip(values,values[1:])]
+        series[name] = {'points':len(values),
+            'first_at':datetime.fromtimestamp(values[0][0],timezone.utc).isoformat(),
+            'last_at':datetime.fromtimestamp(values[-1][0],timezone.utc).isoformat(),
+            'max_sample_gap_seconds':max(gaps,default=None),
+            'covers_entire_window':values[0][0] <= start and values[-1][0] >= end,
+            'observation_window_points':len(observed),
+            'minimum':min(v for t,v in values),'maximum':max(v for t,v in values),
+            'window_minimum':min(observed,default=None),'window_maximum':max(observed,default=None)}
+    required = {'fly_instance_cpu_balance','fly_instance_cpu_baseline','fly_instance_cpu_throttle'}
+    complete = (payload.get('status') == 'success' and payload.get('isPartial') is False
+                and required <= set(series)
+                and all(series[name]['covers_entire_window'] for name in required)
+                and all(series[name]['max_sample_gap_seconds'] <= 30 for name in required)
+                and all(i.get('instance') == '6835752b711958' and i.get('app') == 'crypto-master' for i in identities))
+    depleted = series.get('fly_instance_cpu_balance',{}).get('window_minimum')
+    throttle = series.get('fly_instance_cpu_throttle',{}).get('window_maximum')
+    result = {'audited_at':datetime.now(timezone.utc).isoformat(),
+        'observation_window':window,'source':str(RAW),'source_sha256':manifest['sha256'],
+        'prometheus_status':payload.get('status'),'prometheus_is_partial':payload.get('isPartial'),
+        'series':series,'metric_identity':identities,'full_window_cpu_coverage':complete,
+        'depletion_observed':depleted is not None and depleted <= 0,
+        'throttle_observed':throttle is not None and throttle > 0,
+        'depleted_cpu_qualification':False,
+        'initial_freeze_manifest_sha256':hashlib.sha256((OUT/'freeze-manifest.json').read_bytes()).hexdigest(),
+        'initial_audit_preserved':True,
+        'warm_protocol_result_unchanged':'FAIL: two recorded Home incomplete responses',
+        'interpretation':'Later independently saved CPU samples supplement the initially partial CPU evidence; positive balance and zero throttle cannot qualify depleted CPU.'}
+    (SUPPLEMENT/'audit-results.json').write_text(json.dumps(result,indent=2)+'\n')
+    print(json.dumps(result,indent=2))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,65 @@
+{
+  "source_commit": "458ef7924165b54e9ae6791a5a9cb200c29d17d6",
+  "fixture_rows": 1000000,
+  "fixture_bytes": 640453970,
+  "full_payload_sha256": "84777425c45acb6e70fe32f45554daabe08787278eb51543c789f8f08e1922e7",
+  "full_payload_bytes": 311060,
+  "parity_verified": true,
+  "inputs_unchanged": true,
+  "method": "Reliable CPU attribution uses single-thread exactbuild_projection drain, warmed lazyimports and hash-read OS cache. Threaded service profiles retained but attribution rejected. One each corrected variant; no20sample/native/guest/acceptanceclaim.",
+  "canonical_instrumented_seconds": 10.537800999940373,
+  "fresh_checkpoint_instrumented_seconds": 14.665046915994026,
+  "findings": [
+    {
+      "claim": "Both paths parse/reduce exactly1M rows once; first-run checkpoint is0hits and adds local-state encoding/sizing/merge work.",
+      "evidence": "profiles: add_json1M; add_event1M; fresh store0hits; samefullpayload"
+    },
+    {
+      "claim": "Main shared CPU hotspot is ActivityProjection.add_event, then canonicalPydanticvalidation.",
+      "canonical_add_event_self": 3.626617421,
+      "canonical_add_event_cumulative": 5.681710753,
+      "canonical_validate_json_cumulative": 2.134,
+      "fresh_add_event_self": 3.6729250390000003,
+      "fresh_add_event_cumulative": 6.01432075,
+      "fresh_validate_json_cumulative": 2.155
+    },
+    {
+      "claim": "Fresh checkpoint structural sizing is a material additional cost.",
+      "canonical_size_cumulative": 0.498,
+      "fresh_size_cumulative": 3.19,
+      "fresh_encode_state_cumulative": 2.124,
+      "size_called_from_codec_node_cumulative": 1.636482208,
+      "size_called_from_codec_node_count": 3711,
+      "merge_cumulative": 0.427
+    },
+    {
+      "claim": "ActivityProjection constructor imports Streamlit/pandas page just for gate mapping; initial service profile shows1.117s import.",
+      "source": "src/dashboard/projections.py:264;src/dashboard/pages/proposals.py:36-37,98",
+      "limit": "One local first-import observation; correctedprofiles warm it identically."
+    }
+  ],
+  "next_candidates": [
+    {
+      "scope": "checkpoint_store.encode_state node threshold predicate",
+      "proposal": "Replace fullrecursive sizing for size(value)>32KiB decision with bounded exact threshold predicate that stops once proven exceeded. Keep StateBudget full admission accounting unchanged; preserve codec branch/bytes/schema and unsupported-state fallback.",
+      "evidence": "1.636s of correctedfreshencode path is fullsizescans solely deciding threshold; currentcode node165 calls size on each qualifyingcontainer.",
+      "validation_needed": "Exactencodedbytes/decode/fullprojection parity, alias/cycle/unsupported/nonfinite/depth/budgetfault cases; no speedup claimed until tested."
+    },
+    {
+      "scope": "pure gate vocabulary/import boundary",
+      "proposal": "Move shared GATE_REASON_BY_STATE definition to existingpure domain/contract layer and re-export for pagecompatibility so projectionstartup need not importStreamlit/pandas. Cache compiledderived mapping if exactcurrentsemantics retained.",
+      "evidence": "projections264imports page; page36/37imports pandas/streamlit; initialprofile1.117s pageimport.",
+      "validation_needed": "Page/helper gate-category and prefix parity; coldprocessmeasurement. Cannot alone close millioncoldtarget."
+    },
+    {
+      "scope": "later row-reducer specialization",
+      "proposal": "Use event-specific work dispatch and lazy gate/payload work only after proving allcurrentall-type gate samples and cycle/tie semantics preserved.",
+      "evidence": "add_event1M dominates3.63s self; regex alone0.226s and payloadconstructor0.077s, so tiny skips alonecannot certify5s."
+    }
+  ],
+  "boundaries": [
+    "No application/docs/runtime edits or Fly/network/deploy. Fixture/store/source unchanged except newtask-ownedcheckpointstores.",
+    "Do not dropmodelvalidation, skipoldfilenamefiles, weakenbyte/state/sourceproof limits, or presentseededcacheperformance asunseededacceptance.",
+    "Sourcefilesystemreadtime varies betweenoneoffruns; thisprofile doesnotisolateOSdisklatency orparallelproductionconditions."
+  ]
+}

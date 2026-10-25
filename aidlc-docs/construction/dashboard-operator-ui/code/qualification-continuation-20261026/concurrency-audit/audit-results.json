@@ -1,0 +1,276 @@
+{
+  "audit_completed_at": "2026-10-25T18:11:25.923750+00:00",
+  "mode": "existing frozen evidence only; no new load",
+  "window": {
+    "start": "2026-10-25T17:41:21.639464+00:00",
+    "end": "2026-10-25T18:10:28.743201+00:00",
+    "seconds": 1747.103737
+  },
+  "existing_warm_protocol_sample_pass": false,
+  "original_debt083_acceptance": false,
+  "original_acceptance_unqualified": [
+    "declared 1 GiB guest",
+    "native viewport",
+    "per-page process-cold and cache-cold >=20 samples",
+    "depleted CPU qualification"
+  ],
+  "request_reconciliation": {
+    "starts": 349,
+    "outcomes": 349,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 347,
+      "incomplete": 2
+    },
+    "completion_ratio": 0.994269340974212
+  },
+  "parse_errors": {
+    "starts": [],
+    "outcomes": [],
+    "memory": []
+  },
+  "semantic_shape_failures": [
+    {
+      "key": [
+        "2026-10-25T18:09:42.146351+00:00",
+        1,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-25T18:09:43.332608+00:00",
+        3,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    }
+  ],
+  "pages": {
+    "Home": {
+      "observations": 174,
+      "complete": 172,
+      "incomplete": 2,
+      "complete_seconds_p95": 0.7607109999516979,
+      "complete_seconds_max": 5.276218416984193,
+      "all_complete": false,
+      "completion_ratio": 0.9885057471264368,
+      "status_counts": {
+        "complete": 172,
+        "incomplete": 2
+      },
+      "per_client": {
+        "0": 44,
+        "2": 44,
+        "1": 43,
+        "3": 43
+      }
+    },
+    "Trading": {
+      "observations": 175,
+      "complete": 175,
+      "incomplete": 0,
+      "complete_seconds_p95": 0.7241678340360522,
+      "complete_seconds_max": 5.558427583076991,
+      "all_complete": true,
+      "completion_ratio": 1.0,
+      "status_counts": {
+        "complete": 175
+      },
+      "per_client": {
+        "1": 44,
+        "3": 44,
+        "2": 43,
+        "0": 44
+      }
+    }
+  },
+  "clients": {
+    "0": {
+      "requests": 88,
+      "first": "2026-10-25T17:41:21.800147+00:00",
+      "last": "2026-10-25T18:10:21.854488+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.998904,
+      "maximum_start_gap_seconds": 20.012328
+    },
+    "2": {
+      "requests": 87,
+      "first": "2026-10-25T17:41:22.476110+00:00",
+      "last": "2026-10-25T18:10:02.510315+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999151,
+      "maximum_start_gap_seconds": 20.027173
+    },
+    "1": {
+      "requests": 87,
+      "first": "2026-10-25T17:41:22.089830+00:00",
+      "last": "2026-10-25T18:10:02.145558+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.997428,
+      "maximum_start_gap_seconds": 20.010687
+    },
+    "3": {
+      "requests": 87,
+      "first": "2026-10-25T17:41:23.274598+00:00",
+      "last": "2026-10-25T18:10:03.332195+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999205,
+      "maximum_start_gap_seconds": 20.009918
+    }
+  },
+  "health": {
+    "samples": 347,
+    "failures": [],
+    "maximum_seconds": 0.26862929097842425,
+    "first_at": "2026-10-25T17:41:21.643310+00:00",
+    "last_at": "2026-10-25T18:10:28.248289+00:00",
+    "max_sample_gap_seconds": 5.269578
+  },
+  "memory": {
+    "samples": 1746,
+    "first_at": "2026-10-25T17:41:21.773555+00:00",
+    "last_at": "2026-10-25T18:10:28.493297+00:00",
+    "max_sample_gap_seconds": 1.012504,
+    "guest_peak_mib": 708.25,
+    "guest_memtotal_kib": 2015880,
+    "dashboard_growth_mib": 83.90234375,
+    "dashboard_hwm_growth_mib": 83.90234375,
+    "pid_sets": {
+      "engine": [
+        655
+      ],
+      "dashboard": [
+        656
+      ]
+    },
+    "missing_processes": [],
+    "processes": {
+      "engine": {
+        "rss_first_kib": 211456,
+        "rss_last_kib": 224952,
+        "rss_peak_kib": 228020,
+        "hwm_peak_kib": 228020,
+        "threads_first": 2,
+        "threads_last": 2,
+        "threads_min": 2,
+        "threads_max": 2,
+        "cpu_delta_seconds": 8.93
+      },
+      "dashboard": {
+        "rss_first_kib": 293656,
+        "rss_last_kib": 369456,
+        "rss_peak_kib": 379572,
+        "hwm_peak_kib": 379572,
+        "threads_first": 9,
+        "threads_last": 9,
+        "threads_min": 9,
+        "threads_max": 37,
+        "cpu_delta_seconds": 115.86
+      }
+    }
+  },
+  "full_cycles_inside_entire_window": [
+    {
+      "cycle_id": "6b0a2fe0-1b16-43be-9bfc-df7f61f398db",
+      "started_at": "2026-10-25T18:09:40.672595Z",
+      "completed_at": "2026-10-25T18:10:00.939713Z",
+      "seconds": 20.267118,
+      "cycle_errored_seen": false
+    }
+  ],
+  "cpu": {
+    "series": {
+      "fly_instance_cpu_balance": {
+        "points": 31,
+        "first_at": "2026-10-25T17:40:51.639000+00:00",
+        "last_at": "2026-10-25T17:48:21.639000+00:00",
+        "minimum": 2677.0037137,
+        "maximum": 4109.0043815,
+        "observation_window_points": 28,
+        "covers_entire_window": false,
+        "window_minimum": 2677.0037137,
+        "window_maximum": 2829.004799
+      },
+      "fly_instance_cpu_baseline": {
+        "points": 31,
+        "first_at": "2026-10-25T17:40:51.639000+00:00",
+        "last_at": "2026-10-25T17:48:21.639000+00:00",
+        "minimum": 0.0625,
+        "maximum": 0.0625,
+        "observation_window_points": 28,
+        "covers_entire_window": false,
+        "window_minimum": 0.0625,
+        "window_maximum": 0.0625
+      },
+      "fly_instance_cpu_throttle": {
+        "points": 31,
+        "first_at": "2026-10-25T17:40:51.639000+00:00",
+        "last_at": "2026-10-25T17:48:21.639000+00:00",
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "observation_window_points": 28,
+        "covers_entire_window": false,
+        "window_minimum": 0.0,
+        "window_maximum": 0.0
+      }
+    },
+    "depletion_observed": false,
+    "throttle_observed": false,
+    "full_window_coverage": false
+  },
+  "declared_summary_comparisons": {
+    "seconds": true,
+    "health_samples": true,
+    "health_all_ok_under_5s": true,
+    "health_max_seconds": true,
+    "memory_samples": true,
+    "warmed_dashboard_baseline_rss_kib": true,
+    "dashboard_peak_rss_kib": true,
+    "dashboard_process_hwm_kib": true,
+    "observed_dashboard_rss_increase_mib": true,
+    "conservative_hwm_minus_warmed_rss_mib": true,
+    "guest_use_peak_mib": true,
+    "guest_memtotal_kib": true,
+    "request_starts_recorded": true,
+    "every_start_has_outcome": true,
+    "observed_guest_768_mib_ceiling_pass": true,
+    "dashboard_growth_256_mib_pass": true,
+    "warm_page_p95_2s_pass": true,
+    "minimum_duration_and_cycle_observed": true,
+    "pages.Home.observations": true,
+    "pages.Home.complete": true,
+    "pages.Home.incomplete": true,
+    "pages.Home.complete_seconds_p95": true,
+    "pages.Home.all_complete": true,
+    "pages.Trading.observations": true,
+    "pages.Trading.complete": true,
+    "pages.Trading.incomplete": true,
+    "pages.Trading.complete_seconds_p95": true,
+    "pages.Trading.all_complete": true,
+    "process_cpu_seconds_during_observation.engine": true,
+    "process_cpu_seconds_during_observation.dashboard": true,
+    "engine_full_cycle": true
+  },
+  "declared_summary_differences": [],
+  "limitations": [
+    "Semantic audit covers exact labels/placeholders/element presence, not table-cell oracle or native rendering.",
+    "Guest memory sampled about once per second; process HWM retained separately, no sum of process RSS.",
+    "CPU snapshots cover only their recorded timestamps; missing final coverage is not zero throttle.",
+    "Existing warmup and intermediate/canonical latency failures remain in frozen context."
+  ]
+}

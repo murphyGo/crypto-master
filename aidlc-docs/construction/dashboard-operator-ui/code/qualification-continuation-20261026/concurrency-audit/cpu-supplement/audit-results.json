@@ -1,0 +1,81 @@
+{
+  "audited_at": "2026-10-25T18:16:11.808179+00:00",
+  "observation_window": {
+    "start": "2026-10-25T17:41:21.639464+00:00",
+    "end": "2026-10-25T18:10:28.743201+00:00",
+    "seconds": 1747.103737
+  },
+  "source": "/private/tmp/crypto-master-v64-qualification-20261026/cpu-supplement/v64-cpu-final.json",
+  "source_sha256": "ebcc396909fb553a4e1e8edfa65a974b60f3e2936346bb8792cdb25c13fe3332",
+  "prometheus_status": "success",
+  "prometheus_is_partial": false,
+  "series": {
+    "fly_instance_cpu_balance": {
+      "points": 121,
+      "first_at": "2026-10-25T17:40:45+00:00",
+      "last_at": "2026-10-25T18:10:45+00:00",
+      "max_sample_gap_seconds": 15.0,
+      "covers_entire_window": true,
+      "observation_window_points": 116,
+      "minimum": 1088.0033594,
+      "maximum": 4170.0031599,
+      "window_minimum": 1277.0037027,
+      "window_maximum": 3076.0040665
+    },
+    "fly_instance_cpu_baseline": {
+      "points": 121,
+      "first_at": "2026-10-25T17:40:45+00:00",
+      "last_at": "2026-10-25T18:10:45+00:00",
+      "max_sample_gap_seconds": 15.0,
+      "covers_entire_window": true,
+      "observation_window_points": 116,
+      "minimum": 0.0625,
+      "maximum": 0.0625,
+      "window_minimum": 0.0625,
+      "window_maximum": 0.0625
+    },
+    "fly_instance_cpu_throttle": {
+      "points": 121,
+      "first_at": "2026-10-25T17:40:45+00:00",
+      "last_at": "2026-10-25T18:10:45+00:00",
+      "max_sample_gap_seconds": 15.0,
+      "covers_entire_window": true,
+      "observation_window_points": 116,
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "window_minimum": 0.0,
+      "window_maximum": 0.0
+    }
+  },
+  "metric_identity": [
+    {
+      "__name__": "fly_instance_cpu_balance",
+      "app": "crypto-master",
+      "host": "4243",
+      "instance": "6835752b711958",
+      "region": "nrt"
+    },
+    {
+      "__name__": "fly_instance_cpu_baseline",
+      "app": "crypto-master",
+      "host": "4243",
+      "instance": "6835752b711958",
+      "region": "nrt"
+    },
+    {
+      "__name__": "fly_instance_cpu_throttle",
+      "app": "crypto-master",
+      "host": "4243",
+      "instance": "6835752b711958",
+      "region": "nrt"
+    }
+  ],
+  "full_window_cpu_coverage": true,
+  "depletion_observed": false,
+  "throttle_observed": false,
+  "depleted_cpu_qualification": false,
+  "initial_freeze_manifest_sha256": "ce9a784d579e68f2bc384b0e42a5e2651775cebd6c3b66ec59f5e96b6e9541c4",
+  "initial_audit_preserved": true,
+  "warm_protocol_result_unchanged": "FAIL: two recorded Home incomplete responses",
+  "interpretation": "Later independently saved CPU samples supplement the initially partial CPU evidence; positive balance and zero throttle cannot qualify depleted CPU."
+}

@@ -1,0 +1,68 @@
+         37978634 function calls (37703355 primitive calls) in 14.663 seconds
+
+   Ordered by: internal time
+   List reduced from 351 to 60 due to restriction <60>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+  1000000    3.673    0.000    6.014    0.000 projections.py:344(add_event)
+  1000000    1.876    0.000    2.155    0.000 {method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+    44438    1.408    0.000    3.190    0.000 projections.py:171(size)
+    10086    0.816    0.000    0.816    0.000 {method 'read' of '_io.BufferedReader' objects}
+  1009787    0.715    0.000    2.168    0.000 bounded_read.py:174(reverse_jsonl_bytes)
+  5834052    0.653    0.000    0.653    0.000 {method 'get' of 'dict' objects}
+    13687    0.528    0.000   11.462    0.001 projections.py:1099(_reduce_activity_source)
+  1000000    0.528    0.000    8.766    0.000 projections.py:328(add_json)
+  4991458    0.491    0.000    0.491    0.000 {built-in method builtins.isinstance}
+  1019537    0.434    0.000    0.434    0.000 {method 'rfind' of 'bytes' objects}
+   902839    0.269    0.000    0.415    0.000 dataclasses.py:1331(is_dataclass)
+  1000425    0.231    0.000    0.231    0.000 {method 'match' of 're.Pattern' objects}
+  2912747    0.215    0.000    0.215    0.000 {built-in method builtins.id}
+279327/27461    0.208    0.000    0.339    0.000 checkpoint_store.py:65(_wire)
+2144871/2143988    0.199    0.000    0.199    0.000 {built-in method builtins.len}
+  1000271    0.195    0.000    0.280    0.000 activity_events.py:485(_coerce_timestamp_to_utc)
+  1119958    0.168    0.000    0.168    0.000 {built-in method sys.getsizeof}
+  1785656    0.167    0.000    0.167    0.000 {method 'pop' of 'list' objects}
+  1130148    0.151    0.000    0.151    0.000 {method 'add' of 'set' objects}
+    90000    0.136    0.000    0.271    0.000 projections.py:484(_add_details)
+  1185252    0.135    0.000    0.135    0.000 {method 'startswith' of 'str' objects}
+   327541    0.118    0.000    0.261    0.000 {method 'extend' of 'list' objects}
+    70051    0.117    0.000    0.185    0.000 dataclasses.py:1308(fields)
+  1000000    0.105    0.000    0.105    0.000 {method 'strip' of 'bytes' objects}
+   951619    0.100    0.000    0.100    0.000 {built-in method builtins.getattr}
+   600000    0.091    0.000    0.143    0.000 projections.py:187(<genexpr>)
+  1000283    0.085    0.000    0.085    0.000 time.py:68(ensure_utc)
+       11    0.079    0.007    0.080    0.007 {method 'sort' of 'list' objects}
+  1000000    0.078    0.000    0.078    0.000 projections.py:130(__init__)
+   903056    0.073    0.000    0.073    0.000 {built-in method builtins.hasattr}
+  1000000    0.068    0.000    0.068    0.000 main.py:306(model_fields_set)
+    13884    0.066    0.000    0.066    0.000 encoder.py:205(iterencode)
+   700610    0.052    0.000    0.052    0.000 dataclasses.py:1323(<genexpr>)
+    33714    0.032    0.000    0.032    0.000 {method 'isoformat' of 'datetime.datetime' objects}
+   250260    0.030    0.000    0.030    0.000 {built-in method builtins.setattr}
+ 13771/10    0.026    0.000    2.123    0.212 checkpoint_store.py:165(node)
+    46790    0.025    0.000    0.276    0.000 projections.py:233(add)
+    44555    0.023    0.000    0.034    0.000 projections.py:302(_latest)
+    34454    0.022    0.000    1.118    0.000 projections.py:193(replace)
+     9777    0.021    0.000    0.021    0.000 {method 'seek' of '_io.BufferedReader' objects}
+    13842    0.016    0.000    0.120    0.000 checkpoint_store.py:159(emit)
+    40707    0.016    0.000    0.016    0.000 projections.py:197(reserve)
+   120188    0.015    0.000    0.015    0.000 {method 'values' of 'dict' objects}
+      203    0.015    0.000    0.015    0.000 {built-in method _io.open}
+    13884    0.012    0.000    0.096    0.000 __init__.py:183(dumps)
+     3615    0.011    0.000    0.011    0.000 {built-in method _heapq.heappush}
+    13884    0.010    0.000    0.081    0.000 encoder.py:183(encode)
+       10    0.010    0.001    0.427    0.043 segment_checkpoints.py:124(_merge_activity)
+      101    0.009    0.000    0.010    0.000 {built-in method posix.open}
+    34454    0.009    0.000    1.127    0.000 projections.py:190(change)
+     3402    0.009    0.000    0.009    0.000 {method 'to_python' of 'pydantic_core._pydantic_core.SchemaSerializer' objects}
+        1    0.007    0.007    0.110    0.110 projections.py:593(finish)
+       22    0.007    0.000    0.017    0.001 {built-in method builtins.sorted}
+    50120    0.006    0.000    0.006    0.000 {method 'keys' of 'dict' objects}
+    13716    0.006    0.000   14.661    0.001 projections.py:1121(build_projection)
+    13720    0.006    0.000   14.482    0.001 segment_checkpoints.py:217(reduce)
+       30    0.006    0.000    0.006    0.000 {built-in method posix.replace}
+       60    0.005    0.000    0.005    0.000 {built-in method posix.fsync}
+       85    0.005    0.000    0.005    0.000 {built-in method posix.scandir}
+   7986/1    0.005    0.000    0.008    0.008 projections.py:142(encode)
+
+

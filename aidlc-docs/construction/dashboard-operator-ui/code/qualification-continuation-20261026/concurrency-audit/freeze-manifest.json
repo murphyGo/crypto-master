@@ -1,0 +1,119 @@
+{
+  "captured_at": "2026-10-25T18:10:47.651963+00:00",
+  "source_root": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-concurrency-summary.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-concurrency-summary.json",
+      "bytes": 1540,
+      "source_mtime_ns": 1792951828746833864,
+      "sha256": "db8657b1683bc4fd24d5eeedcad58740545dceb0219beff87774af52f6109232"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-cpu-initial.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-cpu-initial.json",
+      "bytes": 4955,
+      "source_mtime_ns": 1792950321768621846,
+      "sha256": "e1ddb8583b116c59aaf78822f852a6f1092d60039bf1f764ec40e91ea72008eb"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-cpu-interim.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-cpu-interim.json",
+      "bytes": 7854,
+      "source_mtime_ns": 1792950506366792429,
+      "sha256": "0c3b0cac8a48b3c7e736b406d15642b98b342c3e42cb6bb8b049f48e44a7046e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-health-samples.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-health-samples.json",
+      "bytes": 39961,
+      "source_mtime_ns": 1792951828748243046,
+      "sha256": "dde98a76cb02125d1bef0d14cf5d50a4390ec68d44d2fbbe0a20fe7046eabd87"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-memory-samples.jsonl",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-memory-samples.jsonl",
+      "bytes": 758789,
+      "source_mtime_ns": 1792951828260720844,
+      "sha256": "1f141a90598013790683d8e0a3b83cd23eab7c27695680f9df27e7c8fef96fac"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-page-observations.jsonl",
+      "bytes": 602749,
+      "source_mtime_ns": 1792951822394037588,
+      "sha256": "8373ed46ab915501ab7d5a83fd39160f36340acaf1a5a5e6071a3ceaf962cd56"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-page-starts.jsonl",
+      "bytes": 35774,
+      "source_mtime_ns": 1792951821855301927,
+      "sha256": "0983789077f9cde1686b5e9a7b441d199e50d14ed460e4863f191742e2889bbc"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-warmup-protocol.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/raw/v64-warmup-protocol.json",
+      "bytes": 4653,
+      "source_mtime_ns": 1792950073286474767,
+      "sha256": "36af251bc88effb4d1e08e4a75dfc66658e4e6da63e7395be65264d11a1e8ff8"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/four-session-protocol-driver.py.txt",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/four-session-protocol-driver.py.txt",
+      "bytes": 15932,
+      "source_mtime_ns": 1792949531369560648,
+      "sha256": "ad04dce29336bdd562764237b97112fc25714dc4d156c06a3d1927bd9969fe79"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/deployed-release.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/deployed-release.json",
+      "bytes": 877,
+      "source_mtime_ns": 1792950190845838995,
+      "sha256": "070b6a01d86e77a0a2be857b846fc41a912336a186bba48e30d00ff591cfd60a"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/v64-initial-runtime-verification.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/v64-initial-runtime-verification.json",
+      "bytes": 21570,
+      "source_mtime_ns": 1792950084181181665,
+      "sha256": "f357823ed344f3cebfb00f20cf3934468c1146291b04cdb7306ac5b16c61e4b3"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/source-qualification.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/source-qualification.json",
+      "bytes": 2537,
+      "source_mtime_ns": 1792949656008227003,
+      "sha256": "9ffc4319206e5a40fb2fcdb912f842f0d5b3f0e8505d5f820099341728b0d7f2"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/paired-benchmark-driver.py.txt",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/paired-benchmark-driver.py.txt",
+      "bytes": 3288,
+      "source_mtime_ns": 1792949121651318780,
+      "sha256": "6ffc26b9409a31647e29512b8cfe0137824b23fb353c4c7b0462275a6b44f9e8"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/small-proposal-admission-final.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/small-proposal-admission-final.json",
+      "bytes": 2568,
+      "source_mtime_ns": 1792949656007614574,
+      "sha256": "16b7a3f82b314c566b054f320f0b0b013469b9e7dacfc196be92e328290c832c"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/checkpoint-paired-before-small-proposal-admission.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/checkpoint-paired-before-small-proposal-admission.json",
+      "bytes": 5569,
+      "source_mtime_ns": 1792949297394298032,
+      "sha256": "ccaccf5fde2b2935945826de8bcd304a022f4920523e9e53084cc3c0e796d154"
+    },
+    {
+      "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/intermediate-checkpoint-regression.json",
+      "copy": "/private/tmp/crypto-master-v64-qualification-20261026/frozen/context/intermediate-checkpoint-regression.json",
+      "bytes": 4807,
+      "source_mtime_ns": 1792949121651077731,
+      "sha256": "c60512c997d3253f33a6f658fccbf45c869e88a5772979cbd34c40a9fee89599"
+    }
+  ],
+  "auditor_sha256": "cc80e0c6bb5fabe936d8a2227321348ad0bdb6f4dc196e9e740808c9a9b5ecc8"
+}

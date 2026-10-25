@@ -1,0 +1,8 @@
+{
+  "credential_values_detected": false,
+  "structured_sensitive_fields": [],
+  "raw_bytes": 26460,
+  "raw_sha256": "ebcc396909fb553a4e1e8edfa65a974b60f3e2936346bb8792cdb25c13fe3332",
+  "initial_freeze_manifest_sha256": "ce9a784d579e68f2bc384b0e42a5e2651775cebd6c3b66ec59f5e96b6e9541c4",
+  "checks": "Structured sensitive field and common credential token/private-key pattern scan; metric metadata contains public app/machine/region identifiers."
+}

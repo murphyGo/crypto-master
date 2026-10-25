@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-10-25T18:16:11.807019+00:00",
+  "source": "/private/tmp/crypto-master-dashboard-cold-readiness-20261025/aidlc-docs/construction/dashboard-operator-ui/code/bounded-data-loading/evidence/bounded-reads-20261026/v64-cpu-final.json",
+  "relative_copy": "cpu-supplement/v64-cpu-final.json",
+  "bytes": 26460,
+  "source_mtime_ns": 1792951864734105222,
+  "sha256": "ebcc396909fb553a4e1e8edfa65a974b60f3e2936346bb8792cdb25c13fe3332",
+  "auditor_sha256": "aa080f4f6d586ff2ff53c35acedcc4dab3cf4210b8d89a67473b086ee66bfe81",
+  "initial_freeze_untouched": true
+}

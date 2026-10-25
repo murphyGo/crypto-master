@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active; runtime streaming and dashboard checkpoints deployed as v64 / `dca38fb`. Independent check: 2,916 tests, Black/Ruff11, mypy134, 180 deployed hashes, health and first 12-account monitor cycle without errors. This is not full dashboard/resource acceptance: unseeded cold/native/depleted/four-session/original 1 GiB guest targets remain open. Historical failed observations are preserved below. Shared CPU 1 / 2048 MiB and deferred cost gate retained |
+| **Status** | Active / Critical; v64 / `dca38fb` deployed and source-verified. Final 29m07s four-session audit: 347/349 complete, two Home incomplete, so readiness fails despite healthy endpoints, full monitor cycle and observed memory within numeric limits. Canonical million query p95 7.817s also exceeds 5s. Native/depleted/original 1 GiB qualification remains open; shared CPU 1 / 2048 MiB and deferred cost gate retained |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -265,6 +265,23 @@ safety-gate execution coverage remains distinct from the local tests. Original
 page/native/depleted/guest acceptance remains open; the parallel dashboard
 qualification retains its own measurements. See
 `docs/sessions/2026-10-26-runtime-safety-v64-independent-verification.md`.
+
+**2026-10-26 final v64 qualification continuation:** Independent audit freezes
+349 starts/outcomes over 29m07s: 347 complete, two Home incomplete (12.094/11.335s).
+Successful-only Home/Trading p95 = 0.761/0.724s does not pass a run with failures.
+Health 347/347, max 0.269s; guest peak 708.25 MiB, dashboard growth 83.902 MiB on
+2048 MiB. A full 20.267s natural cycle has twelve monitor events, zero errors and
+zero proposals. Post-run 180 source hashes/image/instance/health remain verified.
+Separate full-window CPU samples retain positive balance and zero observed
+throttle; no depleted claim. Home failures overlap the cycle but raw alert
+reasons/first-shell times are missing, so cause is not inferred. Local exact-source
+million-row profiling identifies per-row validation/reduction and extra fresh-
+checkpoint sizing costs; output/input hashes match, and one-off profile times
+are not readiness p95. Original cold/native/depleted/1 GiB and full complete-
+concurrency acceptance stay open. Evidence is retained without registering new
+strategy defects. See
+`docs/sessions/2026-10-26-dashboard-v64-qualification-continuation.md` and
+`docs/cross-checks/2026-10-26-dashboard-v64-qualification-continuation.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

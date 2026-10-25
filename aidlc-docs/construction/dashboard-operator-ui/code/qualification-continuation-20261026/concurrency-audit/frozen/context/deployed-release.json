@@ -1,0 +1,37 @@
+{
+  "captured_release": 64,
+  "machine": "6835752b711958",
+  "state": "started",
+  "updated_at": "2026-10-25T17:39:17Z",
+  "image": {
+    "registry": "registry.fly.io",
+    "repository": "crypto-master",
+    "tag": "git-dca38fbf25a9b96ec91400b628bc71513cf3357d",
+    "digest": "sha256:a0e1bd753ba92935c7227bb7c1c5f52fa267eebe2784d1ece99c0a1fab070786",
+    "labels": {
+      "org.opencontainers.image.revision": "dca38fbf25a9b96ec91400b628bc71513cf3357d"
+    }
+  },
+  "guest": {
+    "cpu_kind": "shared",
+    "cpus": 1,
+    "memory_mb": 2048
+  },
+  "mounts": [
+    {
+      "encrypted": true,
+      "path": "/data",
+      "size_gb": 1,
+      "volume": "vol_4m3l58dkk29y19zv",
+      "name": "data"
+    }
+  ],
+  "checks": [
+    {
+      "name": "servicecheck-00-http-8080",
+      "status": "passing",
+      "output": "ok",
+      "updated_at": "2026-10-25T17:39:20.469Z"
+    }
+  ]
+}

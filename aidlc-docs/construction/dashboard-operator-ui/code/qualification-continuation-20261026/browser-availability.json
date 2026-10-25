@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-10-25T18:02:57.166186+00:00",
+  "status": "blocked",
+  "reason": "packaged_browser_service_missing",
+  "client_plugin_version": "26.814.41407",
+  "requested_service_version": "26.1007.30912",
+  "missing_module": "scripts/browser-service.mjs",
+  "native_page_opened": false,
+  "native_qualification_passed": false,
+  "replacement_browser_used": false,
+  "repair_tool_available": false,
+  "operator_readiness_question": "Browser update/reinstall through application plugin settings requested; no completion reply received at capture",
+  "supported_setup_reference": "https://developers.openai.com/training/walkthroughs/using-your-computer-and-browser",
+  "scope": "Setup failure before browser selection/navigation; not a dashboard render failure. No plugin removal, permission change or filesystem repair performed."
+}

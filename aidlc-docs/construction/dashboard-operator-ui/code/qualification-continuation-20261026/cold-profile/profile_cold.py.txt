@@ -1,0 +1,160 @@
+"""Read-only source profiling; only this private output directory is writable."""
+
+from __future__ import annotations
+
+import cProfile
+import hashlib
+import io
+import json
+import pstats
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO = Path('/Users/user/Desktop/Projects/crypto-master')
+OUT = Path('/private/tmp/crypto-master-v64-cold-profile-20261026')
+FIXTURE = Path('/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million')
+sys.path.insert(0, str(REPO))
+
+# Match the committed paired driver's fixed time and warm imports. cProfile
+# belongs to the actual dashboard worker, not the foreground polling thread.
+from src.dashboard.checkpoint_store import CheckpointStore
+from src.dashboard.data_service import DashboardDataService
+from src.dashboard.projections import build_projection
+from src.dashboard.read_models import Query
+from src.dashboard.segment_checkpoints import SegmentCheckpoints
+
+SOURCE_PATHS = [
+    'src/dashboard/checkpoint_store.py', 'src/dashboard/segment_checkpoints.py',
+    'src/dashboard/projections.py', 'src/dashboard/data_service.py',
+    'src/dashboard/read_models.py', 'src/dashboard/sources.py',
+    'src/runtime/activity_events.py', 'src/runtime/safety_reader.py',
+    'src/runtime/safety_score.py', 'src/runtime/engine.py',
+    'src/utils/bounded_read.py', 'src/utils/time.py', 'src/config.py',
+]
+
+
+def source_hashes():
+    return {
+        name: hashlib.sha256((REPO / name).read_bytes()).hexdigest()
+        for name in SOURCE_PATHS
+    }
+
+
+def fixture_manifest():
+    records = []
+    for path in sorted((FIXTURE / 'runtime').glob('activity*.jsonl')):
+        digest = hashlib.sha256()
+        lines = 0
+        with path.open('rb') as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                digest.update(chunk)
+                lines += chunk.count(b'\n')
+        info = path.stat()
+        records.append({
+            'path': str(path), 'bytes': info.st_size, 'rows': lines,
+            'mtime_ns': info.st_mtime_ns, 'sha256': digest.hexdigest(),
+        })
+    return records
+
+
+class ProfiledService(DashboardDataService):
+    def __init__(self, **kwargs):
+        self.worker_profile = cProfile.Profile()
+        super().__init__(**kwargs)
+
+    def _work(self):
+        self.worker_profile.enable()
+        try:
+            super()._work()
+        finally:
+            self.worker_profile.disable()
+
+
+def stats_rows(profile, sort_field, limit=45):
+    stats = pstats.Stats(profile)
+    rows = []
+    for (filename, line, function), (primitive, total, own, cumulative, callers) in stats.stats.items():
+        rows.append({
+            'file': filename, 'line': line, 'function': function,
+            'primitive_calls': primitive, 'calls': total,
+            'self_seconds': own, 'cumulative_seconds': cumulative,
+        })
+    return sorted(rows, key=lambda row: row[sort_field], reverse=True)[:limit]
+
+
+def measure(label, store, query):
+    service = ProfiledService(checkpoint_store=store)
+    start = time.perf_counter()
+    result = None
+    try:
+        result = service.request(query)
+        while result.status == 'pending' and time.perf_counter() - start < 300:
+            result = service.request(query, wait=.05)
+        elapsed = time.perf_counter() - start
+        state = service.stats()
+    finally:
+        service.close(timeout=10)
+    assert not service._thread.is_alive(), 'profile worker did not close'
+    service.worker_profile.dump_stats(str(OUT / f'{label}.prof'))
+    for order in ('cumulative', 'tottime'):
+        buffer = io.StringIO()
+        pstats.Stats(service.worker_profile, stream=buffer).strip_dirs().sort_stats(order).print_stats(60)
+        (OUT / f'{label}-{order}.txt').write_text(buffer.getvalue())
+    payload = result.data()
+    serialized = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+    row = {
+        'variant': label, 'instrumented_wall_seconds': elapsed,
+        'status': result.status, 'reason': result.reason,
+        'complete': result.complete, 'full_payload_sha256': hashlib.sha256(serialized).hexdigest(),
+        'full_payload_bytes': len(serialized), 'payload_keys': sorted(payload),
+        'source_coverage': payload.get('source_coverage'),
+        'service_stats': state, 'worker_exited': not service._thread.is_alive(),
+        'top_cumulative': stats_rows(service.worker_profile, 'cumulative_seconds'),
+        'top_self': stats_rows(service.worker_profile, 'self_seconds'),
+        'profile_calls': pstats.Stats(service.worker_profile).total_calls,
+    }
+    if store is not None:
+        row['checkpoint_hits'] = store.hits
+        row['checkpoint_store'] = str(store.base)
+        row['checkpoint_files'] = sum(1 for p in store.base.rglob('*') if p.is_file()) if store.base.exists() else 0
+        row['checkpoint_bytes'] = sum(p.stat().st_size for p in store.base.rglob('*') if p.is_file()) if store.base.exists() else 0
+    print(json.dumps({k: v for k, v in row.items() if k not in ('top_cumulative', 'top_self')}), flush=True)
+    return row
+
+
+def main():
+    source_before = source_hashes()
+    fixture_before = fixture_manifest()
+    q = Query(FIXTURE, 'activity', accounts=('default',), at=datetime(2026, 10, 25, tzinfo=timezone.utc))
+    store_root = OUT / 'fresh-only-this-run'
+    assert not store_root.exists(), 'refuse to reuse or delete a store'
+    store_root.mkdir()
+    out = {
+        'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip(),
+        'fixed_utc': q.at.isoformat(), 'fixture': str(FIXTURE),
+        'source_sha256_before': source_before, 'fixture_before': fixture_before,
+        'fixture_bytes': sum(row['bytes'] for row in fixture_before),
+        'fixture_rows': sum(row['rows'] for row in fixture_before),
+        'method': 'One canonical and one fresh-checkpoint run, cProfile on real worker, warmed imports and hash-read OS cache; diagnosis only, not latency/native/depleted qualification',
+        'variants': [],
+    }
+    (OUT / 'profile-result.json').write_text(json.dumps(out, indent=2) + '\n')
+    for label, store in [('canonical_no_checkpoint', None), ('fresh_checkpoint_store', CheckpointStore(store_root))]:
+        row = measure(label, store, q)
+        out['variants'].append(row)
+        (OUT / 'profile-result.json').write_text(json.dumps(out, indent=2) + '\n')
+    out['source_hashes_unchanged'] = source_hashes() == source_before
+    out['fixture_hashes_metadata_unchanged'] = fixture_manifest() == fixture_before
+    out['full_payloads_equal'] = len({row['full_payload_sha256'] for row in out['variants']}) == 1
+    out['all_complete'] = all(row['complete'] for row in out['variants'])
+    assert out['source_hashes_unchanged'] and out['fixture_hashes_metadata_unchanged']
+    assert out['full_payloads_equal'] and out['all_complete']
+    (OUT / 'profile-result.json').write_text(json.dumps(out, indent=2) + '\n')
+    print('PROFILE_COMPLETE', flush=True)
+
+
+if __name__ == '__main__':
+    main()

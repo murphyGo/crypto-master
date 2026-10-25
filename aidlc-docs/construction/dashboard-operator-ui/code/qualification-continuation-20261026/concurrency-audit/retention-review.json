@@ -1,0 +1,16 @@
+{
+  "scope": "all16 frozen raw/context files; bytes preserved",
+  "credential_values_detected": false,
+  "findings": [],
+  "checks": [
+    "PEM private key markers",
+    "GitHub/AWS/API token formats",
+    "Bearer credentials",
+    "URL userinfo",
+    "nonempty sensitive structured JSON fields"
+  ],
+  "notes": [
+    "Public service URLs, machine IDs, image digests, source paths, source SHA256 and provider/model names are provenance, not credential values.",
+    "No environment credential files or runtime data were queried."
+  ]
+}

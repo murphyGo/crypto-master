@@ -1,0 +1,10 @@
+{
+  "frozen_files_verified": 16,
+  "frozen_files_read_only": true,
+  "replay_same_json_results_except_audit_timestamp": true,
+  "sha256": {
+    "audit_v64.py": "cc80e0c6bb5fabe936d8a2227321348ad0bdb6f4dc196e9e740808c9a9b5ecc8",
+    "audit-results.json": "8dc33ee0631ee995510fa7f63a17343f7594aeda8fb68e5bb52afccfb07f3b8a",
+    "freeze-manifest.json": "ce9a784d579e68f2bc384b0e42a5e2651775cebd6c3b66ec59f5e96b6e9541c4"
+  }
+}

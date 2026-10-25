@@ -57,6 +57,19 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Final v64 operational qualification (2026-10-26 KST):** The existing
+> four-session, 29m07s run has 349 matched starts/outcomes: 347 complete and two
+> Home incomplete, so complete readiness **fails**. All 347 health checks and
+> a full 20.267s natural cycle (twelve monitors, zero errors) pass. Observed guest
+> use is 708.25 MiB and dashboard growth is 83.902 MiB on the current 2048 MiB
+> allocation. Full-window CPU samples show positive balance and zero observed
+> throttle; depleted is not qualified. Post-run 180 hashes and the unchanged
+> v64 image/instance are verified. Exact-source million-row cold profiling
+> preserves full output and input hashes, but is diagnosis only. DEBT-083 stays
+> Critical/active; cold/native/depleted/original 1 GiB acceptance and cost
+> deferral remain. See
+> `docs/sessions/2026-10-26-dashboard-v64-qualification-continuation.md`.
+
 > **Independent runtime delivery check (2026-10-26 KST):** Concurrent work
 > delivered source `dca38fb` as Fly **v64**. This session retained it and verified
 > 180 deployed hashes, public/internal health, the first completed 12-account
@@ -68,7 +81,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 > broader dashboard/resource acceptance is separate. See
 > `docs/sessions/2026-10-26-runtime-safety-v64-independent-verification.md`.
 
-> **Latest bounded-read source gate (2026-10-26):** Operator `gogo` approved both
+> **Historical bounded-read source gate (2026-10-26, before rollout):** Operator `gogo` approved both
 > concrete NFR candidates, typed safety-read monitoring amendment and their
 > implementation/test/same-capacity rollout sequence. Runtime inputs now stream
 > on one bounded daemon; failed reads block entries while preserving existing
@@ -76,7 +89,8 @@ Construction artifacts are created just in time for new work. Existing Phase
 > files retain canonical reading after measured cache overhead. Source gate:
 > 2916 tests, Black/Ruff11 changed Python files and mypy134 pass. Twenty-pair
 > seeded projection p95: million7.817→0.695s, snapshots2.087→0.070s, full output
-> parity. Unseeded million11.143s still fails5s; original native/depleted/1GiB
+> parity. The reported first-unseeded million11.143s exceeds5s (the later audit
+> found its initial store state unproven); original native/depleted/1GiB
 > acceptance remains open and DEBT-083 stays Critical/active. V63 strategy rollout
 > and its docs are preserved. Same-capacity bounded-read rollout is next; cost/
 > performance CPU remains **DEFERRED**. See
@@ -303,7 +317,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `backtesting-validation` | Complete | Brownfield-complete; construction-ready; 2026-05-24 (`50a7080`) added `raschke_holy_grail` + `ma_crossover` robustness specs and verified both exploratory live runs; 2026-07-19 Derivatives Data Slice 2 Snapshot Schema v2 **Build & Test approved, Operations N/A, cross-checked PASS for LC-10** — immutable content-addressed generations and v1 compatibility verified; 2026-07-22 Slice 4 LC-11 **Build & Test PASS; cross-check PASS; SEALED 2026-07-22 (operator approved, Operations N/A)** — exact v1/v2 replay serves same-generation OHLCV and no-lookahead Funding/OI through the shared builder; engine/harness/gates preserve optional callers and block missing required evidence as `INSUFFICIENT_DATA`; reports pin generation/configuration digest/seed/coverage; explicit refresh is separated from offline snapshot-default replay; Build & Test repaired unexplained Funding-prefix acceptance and raw exception serialization; 210 focused tests, 183 generated-path tests at 92% combined coverage, 103 builder-parity tests, 46 script-consumer tests, and 2585 full tests passed; changed-file Black/Ruff, repository mypy, lock, compile, offline import, diff, scope, credential, dependency, deployment, and `data/` checks passed; DEBT-081 isolated; LC-11 and FR-046/US-025 are Complete across Slices 1-4 | Slice 4 sealed 2026-07-22; track future robustness/baseline changes in construction plans |
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready; 2026-05-13 DEBT-056 closed (fixture-vs-validator drift in `tests/test_scripts_auto_research_candidates.py` aligned with `85a33b0` runtime-validator hardening; `## Output Contract` block + `"hypothesis"` keys added; 2 lint sites cleared via `ruff --fix`; pytest 1808 passed) | Track future Claude/improver loop changes in construction plans |
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready; 2026-05-13 DEBT-061 closed (per-strategy fail-closed counter instrumentation in `ProposalEngine._build_proposal_for_strategy` at emit / `StrategyError` catch / `TradingValidationError` catch; new `src/proposal/fail_closed_metrics.py` with `StrategyFailClosedCounts` Pydantic model `model_validate`-enforced on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`; `sub_account_id` plumbed as per-call argument after second-round 🔴 fix; quant Q1/Q2/Q4 ratified-as-shipped, Q4 per-reason breakdown deferred as non-breaking extension; pytest 1843 passed, net +31); 2026-05-13 DEBT-070 closed (ranking-side `total_trades` → `real_trade_count` sweep: 4 reads in `ProposalEngine._select_best_technique` at `src/proposal/engine.py:996, 1010, 1014` and `_select_all_techniques` at `:1132` switched with inline `# DEBT-070:` comments; display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally untouched; pinned by `test_select_best_technique_tiebreaks_on_real_trade_count` + `test_select_best_technique_any_history_ignores_synthetic_only` in `tests/test_proposal_engine.py`; pytest 2061 passed, net +2) | Track future proposal/runtime cycle changes in construction plans |
-| `dashboard-operator-ui` | Complete (brownfield); v64 deployed, DEBT-083 active | dca38fb: 2916 tests, Black/Ruff11, mypy134; 180 deployed hashes, health and first monitor cycle verified; exact seeded output parity | Complete original cold/native/depleted/concurrency/1GiB qualification; cost gate retained |
+| `dashboard-operator-ui` | Complete (brownfield); v64 deployed, DEBT-083 Critical/active | dca38fb: source gate retained; 180 hashes verified. Final four-session run 347/349 complete, two Home incomplete; health/full cycle and observed 708.25 MiB guest / 83.902 MiB dashboard increase verified on 2048 MiB | Resolve incomplete Home/cold readiness; complete native/depleted/original 1 GiB qualification; cost gate retained |
 | `dashboard-operator-command-center` | Complete (brownfield); DEBT-083 secondary | Home command center shipped with safety/freshness, account context, exposure detail, strategy evidence drilldown, incident actions, runtime diagnostics, and page-level drillthrough links. DEBT-083 preserves Home's latest cycle, recent safety/incident, account, exposure and funnel meanings through bounded queries | Participate in DEBT-083 semantic parity and resource qualification; unrelated workflow refinements remain separate |
 | `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard shipped; 2026-10-09 DEBT-082 resolved on current native v55 evidence: compatible Node/Claude, repeated help/flags, ldd, 167 source35e14b4 artifacts, health, and completed paper cycle; initial v53/v54 chronology overlaps another session's v55 Codex activation | Retain temporary 2 GB recovery capacity while bounded-loading work remains open; later DEBT-074/078/084/085/086 source through 3f4864f is not deployed |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |

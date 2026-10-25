@@ -1,0 +1,79 @@
+"""Corrected single-thread profile of the exact production projection generator."""
+from __future__ import annotations
+
+import cProfile
+import hashlib
+import io
+import json
+import pstats
+import threading
+import time
+from datetime import datetime, timezone
+
+from profile_cold import OUT, FIXTURE, CheckpointStore, Query, build_projection, fixture_manifest, source_hashes, stats_rows
+from src.dashboard.projections import ActivityProjection, StateBudget
+from src.dashboard.read_models import Limits
+
+query = Query(FIXTURE, 'activity', accounts=('default',), at=datetime(2026, 10, 25, tzinfo=timezone.utc)).normalized()
+limits = Limits()
+# The first service profile exposed this lazy UI import. Warm it for BOTH
+# corrected variants without reading any fixture row or retaining a reducer.
+ActivityProjection(query, StateBudget(limits))
+assert [t.name for t in threading.enumerate()] == ['MainThread']
+source_before = source_hashes()
+fixture_before = fixture_manifest()
+fresh = OUT / 'fresh-sync-only-this-run'
+assert not fresh.exists()
+fresh.mkdir()
+output = {
+    'method': 'Single-thread cProfile.runcall over exact build_projection generator; both variants have identical warmed lazy imports and hash-read OS cache. One each, diagnosis only; no latency acceptance.',
+    'supersedes': 'Threaded profile attribution is unreliable on this Python3.13 run: foreground poll frames contaminate parent/cumulative accounting. Original service output/parity remains valid and artifacts retained.',
+    'source_sha256_before': source_before, 'fixture_before': fixture_before,
+    'fixture_bytes': sum(row['bytes'] for row in fixture_before),
+    'fixture_rows': sum(row['rows'] for row in fixture_before),
+    'fixed_utc': query.at.isoformat(), 'variants': [],
+}
+
+
+def consume(store):
+    value = None
+    for part in build_projection(query, limits, checkpoint_store=store):
+        if part is not None:
+            value = part
+    assert value is not None
+    return value
+
+
+for label, store in [('canonical_sync', None), ('fresh_checkpoint_sync', CheckpointStore(fresh))]:
+    profile = cProfile.Profile()
+    start = time.perf_counter()
+    payload = profile.runcall(consume, store)
+    elapsed = time.perf_counter() - start
+    profile.dump_stats(str(OUT / f'{label}.prof'))
+    serialized = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+    result = {
+        'variant': label, 'instrumented_wall_seconds': elapsed,
+        'full_payload_sha256': hashlib.sha256(serialized).hexdigest(),
+        'full_payload_bytes': len(serialized), 'source_coverage': payload['source_coverage'],
+        'top_cumulative': stats_rows(profile, 'cumulative_seconds'),
+        'top_self': stats_rows(profile, 'self_seconds'),
+        'function_calls': pstats.Stats(profile).total_calls,
+    }
+    if store:
+        result.update(checkpoint_hits=store.hits, checkpoint_store=str(store.base), checkpoint_bytes=sum(p.stat().st_size for p in store.base.rglob('*') if p.is_file()))
+    output['variants'].append(result)
+    for order in ('cumulative', 'tottime'):
+        text = io.StringIO()
+        pstats.Stats(profile, stream=text).strip_dirs().sort_stats(order).print_stats(60)
+        (OUT / f'{label}-{order}.txt').write_text(text.getvalue())
+    (OUT / 'core-profile-result.json').write_text(json.dumps(output, indent=2) + '\n')
+    print(label, elapsed, result['full_payload_sha256'], flush=True)
+
+output['source_hashes_unchanged'] = source_hashes() == source_before
+output['fixture_hashes_metadata_unchanged'] = fixture_manifest() == fixture_before
+output['full_payloads_equal'] = len({r['full_payload_sha256'] for r in output['variants']}) == 1
+original = json.loads((OUT / 'profile-result.json').read_text())
+output['matches_actual_service_payload'] = all(r['full_payload_sha256'] == original['variants'][0]['full_payload_sha256'] for r in output['variants'])
+assert output['source_hashes_unchanged'] and output['fixture_hashes_metadata_unchanged'] and output['full_payloads_equal'] and output['matches_actual_service_payload']
+(OUT / 'core-profile-result.json').write_text(json.dumps(output, indent=2) + '\n')
+print('CORE_PROFILE_COMPLETE', flush=True)
