@@ -1,0 +1,48 @@
+         23840969 function calls (23840865 primitive calls) in 7.369 seconds
+
+   Ordered by: cumulative time
+   List reduced from 159 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    7.375    7.375 profile_baseline.py:54(<lambda>)
+        1    0.000    0.000    7.375    7.375 profile_baseline.py:24(consume)
+      858    0.070    0.000    7.375    0.009 projections.py:1121(build_projection)
+    89717    3.193    0.000    5.622    0.000 bounded_read.py:238(json_array_bytes)
+    89187    0.065    0.000    1.670    0.000 projections.py:799(add_snapshot_json)
+    89187    0.366    0.000    0.901    0.000 projections.py:811(add_snapshot)
+  3926623    0.900    0.000    0.900    0.000 {method 'search' of 're.Pattern' objects}
+    89200    0.026    0.000    0.705    0.000 main.py:742(model_validate_json)
+    89200    0.301    0.000    0.678    0.000 {method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+7869154/7869050    0.573    0.000    0.573    0.000 {built-in method builtins.len}
+  3748236    0.501    0.000    0.501    0.000 {method 'extend' of 'bytearray' objects}
+  3926166    0.387    0.000    0.387    0.000 {method 'end' of 're.Match' objects}
+   379583    0.159    0.000    0.196    0.000 portfolio.py:45(_coerce_decimal)
+   178400    0.035    0.000    0.126    0.000 portfolio.py:108(coerce_pnl)
+    89200    0.047    0.000    0.115    0.000 portfolio.py:88(coerce_balances)
+    89200    0.046    0.000    0.106    0.000 portfolio.py:98(coerce_current_prices)
+    89188    0.094    0.000    0.094    0.000 {method 'isoformat' of 'datetime.datetime' objects}
+   446283    0.082    0.000    0.082    0.000 {built-in method sys.getsizeof}
+    89187    0.030    0.000    0.077    0.000 portfolio.py:131(total_equity)
+   178400    0.047    0.000    0.047    0.000 projections.py:197(reserve)
+    27877    0.018    0.000    0.047    0.000 {built-in method builtins.min}
+    89187    0.036    0.000    0.047    0.000 portfolio.py:126(quote_balance)
+   470400    0.047    0.000    0.047    0.000 {built-in method builtins.isinstance}
+    13682    0.016    0.000    0.042    0.000 {built-in method builtins.max}
+   267614    0.034    0.000    0.034    0.000 {method 'get' of 'dict' objects}
+    14026    0.017    0.000    0.034    0.000 {built-in method builtins.sorted}
+      530    0.001    0.000    0.032    0.000 bounded_read.py:47(_blocks)
+    89200    0.020    0.000    0.030    0.000 portfolio.py:114(_coerce_timestamp_to_utc)
+   107388    0.029    0.000    0.029    0.000 projections.py:867(<lambda>)
+      517    0.027    0.000    0.027    0.000 {method 'read' of '_io.BufferedReader' objects}
+   107388    0.026    0.000    0.026    0.000 projections.py:868(<lambda>)
+   178403    0.023    0.000    0.023    0.000 {method 'items' of 'dict' objects}
+   178387    0.022    0.000    0.022    0.000 {method 'start' of 're.Match' objects}
+      685    0.011    0.000    0.019    0.000 {built-in method builtins.sum}
+    89187    0.018    0.000    0.018    0.000 {method 'clear' of 'bytearray' objects}
+   108072    0.015    0.000    0.015    0.000 projections.py:860(<lambda>)
+    89187    0.014    0.000    0.014    0.000 {method 'append' of 'bytearray' objects}
+    89737    0.014    0.000    0.014    0.000 {method 'append' of 'list' objects}
+    89187    0.013    0.000    0.013    0.000 {method 'setdefault' of 'dict' objects}
+    89202    0.010    0.000    0.010    0.000 time.py:68(ensure_utc)
+
+

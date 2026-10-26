@@ -1,0 +1,55 @@
+Tue Oct 27 02:47:32 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/home-render-candidate-enabled.prof
+
+         1102432 function calls (976708 primitive calls) in -0.168 seconds
+
+   Ordered by: cumulative time
+   List reduced from 870 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084 1171.758    0.090 1171.758    0.090 {method 'stat' of 'posix.DirEntry' objects}
+    13352  750.356    0.056  750.358    0.056 {built-in method posix.stat}
+64202/61026   81.012    0.001   72.607    0.001 encoder.py:278(_iterencode_list)
+    13186   41.472    0.003   53.338    0.004 sources.py:115(scan)
+       44   42.490    0.966   42.490    0.966 {built-in method posix.scandir}
+        5   30.862    6.172   30.862    6.172 {built-in method posix.open}
+        5   30.702    6.140   30.716    6.143 projections.py:171(size)
+    11616   30.337    0.003   30.344    0.003 dataclasses.py:1331(is_dataclass)
+    13084    0.032    0.000   23.991    0.002 sources.py:132(add_entry)
+       10    0.000    0.000   23.892    2.389 projections.py:1121(build_projection)
+        5    0.010    0.002   23.833    4.767 sources.py:154(verify)
+      234    1.507    0.006   23.476    0.100 _local.py:510(stat)
+        5    0.000    0.000   11.765    2.353 projections.py:190(change)
+        5    0.000    0.000   11.765    2.353 projections.py:193(replace)
+        3    0.000    0.000   11.639    3.880 shutil.py:1371(disk_usage)
+        5   10.535    2.107   10.537    2.107 sources.py:70(digest)
+        3   10.138    3.379   10.138    3.379 {built-in method posix.statvfs}
+        1    9.965    9.965    9.965    9.965 projections.py:1375(bounded_safety)
+       10    0.000    0.000    0.385    0.039 profile_service_pages.py:35(build)
+    66036    0.034    0.000    0.202    0.000 encoder.py:414(_iterencode)
+187883/66036   60.538    0.000    0.168    0.000 encoder.py:334(_iterencode_dict)
+        5    0.015    0.003    0.154    0.031 sources.py:188(discover)
+      2/1    0.000    0.000    0.050    0.050 availability.py:52(wrapped)
+       53    0.000    0.000    0.043    0.001 metrics_util.py:652(wrapped_func)
+        1    0.000    0.000    0.040    0.040 home.py:909(render_command_center_status)
+99769/99739    0.027    0.000    0.028    0.000 {built-in method builtins.isinstance}
+    79378    0.025    0.000    0.025    0.000 {method 'encode' of 'str' objects}
+81272/80781    0.021    0.000    0.021    0.000 {built-in method builtins.len}
+    66031    0.021    0.000    0.021    0.000 {method 'extend' of 'bytearray' objects}
+       40    0.001    0.000    0.016    0.000 delta_generator.py:465(_enqueue)
+    53559    0.014    0.000    0.014    0.000 {built-in method builtins.id}
+        4    0.000    0.000    0.012    0.003 arrow.py:519(dataframe)
+        7    0.000    0.000    0.011    0.002 layouts.py:398(columns)
+       28    0.000    0.000    0.011    0.000 delta_generator.py:570(_block)
+    29011    0.010    0.000    0.010    0.000 {built-in method sys.getsizeof}
+    26236    0.010    0.000    0.010    0.000 {built-in method _struct.pack}
+    33176    0.009    0.000    0.009    0.000 {method 'pop' of 'list' objects}
+        3    0.000    0.000    0.008    0.003 home.py:1116(render_command_center_links)
+    26236    0.008    0.000    0.008    0.000 {method 'update' of '_hashlib.HASH' objects}
+    25061    0.008    0.000    0.008    0.000 {built-in method _json.encode_basestring_ascii}
+    33763    0.008    0.000    0.008    0.000 {built-in method builtins.callable}
+        4    0.000    0.000    0.006    0.001 pandas_compat.py:599(dataframe_to_arrays)
+    16084    0.005    0.000    0.005    0.000 {method 'add' of 'set' objects}
+       12    0.000    0.000    0.005    0.000 metric.py:93(metric)
+       10    0.000    0.000    0.005    0.000 __init__.py:299(loads)
+
+

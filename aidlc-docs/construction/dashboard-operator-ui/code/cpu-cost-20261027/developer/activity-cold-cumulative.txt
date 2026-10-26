@@ -1,0 +1,48 @@
+         7359379 function calls (7351474 primitive calls) in 2.959 seconds
+
+   Ordered by: cumulative time
+   List reduced from 251 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    2.959    2.959 profile_baseline.py:54(<lambda>)
+        1    0.002    0.002    2.959    2.959 profile_baseline.py:24(consume)
+     2363    0.001    0.000    2.958    0.001 projections.py:1121(build_projection)
+     2368    0.117    0.000    2.922    0.001 projections.py:1099(_reduce_activity_source)
+   229677    0.123    0.000    2.488    0.000 projections.py:328(add_json)
+   229677    0.840    0.000    1.805    0.000 projections.py:344(add_event)
+    24852    0.008    0.000    0.655    0.000 projections.py:190(change)
+    30789    0.242    0.000    0.625    0.000 projections.py:171(size)
+    24852    0.014    0.000    0.581    0.000 projections.py:193(replace)
+   229677    0.475    0.000    0.543    0.000 {method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+   231151    0.163    0.000    0.318    0.000 bounded_read.py:174(reverse_jsonl_bytes)
+  1232144    0.141    0.000    0.141    0.000 {method 'get' of 'dict' objects}
+     9340    0.087    0.000    0.097    0.000 dataclasses.py:1308(fields)
+   826921    0.087    0.000    0.087    0.000 {built-in method builtins.isinstance}
+   232602    0.080    0.000    0.080    0.000 {method 'rfind' of 'bytes' objects}
+   159856    0.050    0.000    0.078    0.000 dataclasses.py:1331(is_dataclass)
+   229734    0.046    0.000    0.068    0.000 activity_events.py:485(_coerce_timestamp_to_utc)
+   229677    0.048    0.000    0.048    0.000 {method 'match' of 're.Pattern' objects}
+475550/475519    0.045    0.000    0.045    0.000 {built-in method builtins.len}
+    50962    0.018    0.000    0.043    0.000 {method 'extend' of 'list' objects}
+   448934    0.035    0.000    0.035    0.000 {built-in method builtins.id}
+   200599    0.033    0.000    0.033    0.000 {built-in method sys.getsizeof}
+        1    0.007    0.007    0.032    0.032 projections.py:593(finish)
+   253323    0.028    0.000    0.028    0.000 {method 'startswith' of 'str' objects}
+   247642    0.026    0.000    0.026    0.000 {method 'pop' of 'list' objects}
+      414    0.000    0.000    0.026    0.000 projections.py:233(add)
+   200746    0.025    0.000    0.025    0.000 {method 'add' of 'set' objects}
+   229677    0.025    0.000    0.025    0.000 {method 'strip' of 'bytes' objects}
+    92900    0.016    0.000    0.025    0.000 projections.py:187(<genexpr>)
+   229736    0.021    0.000    0.022    0.000 time.py:68(ensure_utc)
+     1467    0.021    0.000    0.021    0.000 {method 'read' of '_io.BufferedReader' objects}
+   229677    0.017    0.000    0.017    0.000 projections.py:130(__init__)
+    11808    0.010    0.000    0.016    0.000 projections.py:484(_add_details)
+   229677    0.016    0.000    0.016    0.000 main.py:306(model_fields_set)
+   132524    0.015    0.000    0.015    0.000 {built-in method builtins.getattr}
+   160056    0.014    0.000    0.014    0.000 {built-in method builtins.hasattr}
+    24852    0.008    0.000    0.008    0.000 projections.py:197(reserve)
+     8738    0.005    0.000    0.008    0.000 projections.py:302(_latest)
+    93500    0.008    0.000    0.008    0.000 dataclasses.py:1323(<genexpr>)
+       11    0.006    0.001    0.007    0.001 {built-in method builtins.sorted}
+
+

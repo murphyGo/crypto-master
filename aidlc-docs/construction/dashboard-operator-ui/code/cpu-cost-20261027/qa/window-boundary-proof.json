@@ -1,0 +1,23 @@
+{
+  "result": "PASS",
+  "fixture": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa/boundary-kbsvy087",
+  "rows": [
+    {
+      "checkpoint_enabled": false,
+      "inclusive_lower_cutoff": true,
+      "future_upper_boundary": true,
+      "one_microsecond_expiry_matches_canonical": true,
+      "lifetime_threshold_unchanged": true,
+      "full_later_sha256": "6fc8e1917beb22a1d75cab15b50be63800407f3a3789f8f0214c0a3120eae66e"
+    },
+    {
+      "checkpoint_enabled": true,
+      "inclusive_lower_cutoff": true,
+      "future_upper_boundary": true,
+      "one_microsecond_expiry_matches_canonical": true,
+      "lifetime_threshold_unchanged": true,
+      "full_later_sha256": "6fc8e1917beb22a1d75cab15b50be63800407f3a3789f8f0214c0a3120eae66e"
+    }
+  ],
+  "limitations": "Local exact-function output proof only; no production/native/cold latency acceptance."
+}

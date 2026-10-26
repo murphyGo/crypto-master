@@ -1,0 +1,156 @@
+{
+  "phase": "independent pre-implementation review",
+  "verdict": "green narrow design; implementation and performance verification pending",
+  "baseline": "2eae9cf74d33e52b5058e2a5597f2e3a76e86cdd",
+  "authorized_source_scope": [
+    "src/dashboard/projections.py: checkpoint average-size eligibility only"
+  ],
+  "candidate": {
+    "measured": true,
+    "profile": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/baseline-profile.json",
+    "profile_sha256": "d10d47aa2f2493af9eefb42dbd6b1ab33c2319b4619fe8c2257f38c8a0261358",
+    "repeats": 5,
+    "cpu_seconds": [
+      0.4258070000000025,
+      0.40714499999999987,
+      0.40857400000000155,
+      0.41263899999999865,
+      0.4135990000000014
+    ],
+    "wall_seconds": [
+      0.4509594580158591,
+      0.4121987499529496,
+      0.41862487490288913,
+      0.4257114169886336,
+      0.42815391696058214
+    ],
+    "payload": {
+      "bytes": 38436,
+      "sha256": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+    },
+    "top_functions": [
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+        "line": 56,
+        "name": "<lambda>",
+        "calls": 5,
+        "self": 6e-06,
+        "cumulative": 2.135346749
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+        "line": 24,
+        "name": "consume",
+        "calls": 5,
+        "self": 0.0011077510000000001,
+        "cumulative": 2.135340749
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+        "line": 1121,
+        "name": "build_projection",
+        "calls": 10,
+        "self": 0.00016649700000000002,
+        "cumulative": 2.134203831
+      },
+      {
+        "file": "~",
+        "line": 0,
+        "name": "<built-in method builtins.sum>",
+        "calls": 5,
+        "self": 0.0073114320000000005,
+        "cumulative": 1.215075501
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+        "line": 1143,
+        "name": "<genexpr>",
+        "calls": 65425,
+        "self": 0.021319657000000002,
+        "cumulative": 1.207764069
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+        "line": 39,
+        "name": "files",
+        "calls": 65425,
+        "self": 0.012490925,
+        "cumulative": 1.1864444120000002
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+        "line": 51,
+        "name": "_sources",
+        "calls": 65425,
+        "self": 0.12425118900000001,
+        "cumulative": 1.1739534870000001
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+        "line": 329,
+        "name": "parent",
+        "calls": 65420,
+        "self": 0.044535132000000005,
+        "cumulative": 0.722164137
+      },
+      {
+        "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+        "line": 188,
+        "name": "discover",
+        "calls": 5,
+        "self": 0.035478185,
+        "cumulative": 0.546009209
+      },
+      {
+        "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+        "line": 289,
+        "name": "drive",
+        "calls": 65485,
+        "self": 0.057522659000000004,
+        "cumulative": 0.44706547100000005
+      }
+    ],
+    "interpretation": "Avoids Source/Path reconstruction for dead checkpoint eligibility decisions. Local instrumented profile is not production CPU attribution or acceptance."
+  },
+  "source_hashes_before": {
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "scripts/observe_dashboard_protocol.py": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8"
+  },
+  "correctness_proof": [
+    "Previous digest match returns only after budget admission, temporal refresh, and manifest.verify; checkpoint eligibility is never used on that branch.",
+    "When cache_prepared is false the old heuristic could only assign false again.",
+    "On a miss with cache_prepared true the identical strict average-size predicate must run before checkpoint session/reduction.",
+    "No source changes needed in Manifest, generation digest, readers, service freshness/admission/progress, codec, or trading."
+  ],
+  "regression_obligations": [
+    "No heuristic manifest.files expansion on verified previous digest, with enabled and disabled checkpoint stores.",
+    "No heuristic expansion when prepare is false; cold/miss path still reads and validates every canonical selected row.",
+    "Strict threshold: average below 16384 disables checkpoints; equality and above allow eligibility; empty set remains safe.",
+    "Mixed sizes use total size divided by selected file count equivalently, not per-file cutoff.",
+    "Changed file, replacement/inode, same-size rewrite/mtime, member add/remove, and post-discovery concurrent mutation cannot publish cached complete data.",
+    "Proposal temporal window refresh at exact cutoff remains inclusive and clock reversal remains failure.",
+    "Small-proposal canonical behavior and large-proposal checkpoint parity stay identical.",
+    "Input hashes unchanged; exact full outputs and coverage same at fixed evaluation time; 20 paired uninstrumented trials before claims."
+  ],
+  "cpu_attribution": {
+    "v66_dashboard_precycle_cpu_seconds": 105.63,
+    "v66_precycle_wall_seconds": 1745.738893,
+    "interpretation": "Pre-cycle baseline during four-session load, not idle. /proc dashboard and engine counters exclude child and remote observer CPU.",
+    "observer_guest_work": "Separate remote Python process reads two PID status/stat and /proc/meminfo each second; every 15 seconds selects activity shard and parses at most 262144 bytes. Its own CPU was not retained. Local WebSocket/protobuf observer CPU is outside Fly guest.",
+    "watcher_evidence": "All 352 complete requests reported zero watchers; each 4 guard-aborted request max one watcher. No rerender storm observed, no function-level failure causality proven."
+  },
+  "preserved_gates": [
+    "v66 FAIL_SAMPLE: 352 complete plus 4 guard-aborted, one >5s health failure, no full cycle completed in original window",
+    "warmup Home completion10.7771535s / firstshell5.069114208s misses",
+    "native viewport",
+    "cold/process-cold acceptance",
+    "depleted CPU qualification",
+    "original 1024MiB configuration qualification"
+  ],
+  "limits": "No production queries/load, no app/doc/source edits; only temporary QA artifact written."
+}

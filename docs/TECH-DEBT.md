@@ -354,6 +354,24 @@ completion 10.777 s and first incomplete receipt 5.069 s miss 5 s. Prior failed
 samples and original cold/native/depleted/1024 MiB acceptance remain open. See
 `docs/sessions/2026-10-27-dashboard-page-progress.md`.
 
+**2026-10-27 measured proposal refresh CPU correction:** The unchanged-query
+path reconstructed every proposal `Source`/`Path` for an optional checkpoint
+average-size decision that was unused on whole-query reuse or disabled stores.
+On a frozen 13,084-file snapshot this accounted for 1.215 of 2.135 instrumented
+seconds across five refreshes. The one-file correction moves the heuristic
+below verified reuse and guards it with checkpoint preparation; discovery,
+digest, full verification, budgets, exact 16 KiB average threshold and trading
+semantics remain unchanged. Baseline three behavioral failures now pass;
+3,021 full tests, independent 175 tests, Black/Ruff two files and mypy 135 pass.
+Twenty alternating unprofiled pairs preserve exact outputs and frozen inputs:
+median CPU falls 34.38/35.16% for disabled/enabled direct refresh and
+30.20/29.70% for controlled Home/Trading query-service replay. These are local
+CPU measurements, not full-page/native/production readiness. Source delivery
+and one same-capacity runtime observation follow. The initial store-label
+mistake is retained with a correction; the v66 failed sample and original
+cold/native/depleted/1024 MiB conditions remain open. See
+`docs/sessions/2026-10-27-dashboard-cpu-cost.md`.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |

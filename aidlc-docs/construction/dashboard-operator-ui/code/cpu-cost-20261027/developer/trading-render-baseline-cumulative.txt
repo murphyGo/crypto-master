@@ -1,0 +1,55 @@
+Tue Oct 27 02:41:35 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/trading-render-baseline.prof
+
+         2081274 function calls (1940914 primitive calls) in -12.191 seconds
+
+   Ordered by: cumulative time
+   List reduced from 1911 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084 1384.231    0.106 1384.231    0.106 {method 'stat' of 'posix.DirEntry' objects}
+    13362  780.811    0.058  780.813    0.058 {built-in method posix.stat}
+    26540  209.195    0.008  209.231    0.008 _local.py:117(__init__)
+    13193  166.077    0.013  166.123    0.013 _local.py:257(_parse_path)
+    13085  148.624    0.011  163.047    0.012 sources.py:51(_sources)
+       43  109.337    2.543  109.337    2.543 {built-in method posix.scandir}
+    13237   49.145    0.004   91.162    0.007 _local.py:289(drive)
+    13184   60.745    0.005   87.702    0.007 sources.py:115(scan)
+    26540   49.064    0.002   76.817    0.003 _local.py:498(__init__)
+    13161   61.820    0.005   61.844    0.005 <frozen posixpath>:71(join)
+    26540   61.623    0.002   61.631    0.002 _local.py:505(__new__)
+62422/59246   70.829    0.001   59.303    0.001 encoder.py:278(_iterencode_list)
+        4   47.655   11.914   47.655   11.914 {built-in method posix.open}
+    13086   24.555    0.002   38.761    0.003 _local.py:329(parent)
+    13315   37.520    0.003   37.525    0.003 _local.py:237(_format_parsed_parts)
+    13084    0.032    0.000   27.438    0.002 sources.py:132(add_entry)
+    13233   12.134    0.001   26.422    0.002 _local.py:245(_from_parsed_parts)
+    13193   24.587    0.002   24.644    0.002 _local.py:277(_raw_path)
+        4   23.324    5.831   23.335    5.834 projections.py:171(size)
+    11074   23.080    0.002   23.086    0.002 dataclasses.py:1331(is_dataclass)
+    13085    0.007    0.000   14.644    0.001 sources.py:39(files)
+        8    0.000    0.000   14.476    1.810 projections.py:1121(build_projection)
+        4    0.009    0.002   14.356    3.589 sources.py:154(verify)
+        4    0.000    0.000   13.477    3.369 projections.py:193(replace)
+      223    1.653    0.007   13.338    0.060 _local.py:510(stat)
+        4    0.014    0.004   13.310    3.328 sources.py:188(discover)
+       73    0.000    0.000   13.157    0.180 sources.py:111(entries)
+        4   12.625    3.156   12.628    3.157 sources.py:70(digest)
+       17   12.574    0.740   12.599    0.741 {built-in method builtins.sum}
+    26539   12.141    0.000   12.269    0.000 _abc.py:130(with_segments)
+        8    0.000    0.000    0.893    0.112 profile_service_pages.py:25(build)
+    13085    0.010    0.000    0.516    0.000 projections.py:1143(<genexpr>)
+        3    0.000    0.000    0.458    0.153 thread.py:183(_adjust_thread_count)
+        2    0.000    0.000    0.458    0.229 threading.py:953(start)
+        2    0.000    0.000    0.458    0.229 threading.py:641(wait)
+      2/1    0.000    0.000    0.282    0.282 trading.py:453(render)
+      2/1    0.001    0.000    0.281    0.281 availability.py:52(wrapped)
+        3   -0.229   -0.076    0.229    0.076 thread.py:164(submit)
+       27    0.000    0.000    0.215    0.008 metrics_util.py:652(wrapped_func)
+        1    0.000    0.000    0.190    0.190 vega_charts.py:637(line_chart)
+    60490    0.031    0.000    0.185    0.000 encoder.py:414(_iterencode)
+173609/60490   70.790    0.000    0.155    0.000 encoder.py:334(_iterencode_dict)
+        1    0.000    0.000    0.113    0.113 built_in_chart_utils.py:148(generate_chart)
+        4    0.000    0.000    0.106    0.026 projections.py:190(change)
+        5    0.000    0.000    0.098    0.020 api.py:4806(__init__)
+
+

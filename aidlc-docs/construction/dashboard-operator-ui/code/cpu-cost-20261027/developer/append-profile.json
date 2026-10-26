@@ -1,0 +1,32 @@
+{
+  "method": "Canonical direct reader cProfile after one valid engine-shaped append to a private COPY of existing frozen activity data. No checkpoint store; both variants receive identical old encoded projection and changed sources. This characterizes a remaining mutable-source path, not production attribution or latency qualification.",
+  "original_total": 229677,
+  "appended_bytes": 206,
+  "variants": [
+    {
+      "name": "baseline",
+      "cpu_seconds": 2.9178520000000003,
+      "wall_seconds": 2.931347707984969,
+      "full_payload_sha256": "8076cd543726972f69af5ce778a3b7cfcdd25ff0c8b9a413b51fee58ee17a72f",
+      "total": 229678,
+      "coverage": {
+        "files": 7,
+        "captured_bytes": 95961850,
+        "verified": true
+      }
+    },
+    {
+      "name": "candidate",
+      "cpu_seconds": 2.863745999999999,
+      "wall_seconds": 2.88977424998302,
+      "full_payload_sha256": "8076cd543726972f69af5ce778a3b7cfcdd25ff0c8b9a413b51fee58ee17a72f",
+      "total": 229678,
+      "coverage": {
+        "files": 7,
+        "captured_bytes": 95961850,
+        "verified": true
+      }
+    }
+  ],
+  "original_inputs_unchanged": true
+}

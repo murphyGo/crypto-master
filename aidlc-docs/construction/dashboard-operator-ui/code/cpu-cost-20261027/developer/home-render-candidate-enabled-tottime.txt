@@ -1,0 +1,55 @@
+Tue Oct 27 02:47:32 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/home-render-candidate-enabled.prof
+
+         1102432 function calls (976708 primitive calls) in -0.168 seconds
+
+   Ordered by: internal time
+   List reduced from 870 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084 1171.758    0.090 1171.758    0.090 {method 'stat' of 'posix.DirEntry' objects}
+    13352  750.356    0.056  750.358    0.056 {built-in method posix.stat}
+64202/61026   81.012    0.001   72.607    0.001 encoder.py:278(_iterencode_list)
+187883/66036   60.538    0.000    0.168    0.000 encoder.py:334(_iterencode_dict)
+       44   42.490    0.966   42.490    0.966 {built-in method posix.scandir}
+    13186   41.472    0.003   53.338    0.004 sources.py:115(scan)
+        5   30.862    6.172   30.862    6.172 {built-in method posix.open}
+        5   30.702    6.140   30.716    6.143 projections.py:171(size)
+    11616   30.337    0.003   30.344    0.003 dataclasses.py:1331(is_dataclass)
+     59/6   20.018    0.339   -0.727   -0.121 threading.py:327(wait)
+      2/1   10.641    5.321   -1.454   -1.454 home.py:165(render_home)
+        5   10.535    2.107   10.537    2.107 sources.py:70(digest)
+        3   10.138    3.379   10.138    3.379 {built-in method posix.statvfs}
+        1    9.965    9.965    9.965    9.965 projections.py:1375(bounded_safety)
+      234    1.507    0.006   23.476    0.100 _local.py:510(stat)
+    66036    0.034    0.000    0.202    0.000 encoder.py:414(_iterencode)
+    13084    0.032    0.000   23.991    0.002 sources.py:132(add_entry)
+99769/99739    0.027    0.000    0.028    0.000 {built-in method builtins.isinstance}
+    79378    0.025    0.000    0.025    0.000 {method 'encode' of 'str' objects}
+81272/80781    0.021    0.000    0.021    0.000 {built-in method builtins.len}
+    66031    0.021    0.000    0.021    0.000 {method 'extend' of 'bytearray' objects}
+        5    0.015    0.003    0.154    0.031 sources.py:188(discover)
+    53559    0.014    0.000    0.014    0.000 {built-in method builtins.id}
+    29011    0.010    0.000    0.010    0.000 {built-in method sys.getsizeof}
+    26236    0.010    0.000    0.010    0.000 {built-in method _struct.pack}
+        5    0.010    0.002   23.833    4.767 sources.py:154(verify)
+    33176    0.009    0.000    0.009    0.000 {method 'pop' of 'list' objects}
+    26236    0.008    0.000    0.008    0.000 {method 'update' of '_hashlib.HASH' objects}
+    25061    0.008    0.000    0.008    0.000 {built-in method _json.encode_basestring_ascii}
+    33763    0.008    0.000    0.008    0.000 {built-in method builtins.callable}
+    16084    0.005    0.000    0.005    0.000 {method 'add' of 'set' objects}
+    13118    0.005    0.000    0.005    0.000 {method 'split' of 'bytes' objects}
+       10    0.004    0.000    0.004    0.000 decoder.py:350(raw_decode)
+    14559    0.004    0.000    0.004    0.000 {method 'append' of 'list' objects}
+    13310    0.004    0.000    0.004    0.000 {method 'endswith' of 'str' objects}
+    13084    0.004    0.000    0.004    0.000 {method 'is_file' of 'posix.DirEntry' objects}
+    13118    0.004    0.000    0.004    0.000 {method 'to_bytes' of 'int' objects}
+    12088    0.003    0.000    0.003    0.000 {built-in method builtins.hasattr}
+     8658    0.003    0.000    0.003    0.000 {method 'extend' of 'list' objects}
+       11    0.002    0.000    0.002    0.000 {method 'sort' of 'list' objects}
+        7    0.002    0.000    0.002    0.000 {built-in method time.strftime}
+     4093    0.001    0.000    0.001    0.000 {method 'keys' of 'dict' objects}
+     4105    0.001    0.000    0.001    0.000 {method 'values' of 'dict' objects}
+     4233    0.001    0.000    0.001    0.000 {method 'items' of 'dict' objects}
+        4    0.001    0.000    0.001    0.000 {built-in method time.localtime}
+
+

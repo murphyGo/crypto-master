@@ -1,0 +1,55 @@
+Tue Oct 27 02:47:37 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/trading-render-candidate-enabled.prof
+
+         1308386 function calls (1168092 primitive calls) in -0.143 seconds
+
+   Ordered by: cumulative time
+   List reduced from 1912 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084 1584.231    0.121 1584.231    0.121 {method 'stat' of 'posix.DirEntry' objects}
+    13368 1012.778    0.076 1012.780    0.076 {built-in method posix.stat}
+    13184  146.454    0.011  160.866    0.012 sources.py:115(scan)
+62422/59246  131.003    0.002  132.639    0.002 encoder.py:278(_iterencode_list)
+       43   77.453    1.801   77.453    1.801 {built-in method posix.scandir}
+        4   51.763   12.941   51.763   12.941 {built-in method posix.open}
+      229    1.575    0.007   43.785    0.191 _local.py:510(stat)
+    13084    0.034    0.000   29.700    0.002 sources.py:132(add_entry)
+        4   25.628    6.407   25.636    6.409 projections.py:171(size)
+    11074   25.579    0.002   25.584    0.002 dataclasses.py:1331(is_dataclass)
+        4    0.005    0.001   14.944    3.736 sources.py:154(verify)
+        4    0.011    0.003   14.837    3.709 sources.py:188(discover)
+        3    0.000    0.000   14.672    4.891 checkpoint_store.py:358(prepare)
+        6    0.000    0.000   14.672    2.445 checkpoint_store.py:345(_private)
+        6    0.000    0.000   14.672    2.445 _abc.py:432(lstat)
+        6    0.000    0.000   14.672    2.445 _local.py:717(mkdir)
+        6   14.672    2.445   14.672    2.445 {built-in method posix.mkdir}
+173609/60490  116.188    0.001   14.555    0.000 encoder.py:334(_iterencode_dict)
+        4    0.000    0.000   14.554    3.639 projections.py:193(replace)
+        4   13.282    3.321   13.284    3.321 sources.py:70(digest)
+        2    0.000    0.000    0.486    0.243 threading.py:953(start)
+        2    0.000    0.000    0.486    0.243 threading.py:641(wait)
+        8    0.000    0.000    0.400    0.050 profile_service_pages.py:35(build)
+        8    0.000    0.000    0.399    0.050 projections.py:1121(build_projection)
+      2/1    0.000    0.000    0.297    0.297 trading.py:453(render)
+        3    0.000    0.000    0.243    0.081 thread.py:164(submit)
+        3   -0.243   -0.081    0.243    0.081 thread.py:183(_adjust_thread_count)
+       27    0.000    0.000    0.224    0.008 metrics_util.py:652(wrapped_func)
+        1    0.000    0.000    0.199    0.199 vega_charts.py:637(line_chart)
+    60490    0.032    0.000    0.191    0.000 encoder.py:414(_iterencode)
+        1    0.000    0.000    0.118    0.118 built_in_chart_utils.py:148(generate_chart)
+        4    0.000    0.000    0.108    0.027 projections.py:190(change)
+        5    0.000    0.000    0.103    0.021 api.py:4806(__init__)
+        1    0.000    0.000    0.087    0.087 built_in_chart_utils.py:301(_add_improved_hover_tooltips)
+    78/27    0.001    0.000    0.084    0.003 schemapi.py:1174(to_dict)
+        1    0.000    0.000    0.080    0.080 vega_charts.py:2221(_altair_chart)
+        1    0.000    0.000    0.076    0.076 vega_charts.py:395(_convert_altair_to_vega_lite_spec)
+      4/1    0.000    0.000    0.076    0.076 api.py:2044(to_dict)
+       29    0.000    0.000    0.070    0.002 schemapi.py:124(validate_jsonschema)
+       29    0.000    0.000    0.070    0.002 schemapi.py:162(_get_errors_from_spec)
+       27    0.000    0.000    0.070    0.003 schemapi.py:1338(validate)
+       29    0.000    0.000    0.066    0.002 validators.py:349(iter_errors)
+  1041/27    0.001    0.000    0.066    0.002 _keywords.py:274(ref)
+    64/32    0.000    0.000    0.065    0.002 schemapi.py:1102(copy)
+  2504/29   -1.406   -0.001    0.065    0.002 validators.py:396(descend)
+
+

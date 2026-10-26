@@ -57,6 +57,18 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Proposal refresh CPU correction (2026-10-27 KST):** DEBT-083 remains
+> Critical/active. Measured dead work rebuilt every proposal source object for
+> a checkpoint heuristic even when verified whole-query reuse or disabled
+> checkpoints could not use it. `projections.py` now evaluates that heuristic
+> only on eligible rebuilds, preserving discovery/digest/full verification and
+> the exact size threshold. Final source passes 3,021 tests; independent 175-case
+> QA, Black/Ruff two files and mypy 135 pass. Twenty paired local query-service
+> replays preserve full outputs while reducing Home/Trading median CPU about
+> 30%; this is not native/production qualification. Source delivery and runtime
+> observation follow; v66 failure and all original acceptance gates remain.
+> See `docs/sessions/2026-10-27-dashboard-cpu-cost.md`.
+
 > **Page-dependent recovery deployment (2026-10-27 KST):** DEBT-083 remains
 > Critical/active. The reproduced global-drain watcher coupling is corrected
 > using compact exact-generation progress and read-only queue readiness, with

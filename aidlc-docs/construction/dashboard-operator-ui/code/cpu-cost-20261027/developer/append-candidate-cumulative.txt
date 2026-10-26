@@ -1,0 +1,38 @@
+         7347824 function calls (7339976 primitive calls) in 2.888 seconds
+
+   Ordered by: cumulative time
+   List reduced from 211 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.003    0.003    2.890    2.890 profile_append.py:20(consume)
+     2363    0.001    0.000    2.887    0.001 projections.py:1121(build_projection)
+     2368    0.116    0.000    2.852    0.001 projections.py:1099(_reduce_activity_source)
+   229678    0.126    0.000    2.427    0.000 projections.py:328(add_json)
+   229678    0.850    0.000    1.745    0.000 projections.py:344(add_event)
+    24853    0.008    0.000    0.585    0.000 projections.py:190(change)
+    30790    0.244    0.000    0.555    0.000 projections.py:171(size)
+   229678    0.475    0.000    0.541    0.000 {method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+    24853    0.013    0.000    0.512    0.000 projections.py:193(replace)
+   231152    0.160    0.000    0.308    0.000 bounded_read.py:174(reverse_jsonl_bytes)
+  1232136    0.140    0.000    0.140    0.000 {method 'get' of 'dict' objects}
+   826553    0.085    0.000    0.085    0.000 {built-in method builtins.isinstance}
+   232602    0.080    0.000    0.080    0.000 {method 'rfind' of 'bytes' objects}
+   159860    0.050    0.000    0.077    0.000 dataclasses.py:1331(is_dataclass)
+   229735    0.045    0.000    0.067    0.000 activity_events.py:485(_coerce_timestamp_to_utc)
+   229680    0.048    0.000    0.048    0.000 {method 'match' of 're.Pattern' objects}
+475427/475413    0.044    0.000    0.044    0.000 {built-in method builtins.len}
+    50963    0.018    0.000    0.042    0.000 {method 'extend' of 'list' objects}
+   448946    0.036    0.000    0.036    0.000 {built-in method builtins.id}
+   200605    0.033    0.000    0.033    0.000 {built-in method sys.getsizeof}
+        1    0.007    0.007    0.031    0.031 projections.py:593(finish)
+   253322    0.029    0.000    0.029    0.000 {method 'startswith' of 'str' objects}
+     9341    0.019    0.000    0.029    0.000 dataclasses.py:1308(fields)
+   247648    0.026    0.000    0.026    0.000 {method 'pop' of 'list' objects}
+   200752    0.025    0.000    0.025    0.000 {method 'add' of 'set' objects}
+   229678    0.025    0.000    0.025    0.000 {method 'strip' of 'bytes' objects}
+      414    0.000    0.000    0.025    0.000 projections.py:233(add)
+    92910    0.016    0.000    0.024    0.000 projections.py:187(<genexpr>)
+   229737    0.021    0.000    0.021    0.000 time.py:68(ensure_utc)
+   229678    0.018    0.000    0.018    0.000 projections.py:130(__init__)
+
+

@@ -1,0 +1,76 @@
+{
+  "selected_change": "Move exact proposal optional-checkpoint average-size heuristic behind verified prior-payload reuse and guard by cache_prepared; one runtime file, no source-proof/freshness policy changes.",
+  "measured_cause": "Original five profiled unchanged proposal refreshes spend1.215s of2.135s rebuilding65,420 Source/Path metadata objects for an optional decision that cannot affect returned prior payload.",
+  "paired_cpu": [
+    {
+      "scenario": "direct_disabled_store",
+      "baseline_median_cpu": 0.20577749999999995,
+      "candidate_median_cpu": 0.13503049999999917,
+      "median_cpu_reduction_fraction": 0.3438033798641775,
+      "full_output_parity": true
+    },
+    {
+      "scenario": "direct_enabled_store",
+      "baseline_median_cpu": 0.20535100000000028,
+      "candidate_median_cpu": 0.13314700000000013,
+      "median_cpu_reduction_fraction": 0.3516126047596557,
+      "full_output_parity": true
+    },
+    {
+      "scenario": "service_home_enabled",
+      "baseline_median_cpu": 0.23749650000000067,
+      "candidate_median_cpu": 0.16578349999999986,
+      "median_cpu_reduction_fraction": 0.3019539235315072,
+      "full_output_parity": true
+    },
+    {
+      "scenario": "service_trading_enabled",
+      "baseline_median_cpu": 0.23325449999999748,
+      "candidate_median_cpu": 0.16397250000000163,
+      "median_cpu_reduction_fraction": 0.2970232085554474,
+      "full_output_parity": true
+    }
+  ],
+  "paired_samples_each_variant_per_scenario": 20,
+  "actual_apptest_corroboration": {
+    "home": {
+      "warm_samples_each": 2,
+      "baseline_median_process_cpu": 0.26756700000000055,
+      "candidate_median_process_cpu": 0.18965949999999943,
+      "reduction_fraction": 0.29117006207791307,
+      "semantic_fingerprint": "b941bea5610ed9a3bb20a0f68f19c6590f89d74ba17fee754a31bd4657df4416",
+      "semantic_parity": true,
+      "limit": "Controlled actual AppTest corroboration with fixed data/time and warmed page; only two warm samples each, not a latency acceptance or native viewport result. First/bootstrap samples retained separately in raw reports."
+    },
+    "trading": {
+      "warm_samples_each": 2,
+      "baseline_median_process_cpu": 0.3218279999999982,
+      "candidate_median_process_cpu": 0.25957250000000176,
+      "reduction_fraction": 0.1934433921224903,
+      "semantic_fingerprint": "301f5795d38313a6b6cdb7574bd9bd1d318c13281df395d68e68ed558fc767ea",
+      "semantic_parity": true,
+      "limit": "Controlled actual AppTest corroboration with fixed data/time and warmed page; only two warm samples each, not a latency acceptance or native viewport result. First/bootstrap samples retained separately in raw reports."
+    }
+  },
+  "full_projection_payload_parity": true,
+  "input_hashes_unchanged": true,
+  "source_hashes_unchanged_during_measurement": true,
+  "qualification_limits": [
+    "Local processCPU only; concurrently running full suite means wall measurements are diagnostic, not latency qualification.",
+    "Actual fixed inputs and all generation checks preserved; cache expiry forced to20s for every service trial.",
+    "Performance improvement does not establish production health recovery or solve changing activity/snapshot reductions, engine CPU cost, cold/native/depleted/1GiB targets."
+  ],
+  "source_validation": {
+    "developer_targeted": "153passed5.21s",
+    "independent_qa": "175focusedpass; Black/Ruff2; mypy135",
+    "lead_full_suite": "3021passed228.36s;262source/test/script hashes unchanged, Python3.13.0"
+  },
+  "method_correction": "service-page-baseline-correction.json retains explicit correction of initial missing-store-root run; no raw measurements overwritten.",
+  "append_path_scope": {
+    "original_total": 229677,
+    "new_total": 229678,
+    "full_payload_parity": true,
+    "original_inputs_unchanged": true,
+    "limit": "Canonical activity rebuild after a valid append to isolated copied data remains outside selected optimization. Profiled values are diagnosis only."
+  }
+}

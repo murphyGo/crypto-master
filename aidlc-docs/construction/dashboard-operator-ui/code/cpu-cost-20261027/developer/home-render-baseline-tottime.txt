@@ -1,0 +1,55 @@
+Tue Oct 27 02:41:29 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/home-render-baseline.prof
+
+         1875239 function calls (1749500 primitive calls) in -0.156 seconds
+
+   Ordered by: internal time
+   List reduced from 869 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084  938.107    0.072  938.107    0.072 {method 'stat' of 'posix.DirEntry' objects}
+    13346  592.032    0.044  592.033    0.044 {built-in method posix.stat}
+    26562  156.373    0.006  156.409    0.006 _local.py:117(__init__)
+    13203  138.280    0.010  138.325    0.010 _local.py:257(_parse_path)
+    13186  133.283    0.010  143.704    0.011 sources.py:115(scan)
+187883/66036   96.036    0.001   10.265    0.000 encoder.py:334(_iterencode_dict)
+64202/61026   89.047    0.001   72.072    0.001 encoder.py:278(_iterencode_list)
+    13085   82.919    0.006   83.362    0.006 sources.py:51(_sources)
+       44   55.114    1.253   55.115    1.253 {built-in method posix.scandir}
+        5   44.086    8.817   44.086    8.817 {built-in method posix.open}
+    26562   37.278    0.001   37.286    0.001 _local.py:505(__new__)
+    26554   36.991    0.001   59.030    0.002 _abc.py:130(with_segments)
+    26562   28.123    0.001   60.459    0.002 _local.py:498(__init__)
+    13202   28.018    0.002   28.018    0.002 <string>:2(__init__)
+    13162   27.465    0.002   27.489    0.002 <frozen posixpath>:71(join)
+        5   26.565    5.313   36.831    7.366 projections.py:171(size)
+    13092   18.549    0.001   18.834    0.001 _local.py:329(parent)
+    11616   17.129    0.001   17.134    0.001 dataclasses.py:1331(is_dataclass)
+     78/6   17.085    0.219   -1.198   -0.200 threading.py:327(wait)
+      2/1   11.186    5.593    0.053    0.053 home.py:165(render_home)
+        5    9.504    1.901    9.507    1.901 sources.py:70(digest)
+    13085    9.473    0.001   20.587    0.002 projections.py:1143(<genexpr>)
+       31    9.451    0.305    9.479    0.306 {built-in method builtins.sum}
+    13169    9.290    0.001    9.294    0.001 <frozen posixpath>:41(_get_sep)
+    13267    9.284    0.001    9.352    0.001 _local.py:252(_from_parsed_string)
+    13203    9.124    0.001   19.965    0.002 _local.py:277(_raw_path)
+    13240    9.098    0.001    9.187    0.001 _local.py:245(_from_parsed_parts)
+    13327    9.072    0.001    9.077    0.001 _local.py:237(_format_parsed_parts)
+    13085    9.041    0.001    9.531    0.001 sources.py:39(files)
+    13249    8.994    0.001   30.676    0.002 _local.py:289(drive)
+        2    1.585    0.793    0.000    0.000 _local.py:568(iterdir)
+178206/178176    0.047    0.000    0.047    0.000 {built-in method builtins.isinstance}
+    66036    0.033    0.000    0.194    0.000 encoder.py:414(_iterencode)
+    92285    0.032    0.000    0.032    0.000 {built-in method sys.intern}
+    13084    0.030    0.000   21.084    0.002 sources.py:132(add_entry)
+107344/106907    0.026    0.000    0.027    0.000 {built-in method builtins.len}
+    79378    0.024    0.000    0.024    0.000 {method 'encode' of 'str' objects}
+    66031    0.020    0.000    0.020    0.000 {method 'extend' of 'bytearray' objects}
+        5    0.014    0.003   10.350    2.070 sources.py:188(discover)
+53098/53090    0.013    0.000    0.013    0.000 {built-in method posix.fspath}
+    53559    0.013    0.000    0.013    0.000 {built-in method builtins.id}
+    40699    0.012    0.000    0.012    0.000 {method 'append' of 'list' objects}
+    26202    0.009    0.000    0.009    0.000 {method 'split' of 'bytes' objects}
+    29011    0.009    0.000    0.009    0.000 {built-in method sys.getsizeof}
+    26236    0.009    0.000    0.009    0.000 {built-in method _struct.pack}
+
+

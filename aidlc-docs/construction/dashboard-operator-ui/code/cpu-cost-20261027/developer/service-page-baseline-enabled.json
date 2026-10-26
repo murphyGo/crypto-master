@@ -1,0 +1,700 @@
+{
+  "method": "Actual shared read service with task-owned enabled checkpoint store and fixed projectionUTC; expire complete-cache evaluation epochs by20s before each trial. AppTest executes real render functions. Unprofiled processCPU includes reader+render threads; worker threadCPU separately measured. Not guest/native qualification.",
+  "service": [
+    {
+      "cpu": 0.27060199999999845,
+      "wall": 0.3013197499094531,
+      "payloads": {
+        "activity": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7",
+        "ledger": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82",
+        "snapshots": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8",
+        "candidates": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a",
+        "proposals": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.007296415999999972,
+          "wall": 0.02367758401669562
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.004672459000000018,
+          "wall": 0.007058082963339984
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.008969624999999759,
+          "wall": 0.01007495797239244
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.0008133329999999717,
+          "wall": 0.0009707090212032199
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.22636804199999983,
+          "wall": 0.24132870906032622
+        }
+      ]
+    },
+    {
+      "cpu": 0.2417270000000009,
+      "wall": 0.24561283399816602,
+      "payloads": {
+        "activity": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7",
+        "ledger": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82",
+        "snapshots": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8",
+        "candidates": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a",
+        "proposals": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005317167000000289,
+          "wall": 0.0053587500005960464
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0028165830000004277,
+          "wall": 0.0032545001013204455
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.006761791999999822,
+          "wall": 0.00718470907304436
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.0005160419999992172,
+          "wall": 0.0006706250132992864
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.20986191600000037,
+          "wall": 0.21334216697141528
+        }
+      ]
+    },
+    {
+      "cpu": 0.2329309999999989,
+      "wall": 0.23512345901690423,
+      "payloads": {
+        "activity": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7",
+        "ledger": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82",
+        "snapshots": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8",
+        "candidates": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a",
+        "proposals": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.0055087919999996515,
+          "wall": 0.00555020896717906
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.002670333999999386,
+          "wall": 0.002915416960604489
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.0063890420000003445,
+          "wall": 0.00673554209060967
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.0004826250000000698,
+          "wall": 0.0006085829809308052
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.2016846249999995,
+          "wall": 0.20372350001707673
+        }
+      ]
+    },
+    {
+      "cpu": 0.2355040000000006,
+      "wall": 0.23783762496896088,
+      "payloads": {
+        "activity": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7",
+        "ledger": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82",
+        "snapshots": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8",
+        "candidates": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a",
+        "proposals": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005390499999999854,
+          "wall": 0.005430374993011355
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0026902920000004826,
+          "wall": 0.003050292027182877
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.006472624999999788,
+          "wall": 0.006787540973164141
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.00047912500000002467,
+          "wall": 0.0005557090044021606
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.20354041599999917,
+          "wall": 0.2055709999985993
+        }
+      ]
+    },
+    {
+      "cpu": 0.23373800000000067,
+      "wall": 0.23616862494964153,
+      "payloads": {
+        "activity": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7",
+        "ledger": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82",
+        "snapshots": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8",
+        "candidates": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a",
+        "proposals": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005382834000000614,
+          "wall": 0.00544979190453887
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0023711249999998074,
+          "wall": 0.002713375026360154
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.00684029099999961,
+          "wall": 0.007113624946214259
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.0004019999999993473,
+          "wall": 0.000476582907140255
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.20229645800000107,
+          "wall": 0.20445958292111754
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "page": "home",
+      "iteration": 0,
+      "cpu": 3.4508840000000003,
+      "wall": 3.642341624945402,
+      "fingerprint": "b941bea5610ed9a3bb20a0f68f19c6590f89d74ba17fee754a31bd4657df4416",
+      "metrics": [
+        [
+          "Runtime safety",
+          "degraded"
+        ],
+        [
+          "Last cycle",
+          "ok"
+        ],
+        [
+          "Open positions",
+          "18"
+        ],
+        [
+          "Snapshot",
+          "fresh"
+        ],
+        [
+          "Mode",
+          "paper"
+        ],
+        [
+          "Scope",
+          "Aggregate"
+        ],
+        [
+          "Sub-accounts",
+          "13"
+        ],
+        [
+          "Actionable events",
+          "10"
+        ],
+        [
+          "Candidates",
+          "1"
+        ],
+        [
+          "Awaiting approval",
+          "0"
+        ],
+        [
+          "Promoted",
+          "0"
+        ],
+        [
+          "Errored",
+          "0"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005322750000001264,
+          "wall": 0.00607679202221334
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.08168470800000094,
+          "wall": 0.08578737499192357
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 2.944881541999999,
+          "wall": 3.1391978749306872
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.000610499999998737,
+          "wall": 0.0007690839702263474
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.21657100000000007,
+          "wall": 0.22235008305869997
+        },
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005108333999999104,
+          "wall": 0.0053002090426161885
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0028912499999993457,
+          "wall": 0.0033107090275734663
+        }
+      ]
+    },
+    {
+      "page": "home",
+      "iteration": 1,
+      "cpu": 0.2748620000000006,
+      "wall": 0.29450491594616324,
+      "fingerprint": "b941bea5610ed9a3bb20a0f68f19c6590f89d74ba17fee754a31bd4657df4416",
+      "metrics": [
+        [
+          "Runtime safety",
+          "degraded"
+        ],
+        [
+          "Last cycle",
+          "ok"
+        ],
+        [
+          "Open positions",
+          "18"
+        ],
+        [
+          "Snapshot",
+          "fresh"
+        ],
+        [
+          "Mode",
+          "paper"
+        ],
+        [
+          "Scope",
+          "Aggregate"
+        ],
+        [
+          "Sub-accounts",
+          "13"
+        ],
+        [
+          "Actionable events",
+          "10"
+        ],
+        [
+          "Candidates",
+          "1"
+        ],
+        [
+          "Awaiting approval",
+          "0"
+        ],
+        [
+          "Promoted",
+          "0"
+        ],
+        [
+          "Errored",
+          "0"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005347834000000162,
+          "wall": 0.00866433302871883
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0024594580000005806,
+          "wall": 0.002855582977645099
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.007109957999999139,
+          "wall": 0.008288417011499405
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.00048004199999951425,
+          "wall": 0.0005653329426422715
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.2131099170000006,
+          "wall": 0.21823912498075515
+        }
+      ]
+    },
+    {
+      "page": "home",
+      "iteration": 2,
+      "cpu": 0.2602720000000005,
+      "wall": 0.2648201669799164,
+      "fingerprint": "b941bea5610ed9a3bb20a0f68f19c6590f89d74ba17fee754a31bd4657df4416",
+      "metrics": [
+        [
+          "Runtime safety",
+          "degraded"
+        ],
+        [
+          "Last cycle",
+          "ok"
+        ],
+        [
+          "Open positions",
+          "18"
+        ],
+        [
+          "Snapshot",
+          "fresh"
+        ],
+        [
+          "Mode",
+          "paper"
+        ],
+        [
+          "Scope",
+          "Aggregate"
+        ],
+        [
+          "Sub-accounts",
+          "13"
+        ],
+        [
+          "Actionable events",
+          "10"
+        ],
+        [
+          "Candidates",
+          "1"
+        ],
+        [
+          "Awaiting approval",
+          "0"
+        ],
+        [
+          "Promoted",
+          "0"
+        ],
+        [
+          "Errored",
+          "0"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005103540999998657,
+          "wall": 0.005176666076295078
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0024025420000004516,
+          "wall": 0.002825916977599263
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.006707750000000345,
+          "wall": 0.007091082981787622
+        },
+        {
+          "kind": "candidates",
+          "window": "lifetime",
+          "thread_cpu": 0.0005705420000001737,
+          "wall": 0.0006660829531028867
+        },
+        {
+          "kind": "proposals",
+          "window": "24h",
+          "thread_cpu": 0.20841437500000026,
+          "wall": 0.21310954098589718
+        }
+      ]
+    },
+    {
+      "page": "trading",
+      "iteration": 0,
+      "cpu": 2.154266,
+      "wall": 3.6469350840197876,
+      "fingerprint": "301f5795d38313a6b6cdb7574bd9bd1d318c13281df395d68e68ed558fc767ea",
+      "metrics": [
+        [
+          "Current Equity",
+          "9466.97 USDT"
+        ],
+        [
+          "Open Positions",
+          "18"
+        ],
+        [
+          "Closed Trades",
+          "1258"
+        ],
+        [
+          "Win Rate",
+          "16.9%"
+        ],
+        [
+          "Realized P&L",
+          "2565.44"
+        ],
+        [
+          "Proposals rejected (threshold)",
+          "1851"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005044375000000656,
+          "wall": 0.005465666996315122
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0026637080000000424,
+          "wall": 0.0030733750900253654
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.006707666999998807,
+          "wall": 0.007117207976989448
+        },
+        {
+          "kind": "proposals",
+          "window": "threshold",
+          "thread_cpu": 1.796636458,
+          "wall": 3.2749804579652846
+        },
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.0055206249999990575,
+          "wall": 0.005784209002740681
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.003016125000000258,
+          "wall": 0.003710040939040482
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.0073140410000007705,
+          "wall": 0.007727749994955957
+        }
+      ]
+    },
+    {
+      "page": "trading",
+      "iteration": 1,
+      "cpu": 0.323954999999998,
+      "wall": 0.32774879108183086,
+      "fingerprint": "301f5795d38313a6b6cdb7574bd9bd1d318c13281df395d68e68ed558fc767ea",
+      "metrics": [
+        [
+          "Current Equity",
+          "9466.97 USDT"
+        ],
+        [
+          "Open Positions",
+          "18"
+        ],
+        [
+          "Closed Trades",
+          "1258"
+        ],
+        [
+          "Win Rate",
+          "16.9%"
+        ],
+        [
+          "Realized P&L",
+          "2565.44"
+        ],
+        [
+          "Proposals rejected (threshold)",
+          "1851"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.0052977920000003564,
+          "wall": 0.005854625022038817
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0027944590000004155,
+          "wall": 0.0031755410600453615
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.006804000000000698,
+          "wall": 0.007110832957550883
+        },
+        {
+          "kind": "proposals",
+          "window": "threshold",
+          "thread_cpu": 0.20234474999999996,
+          "wall": 0.2066102500539273
+        }
+      ]
+    },
+    {
+      "page": "trading",
+      "iteration": 2,
+      "cpu": 0.31970099999999846,
+      "wall": 0.32534350000787526,
+      "fingerprint": "301f5795d38313a6b6cdb7574bd9bd1d318c13281df395d68e68ed558fc767ea",
+      "metrics": [
+        [
+          "Current Equity",
+          "9466.97 USDT"
+        ],
+        [
+          "Open Positions",
+          "18"
+        ],
+        [
+          "Closed Trades",
+          "1258"
+        ],
+        [
+          "Win Rate",
+          "16.9%"
+        ],
+        [
+          "Realized P&L",
+          "2565.44"
+        ],
+        [
+          "Proposals rejected (threshold)",
+          "1851"
+        ]
+      ],
+      "workers": [
+        {
+          "kind": "activity",
+          "window": "lifetime",
+          "thread_cpu": 0.005019208000000219,
+          "wall": 0.00506012502592057
+        },
+        {
+          "kind": "ledger",
+          "window": "lifetime",
+          "thread_cpu": 0.0028140830000005224,
+          "wall": 0.0031969170086085796
+        },
+        {
+          "kind": "snapshots",
+          "window": "lifetime",
+          "thread_cpu": 0.007248708999998854,
+          "wall": 0.00771974993404001
+        },
+        {
+          "kind": "proposals",
+          "window": "threshold",
+          "thread_cpu": 0.20015366700000037,
+          "wall": 0.2055687909014523
+        }
+      ]
+    }
+  ],
+  "store_hits": 0,
+  "variant": "baseline-enabled",
+  "store_prepare_verified": true,
+  "source_projection_sha256": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d"
+}

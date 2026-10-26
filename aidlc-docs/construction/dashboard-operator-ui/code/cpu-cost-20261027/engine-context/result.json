@@ -1,0 +1,2579 @@
+{
+  "scope": "Historical frozen Oct25 fixture; read-only local CPU replay, not v66 production attribution",
+  "excludes": [
+    "fresh snapshot construction/appending",
+    "trade PnL aggregation",
+    "atomic file writing",
+    "engine/proposal/exchange/network",
+    "import/bootstrap"
+  ],
+  "io_caveat": "File reads are separately timed, warm OS cache (fingerprints precede trials); no cold IO claim.",
+  "source_repo": "/private/tmp/crypto-master-cpu-cost-20261027",
+  "fixture_root": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z",
+  "python": "3.13.0",
+  "pydantic": "2.13.3",
+  "platform": "macOS-15.5-arm64-arm-64bit-Mach-O",
+  "fixture_files": {
+    "portfolio/paper/bollinger_band_reversion/snapshots.json": {
+      "bytes": 2878998,
+      "mtime_ns": 1792923813000000000,
+      "sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f"
+    },
+    "portfolio/paper/default/snapshots.json": {
+      "bytes": 332102,
+      "mtime_ns": 1778177590000000000,
+      "sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102"
+    },
+    "portfolio/paper/ma_crossover/snapshots.json": {
+      "bytes": 3182766,
+      "mtime_ns": 1792923816000000000,
+      "sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602"
+    },
+    "portfolio/paper/momentum_pinball_orb/snapshots.json": {
+      "bytes": 2841844,
+      "mtime_ns": 1792923817000000000,
+      "sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d"
+    },
+    "portfolio/paper/raschke_holy_grail/snapshots.json": {
+      "bytes": 3079225,
+      "mtime_ns": 1792923821000000000,
+      "sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32"
+    },
+    "portfolio/paper/rsi_15m/snapshots.json": {
+      "bytes": 2611202,
+      "mtime_ns": 1792923825000000000,
+      "sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b"
+    },
+    "portfolio/paper/rsi_4h/snapshots.json": {
+      "bytes": 2750785,
+      "mtime_ns": 1792923826000000000,
+      "sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b"
+    },
+    "portfolio/paper/rsi_universal/snapshots.json": {
+      "bytes": 2667714,
+      "mtime_ns": 1792923821000000000,
+      "sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2"
+    },
+    "portfolio/paper/session_vwap_pullback/snapshots.json": {
+      "bytes": 2714971,
+      "mtime_ns": 1792923827000000000,
+      "sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d"
+    },
+    "portfolio/paper/snapshots.json": {
+      "bytes": 56873,
+      "mtime_ns": 1777825934000000000,
+      "sha256": "5058d3e7550b747394847beae0f0568814613eb351d77a36710a75c2ba9e32a0"
+    },
+    "portfolio/paper/turtle_soup_reclaim/snapshots.json": {
+      "bytes": 2471619,
+      "mtime_ns": 1792923828000000000,
+      "sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5"
+    },
+    "portfolio/paper/vcp_breakout/snapshots.json": {
+      "bytes": 2312595,
+      "mtime_ns": 1792923829000000000,
+      "sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b"
+    },
+    "portfolio/paper/vwap_mean_reversion/snapshots.json": {
+      "bytes": 2701549,
+      "mtime_ns": 1792923830000000000,
+      "sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76"
+    },
+    "portfolio/paper/weinstein_stage2_filter/snapshots.json": {
+      "bytes": 2998392,
+      "mtime_ns": 1792923834000000000,
+      "sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372"
+    }
+  },
+  "source_files": {
+    "src/trading/portfolio.py": {
+      "bytes": 17707,
+      "mtime_ns": 1793036172995167296,
+      "sha256": "ab0e6b5c8e8224e2ec5ede2af3df48dd1df41d1a076ce2b83f8aaf3df6afc803"
+    },
+    "src/runtime/snapshot_recorder.py": {
+      "bytes": 12767,
+      "mtime_ns": 1793036172978765327,
+      "sha256": "1b42cbdbd4be76b516af116982922707f207383452547158bbc36eb1f72f5a9d"
+    },
+    "src/strategy/trade_history.py": {
+      "bytes": 19994,
+      "mtime_ns": 1793036172985727095,
+      "sha256": "01ce4d53f90f260cf5451bb2640bfce52145decf3d86b0d994388136ae0458b1"
+    },
+    "src/strategy/performance.py": {
+      "bytes": 38644,
+      "mtime_ns": 1793036172982641722,
+      "sha256": "72b170f2d05d72ed6433e69f9262dd9c387bf56503fa1f89f0c4d2bc8d7b7ec9"
+    }
+  },
+  "fixture_unchanged": true,
+  "source_unchanged": true,
+  "outputs_stable": true,
+  "runs": [
+    [
+      {
+        "path": "portfolio/paper/bollinger_band_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7868,
+        "output_bytes": 2878998,
+        "output_sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f",
+        "read": {
+          "cpu_seconds": 0.0010470000000000201,
+          "wall_seconds": 0.0011418340727686882
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010481999999999991,
+          "wall_seconds": 0.010518375085666776
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02844000000000002,
+          "wall_seconds": 0.028576000011526048
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013581999999999983,
+          "wall_seconds": 0.01366516703274101
+        },
+        "json_encode": {
+          "cpu_seconds": 0.01089299999999993,
+          "wall_seconds": 0.010929708019830287
+        }
+      },
+      {
+        "path": "portfolio/paper/default/snapshots.json",
+        "group": "disabled-default",
+        "rows": 995,
+        "output_bytes": 332102,
+        "output_sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102",
+        "read": {
+          "cpu_seconds": 0.0003149999999999542,
+          "wall_seconds": 0.0003535000141710043
+        },
+        "json_decode": {
+          "cpu_seconds": 0.0011430000000000051,
+          "wall_seconds": 0.001142999972216785
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0027800000000000047,
+          "wall_seconds": 0.002818249980919063
+        },
+        "to_dict": {
+          "cpu_seconds": 0.001878999999999964,
+          "wall_seconds": 0.0018791250186040998
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0012339999999999574,
+          "wall_seconds": 0.0012349169701337814
+        }
+      },
+      {
+        "path": "portfolio/paper/ma_crossover/snapshots.json",
+        "group": "active-lab",
+        "rows": 7137,
+        "output_bytes": 3182766,
+        "output_sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602",
+        "read": {
+          "cpu_seconds": 0.0012429999999999941,
+          "wall_seconds": 0.0012906250776723027
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010744000000000087,
+          "wall_seconds": 0.010884082992561162
+        },
+        "model_validate": {
+          "cpu_seconds": 0.030881999999999965,
+          "wall_seconds": 0.031067084055393934
+        },
+        "to_dict": {
+          "cpu_seconds": 0.057701,
+          "wall_seconds": 0.05806924996431917
+        },
+        "json_encode": {
+          "cpu_seconds": 0.012045000000000083,
+          "wall_seconds": 0.012243959004990757
+        }
+      },
+      {
+        "path": "portfolio/paper/momentum_pinball_orb/snapshots.json",
+        "group": "active-lab",
+        "rows": 7862,
+        "output_bytes": 2841844,
+        "output_sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d",
+        "read": {
+          "cpu_seconds": 0.0012529999999999486,
+          "wall_seconds": 0.0019348750356584787
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009551000000000087,
+          "wall_seconds": 0.009688292047940195
+        },
+        "model_validate": {
+          "cpu_seconds": 0.027733999999999925,
+          "wall_seconds": 0.02787141699809581
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013406000000000029,
+          "wall_seconds": 0.013508416013792157
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010194000000000036,
+          "wall_seconds": 0.010226749931462109
+        }
+      },
+      {
+        "path": "portfolio/paper/raschke_holy_grail/snapshots.json",
+        "group": "active-lab",
+        "rows": 7128,
+        "output_bytes": 3079225,
+        "output_sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32",
+        "read": {
+          "cpu_seconds": 0.001451000000000091,
+          "wall_seconds": 0.0015279999934136868
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010040999999999967,
+          "wall_seconds": 0.010171249974519014
+        },
+        "model_validate": {
+          "cpu_seconds": 0.029123999999999928,
+          "wall_seconds": 0.02922825003042817
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013497000000000092,
+          "wall_seconds": 0.013529915944673121
+        },
+        "json_encode": {
+          "cpu_seconds": 0.01129900000000017,
+          "wall_seconds": 0.011331584071740508
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_15m/snapshots.json",
+        "group": "active-lab",
+        "rows": 7094,
+        "output_bytes": 2611202,
+        "output_sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b",
+        "read": {
+          "cpu_seconds": 0.0009539999999998994,
+          "wall_seconds": 0.001099957968108356
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00873400000000002,
+          "wall_seconds": 0.008799584000371397
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025288999999999895,
+          "wall_seconds": 0.02548562502488494
+        },
+        "to_dict": {
+          "cpu_seconds": 0.05120900000000006,
+          "wall_seconds": 0.051494167069904506
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010128999999999833,
+          "wall_seconds": 0.010205416940152645
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_4h/snapshots.json",
+        "group": "active-lab",
+        "rows": 7822,
+        "output_bytes": 2750785,
+        "output_sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b",
+        "read": {
+          "cpu_seconds": 0.0011339999999999684,
+          "wall_seconds": 0.0012405830202624202
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009680000000000133,
+          "wall_seconds": 0.009723957977257669
+        },
+        "model_validate": {
+          "cpu_seconds": 0.030643999999999894,
+          "wall_seconds": 0.1146405830513686
+        },
+        "to_dict": {
+          "cpu_seconds": 0.018791000000000002,
+          "wall_seconds": 0.08064116595778614
+        },
+        "json_encode": {
+          "cpu_seconds": 0.01080800000000015,
+          "wall_seconds": 0.01180862495675683
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_universal/snapshots.json",
+        "group": "active-lab",
+        "rows": 7126,
+        "output_bytes": 2667714,
+        "output_sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2",
+        "read": {
+          "cpu_seconds": 0.0011449999999999516,
+          "wall_seconds": 0.0011813329765573144
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009576000000000029,
+          "wall_seconds": 0.009722999995574355
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02858000000000005,
+          "wall_seconds": 0.031002999981865287
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01353099999999996,
+          "wall_seconds": 0.013891957933083177
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010291999999999968,
+          "wall_seconds": 0.010413583018817008
+        }
+      },
+      {
+        "path": "portfolio/paper/session_vwap_pullback/snapshots.json",
+        "group": "active-lab",
+        "rows": 7089,
+        "output_bytes": 2714971,
+        "output_sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d",
+        "read": {
+          "cpu_seconds": 0.0010369999999999546,
+          "wall_seconds": 0.0011446670396253467
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009117000000000042,
+          "wall_seconds": 0.009202832938171923
+        },
+        "model_validate": {
+          "cpu_seconds": 0.08971299999999993,
+          "wall_seconds": 0.09460066701285541
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013771999999999895,
+          "wall_seconds": 0.017475749948062003
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011069999999999913,
+          "wall_seconds": 0.012991041992790997
+        }
+      },
+      {
+        "path": "portfolio/paper/snapshots.json",
+        "group": "legacy-root",
+        "rows": 267,
+        "output_bytes": 72626,
+        "output_sha256": "8f752a4a6efa14132cffbcc04194b7359fa9d8c0a8bb097d069d0d38307f3ca3",
+        "read": {
+          "cpu_seconds": 0.000264000000000042,
+          "wall_seconds": 0.0002816669875755906
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00026100000000006673,
+          "wall_seconds": 0.0002720000920817256
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0006409999999998917,
+          "wall_seconds": 0.0006423749728128314
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0003729999999999567,
+          "wall_seconds": 0.0003737499937415123
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0002989999999998272,
+          "wall_seconds": 0.0002986670006066561
+        }
+      },
+      {
+        "path": "portfolio/paper/turtle_soup_reclaim/snapshots.json",
+        "group": "active-lab",
+        "rows": 7087,
+        "output_bytes": 2471619,
+        "output_sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5",
+        "read": {
+          "cpu_seconds": 0.0007369999999999877,
+          "wall_seconds": 0.0007626250153407454
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008097999999999939,
+          "wall_seconds": 0.008116792072542012
+        },
+        "model_validate": {
+          "cpu_seconds": 0.021191999999999878,
+          "wall_seconds": 0.021327333990484476
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012394000000000016,
+          "wall_seconds": 0.013173833023756742
+        },
+        "json_encode": {
+          "cpu_seconds": 0.008908000000000138,
+          "wall_seconds": 0.008937083068303764
+        }
+      },
+      {
+        "path": "portfolio/paper/vcp_breakout/snapshots.json",
+        "group": "active-lab",
+        "rows": 7821,
+        "output_bytes": 2312595,
+        "output_sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b",
+        "read": {
+          "cpu_seconds": 0.0009609999999999896,
+          "wall_seconds": 0.0009957080474123359
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008254999999999901,
+          "wall_seconds": 0.00828262499999255
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02313799999999988,
+          "wall_seconds": 0.023382124956697226
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012174999999999825,
+          "wall_seconds": 0.01230362500064075
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009025999999999978,
+          "wall_seconds": 0.009157583001069725
+        }
+      },
+      {
+        "path": "portfolio/paper/vwap_mean_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7076,
+        "output_bytes": 2701549,
+        "output_sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76",
+        "read": {
+          "cpu_seconds": 0.0009239999999999249,
+          "wall_seconds": 0.0009728330187499523
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008713999999999889,
+          "wall_seconds": 0.008714916999451816
+        },
+        "model_validate": {
+          "cpu_seconds": 0.024020000000000152,
+          "wall_seconds": 0.024275958887301385
+        },
+        "to_dict": {
+          "cpu_seconds": 0.05286800000000014,
+          "wall_seconds": 0.0541409159777686
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010142000000000095,
+          "wall_seconds": 0.010187292005866766
+        }
+      },
+      {
+        "path": "portfolio/paper/weinstein_stage2_filter/snapshots.json",
+        "group": "active-lab",
+        "rows": 7082,
+        "output_bytes": 2998392,
+        "output_sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372",
+        "read": {
+          "cpu_seconds": 0.0013480000000001269,
+          "wall_seconds": 0.0015092919347807765
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009647999999999879,
+          "wall_seconds": 0.009679791983217001
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02832199999999996,
+          "wall_seconds": 0.028818749939091504
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013613000000000097,
+          "wall_seconds": 0.014914541970938444
+        },
+        "json_encode": {
+          "cpu_seconds": 0.01214700000000013,
+          "wall_seconds": 0.013310250011272728
+        }
+      }
+    ],
+    [
+      {
+        "path": "portfolio/paper/bollinger_band_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7868,
+        "output_bytes": 2878998,
+        "output_sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f",
+        "read": {
+          "cpu_seconds": 0.0014939999999998843,
+          "wall_seconds": 0.0018237089971080422
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010340999999999934,
+          "wall_seconds": 0.011231624986976385
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026189000000000018,
+          "wall_seconds": 0.026629499974660575
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0130269999999999,
+          "wall_seconds": 0.013455500011332333
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0105630000000001,
+          "wall_seconds": 0.010635957936756313
+        }
+      },
+      {
+        "path": "portfolio/paper/default/snapshots.json",
+        "group": "disabled-default",
+        "rows": 995,
+        "output_bytes": 332102,
+        "output_sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102",
+        "read": {
+          "cpu_seconds": 0.0003049999999999997,
+          "wall_seconds": 0.00037233298644423485
+        },
+        "json_decode": {
+          "cpu_seconds": 0.0011239999999999029,
+          "wall_seconds": 0.0011356249451637268
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0028610000000000024,
+          "wall_seconds": 0.003021082957275212
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0016179999999998973,
+          "wall_seconds": 0.0016189999878406525
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0013179999999999303,
+          "wall_seconds": 0.0014106669696047902
+        }
+      },
+      {
+        "path": "portfolio/paper/ma_crossover/snapshots.json",
+        "group": "active-lab",
+        "rows": 7137,
+        "output_bytes": 3182766,
+        "output_sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602",
+        "read": {
+          "cpu_seconds": 0.001110999999999862,
+          "wall_seconds": 0.0011535839876160026
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010939000000000032,
+          "wall_seconds": 0.011259624967351556
+        },
+        "model_validate": {
+          "cpu_seconds": 0.06802299999999994,
+          "wall_seconds": 0.06860991707071662
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012943999999999845,
+          "wall_seconds": 0.012998750084079802
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011701000000000183,
+          "wall_seconds": 0.011810790980234742
+        }
+      },
+      {
+        "path": "portfolio/paper/momentum_pinball_orb/snapshots.json",
+        "group": "active-lab",
+        "rows": 7862,
+        "output_bytes": 2841844,
+        "output_sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d",
+        "read": {
+          "cpu_seconds": 0.0011579999999997703,
+          "wall_seconds": 0.0012265830300748348
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00888700000000009,
+          "wall_seconds": 0.008888707961887121
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026837,
+          "wall_seconds": 0.027289791963994503
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013576999999999728,
+          "wall_seconds": 0.014245999976992607
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010963999999999974,
+          "wall_seconds": 0.011122790980152786
+        }
+      },
+      {
+        "path": "portfolio/paper/raschke_holy_grail/snapshots.json",
+        "group": "active-lab",
+        "rows": 7128,
+        "output_bytes": 3079225,
+        "output_sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32",
+        "read": {
+          "cpu_seconds": 0.0012660000000002114,
+          "wall_seconds": 0.0013475839514285326
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010114000000000178,
+          "wall_seconds": 0.010127749992534518
+        },
+        "model_validate": {
+          "cpu_seconds": 0.028084999999999916,
+          "wall_seconds": 0.028645040933042765
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01208000000000009,
+          "wall_seconds": 0.01217300002463162
+        },
+        "json_encode": {
+          "cpu_seconds": 0.012345999999999968,
+          "wall_seconds": 0.01432762504555285
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_15m/snapshots.json",
+        "group": "active-lab",
+        "rows": 7094,
+        "output_bytes": 2611202,
+        "output_sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b",
+        "read": {
+          "cpu_seconds": 0.001122999999999763,
+          "wall_seconds": 0.001233958057127893
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008925000000000072,
+          "wall_seconds": 0.00906387495342642
+        },
+        "model_validate": {
+          "cpu_seconds": 0.059691999999999634,
+          "wall_seconds": 0.06039658305235207
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011547999999999892,
+          "wall_seconds": 0.011660707998089492
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010106999999999644,
+          "wall_seconds": 0.010151167050935328
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_4h/snapshots.json",
+        "group": "active-lab",
+        "rows": 7822,
+        "output_bytes": 2750785,
+        "output_sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b",
+        "read": {
+          "cpu_seconds": 0.0011250000000000426,
+          "wall_seconds": 0.0014212090754881501
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009583999999999815,
+          "wall_seconds": 0.009607499931007624
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02737299999999987,
+          "wall_seconds": 0.028254708042368293
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012730999999999604,
+          "wall_seconds": 0.01297683292068541
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010364999999999736,
+          "wall_seconds": 0.010436250013299286
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_universal/snapshots.json",
+        "group": "active-lab",
+        "rows": 7126,
+        "output_bytes": 2667714,
+        "output_sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2",
+        "read": {
+          "cpu_seconds": 0.001132000000000133,
+          "wall_seconds": 0.0012487919302657247
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008860000000000312,
+          "wall_seconds": 0.008943000109866261
+        },
+        "model_validate": {
+          "cpu_seconds": 0.024805999999999884,
+          "wall_seconds": 0.024888957967050374
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011824000000000279,
+          "wall_seconds": 0.011883500032126904
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010836999999999986,
+          "wall_seconds": 0.01103270798921585
+        }
+      },
+      {
+        "path": "portfolio/paper/session_vwap_pullback/snapshots.json",
+        "group": "active-lab",
+        "rows": 7089,
+        "output_bytes": 2714971,
+        "output_sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d",
+        "read": {
+          "cpu_seconds": 0.0009999999999998899,
+          "wall_seconds": 0.0010979590006172657
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009023000000000003,
+          "wall_seconds": 0.009118542075157166
+        },
+        "model_validate": {
+          "cpu_seconds": 0.06169599999999997,
+          "wall_seconds": 0.06216766592115164
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01177600000000023,
+          "wall_seconds": 0.011827957932837307
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009881000000000029,
+          "wall_seconds": 0.009963665972463787
+        }
+      },
+      {
+        "path": "portfolio/paper/snapshots.json",
+        "group": "legacy-root",
+        "rows": 267,
+        "output_bytes": 72626,
+        "output_sha256": "8f752a4a6efa14132cffbcc04194b7359fa9d8c0a8bb097d069d0d38307f3ca3",
+        "read": {
+          "cpu_seconds": 0.00034000000000000696,
+          "wall_seconds": 0.00042474991641938686
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00020800000000020802,
+          "wall_seconds": 0.00020925002172589302
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0006189999999999252,
+          "wall_seconds": 0.0006201670039445162
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0003799999999998249,
+          "wall_seconds": 0.0003802910214290023
+        },
+        "json_encode": {
+          "cpu_seconds": 0.00029799999999990945,
+          "wall_seconds": 0.0002984999446198344
+        }
+      },
+      {
+        "path": "portfolio/paper/turtle_soup_reclaim/snapshots.json",
+        "group": "active-lab",
+        "rows": 7087,
+        "output_bytes": 2471619,
+        "output_sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5",
+        "read": {
+          "cpu_seconds": 0.0016720000000001178,
+          "wall_seconds": 0.002443375065922737
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008238999999999663,
+          "wall_seconds": 0.008400584105402231
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0232730000000001,
+          "wall_seconds": 0.023503332980908453
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01136999999999988,
+          "wall_seconds": 0.011500083957798779
+        },
+        "json_encode": {
+          "cpu_seconds": 0.00887899999999986,
+          "wall_seconds": 0.008902417030185461
+        }
+      },
+      {
+        "path": "portfolio/paper/vcp_breakout/snapshots.json",
+        "group": "active-lab",
+        "rows": 7821,
+        "output_bytes": 2312595,
+        "output_sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b",
+        "read": {
+          "cpu_seconds": 0.0009850000000000136,
+          "wall_seconds": 0.0010995829943567514
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00826899999999986,
+          "wall_seconds": 0.008293791092000902
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02303999999999995,
+          "wall_seconds": 0.0233559999614954
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011643999999999988,
+          "wall_seconds": 0.011684332974255085
+        },
+        "json_encode": {
+          "cpu_seconds": 0.008974999999999955,
+          "wall_seconds": 0.0090079999063164
+        }
+      },
+      {
+        "path": "portfolio/paper/vwap_mean_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7076,
+        "output_bytes": 2701549,
+        "output_sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76",
+        "read": {
+          "cpu_seconds": 0.0013860000000001094,
+          "wall_seconds": 0.0014747499953955412
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008685999999999972,
+          "wall_seconds": 0.008721041958779097
+        },
+        "model_validate": {
+          "cpu_seconds": 0.062193000000000165,
+          "wall_seconds": 0.0633056660881266
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011792000000000247,
+          "wall_seconds": 0.011881374986842275
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010435000000000194,
+          "wall_seconds": 0.010506666032597423
+        }
+      },
+      {
+        "path": "portfolio/paper/weinstein_stage2_filter/snapshots.json",
+        "group": "active-lab",
+        "rows": 7082,
+        "output_bytes": 2998392,
+        "output_sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372",
+        "read": {
+          "cpu_seconds": 0.0011120000000000019,
+          "wall_seconds": 0.0011978329857811332
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009520000000000195,
+          "wall_seconds": 0.0095467499922961
+        },
+        "model_validate": {
+          "cpu_seconds": 0.027019000000000126,
+          "wall_seconds": 0.02717716700863093
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012089000000000016,
+          "wall_seconds": 0.012124083004891872
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011492000000000058,
+          "wall_seconds": 0.011666708043776453
+        }
+      }
+    ],
+    [
+      {
+        "path": "portfolio/paper/bollinger_band_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7868,
+        "output_bytes": 2878998,
+        "output_sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f",
+        "read": {
+          "cpu_seconds": 0.0010249999999998316,
+          "wall_seconds": 0.0011072501074522734
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00902999999999965,
+          "wall_seconds": 0.009059916948899627
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025390000000000246,
+          "wall_seconds": 0.02555066696368158
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01260899999999987,
+          "wall_seconds": 0.012678875005804002
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010477999999999987,
+          "wall_seconds": 0.010972707998007536
+        }
+      },
+      {
+        "path": "portfolio/paper/default/snapshots.json",
+        "group": "disabled-default",
+        "rows": 995,
+        "output_bytes": 332102,
+        "output_sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102",
+        "read": {
+          "cpu_seconds": 0.0004930000000000767,
+          "wall_seconds": 0.0005762089276686311
+        },
+        "json_decode": {
+          "cpu_seconds": 0.0011179999999999524,
+          "wall_seconds": 0.0011215419508516788
+        },
+        "model_validate": {
+          "cpu_seconds": 0.002794999999999881,
+          "wall_seconds": 0.0028199999360367656
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0015010000000001966,
+          "wall_seconds": 0.0015009590424597263
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0011950000000000571,
+          "wall_seconds": 0.001194707932882011
+        }
+      },
+      {
+        "path": "portfolio/paper/ma_crossover/snapshots.json",
+        "group": "active-lab",
+        "rows": 7137,
+        "output_bytes": 3182766,
+        "output_sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602",
+        "read": {
+          "cpu_seconds": 0.001202999999999843,
+          "wall_seconds": 0.0012585829244926572
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010472000000000037,
+          "wall_seconds": 0.010507249971851707
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0694729999999999,
+          "wall_seconds": 0.07128141599241644
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013268999999999753,
+          "wall_seconds": 0.013378750067204237
+        },
+        "json_encode": {
+          "cpu_seconds": 0.012156000000000056,
+          "wall_seconds": 0.01224508392624557
+        }
+      },
+      {
+        "path": "portfolio/paper/momentum_pinball_orb/snapshots.json",
+        "group": "active-lab",
+        "rows": 7862,
+        "output_bytes": 2841844,
+        "output_sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d",
+        "read": {
+          "cpu_seconds": 0.0014980000000002214,
+          "wall_seconds": 0.0019996670307591558
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009491999999999834,
+          "wall_seconds": 0.009545624954625964
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025443000000000104,
+          "wall_seconds": 0.025554875028319657
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01230700000000029,
+          "wall_seconds": 0.01234058290719986
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010260000000000158,
+          "wall_seconds": 0.010350459022447467
+        }
+      },
+      {
+        "path": "portfolio/paper/raschke_holy_grail/snapshots.json",
+        "group": "active-lab",
+        "rows": 7128,
+        "output_bytes": 3079225,
+        "output_sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32",
+        "read": {
+          "cpu_seconds": 0.0011079999999998869,
+          "wall_seconds": 0.0011594590032473207
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010121999999999964,
+          "wall_seconds": 0.010160750010982156
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02820199999999984,
+          "wall_seconds": 0.028330749948509037
+        },
+        "to_dict": {
+          "cpu_seconds": 0.051696000000000186,
+          "wall_seconds": 0.05196433304809034
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011140999999999845,
+          "wall_seconds": 0.011209291988052428
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_15m/snapshots.json",
+        "group": "active-lab",
+        "rows": 7094,
+        "output_bytes": 2611202,
+        "output_sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b",
+        "read": {
+          "cpu_seconds": 0.0010419999999999874,
+          "wall_seconds": 0.0011263340711593628
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008456000000000241,
+          "wall_seconds": 0.008457291987724602
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026209999999999845,
+          "wall_seconds": 0.026722916052676737
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01262500000000033,
+          "wall_seconds": 0.013026917004026473
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010495999999999839,
+          "wall_seconds": 0.011102624936029315
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_4h/snapshots.json",
+        "group": "active-lab",
+        "rows": 7822,
+        "output_bytes": 2750785,
+        "output_sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b",
+        "read": {
+          "cpu_seconds": 0.0013700000000000934,
+          "wall_seconds": 0.0016043749637901783
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009967999999999755,
+          "wall_seconds": 0.009989666985347867
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02861099999999972,
+          "wall_seconds": 0.02940158301498741
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013367000000000129,
+          "wall_seconds": 0.013579958002083004
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010422999999999849,
+          "wall_seconds": 0.010507084080018103
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_universal/snapshots.json",
+        "group": "active-lab",
+        "rows": 7126,
+        "output_bytes": 2667714,
+        "output_sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2",
+        "read": {
+          "cpu_seconds": 0.0013639999999996988,
+          "wall_seconds": 0.0017262919573113322
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010240000000000027,
+          "wall_seconds": 0.011526958900503814
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026828000000000074,
+          "wall_seconds": 0.02751320891547948
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0596770000000002,
+          "wall_seconds": 0.062046209000982344
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010155000000000136,
+          "wall_seconds": 0.010245291981846094
+        }
+      },
+      {
+        "path": "portfolio/paper/session_vwap_pullback/snapshots.json",
+        "group": "active-lab",
+        "rows": 7089,
+        "output_bytes": 2714971,
+        "output_sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d",
+        "read": {
+          "cpu_seconds": 0.0012110000000000731,
+          "wall_seconds": 0.0012949160300195217
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009694000000000091,
+          "wall_seconds": 0.009794750018045306
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025228999999999946,
+          "wall_seconds": 0.025477999937720597
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011945000000000316,
+          "wall_seconds": 0.012016416061669588
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010396999999999768,
+          "wall_seconds": 0.010510583990253508
+        }
+      },
+      {
+        "path": "portfolio/paper/snapshots.json",
+        "group": "legacy-root",
+        "rows": 267,
+        "output_bytes": 72626,
+        "output_sha256": "8f752a4a6efa14132cffbcc04194b7359fa9d8c0a8bb097d069d0d38307f3ca3",
+        "read": {
+          "cpu_seconds": 0.0002409999999999357,
+          "wall_seconds": 0.0003477089339867234
+        },
+        "json_decode": {
+          "cpu_seconds": 0.0002460000000001905,
+          "wall_seconds": 0.00026012491434812546
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0006990000000000052,
+          "wall_seconds": 0.0007184590213000774
+        },
+        "to_dict": {
+          "cpu_seconds": 0.00037700000000029377,
+          "wall_seconds": 0.00037649995647370815
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0002939999999997944,
+          "wall_seconds": 0.00029445800464600325
+        }
+      },
+      {
+        "path": "portfolio/paper/turtle_soup_reclaim/snapshots.json",
+        "group": "active-lab",
+        "rows": 7087,
+        "output_bytes": 2471619,
+        "output_sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5",
+        "read": {
+          "cpu_seconds": 0.0010219999999998564,
+          "wall_seconds": 0.0014922090340405703
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008496000000000059,
+          "wall_seconds": 0.008535415981896222
+        },
+        "model_validate": {
+          "cpu_seconds": 0.024404000000000092,
+          "wall_seconds": 0.0252530830912292
+        },
+        "to_dict": {
+          "cpu_seconds": 0.010553999999999952,
+          "wall_seconds": 0.010616958024911582
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0089870000000003,
+          "wall_seconds": 0.00902450003195554
+        }
+      },
+      {
+        "path": "portfolio/paper/vcp_breakout/snapshots.json",
+        "group": "active-lab",
+        "rows": 7821,
+        "output_bytes": 2312595,
+        "output_sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b",
+        "read": {
+          "cpu_seconds": 0.0012210000000001386,
+          "wall_seconds": 0.0014358749613165855
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008738000000000135,
+          "wall_seconds": 0.00878224999178201
+        },
+        "model_validate": {
+          "cpu_seconds": 0.022638000000000158,
+          "wall_seconds": 0.022908167098648846
+        },
+        "to_dict": {
+          "cpu_seconds": 0.05581000000000014,
+          "wall_seconds": 0.05681229196488857
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009726999999999819,
+          "wall_seconds": 0.010116875055246055
+        }
+      },
+      {
+        "path": "portfolio/paper/vwap_mean_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7076,
+        "output_bytes": 2701549,
+        "output_sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76",
+        "read": {
+          "cpu_seconds": 0.0015200000000001879,
+          "wall_seconds": 0.002002708031795919
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00997400000000015,
+          "wall_seconds": 0.010667250026017427
+        },
+        "model_validate": {
+          "cpu_seconds": 0.024639000000000078,
+          "wall_seconds": 0.024782666005194187
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011541999999999941,
+          "wall_seconds": 0.011596416938118637
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009942000000000117,
+          "wall_seconds": 0.010051207966171205
+        }
+      },
+      {
+        "path": "portfolio/paper/weinstein_stage2_filter/snapshots.json",
+        "group": "active-lab",
+        "rows": 7082,
+        "output_bytes": 2998392,
+        "output_sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372",
+        "read": {
+          "cpu_seconds": 0.001266999999999907,
+          "wall_seconds": 0.0013155420310795307
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009972000000000314,
+          "wall_seconds": 0.010061417007818818
+        },
+        "model_validate": {
+          "cpu_seconds": 0.027801000000000187,
+          "wall_seconds": 0.028474666993133724
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013712999999999642,
+          "wall_seconds": 0.015680582961067557
+        },
+        "json_encode": {
+          "cpu_seconds": 0.013640999999999792,
+          "wall_seconds": 0.016598707996308804
+        }
+      }
+    ],
+    [
+      {
+        "path": "portfolio/paper/bollinger_band_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7868,
+        "output_bytes": 2878998,
+        "output_sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f",
+        "read": {
+          "cpu_seconds": 0.001200000000000312,
+          "wall_seconds": 0.0014297079760581255
+        },
+        "json_decode": {
+          "cpu_seconds": 0.011922999999999906,
+          "wall_seconds": 0.026764416019432247
+        },
+        "model_validate": {
+          "cpu_seconds": 0.027988000000000124,
+          "wall_seconds": 0.029333499958738685
+        },
+        "to_dict": {
+          "cpu_seconds": 0.049449000000000076,
+          "wall_seconds": 0.04974958300590515
+        },
+        "json_encode": {
+          "cpu_seconds": 0.01037599999999994,
+          "wall_seconds": 0.010455415933392942
+        }
+      },
+      {
+        "path": "portfolio/paper/default/snapshots.json",
+        "group": "disabled-default",
+        "rows": 995,
+        "output_bytes": 332102,
+        "output_sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102",
+        "read": {
+          "cpu_seconds": 0.000408000000000186,
+          "wall_seconds": 0.0004947079578414559
+        },
+        "json_decode": {
+          "cpu_seconds": 0.001122999999999763,
+          "wall_seconds": 0.001124042086303234
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0026420000000002553,
+          "wall_seconds": 0.002641750033944845
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0016519999999999868,
+          "wall_seconds": 0.001674459083005786
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0012910000000001531,
+          "wall_seconds": 0.0013143750838935375
+        }
+      },
+      {
+        "path": "portfolio/paper/ma_crossover/snapshots.json",
+        "group": "active-lab",
+        "rows": 7137,
+        "output_bytes": 3182766,
+        "output_sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602",
+        "read": {
+          "cpu_seconds": 0.0012439999999998008,
+          "wall_seconds": 0.001298291957937181
+        },
+        "json_decode": {
+          "cpu_seconds": 0.01044299999999998,
+          "wall_seconds": 0.010480041964910924
+        },
+        "model_validate": {
+          "cpu_seconds": 0.029047999999999963,
+          "wall_seconds": 0.029151540948078036
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013085999999999931,
+          "wall_seconds": 0.013212041929364204
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011406999999999723,
+          "wall_seconds": 0.011476750019937754
+        }
+      },
+      {
+        "path": "portfolio/paper/momentum_pinball_orb/snapshots.json",
+        "group": "active-lab",
+        "rows": 7862,
+        "output_bytes": 2841844,
+        "output_sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d",
+        "read": {
+          "cpu_seconds": 0.0011499999999999844,
+          "wall_seconds": 0.0027102080639451742
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009624999999999773,
+          "wall_seconds": 0.009713790961541235
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025846000000000036,
+          "wall_seconds": 0.025960791972465813
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012268000000000168,
+          "wall_seconds": 0.012326332973316312
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010123000000000104,
+          "wall_seconds": 0.010169040993787348
+        }
+      },
+      {
+        "path": "portfolio/paper/raschke_holy_grail/snapshots.json",
+        "group": "active-lab",
+        "rows": 7128,
+        "output_bytes": 3079225,
+        "output_sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32",
+        "read": {
+          "cpu_seconds": 0.0013060000000000294,
+          "wall_seconds": 0.0013991249725222588
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009917999999999871,
+          "wall_seconds": 0.009939417010173202
+        },
+        "model_validate": {
+          "cpu_seconds": 0.06451899999999977,
+          "wall_seconds": 0.06495829194318503
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012623999999999747,
+          "wall_seconds": 0.012700833030976355
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011091999999999658,
+          "wall_seconds": 0.011223917012102902
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_15m/snapshots.json",
+        "group": "active-lab",
+        "rows": 7094,
+        "output_bytes": 2611202,
+        "output_sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b",
+        "read": {
+          "cpu_seconds": 0.0011650000000003047,
+          "wall_seconds": 0.0013419589959084988
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008550999999999753,
+          "wall_seconds": 0.008625125046819448
+        },
+        "model_validate": {
+          "cpu_seconds": 0.024451,
+          "wall_seconds": 0.024560416000895202
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011574000000000417,
+          "wall_seconds": 0.011683125048875809
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009505000000000763,
+          "wall_seconds": 0.009517624974250793
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_4h/snapshots.json",
+        "group": "active-lab",
+        "rows": 7822,
+        "output_bytes": 2750785,
+        "output_sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b",
+        "read": {
+          "cpu_seconds": 0.0011940000000008055,
+          "wall_seconds": 0.0012918750289827585
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009921999999999542,
+          "wall_seconds": 0.010005166055634618
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0264489999999995,
+          "wall_seconds": 0.026687041972763836
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012118000000000073,
+          "wall_seconds": 0.012163167004473507
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010237000000000052,
+          "wall_seconds": 0.010285082971677184
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_universal/snapshots.json",
+        "group": "active-lab",
+        "rows": 7126,
+        "output_bytes": 2667714,
+        "output_sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2",
+        "read": {
+          "cpu_seconds": 0.0011179999999999524,
+          "wall_seconds": 0.001214749994687736
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009141999999999761,
+          "wall_seconds": 0.009166916948743165
+        },
+        "model_validate": {
+          "cpu_seconds": 0.059976000000000695,
+          "wall_seconds": 0.06033616594504565
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012012999999999607,
+          "wall_seconds": 0.012111917021684349
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009953000000000323,
+          "wall_seconds": 0.010053207981400192
+        }
+      },
+      {
+        "path": "portfolio/paper/session_vwap_pullback/snapshots.json",
+        "group": "active-lab",
+        "rows": 7089,
+        "output_bytes": 2714971,
+        "output_sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d",
+        "read": {
+          "cpu_seconds": 0.0011410000000005027,
+          "wall_seconds": 0.0012299170484766364
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009342000000000183,
+          "wall_seconds": 0.00938283302821219
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025456999999999397,
+          "wall_seconds": 0.025660624960437417
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011698000000000874,
+          "wall_seconds": 0.011746375006623566
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009566999999999659,
+          "wall_seconds": 0.009613874950446188
+        }
+      },
+      {
+        "path": "portfolio/paper/snapshots.json",
+        "group": "legacy-root",
+        "rows": 267,
+        "output_bytes": 72626,
+        "output_sha256": "8f752a4a6efa14132cffbcc04194b7359fa9d8c0a8bb097d069d0d38307f3ca3",
+        "read": {
+          "cpu_seconds": 0.0002570000000003958,
+          "wall_seconds": 0.0003737499937415123
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00022300000000008424,
+          "wall_seconds": 0.00022329192142933607
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0006380000000003605,
+          "wall_seconds": 0.0006384579464793205
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0003869999999999152,
+          "wall_seconds": 0.00038587499875575304
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0003160000000006491,
+          "wall_seconds": 0.00031633395701646805
+        }
+      },
+      {
+        "path": "portfolio/paper/turtle_soup_reclaim/snapshots.json",
+        "group": "active-lab",
+        "rows": 7087,
+        "output_bytes": 2471619,
+        "output_sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5",
+        "read": {
+          "cpu_seconds": 0.0008769999999991285,
+          "wall_seconds": 0.0009789579780772328
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00786299999999951,
+          "wall_seconds": 0.007875000010244548
+        },
+        "model_validate": {
+          "cpu_seconds": 0.021446000000000076,
+          "wall_seconds": 0.021531792008318007
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011383999999999617,
+          "wall_seconds": 0.01159629097674042
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009065000000000545,
+          "wall_seconds": 0.009175582905299962
+        }
+      },
+      {
+        "path": "portfolio/paper/vcp_breakout/snapshots.json",
+        "group": "active-lab",
+        "rows": 7821,
+        "output_bytes": 2312595,
+        "output_sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b",
+        "read": {
+          "cpu_seconds": 0.000932000000000599,
+          "wall_seconds": 0.0010140839731320739
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008612000000000286,
+          "wall_seconds": 0.008700208039954305
+        },
+        "model_validate": {
+          "cpu_seconds": 0.05743600000000004,
+          "wall_seconds": 0.05781024997122586
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012406000000000361,
+          "wall_seconds": 0.013318833080120385
+        },
+        "json_encode": {
+          "cpu_seconds": 0.008913999999999866,
+          "wall_seconds": 0.008975417003966868
+        }
+      },
+      {
+        "path": "portfolio/paper/vwap_mean_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7076,
+        "output_bytes": 2701549,
+        "output_sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76",
+        "read": {
+          "cpu_seconds": 0.0015879999999999228,
+          "wall_seconds": 0.0018762500258162618
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008887999999999785,
+          "wall_seconds": 0.00891420803964138
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0241289999999994,
+          "wall_seconds": 0.024190708063542843
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011504999999999654,
+          "wall_seconds": 0.011566333007067442
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009479999999999933,
+          "wall_seconds": 0.009510917006991804
+        }
+      },
+      {
+        "path": "portfolio/paper/weinstein_stage2_filter/snapshots.json",
+        "group": "active-lab",
+        "rows": 7082,
+        "output_bytes": 2998392,
+        "output_sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372",
+        "read": {
+          "cpu_seconds": 0.001206999999999958,
+          "wall_seconds": 0.0013461250346153975
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009776999999999703,
+          "wall_seconds": 0.00980204192455858
+        },
+        "model_validate": {
+          "cpu_seconds": 0.027135999999999605,
+          "wall_seconds": 0.02727695892099291
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011325999999999503,
+          "wall_seconds": 0.011358875082805753
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010791999999999469,
+          "wall_seconds": 0.010874707950279117
+        }
+      }
+    ],
+    [
+      {
+        "path": "portfolio/paper/bollinger_band_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7868,
+        "output_bytes": 2878998,
+        "output_sha256": "e2ac4011c232b47e21aa3004351f909837b71f2a398c7e0bae6ec6df63162b6f",
+        "read": {
+          "cpu_seconds": 0.001196000000000197,
+          "wall_seconds": 0.0012875410029664636
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010122000000000853,
+          "wall_seconds": 0.010376874939538538
+        },
+        "model_validate": {
+          "cpu_seconds": 0.06004200000000015,
+          "wall_seconds": 0.06033745803870261
+        },
+        "to_dict": {
+          "cpu_seconds": 0.01235699999999973,
+          "wall_seconds": 0.012474874965846539
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010693999999999981,
+          "wall_seconds": 0.01091404096223414
+        }
+      },
+      {
+        "path": "portfolio/paper/default/snapshots.json",
+        "group": "disabled-default",
+        "rows": 995,
+        "output_bytes": 332102,
+        "output_sha256": "38c5f4940f8219885435551e7d22fecd5ba79346c90cb31e0c35bcda14b16102",
+        "read": {
+          "cpu_seconds": 0.0005139999999999034,
+          "wall_seconds": 0.0005961250280961394
+        },
+        "json_decode": {
+          "cpu_seconds": 0.001120000000000232,
+          "wall_seconds": 0.0011483330745249987
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0029200000000004778,
+          "wall_seconds": 0.0029396250611171126
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0015350000000005082,
+          "wall_seconds": 0.0015347918961197138
+        },
+        "json_encode": {
+          "cpu_seconds": 0.0012460000000000804,
+          "wall_seconds": 0.0012472080998122692
+        }
+      },
+      {
+        "path": "portfolio/paper/ma_crossover/snapshots.json",
+        "group": "active-lab",
+        "rows": 7137,
+        "output_bytes": 3182766,
+        "output_sha256": "e4de3dce87ad66bd8bf42a223542fc8c66e86ffcc8c73fc3934e2a2cfe3c0602",
+        "read": {
+          "cpu_seconds": 0.0011270000000003222,
+          "wall_seconds": 0.001163375098258257
+        },
+        "json_decode": {
+          "cpu_seconds": 0.011110999999999649,
+          "wall_seconds": 0.011565958033315837
+        },
+        "model_validate": {
+          "cpu_seconds": 0.029770000000000074,
+          "wall_seconds": 0.030106542049907148
+        },
+        "to_dict": {
+          "cpu_seconds": 0.013277000000000427,
+          "wall_seconds": 0.01340645900927484
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011972000000000094,
+          "wall_seconds": 0.012181292055174708
+        }
+      },
+      {
+        "path": "portfolio/paper/momentum_pinball_orb/snapshots.json",
+        "group": "active-lab",
+        "rows": 7862,
+        "output_bytes": 2841844,
+        "output_sha256": "a2a5e63bfc95b158a059b6fdd91555f8e2d095f5412353816d550ae4dcb0a60d",
+        "read": {
+          "cpu_seconds": 0.0012030000000002872,
+          "wall_seconds": 0.0012569170212373137
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010292999999999886,
+          "wall_seconds": 0.010429040994495153
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02631400000000017,
+          "wall_seconds": 0.026473916950635612
+        },
+        "to_dict": {
+          "cpu_seconds": 0.05245299999999986,
+          "wall_seconds": 0.052814874914474785
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010298999999999836,
+          "wall_seconds": 0.01034279097802937
+        }
+      },
+      {
+        "path": "portfolio/paper/raschke_holy_grail/snapshots.json",
+        "group": "active-lab",
+        "rows": 7128,
+        "output_bytes": 3079225,
+        "output_sha256": "d7366a391f635e0637dbbe6d7f51a9a33e8d4bb69cc4b81313323633085c1b32",
+        "read": {
+          "cpu_seconds": 0.0011289999999997136,
+          "wall_seconds": 0.00122487498447299
+        },
+        "json_decode": {
+          "cpu_seconds": 0.010282000000000124,
+          "wall_seconds": 0.010427124914713204
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0281760000000002,
+          "wall_seconds": 0.028309457935392857
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012609999999999566,
+          "wall_seconds": 0.012708207941614091
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011622000000000021,
+          "wall_seconds": 0.01169087493326515
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_15m/snapshots.json",
+        "group": "active-lab",
+        "rows": 7094,
+        "output_bytes": 2611202,
+        "output_sha256": "9581397e0e647f9f75f17820fc937b73282364c45fb0e1ebc2bda2f49196884b",
+        "read": {
+          "cpu_seconds": 0.001172000000000395,
+          "wall_seconds": 0.0012778749223798513
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00894699999999915,
+          "wall_seconds": 0.009108999976888299
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026362999999999914,
+          "wall_seconds": 0.026887916959822178
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011516000000000304,
+          "wall_seconds": 0.011578208999708295
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009501000000000204,
+          "wall_seconds": 0.009545541019178927
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_4h/snapshots.json",
+        "group": "active-lab",
+        "rows": 7822,
+        "output_bytes": 2750785,
+        "output_sha256": "e6615b381d8db7d9facc21e184046da22073532b62a597d8ea0ea8685831d99b",
+        "read": {
+          "cpu_seconds": 0.0015340000000003684,
+          "wall_seconds": 0.0016827910440042615
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009265000000000079,
+          "wall_seconds": 0.009291667025536299
+        },
+        "model_validate": {
+          "cpu_seconds": 0.026215999999999795,
+          "wall_seconds": 0.026359999901615083
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0507439999999999,
+          "wall_seconds": 0.05108245799783617
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010313000000000017,
+          "wall_seconds": 0.010531459003686905
+        }
+      },
+      {
+        "path": "portfolio/paper/rsi_universal/snapshots.json",
+        "group": "active-lab",
+        "rows": 7126,
+        "output_bytes": 2667714,
+        "output_sha256": "6b6784c7d0476970b1baf99e57e60557c3b112f146c819bd81583f21872be4f2",
+        "read": {
+          "cpu_seconds": 0.0011609999999997456,
+          "wall_seconds": 0.0012489169603213668
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008617000000000097,
+          "wall_seconds": 0.008644415996968746
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02412700000000001,
+          "wall_seconds": 0.024243292049504817
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011879999999999669,
+          "wall_seconds": 0.011948124971240759
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009853000000000556,
+          "wall_seconds": 0.00990145793184638
+        }
+      },
+      {
+        "path": "portfolio/paper/session_vwap_pullback/snapshots.json",
+        "group": "active-lab",
+        "rows": 7089,
+        "output_bytes": 2714971,
+        "output_sha256": "e6ca7b32fa421dd71b51be96fc5160395ef1fda4add15d33784cd2e0d086448d",
+        "read": {
+          "cpu_seconds": 0.0012740000000004414,
+          "wall_seconds": 0.001705540926195681
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00914600000000032,
+          "wall_seconds": 0.009202832938171923
+        },
+        "model_validate": {
+          "cpu_seconds": 0.025183000000000177,
+          "wall_seconds": 0.025589374941773713
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011625999999999692,
+          "wall_seconds": 0.011686707963235676
+        },
+        "json_encode": {
+          "cpu_seconds": 0.010079000000000171,
+          "wall_seconds": 0.010122583014890552
+        }
+      },
+      {
+        "path": "portfolio/paper/snapshots.json",
+        "group": "legacy-root",
+        "rows": 267,
+        "output_bytes": 72626,
+        "output_sha256": "8f752a4a6efa14132cffbcc04194b7359fa9d8c0a8bb097d069d0d38307f3ca3",
+        "read": {
+          "cpu_seconds": 0.00020799999999976393,
+          "wall_seconds": 0.0002758329501375556
+        },
+        "json_decode": {
+          "cpu_seconds": 0.00020599999999948437,
+          "wall_seconds": 0.00020708306692540646
+        },
+        "model_validate": {
+          "cpu_seconds": 0.0006260000000004595,
+          "wall_seconds": 0.0006266250275075436
+        },
+        "to_dict": {
+          "cpu_seconds": 0.0003700000000002035,
+          "wall_seconds": 0.0003707919968292117
+        },
+        "json_encode": {
+          "cpu_seconds": 0.00029300000000009874,
+          "wall_seconds": 0.0002937079407274723
+        }
+      },
+      {
+        "path": "portfolio/paper/turtle_soup_reclaim/snapshots.json",
+        "group": "active-lab",
+        "rows": 7087,
+        "output_bytes": 2471619,
+        "output_sha256": "080be6ce9af08e762aa1c25fe310523c5e45c143ff87c9351e81f021669d2bf5",
+        "read": {
+          "cpu_seconds": 0.0007159999999997169,
+          "wall_seconds": 0.0007880000630393624
+        },
+        "json_decode": {
+          "cpu_seconds": 0.007831000000000365,
+          "wall_seconds": 0.007843874976970255
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02212800000000037,
+          "wall_seconds": 0.02227241697255522
+        },
+        "to_dict": {
+          "cpu_seconds": 0.04732200000000031,
+          "wall_seconds": 0.047482750029303133
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009183000000000163,
+          "wall_seconds": 0.009232957963831723
+        }
+      },
+      {
+        "path": "portfolio/paper/vcp_breakout/snapshots.json",
+        "group": "active-lab",
+        "rows": 7821,
+        "output_bytes": 2312595,
+        "output_sha256": "796c73100314249d6241b226ec0612987d0d9fa78ce5ce44681257971f1e219b",
+        "read": {
+          "cpu_seconds": 0.000956000000000401,
+          "wall_seconds": 0.0009837500983849168
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008688000000000251,
+          "wall_seconds": 0.008789125015027821
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02290100000000006,
+          "wall_seconds": 0.02295895805582404
+        },
+        "to_dict": {
+          "cpu_seconds": 0.012105000000000032,
+          "wall_seconds": 0.01249745802488178
+        },
+        "json_encode": {
+          "cpu_seconds": 0.008655999999999331,
+          "wall_seconds": 0.008687000023201108
+        }
+      },
+      {
+        "path": "portfolio/paper/vwap_mean_reversion/snapshots.json",
+        "group": "active-lab",
+        "rows": 7076,
+        "output_bytes": 2701549,
+        "output_sha256": "8c176429508df239bf13244dee33c4add2de330784e18933552ac16722a53b76",
+        "read": {
+          "cpu_seconds": 0.0010639999999995098,
+          "wall_seconds": 0.0011382920201867819
+        },
+        "json_decode": {
+          "cpu_seconds": 0.008854999999999613,
+          "wall_seconds": 0.008956541074439883
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02550399999999975,
+          "wall_seconds": 0.025865959003567696
+        },
+        "to_dict": {
+          "cpu_seconds": 0.011948000000000292,
+          "wall_seconds": 0.012021292001008987
+        },
+        "json_encode": {
+          "cpu_seconds": 0.009701999999999877,
+          "wall_seconds": 0.009730916004627943
+        }
+      },
+      {
+        "path": "portfolio/paper/weinstein_stage2_filter/snapshots.json",
+        "group": "active-lab",
+        "rows": 7082,
+        "output_bytes": 2998392,
+        "output_sha256": "4e2dac72a289bcff5176d6edc89ccf99c4d64a24c54b5ede3b2f8864565df372",
+        "read": {
+          "cpu_seconds": 0.0011209999999994835,
+          "wall_seconds": 0.0012379579711705446
+        },
+        "json_decode": {
+          "cpu_seconds": 0.009867000000000736,
+          "wall_seconds": 0.009905708022415638
+        },
+        "model_validate": {
+          "cpu_seconds": 0.02674500000000002,
+          "wall_seconds": 0.027017791057005525
+        },
+        "to_dict": {
+          "cpu_seconds": 0.05107000000000017,
+          "wall_seconds": 0.05146108299959451
+        },
+        "json_encode": {
+          "cpu_seconds": 0.011540000000000106,
+          "wall_seconds": 0.011634167050942779
+        }
+      }
+    ]
+  ],
+  "summary": {
+    "active-lab": {
+      "files": 12,
+      "rows": 88192,
+      "cpu_stage_medians": {
+        "read": 0.0141220000000013,
+        "json_decode": 0.11302400000000112,
+        "model_validate": 0.3870779999999995,
+        "to_dict": 0.27911400000000075,
+        "json_encode": 0.12654499999999969
+      },
+      "pure_pipeline_cpu_seconds": [
+        0.91321,
+        0.8425599999999991,
+        0.8764390000000009,
+        0.8298489999999967,
+        0.8788150000000021
+      ],
+      "pure_pipeline_cpu_median": 0.8764390000000009,
+      "read_wall_seconds": [
+        0.014802333200350404,
+        0.01676891907118261,
+        0.017523210146464407,
+        0.017131251050159335,
+        0.01499583211261779
+      ]
+    },
+    "disabled-default": {
+      "files": 1,
+      "rows": 995,
+      "cpu_stage_medians": {
+        "read": 0.000408000000000186,
+        "json_decode": 0.001122999999999763,
+        "model_validate": 0.002794999999999881,
+        "to_dict": 0.0016179999999998973,
+        "json_encode": 0.0012460000000000804
+      },
+      "pure_pipeline_cpu_seconds": [
+        0.007035999999999931,
+        0.006920999999999733,
+        0.006609000000000087,
+        0.006708000000000158,
+        0.006821000000001298
+      ],
+      "pure_pipeline_cpu_median": 0.006821000000001298,
+      "read_wall_seconds": [
+        0.0003535000141710043,
+        0.00037233298644423485,
+        0.0005762089276686311,
+        0.0004947079578414559,
+        0.0005961250280961394
+      ]
+    },
+    "legacy-root": {
+      "files": 1,
+      "rows": 267,
+      "cpu_stage_medians": {
+        "read": 0.0002570000000003958,
+        "json_decode": 0.00022300000000008424,
+        "model_validate": 0.0006380000000003605,
+        "to_dict": 0.00037700000000029377,
+        "json_encode": 0.00029799999999990945
+      },
+      "pure_pipeline_cpu_seconds": [
+        0.0015739999999997423,
+        0.0015049999999998676,
+        0.0016160000000002839,
+        0.001564000000001009,
+        0.0014950000000002461
+      ],
+      "pure_pipeline_cpu_median": 0.001564000000001009,
+      "read_wall_seconds": [
+        0.0002816669875755906,
+        0.00042474991641938686,
+        0.0003477089339867234,
+        0.0003737499937415123,
+        0.0002758329501375556
+      ]
+    },
+    "all": {
+      "files": 14,
+      "rows": 89454,
+      "cpu_stage_medians": {
+        "read": 0.014787000000001882,
+        "json_decode": 0.11435000000000084,
+        "model_validate": 0.3904989999999994,
+        "to_dict": 0.28099200000000124,
+        "json_encode": 0.12816099999999953
+      },
+      "pure_pipeline_cpu_seconds": [
+        0.9218199999999996,
+        0.8509859999999987,
+        0.8846640000000012,
+        0.8381209999999979,
+        0.8871310000000037
+      ],
+      "pure_pipeline_cpu_median": 0.8846640000000012,
+      "read_wall_seconds": [
+        0.015437500202096999,
+        0.01756600197404623,
+        0.018447128008119762,
+        0.017999709001742303,
+        0.015867790090851486
+      ]
+    }
+  },
+  "profile_elapsed": {
+    "cpu_seconds": 1.3077309999999995,
+    "wall_seconds": 1.346140292007476
+  },
+  "profile_top_cumulative": [
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/engine_snapshot_profile.py",
+      "line": 51,
+      "function": "pure_pipeline",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.066339625,
+      "cumulative_seconds": 1.2937588740000001
+    },
+    {
+      "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+      "line": 253,
+      "function": "__init__",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.025484488000000003,
+      "cumulative_seconds": 0.7400438650000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.17868683900000001,
+      "cumulative_seconds": 0.714559377
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 45,
+      "function": "_coerce_decimal",
+      "primitive_calls": 380327,
+      "calls": 380327,
+      "self_seconds": 0.280636704,
+      "cumulative_seconds": 0.30962068400000003
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 441,
+      "function": "_snapshot_to_dict",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.138725699,
+      "cumulative_seconds": 0.23266601
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 88,
+      "function": "coerce_balances",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.048220999,
+      "cumulative_seconds": 0.18957284200000002
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 98,
+      "function": "coerce_current_prices",
+      "primitive_calls": 89187,
+      "calls": 89187,
+      "self_seconds": 0.104814392,
+      "cumulative_seconds": 0.166435845
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 108,
+      "function": "coerce_pnl",
+      "primitive_calls": 178908,
+      "calls": 178908,
+      "self_seconds": 0.030259525000000002,
+      "cumulative_seconds": 0.155772459
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+      "line": 183,
+      "function": "dumps",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 7.658300000000001e-05,
+      "cumulative_seconds": 0.13621491500000002
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 183,
+      "function": "encode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 9.250000000000001e-05,
+      "cumulative_seconds": 0.136118124
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 205,
+      "function": "iterencode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.13597641400000002,
+      "cumulative_seconds": 0.13597920700000002
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+      "line": 299,
+      "function": "loads",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.000470295,
+      "cumulative_seconds": 0.11849445900000001
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+      "line": 339,
+      "function": "decode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 8.837700000000001e-05,
+      "cumulative_seconds": 0.11800875000000001
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+      "line": 350,
+      "function": "raw_decode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.11774954100000001,
+      "cumulative_seconds": 0.11774954100000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'isoformat' of 'datetime.datetime' objects>",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.07725171700000001,
+      "cumulative_seconds": 0.07725171700000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'items' of 'dict' objects>",
+      "primitive_calls": 357549,
+      "calls": 357549,
+      "self_seconds": 0.035554140000000005,
+      "cumulative_seconds": 0.035554140000000005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.isinstance>",
+      "primitive_calls": 380383,
+      "calls": 380383,
+      "self_seconds": 0.029026022000000002,
+      "cumulative_seconds": 0.029026022000000002
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 114,
+      "function": "_coerce_timestamp_to_utc",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.016573055,
+      "cumulative_seconds": 0.024091392000000003
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/time.py",
+      "line": 68,
+      "function": "ensure_utc",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.007518337000000001,
+      "cumulative_seconds": 0.007518337000000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'match' of 're.Pattern' objects>",
+      "primitive_calls": 28,
+      "calls": 28,
+      "self_seconds": 0.000149584,
+      "cumulative_seconds": 0.000149584
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+      "primitive_calls": 1,
+      "calls": 1,
+      "self_seconds": 2.3500000000000002e-05,
+      "cumulative_seconds": 2.3500000000000002e-05
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 105,
+      "function": "__init__",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 2.0208e-05,
+      "cumulative_seconds": 2.0208e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'end' of 're.Match' objects>",
+      "primitive_calls": 28,
+      "calls": 28,
+      "self_seconds": 1.2874e-05,
+      "cumulative_seconds": 1.2874e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'join' of 'str' objects>",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 1.2502000000000002e-05,
+      "cumulative_seconds": 1.2502000000000002e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'startswith' of 'str' objects>",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 1.008e-05,
+      "cumulative_seconds": 1.008e-05
+    }
+  ],
+  "profile_top_self": [
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 45,
+      "function": "_coerce_decimal",
+      "primitive_calls": 380327,
+      "calls": 380327,
+      "self_seconds": 0.280636704,
+      "cumulative_seconds": 0.30962068400000003
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.17868683900000001,
+      "cumulative_seconds": 0.714559377
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 441,
+      "function": "_snapshot_to_dict",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.138725699,
+      "cumulative_seconds": 0.23266601
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 205,
+      "function": "iterencode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.13597641400000002,
+      "cumulative_seconds": 0.13597920700000002
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+      "line": 350,
+      "function": "raw_decode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.11774954100000001,
+      "cumulative_seconds": 0.11774954100000001
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 98,
+      "function": "coerce_current_prices",
+      "primitive_calls": 89187,
+      "calls": 89187,
+      "self_seconds": 0.104814392,
+      "cumulative_seconds": 0.166435845
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'isoformat' of 'datetime.datetime' objects>",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.07725171700000001,
+      "cumulative_seconds": 0.07725171700000001
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/engine_snapshot_profile.py",
+      "line": 51,
+      "function": "pure_pipeline",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.066339625,
+      "cumulative_seconds": 1.2937588740000001
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 88,
+      "function": "coerce_balances",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.048220999,
+      "cumulative_seconds": 0.18957284200000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'items' of 'dict' objects>",
+      "primitive_calls": 357549,
+      "calls": 357549,
+      "self_seconds": 0.035554140000000005,
+      "cumulative_seconds": 0.035554140000000005
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 108,
+      "function": "coerce_pnl",
+      "primitive_calls": 178908,
+      "calls": 178908,
+      "self_seconds": 0.030259525000000002,
+      "cumulative_seconds": 0.155772459
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.isinstance>",
+      "primitive_calls": 380383,
+      "calls": 380383,
+      "self_seconds": 0.029026022000000002,
+      "cumulative_seconds": 0.029026022000000002
+    },
+    {
+      "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+      "line": 253,
+      "function": "__init__",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.025484488000000003,
+      "cumulative_seconds": 0.7400438650000001
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+      "line": 114,
+      "function": "_coerce_timestamp_to_utc",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.016573055,
+      "cumulative_seconds": 0.024091392000000003
+    },
+    {
+      "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/time.py",
+      "line": 68,
+      "function": "ensure_utc",
+      "primitive_calls": 89454,
+      "calls": 89454,
+      "self_seconds": 0.007518337000000001,
+      "cumulative_seconds": 0.007518337000000001
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+      "line": 299,
+      "function": "loads",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 0.000470295,
+      "cumulative_seconds": 0.11849445900000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'match' of 're.Pattern' objects>",
+      "primitive_calls": 28,
+      "calls": 28,
+      "self_seconds": 0.000149584,
+      "cumulative_seconds": 0.000149584
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 183,
+      "function": "encode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 9.250000000000001e-05,
+      "cumulative_seconds": 0.136118124
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+      "line": 339,
+      "function": "decode",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 8.837700000000001e-05,
+      "cumulative_seconds": 0.11800875000000001
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+      "line": 183,
+      "function": "dumps",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 7.658300000000001e-05,
+      "cumulative_seconds": 0.13621491500000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'disable' of '_lsprof.Profiler' objects>",
+      "primitive_calls": 1,
+      "calls": 1,
+      "self_seconds": 2.3500000000000002e-05,
+      "cumulative_seconds": 2.3500000000000002e-05
+    },
+    {
+      "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/encoder.py",
+      "line": 105,
+      "function": "__init__",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 2.0208e-05,
+      "cumulative_seconds": 2.0208e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'end' of 're.Match' objects>",
+      "primitive_calls": 28,
+      "calls": 28,
+      "self_seconds": 1.2874e-05,
+      "cumulative_seconds": 1.2874e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'join' of 'str' objects>",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 1.2502000000000002e-05,
+      "cumulative_seconds": 1.2502000000000002e-05
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'startswith' of 'str' objects>",
+      "primitive_calls": 14,
+      "calls": 14,
+      "self_seconds": 1.008e-05,
+      "cumulative_seconds": 1.008e-05
+    }
+  ]
+}

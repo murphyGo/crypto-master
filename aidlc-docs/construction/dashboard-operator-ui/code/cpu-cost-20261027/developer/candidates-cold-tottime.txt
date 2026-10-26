@@ -1,0 +1,48 @@
+         759 function calls (757 primitive calls) in 0.002 seconds
+
+   Ordered by: internal time
+   List reduced from 149 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.001    0.001    0.001    0.001 {built-in method posix.scandir}
+        1    0.000    0.000    0.000    0.000 {method 'read' of '_io.BufferedReader' objects}
+        2    0.000    0.000    0.000    0.000 {built-in method posix.open}
+        2    0.000    0.000    0.001    0.000 sources.py:115(scan)
+        1    0.000    0.000    0.000    0.000 {method 'to_python' of 'pydantic_core._pydantic_core.SchemaSerializer' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _io.open}
+        1    0.000    0.000    0.000    0.000 {method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+        9    0.000    0.000    0.000    0.000 {built-in method posix.stat}
+        1    0.000    0.000    0.000    0.000 projections.py:881(add)
+        2    0.000    0.000    0.000    0.000 projections.py:171(size)
+        3    0.000    0.000    0.002    0.001 projections.py:1121(build_projection)
+       37    0.000    0.000    0.000    0.000 {built-in method sys.intern}
+        6    0.000    0.000    0.000    0.000 _local.py:257(_parse_path)
+        1    0.000    0.000    0.001    0.001 sources.py:188(discover)
+        1    0.000    0.000    0.000    0.000 _generate_schema.py:527(path_validator)
+        9    0.000    0.000    0.000    0.000 _local.py:117(__init__)
+        1    0.000    0.000    0.000    0.000 {method '__exit__' of '_io._IOBase' objects}
+        1    0.000    0.000    0.000    0.000 sources.py:88(add)
+        1    0.000    0.000    0.000    0.000 projections.py:233(add)
+        1    0.000    0.000    0.000    0.000 projections.py:770(__init__)
+      107    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+        2    0.000    0.000    0.000    0.000 bounded_read.py:47(_blocks)
+        4    0.000    0.000    0.000    0.000 sources.py:51(_sources)
+        2    0.000    0.000    0.000    0.000 sources.py:154(verify)
+       16    0.000    0.000    0.000    0.000 _local.py:227(__str__)
+        1    0.000    0.000    0.000    0.000 enum.py:1322(value)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+        1    0.000    0.000    0.000    0.000 projections.py:1015(finish)
+       23    0.000    0.000    0.000    0.000 dataclasses.py:1331(is_dataclass)
+        8    0.000    0.000    0.000    0.000 _local.py:289(drive)
+        9    0.000    0.000    0.000    0.000 _local.py:498(__init__)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.close}
+        1    0.000    0.000    0.002    0.002 profile_baseline.py:24(consume)
+        1    0.000    0.000    0.000    0.000 decoder.py:350(raw_decode)
+        3    0.000    0.000    0.000    0.000 bounded_read.py:144(json_object)
+        1    0.000    0.000    0.000    0.000 _local.py:365(relative_to)
+        8    0.000    0.000    0.000    0.000 _abc.py:130(with_segments)
+        4    0.000    0.000    0.000    0.000 <frozen posixpath>:71(join)
+        5    0.000    0.000    0.000    0.000 bounded_read.py:41(capture)
+        8    0.000    0.000    0.000    0.000 <string>:2(__init__)
+
+

@@ -1,0 +1,48 @@
+         4963810 function calls in 2.091 seconds
+
+   Ordered by: cumulative time
+   List reduced from 107 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        5    0.000    0.000    2.135    0.427 profile_baseline.py:56(<lambda>)
+        5    0.001    0.000    2.135    0.427 profile_baseline.py:24(consume)
+       10    0.000    0.000    2.134    0.213 projections.py:1121(build_projection)
+        5    0.007    0.001    1.215    0.243 {built-in method builtins.sum}
+    65425    0.021    0.000    1.208    0.000 projections.py:1143(<genexpr>)
+    65425    0.012    0.000    1.186    0.000 sources.py:39(files)
+    65425    0.124    0.000    1.174    0.000 sources.py:51(_sources)
+    65420    0.045    0.000    0.722    0.000 _local.py:329(parent)
+        5    0.035    0.007    0.546    0.109 sources.py:188(discover)
+    65485    0.058    0.000    0.447    0.000 _local.py:289(drive)
+    65420    0.071    0.000    0.380    0.000 sources.py:132(add_entry)
+   130905    0.063    0.000    0.324    0.000 _abc.py:130(with_segments)
+        5    0.035    0.007    0.306    0.061 sources.py:154(verify)
+    65420    0.264    0.000    0.264    0.000 {method 'stat' of 'posix.DirEntry' objects}
+    65630    0.250    0.000    0.252    0.000 {built-in method posix.stat}
+    65485    0.122    0.000    0.247    0.000 _local.py:257(_parse_path)
+    65420    0.027    0.000    0.221    0.000 _local.py:245(_from_parsed_parts)
+   130905    0.050    0.000    0.218    0.000 _local.py:498(__init__)
+    65485    0.014    0.000    0.192    0.000 _local.py:148(__truediv__)
+   130905    0.101    0.000    0.168    0.000 _local.py:117(__init__)
+    65420    0.015    0.000    0.162    0.000 _local.py:252(_from_parsed_string)
+    65485    0.034    0.000    0.143    0.000 _local.py:277(_raw_path)
+    65555    0.103    0.000    0.112    0.000 sources.py:115(scan)
+    65485    0.056    0.000    0.099    0.000 <frozen posixpath>:71(join)
+   457770    0.082    0.000    0.082    0.000 {built-in method sys.intern}
+        5    0.028    0.006    0.054    0.011 sources.py:70(digest)
+   130905    0.026    0.000    0.043    0.000 _local.py:505(__new__)
+   400710    0.037    0.000    0.037    0.000 {built-in method builtins.isinstance}
+    65560    0.033    0.000    0.033    0.000 <string>:2(__init__)
+    65485    0.018    0.000    0.032    0.000 _local.py:237(_format_parsed_parts)
+    65485    0.026    0.000    0.026    0.000 {built-in method posix._path_splitroot_ex}
+   130840    0.024    0.000    0.024    0.000 {built-in method _struct.pack}
+   196325    0.024    0.000    0.024    0.000 {method 'append' of 'list' objects}
+   130840    0.023    0.000    0.023    0.000 {method 'split' of 'bytes' objects}
+   261875    0.022    0.000    0.022    0.000 {built-in method posix.fspath}
+    65490    0.014    0.000    0.019    0.000 _local.py:346(name)
+    65485    0.012    0.000    0.018    0.000 <frozen posixpath>:41(_get_sep)
+    65485    0.017    0.000    0.017    0.000 {method 'split' of 'str' objects}
+   130905    0.017    0.000    0.017    0.000 {built-in method __new__ of type object at 0x105cb7cd0}
+   130845    0.017    0.000    0.017    0.000 {method 'decode' of 'bytes' objects}
+
+

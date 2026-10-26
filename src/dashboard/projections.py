@@ -1137,13 +1137,6 @@ def build_projection(
         and checkpoint_store.prepare(query)
     )
     manifest = discover(query, limits, get_settings().log_retention_months)
-    # Small proposal JSON objects already validate cheaply. Measured pack/key/
-    # proof overhead exceeds the saved parse cost below this average size.
-    # Keep their canonical path and existing fresh scalar reuse unchanged.
-    if query.kind == "proposals" and sum(
-        source.generation.size for source in manifest.files
-    ) < 16 * 1024 * max(1, manifest.file_count):
-        cache_prepared = False
     digest = manifest.digest()
     if previous is not None:
         cached = json.loads(previous)
@@ -1156,6 +1149,16 @@ def build_projection(
             yield refreshed
             return
         del cached
+    # Decide optional checkpoint admission only if a rebuild can use it.
+    # Unchanged verified projections and disabled stores need no Source walk
+    # for this heuristic. The existing small-file threshold stays exact.
+    if (
+        cache_prepared
+        and query.kind == "proposals"
+        and sum(source.generation.size for source in manifest.files)
+        < 16 * 1024 * max(1, manifest.file_count)
+    ):
+        cache_prepared = False
     reducer = (
         ActivityProjection(query, budget)
         if query.kind == "activity"

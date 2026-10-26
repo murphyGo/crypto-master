@@ -1,0 +1,48 @@
+{
+  "baseline_commit": "2eae9cf74d33e52b5058e2a5597f2e3a76e86cdd",
+  "scope": "Skip unused proposal checkpoint-size heuristic only; source discovery/digest/verification, exact threshold, freshness, budgets and trading semantics unchanged.",
+  "modified_files": [
+    "src/dashboard/projections.py",
+    "tests/test_dashboard_proposal_refresh_cost.py"
+  ],
+  "baseline_regression": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/crypto-master-cpu-cost-20261027 LOG_FILE=/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/test.log /Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest tests/test_dashboard_proposal_refresh_cost.py -q",
+    "failed": 3,
+    "passed": 10,
+    "seconds": 2.23,
+    "failures": [
+      "unchanged prior enumerates optional Sources with no store",
+      "unchanged prior enumerates optional Sources with enabled store",
+      "prepare=False still enumerates optional Sources"
+    ]
+  },
+  "fixture_setup_correction": {
+    "initial_failed": 6,
+    "initial_passed": 7,
+    "seconds": 2.3,
+    "explanation": "Three extra boundary failures came from a nonexistent task-owned store root, so prepare returned False. Fixture now creates its store root; baseline then failed only the three intended cost regressions. No runtime source was changed before corrected red run."
+  },
+  "targeted": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/crypto-master-cpu-cost-20261027 LOG_FILE=/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/test.log /Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest tests/test_dashboard_proposal_refresh_cost.py tests/test_dashboard_projections.py tests/test_dashboard_segment_checkpoints.py tests/test_dashboard_data_service.py tests/test_dashboard_bounded_pages.py -q",
+    "passed": 153,
+    "seconds": 5.21,
+    "new_cases": 13
+  },
+  "static": {
+    "black": "2 files formatted",
+    "ruff": "2 files pass",
+    "mypy": "1 source file pass",
+    "git_diff_check": "pass"
+  },
+  "source_frozen": true,
+  "hashes": {
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "tests/test_dashboard_proposal_refresh_cost.py": "908a16f4940767811ec66b9115fb26c371fc954192571d032e3b0603ae8fe3b1"
+  },
+  "paired_benchmark": "paired-cpu-results.json",
+  "baseline_method_correction": "service-page-baseline-correction.json",
+  "limitations": [
+    "Local fixed-snapshot processCPU only; no production/native/depleted/1GiB acceptance",
+    "Existing runtime logging imports created an empty ignored worktree log on first profiling run; canonical snapshot never modified. Later logs explicitly routed into developer artifacts."
+  ]
+}

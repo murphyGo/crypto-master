@@ -1,0 +1,255 @@
+{
+  "scope": "Copy-ready diagnostic/source evidence; excludes raw copied runtime fixture, derived checkpoint stores, log files and binary profiler dumps. No extra production evidence inferred.",
+  "files": [
+    {
+      "name": "activity-cold-cumulative.txt",
+      "bytes": 3455,
+      "sha256": "94c89534cfffeeae9f69cdfc62eeb3a489e9a31bc0d17cada13485905c18570b"
+    },
+    {
+      "name": "activity-cold-tottime.txt",
+      "bytes": 3470,
+      "sha256": "61e26ab1ed14031d83995356295ed47a9e1e87b5da5e0fc0fc7f0cac52e306ec"
+    },
+    {
+      "name": "activity-revalidate-cumulative.txt",
+      "bytes": 3324,
+      "sha256": "20bb635c803c7f17671ce16be66ee097f1f11625f70cbecfaf9e370334c6de8e"
+    },
+    {
+      "name": "activity-revalidate-tottime.txt",
+      "bytes": 3413,
+      "sha256": "4fc2ca7d562f834e4acde62e2b51fa409635bc2d5f2e55dcf6ddc62e22b1b3e1"
+    },
+    {
+      "name": "append-baseline-cumulative.txt",
+      "bytes": 2672,
+      "sha256": "532e98db9b4cdcaa9965bd1a08fc658eec72eecb03326a5556a1b37d007f575b"
+    },
+    {
+      "name": "append-candidate-cumulative.txt",
+      "bytes": 2658,
+      "sha256": "33c5b88c23240a385e234f44bcb2bb288bb0147dea8c4e651d0c68010263b8fc"
+    },
+    {
+      "name": "append-profile.json",
+      "bytes": 1151,
+      "sha256": "f65452e645e42010444d1594db69210211e5dc47c394426012ddb60f599c94b6"
+    },
+    {
+      "name": "baseline-profile.json",
+      "bytes": 100738,
+      "sha256": "d10d47aa2f2493af9eefb42dbd6b1ab33c2319b4619fe8c2257f38c8a0261358"
+    },
+    {
+      "name": "baseline-projections.py",
+      "bytes": 57235,
+      "sha256": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab"
+    },
+    {
+      "name": "candidates-cold-cumulative.txt",
+      "bytes": 3253,
+      "sha256": "8ace7835605b4730b2f337e5455b459bac4e25e14abdbc98b2bf18ee38bf8062"
+    },
+    {
+      "name": "candidates-cold-tottime.txt",
+      "bytes": 3332,
+      "sha256": "9e5ab9763fe1c2ca0e22528a3ab6b5f45c2e63e4e3897e53151f7e0e4e6f7b8b"
+    },
+    {
+      "name": "candidates-revalidate-cumulative.txt",
+      "bytes": 3220,
+      "sha256": "d9386f6ae0f4619eb8f766772e0cbc0c5b4ff6e0e3698c91b60353b2078101e7"
+    },
+    {
+      "name": "candidates-revalidate-tottime.txt",
+      "bytes": 3253,
+      "sha256": "69ee12744eda9e855f64fdbef06b35a1f7f49bdb1664af8926bcc2431a891183"
+    },
+    {
+      "name": "developer-verification.json",
+      "bytes": 2729,
+      "sha256": "6d56f24db389684ea06840342f3b4c027551a6b7f23d50c8df8267914a10d817"
+    },
+    {
+      "name": "diagnosis-summary.json",
+      "bytes": 3990,
+      "sha256": "e10a86ce55386a3cb254dff9889e23e0ea36205a69785ec0aa55f95fcabe718d"
+    },
+    {
+      "name": "home-render-baseline-cumulative.txt",
+      "bytes": 3714,
+      "sha256": "7209de62c69762170d94c11f309d8c2bea0019257a0f08a967ed63be416723c2"
+    },
+    {
+      "name": "home-render-baseline-enabled-cumulative.txt",
+      "bytes": 3772,
+      "sha256": "8d6e01f79b8519b2de762ec0573a728340921686f103d9feb1be31bd36ab96ac"
+    },
+    {
+      "name": "home-render-baseline-enabled-tottime.txt",
+      "bytes": 3772,
+      "sha256": "735f05f1c5920481c6d4bb748fac3ac5c9b30c3837f8948df47f1605d61616ab"
+    },
+    {
+      "name": "home-render-baseline-tottime.txt",
+      "bytes": 3748,
+      "sha256": "3f0a2eaf50c64fd201849d24338c17185838397f3920963005543b29779aaf0e"
+    },
+    {
+      "name": "home-render-candidate-enabled-cumulative.txt",
+      "bytes": 3867,
+      "sha256": "9db3f2ddc738c39ca7812a3fc926529546fe42e04262d6aa8a68a3e3bb36220e"
+    },
+    {
+      "name": "home-render-candidate-enabled-tottime.txt",
+      "bytes": 3909,
+      "sha256": "03240f1e0c817dd7b2b6950ba09bf1ee6ba77813ee97646f03fe6b9f90ad1d8b"
+    },
+    {
+      "name": "input-manifest.json",
+      "bytes": 2309897,
+      "sha256": "1e4158c2c14dea9ddb5bf145c1af8d73e68ca77f393f8123ab801a11914c42fb"
+    },
+    {
+      "name": "ledger-cold-cumulative.txt",
+      "bytes": 3324,
+      "sha256": "e0e776485ab5c5050f1022a58fbff10f2aa21368a785eb3b2d781778d91fdc0a"
+    },
+    {
+      "name": "ledger-cold-tottime.txt",
+      "bytes": 3500,
+      "sha256": "0791abd46cb4a9a43dfc68ded37f3364d0cbfaa79ea0f811ce2ad4d5d94f178a"
+    },
+    {
+      "name": "ledger-revalidate-cumulative.txt",
+      "bytes": 3190,
+      "sha256": "1a60e86460c72f24aa4131d44d054a372ac87f70503629ff08dbf11e13cbd331"
+    },
+    {
+      "name": "ledger-revalidate-tottime.txt",
+      "bytes": 3223,
+      "sha256": "038d9e94bbc640cc0e7e0c47e68fc838b488d31e8c7461d0117559195def9652"
+    },
+    {
+      "name": "paired-cpu-results.json",
+      "bytes": 77032,
+      "sha256": "8c8d70b32e936065a63d48d4a75f5092bcdd26f269fbc1beaf1ce976252a0a85"
+    },
+    {
+      "name": "paired_benchmark.py",
+      "bytes": 6741,
+      "sha256": "fdb167d063ad109fddd57f9c0c89b9c4b01317c05d615f7aab88d3edeb9f362d"
+    },
+    {
+      "name": "profile_append.py",
+      "bytes": 3429,
+      "sha256": "338c867891bac1ff0cda2796be8ec5c79edc41261617ecaa35797033bc2edd8a"
+    },
+    {
+      "name": "profile_baseline.py",
+      "bytes": 4005,
+      "sha256": "7ecd54eb859267fa4035c33592713f54928838dee5596169f63a2699379b786c"
+    },
+    {
+      "name": "profile_service_pages.py",
+      "bytes": 5386,
+      "sha256": "7c9fdaaa4f96fe62a4f8ecf9a4fdc443d38aed93f593e46055bb7df786f62188"
+    },
+    {
+      "name": "profile_service_pages_initial.py",
+      "bytes": 4694,
+      "sha256": "2e2c0091994d72bea01a40d6d2f3c11ca8ca7712552d88a8ef4db8bee75195e4"
+    },
+    {
+      "name": "proposals-cold-cumulative.txt",
+      "bytes": 3228,
+      "sha256": "7f32659508776623d3f166804982c1cd131d1739e718ecac184a0457bf4c5cc4"
+    },
+    {
+      "name": "proposals-cold-tottime.txt",
+      "bytes": 3303,
+      "sha256": "9809f6c3f7e50c4cd04f18f3a0d1f39fd9262f89690a44f0da3892f1d8ae14a7"
+    },
+    {
+      "name": "proposals-revalidate-cumulative.txt",
+      "bytes": 3248,
+      "sha256": "7796a18d153d1c5d45d0a97c7efc6d89c626c14a0cc7b2a22f024cb28451217c"
+    },
+    {
+      "name": "proposals-revalidate-tottime.txt",
+      "bytes": 3258,
+      "sha256": "9425b580dfa7deb3f0ed71f06356ec7515950e64b305b38acc4b8dde0826200d"
+    },
+    {
+      "name": "service-page-baseline-correction.json",
+      "bytes": 493,
+      "sha256": "e711670a4f8b9775ff2e7e73156a3ca3f00f43052604be9c753715ff86d4b9c0"
+    },
+    {
+      "name": "service-page-baseline-enabled.json",
+      "bytes": 18040,
+      "sha256": "e4cf83d314176f52e6f56c80ac9c73ad830f74c08e811d1ad28f9a1eb0e5cd05"
+    },
+    {
+      "name": "service-page-baseline.json",
+      "bytes": 17964,
+      "sha256": "3611e52cb9422f7d5250c313e42b5f62e7205f2fb721afdb777c30294f1b01a2"
+    },
+    {
+      "name": "service-page-candidate-enabled.json",
+      "bytes": 18039,
+      "sha256": "31be44d41bcb51d0adfadb35c8ad43867d57249de659c5652a3908d7e2e63961"
+    },
+    {
+      "name": "snapshots-cold-cumulative.txt",
+      "bytes": 3531,
+      "sha256": "431784a402269dfbd3e351bcd2867dc14522e91f1642c54794e13ad54d112b21"
+    },
+    {
+      "name": "snapshots-cold-tottime.txt",
+      "bytes": 3515,
+      "sha256": "944eefc89df89999af2f2b9a17cc48be19fe4ea52970140413474167e3e44d5a"
+    },
+    {
+      "name": "snapshots-revalidate-cumulative.txt",
+      "bytes": 3226,
+      "sha256": "d883d2c467ed8ea7b91501952bfcf56ea5510175f3f7ab96dbcca8335c8f317f"
+    },
+    {
+      "name": "snapshots-revalidate-tottime.txt",
+      "bytes": 3244,
+      "sha256": "8e2234b448ff57860ded749d73284af73fc1c8e586ae4f80207dc48cab9b0d0f"
+    },
+    {
+      "name": "trading-render-baseline-cumulative.txt",
+      "bytes": 3698,
+      "sha256": "59c46b8439470fbeae8eabebf47acf959ae064aa6b67e3c7b5d61198eb372e04"
+    },
+    {
+      "name": "trading-render-baseline-enabled-cumulative.txt",
+      "bytes": 3715,
+      "sha256": "55b7bea54c57cbec351679121d004c683d38ccc37846ea7f2e511032e79665b3"
+    },
+    {
+      "name": "trading-render-baseline-enabled-tottime.txt",
+      "bytes": 3778,
+      "sha256": "4ae016db90403f1802b0cc685a661bda15dc90ffc64d4eda739c321d23b97131"
+    },
+    {
+      "name": "trading-render-baseline-tottime.txt",
+      "bytes": 3807,
+      "sha256": "b96398799470dbb3465ea4742c498f0dabb340cabf9073e8189d9e6fd9e5fc52"
+    },
+    {
+      "name": "trading-render-candidate-enabled-cumulative.txt",
+      "bytes": 3793,
+      "sha256": "f439ba6106924370ec3eac9d251259a52c4465337255a42f4678b66f27169ce4"
+    },
+    {
+      "name": "trading-render-candidate-enabled-tottime.txt",
+      "bytes": 3946,
+      "sha256": "883fa09d91b77e964907b0c57310299be14cd584df607f73b498e54663d3340a"
+    }
+  ]
+}

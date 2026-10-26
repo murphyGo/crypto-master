@@ -1,0 +1,45 @@
+{
+  "role": "independent qa-reviewer",
+  "verdict": "GREEN",
+  "blockers": [],
+  "baseline": "2eae9cf74d33e52b5058e2a5597f2e3a76e86cdd",
+  "source_diff": "diff --git a/src/dashboard/projections.py b/src/dashboard/projections.py\nindex 7c6fcba..ca02108 100644\n--- a/src/dashboard/projections.py\n+++ b/src/dashboard/projections.py\n@@ -1137,13 +1137,6 @@ def build_projection(\n         and checkpoint_store.prepare(query)\n     )\n     manifest = discover(query, limits, get_settings().log_retention_months)\n-    # Small proposal JSON objects already validate cheaply. Measured pack/key/\n-    # proof overhead exceeds the saved parse cost below this average size.\n-    # Keep their canonical path and existing fresh scalar reuse unchanged.\n-    if query.kind == \"proposals\" and sum(\n-        source.generation.size for source in manifest.files\n-    ) < 16 * 1024 * max(1, manifest.file_count):\n-        cache_prepared = False\n     digest = manifest.digest()\n     if previous is not None:\n         cached = json.loads(previous)\n@@ -1156,6 +1149,16 @@ def build_projection(\n             yield refreshed\n             return\n         del cached\n+    # Decide optional checkpoint admission only if a rebuild can use it.\n+    # Unchanged verified projections and disabled stores need no Source walk\n+    # for this heuristic. The existing small-file threshold stays exact.\n+    if (\n+        cache_prepared\n+        and query.kind == \"proposals\"\n+        and sum(source.generation.size for source in manifest.files)\n+        < 16 * 1024 * max(1, manifest.file_count)\n+    ):\n+        cache_prepared = False\n     reducer = (\n         ActivityProjection(query, budget)\n         if query.kind == \"activity\"\n",
+  "exact_input_hashes": {
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "tests/test_dashboard_proposal_refresh_cost.py": "908a16f4940767811ec66b9115fb26c371fc954192571d032e3b0603ae8fe3b1"
+  },
+  "other_reviewed_proof_and_service_inputs_unchanged": {
+    "src/dashboard/checkpoint_store.py": true,
+    "src/dashboard/sources.py": true,
+    "src/dashboard/segment_checkpoints.py": true,
+    "src/dashboard/data_service.py": true,
+    "src/dashboard/read_models.py": true,
+    "scripts/observe_dashboard_protocol.py": true
+  },
+  "tests": {
+    "targeted": {
+      "result": "175 passed in 4.60s",
+      "files": [
+        "tests/test_dashboard_proposal_refresh_cost.py",
+        "tests/test_dashboard_projections.py",
+        "tests/test_dashboard_segment_checkpoints.py",
+        "tests/test_dashboard_data_service.py",
+        "tests/test_bounded_read.py"
+      ],
+      "output": "targeted-tests.txt"
+    },
+    "black": "2 files unchanged",
+    "ruff": "2 files passed",
+    "mypy": "Success: no issues found in 135 source files",
+    "mypy_output": "mypy-src.txt",
+    "extra_boundary_proof": "window-boundary-proof.json"
+  },
+  "review_conclusion": [
+    "Only unused checkpoint eligibility enumeration removed; no metadata generation, membership, file validation, result schema, canonical reducer or scheduling change.",
+    "Prepared-store prior path and prepare-false path explicitly exercised, strict16KiB equality and mixed averages retained.",
+    "Concurrent file/member mutation still fails source_changed; malformed changed data is revalidated and rejected; reverse evaluation clock still fails.",
+    "Extra independent proof covers both stores enabled/disabled: exact24h lower boundary inclusive, +1us expiry/new future inclusion, complete canonical output parity and unchanged lifetime threshold."
+  ],
+  "production_interpretation": "This is source correctness QA and local CPU diagnosis only. No operational acceptance inferred, no production query/load added. Parent owns full suite and release verification. Historical v66 FAIL_SAMPLE and native/cold/depleted/original1GiB gates remain unchanged.",
+  "performance_review_note": "Developer paired benchmark is separate. Prepared-store baseline correction retained; use only confirmed prepareTrue final paired measurements for enabled-store claims. Avoid equating unprofiled process CPU reduction with guest health recovery."
+}

@@ -1,0 +1,3051 @@
+{
+  "baseline": "2eae9cf74d33e52b5058e2a5597f2e3a76e86cdd",
+  "method": "Exact production build_projection, main-thread cProfile, warmed application imports and OS cache. Fixed-time full-payload equality. Repeated unchanged refresh deliberately revalidates every generation, modelling a service result expired by a20s poll; no fresh-cache bypass. CPU diagnosis, not browser/guest qualification.",
+  "fixture_root": "/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z",
+  "fixed_now": "2026-10-25T10:50:02+00:00",
+  "accounts": [
+    "bollinger_band_reversion",
+    "default",
+    "ma_crossover",
+    "momentum_pinball_orb",
+    "raschke_holy_grail",
+    "rsi_15m",
+    "rsi_4h",
+    "rsi_universal",
+    "session_vwap_pullback",
+    "turtle_soup_reclaim",
+    "vcp_breakout",
+    "vwap_mean_reversion",
+    "weinstein_stage2_filter"
+  ],
+  "variants": [
+    {
+      "label": "activity-cold",
+      "repeats": 1,
+      "cpu_seconds": [
+        2.9339349999999995
+      ],
+      "wall_seconds": [
+        2.95945991599001
+      ],
+      "payload": {
+        "bytes": 186102,
+        "sha256": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 54,
+          "name": "<lambda>",
+          "calls": 1,
+          "self": 1.4990000000000002e-06,
+          "cumulative": 2.9594065410000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 1,
+          "self": 0.001693286,
+          "cumulative": 2.959405042
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 2363,
+          "self": 0.0008746660000000001,
+          "cumulative": 2.9577064230000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1099,
+          "name": "_reduce_activity_source",
+          "calls": 2368,
+          "self": 0.116769015,
+          "cumulative": 2.9224527140000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 328,
+          "name": "add_json",
+          "calls": 229677,
+          "self": 0.122715844,
+          "cumulative": 2.487560201
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 344,
+          "name": "add_event",
+          "calls": 229677,
+          "self": 0.8397178980000001,
+          "cumulative": 1.805456294
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 24852,
+          "self": 0.0082923,
+          "cumulative": 0.654786557
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 30789,
+          "self": 0.24174947300000002,
+          "cumulative": 0.624500127
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 24852,
+          "self": 0.013627138,
+          "cumulative": 0.581365161
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 229677,
+          "self": 0.47543372100000003,
+          "cumulative": 0.5433613890000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 174,
+          "name": "reverse_jsonl_bytes",
+          "calls": 231151,
+          "self": 0.163206499,
+          "cumulative": 0.31809353900000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'get' of 'dict' objects>",
+          "calls": 1232144,
+          "self": 0.140888644,
+          "cumulative": 0.140888644
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1308,
+          "name": "fields",
+          "calls": 9340,
+          "self": 0.08655815500000001,
+          "cumulative": 0.096589034
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 826921,
+          "self": 0.086672078,
+          "cumulative": 0.086672078
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'rfind' of 'bytes' objects>",
+          "calls": 232602,
+          "self": 0.079982684,
+          "cumulative": 0.079982684
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 159856,
+          "self": 0.050096925,
+          "cumulative": 0.078003995
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/runtime/activity_events.py",
+          "line": 485,
+          "name": "_coerce_timestamp_to_utc",
+          "calls": 229734,
+          "self": 0.046400741,
+          "cumulative": 0.067945873
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'match' of 're.Pattern' objects>",
+          "calls": 229677,
+          "self": 0.047997907000000006,
+          "cumulative": 0.047997907000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.len>",
+          "calls": 475550,
+          "self": 0.044999891,
+          "cumulative": 0.045005562000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'extend' of 'list' objects>",
+          "calls": 50962,
+          "self": 0.017887594,
+          "cumulative": 0.042872981000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 448934,
+          "self": 0.035410017,
+          "cumulative": 0.035410017
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 200599,
+          "self": 0.033067305000000005,
+          "cumulative": 0.033067305000000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 593,
+          "name": "finish",
+          "calls": 1,
+          "self": 0.006856213000000001,
+          "cumulative": 0.031868334000000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'startswith' of 'str' objects>",
+          "calls": 253323,
+          "self": 0.028422558,
+          "cumulative": 0.028422558
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 247642,
+          "self": 0.026089268000000002,
+          "cumulative": 0.026089268000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 233,
+          "name": "add",
+          "calls": 414,
+          "self": 0.000442775,
+          "cumulative": 0.025512430000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'add' of 'set' objects>",
+          "calls": 200746,
+          "self": 0.025440758,
+          "cumulative": 0.025440758
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'strip' of 'bytes' objects>",
+          "calls": 229677,
+          "self": 0.025036406,
+          "cumulative": 0.025036406
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 187,
+          "name": "<genexpr>",
+          "calls": 92900,
+          "self": 0.016201956,
+          "cumulative": 0.024985387
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/time.py",
+          "line": 68,
+          "name": "ensure_utc",
+          "calls": 229736,
+          "self": 0.02102245,
+          "cumulative": 0.021546716
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'read' of '_io.BufferedReader' objects>",
+          "calls": 1467,
+          "self": 0.021288513000000002,
+          "cumulative": 0.021288513000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 130,
+          "name": "__init__",
+          "calls": 229677,
+          "self": 0.017414748,
+          "cumulative": 0.017414748
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 484,
+          "name": "_add_details",
+          "calls": 11808,
+          "self": 0.010295014,
+          "cumulative": 0.0162376
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 306,
+          "name": "model_fields_set",
+          "calls": 229677,
+          "self": 0.016026674,
+          "cumulative": 0.016026674
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.getattr>",
+          "calls": 132524,
+          "self": 0.014791129,
+          "cumulative": 0.014798004000000002
+        }
+      ]
+    },
+    {
+      "label": "activity-revalidate",
+      "repeats": 5,
+      "cpu_seconds": [
+        0.017748000000000097,
+        0.01810400000000012,
+        0.017707000000000583,
+        0.017693999999999654,
+        0.017865999999999715
+      ],
+      "wall_seconds": [
+        0.017995166941545904,
+        0.01841958297882229,
+        0.01821274997200817,
+        0.017833791091106832,
+        0.018484166939742863
+      ],
+      "payload": {
+        "bytes": 186102,
+        "sha256": "e914f9f2b91e34b8110d542af08bbeea760f936e7d6e7c1490de1624334089d7"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 56,
+          "name": "<lambda>",
+          "calls": 5,
+          "self": 5.001e-06,
+          "cumulative": 0.090278418
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 5,
+          "self": 4.1415e-05,
+          "cumulative": 0.09027341700000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 10,
+          "self": 7.8787e-05,
+          "cumulative": 0.09020741700000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 5,
+          "self": 3.917e-06,
+          "cumulative": 0.07563104300000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 5,
+          "self": 0.000362585,
+          "cumulative": 0.075627126
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 5,
+          "self": 0.038189970000000004,
+          "cumulative": 0.075253417
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 21885,
+          "self": 0.006068386,
+          "cumulative": 0.009450383000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 72725,
+          "self": 0.006736784,
+          "cumulative": 0.006736784
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 94720,
+          "self": 0.006532591000000001,
+          "cumulative": 0.006532591000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 67200,
+          "self": 0.005596987,
+          "cumulative": 0.005596987
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 5,
+          "self": 1.7456e-05,
+          "cumulative": 0.004750501000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 339,
+          "name": "decode",
+          "calls": 5,
+          "self": 1.5041e-05,
+          "cumulative": 0.004621916
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 350,
+          "name": "raw_decode",
+          "calls": 5,
+          "self": 0.004597375,
+          "cumulative": 0.004597375
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1318,
+          "name": "refresh_projection",
+          "calls": 5,
+          "self": 0.00018359300000000002,
+          "cumulative": 0.004132917
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'add' of 'set' objects>",
+          "calls": 28090,
+          "self": 0.0040467540000000005,
+          "cumulative": 0.0040467540000000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1372,
+          "name": "bounded_safety",
+          "calls": 5,
+          "self": 0.000697675,
+          "cumulative": 0.003833
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 5,
+          "self": 0.00010591600000000001,
+          "cumulative": 0.003800209
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 27555,
+          "self": 0.0037825330000000002,
+          "cumulative": 0.0037825330000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/runtime/safety_score.py",
+          "line": 217,
+          "name": "inputs_from_activity_events",
+          "calls": 285,
+          "self": 0.00016650900000000001,
+          "cumulative": 0.001777513
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 5,
+          "self": 0.00010200500000000001,
+          "cumulative": 0.001716042
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'extend' of 'list' objects>",
+          "calls": 10485,
+          "self": 0.0016619830000000001,
+          "cumulative": 0.0016619830000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.hasattr>",
+          "calls": 21885,
+          "self": 0.001637413,
+          "cumulative": 0.001637413
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 40,
+          "self": 2.8869e-05,
+          "cumulative": 0.0016089600000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 40,
+          "self": 0.000766126,
+          "cumulative": 0.001448127
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 88,
+          "name": "add",
+          "calls": 40,
+          "self": 0.000105036,
+          "cumulative": 0.0012561240000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.open>",
+          "calls": 5,
+          "self": 0.0012138750000000001,
+          "cumulative": 0.001219168
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/runtime/safety_score.py",
+          "line": 190,
+          "name": "add",
+          "calls": 285,
+          "self": 0.000338329,
+          "cumulative": 0.0012084230000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 585,
+          "self": 0.00073643,
+          "cumulative": 0.000916095
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 693,
+          "name": "model_validate",
+          "calls": 285,
+          "self": 8.4659e-05,
+          "cumulative": 0.000746675
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 125,
+          "self": 0.000645612,
+          "cumulative": 0.000679239
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 365,
+          "name": "relative_to",
+          "calls": 35,
+          "self": 0.00010073300000000001,
+          "cumulative": 0.0006785410000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'keys' of 'dict' objects>",
+          "calls": 4815,
+          "self": 0.0005726360000000001,
+          "cumulative": 0.0005726360000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'values' of 'dict' objects>",
+          "calls": 4815,
+          "self": 0.000559592,
+          "cumulative": 0.000559592
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.scandir>",
+          "calls": 5,
+          "self": 0.000548957,
+          "cumulative": 0.000550709
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 510,
+          "name": "stat",
+          "calls": 90,
+          "self": 2.1267e-05,
+          "cumulative": 0.00046042600000000005
+        }
+      ]
+    },
+    {
+      "label": "ledger-cold",
+      "repeats": 1,
+      "cpu_seconds": [
+        0.2370650000000003
+      ],
+      "wall_seconds": [
+        0.23984166700392962
+      ],
+      "payload": {
+        "bytes": 28951,
+        "sha256": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 54,
+          "name": "<lambda>",
+          "calls": 1,
+          "self": 9.58e-07,
+          "cumulative": 0.239795416
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 1,
+          "self": 2.6956e-05,
+          "cumulative": 0.23979445800000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 27,
+          "self": 0.002181335,
+          "cumulative": 0.23976333500000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 226,
+          "name": "json_array_records",
+          "calls": 1313,
+          "self": 0.000651454,
+          "cumulative": 0.16832111700000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 238,
+          "name": "json_array_bytes",
+          "calls": 1313,
+          "self": 0.086756206,
+          "cumulative": 0.156020119
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 881,
+          "name": "add",
+          "calls": 1276,
+          "self": 0.002544297,
+          "cumulative": 0.063739103
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 233,
+          "name": "add",
+          "calls": 1276,
+          "self": 0.0010881830000000002,
+          "cumulative": 0.046917539
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 262,
+          "self": 0.000257292,
+          "cumulative": 0.046843220000000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 468,
+          "self": 0.021433623000000002,
+          "cumulative": 0.046185109
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'search' of 're.Pattern' objects>",
+          "calls": 108006,
+          "self": 0.025088669,
+          "cumulative": 0.025088669
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 262,
+          "self": 0.000277025,
+          "cumulative": 0.024872706
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.len>",
+          "calls": 217973,
+          "self": 0.015772384,
+          "cumulative": 0.015791308
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'extend' of 'bytearray' objects>",
+          "calls": 105441,
+          "self": 0.014148939000000001,
+          "cumulative": 0.014148939000000001
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 693,
+          "name": "model_validate",
+          "calls": 1276,
+          "self": 0.000434547,
+          "cumulative": 0.012259545
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 1276,
+          "self": 0.005915022000000001,
+          "cumulative": 0.011824998000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 74,
+          "name": "_object",
+          "calls": 1276,
+          "self": 0.0007508770000000001,
+          "cumulative": 0.011646876
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 1276,
+          "self": 0.001311157,
+          "cumulative": 0.010794532
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'end' of 're.Match' objects>",
+          "calls": 110547,
+          "self": 0.010747169,
+          "cumulative": 0.010747169
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 20272,
+          "self": 0.005915437,
+          "cumulative": 0.009084157
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 75949,
+          "self": 0.007382922,
+          "cumulative": 0.007382922
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 339,
+          "name": "decode",
+          "calls": 1276,
+          "self": 0.001206206,
+          "cumulative": 0.007292669000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 350,
+          "name": "raw_decode",
+          "calls": 1276,
+          "self": 0.005189643000000001,
+          "cumulative": 0.005189643000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/pydantic_mixins.py",
+          "line": 16,
+          "name": "_coerce_decimal_fields",
+          "calls": 10186,
+          "self": 0.0042133380000000005,
+          "cumulative": 0.005123535
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 1,
+          "self": 5.1741000000000005e-05,
+          "cumulative": 0.003768916
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 47,
+          "name": "_blocks",
+          "calls": 37,
+          "self": 0.000164864,
+          "cumulative": 0.0032136250000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 42163,
+          "self": 0.0031159430000000004,
+          "cumulative": 0.0031159430000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 20758,
+          "self": 0.003010422,
+          "cumulative": 0.003010422
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'add' of 'set' objects>",
+          "calls": 20758,
+          "self": 0.0025621660000000003,
+          "cumulative": 0.0025621660000000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 39,
+          "self": 3.9712e-05,
+          "cumulative": 0.002239918
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 21418,
+          "self": 0.002208353,
+          "cumulative": 0.002208353
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 39,
+          "self": 0.000748783,
+          "cumulative": 0.002027703
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 529,
+          "name": "open",
+          "calls": 13,
+          "self": 1.5459000000000002e-05,
+          "cumulative": 0.0017817080000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method _io.open>",
+          "calls": 13,
+          "self": 0.0016158350000000001,
+          "cumulative": 0.0017662490000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.hasattr>",
+          "calls": 20272,
+          "self": 0.0015331400000000001,
+          "cumulative": 0.0015331400000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 244,
+          "name": "detect_encoding",
+          "calls": 1276,
+          "self": 0.0009302500000000001,
+          "cumulative": 0.001435669
+        }
+      ]
+    },
+    {
+      "label": "ledger-revalidate",
+      "repeats": 5,
+      "cpu_seconds": [
+        0.0054789999999993455,
+        0.005076999999999998,
+        0.00479800000000008,
+        0.00510199999999994,
+        0.004929999999999879
+      ],
+      "wall_seconds": [
+        0.006769125000573695,
+        0.007008417043834925,
+        0.006087832967750728,
+        0.00624108302872628,
+        0.00676054204814136
+      ],
+      "payload": {
+        "bytes": 28951,
+        "sha256": "27edbb09f3976001a2b28efffe5c473c7faa2976e40662ab2b566b1f90e99c82"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 56,
+          "name": "<lambda>",
+          "calls": 5,
+          "self": 4.75e-06,
+          "cumulative": 0.032652501
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 5,
+          "self": 3.3708e-05,
+          "cumulative": 0.032647751
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 10,
+          "self": 3.8707e-05,
+          "cumulative": 0.032595835000000004
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 5,
+          "self": 0.000169277,
+          "cumulative": 0.018951042
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 195,
+          "self": 0.00011408700000000001,
+          "cumulative": 0.013261589
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 195,
+          "self": 0.004614804,
+          "cumulative": 0.012653036000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 5,
+          "self": 3.041e-06,
+          "cumulative": 0.011555625
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 5,
+          "self": 3.9750000000000004e-05,
+          "cumulative": 0.011552584000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 5,
+          "self": 0.0058235710000000005,
+          "cumulative": 0.011507918
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.scandir>",
+          "calls": 65,
+          "self": 0.006255040000000001,
+          "cumulative": 0.006277497000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 88,
+          "name": "add",
+          "calls": 65,
+          "self": 0.00022092700000000002,
+          "cumulative": 0.004706409
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 390,
+          "self": 0.0015139840000000001,
+          "cumulative": 0.003281106
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 510,
+          "name": "stat",
+          "calls": 325,
+          "self": 6.1839e-05,
+          "cumulative": 0.0031087750000000003
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 365,
+          "name": "relative_to",
+          "calls": 65,
+          "self": 0.00018662,
+          "cumulative": 0.002747629
+        },
+        {
+          "file": "<frozen _collections_abc>",
+          "line": 1037,
+          "name": "__contains__",
+          "calls": 65,
+          "self": 0.00013723900000000002,
+          "cumulative": 0.002012622
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 715,
+          "self": 0.00038694900000000004,
+          "cumulative": 0.001983804
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 166,
+          "name": "__fspath__",
+          "calls": 395,
+          "self": 0.000117336,
+          "cumulative": 0.0017923700000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 227,
+          "name": "__str__",
+          "calls": 850,
+          "self": 0.000248737,
+          "cumulative": 0.001704746
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 3820,
+          "self": 0.001053523,
+          "cumulative": 0.0016472540000000001
+        },
+        {
+          "file": "<frozen _collections_abc>",
+          "line": 1027,
+          "name": "__iter__",
+          "calls": 325,
+          "self": 0.00010141900000000001,
+          "cumulative": 0.0015332610000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 44,
+          "name": "__getitem__",
+          "calls": 260,
+          "self": 0.000210835,
+          "cumulative": 0.001431842
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 289,
+          "name": "drive",
+          "calls": 260,
+          "self": 0.000147236,
+          "cumulative": 0.0013460400000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 498,
+          "name": "__init__",
+          "calls": 715,
+          "self": 0.00030966100000000003,
+          "cumulative": 0.001344225
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 14485,
+          "self": 0.001331977,
+          "cumulative": 0.001331977
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 476,
+          "name": "is_file",
+          "calls": 65,
+          "self": 5.2244e-05,
+          "cumulative": 0.001317208
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 148,
+          "name": "__truediv__",
+          "calls": 390,
+          "self": 0.00010172000000000001,
+          "cumulative": 0.001306193
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 245,
+          "name": "_from_parsed_parts",
+          "calls": 325,
+          "self": 0.000150645,
+          "cumulative": 0.0012151970000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 460,
+          "name": "is_dir",
+          "calls": 65,
+          "self": 3.8081000000000004e-05,
+          "cumulative": 0.0011561680000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 5,
+          "self": 0.000107033,
+          "cumulative": 0.001139
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 15175,
+          "self": 0.001036746,
+          "cumulative": 0.001036746
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 117,
+          "name": "__init__",
+          "calls": 715,
+          "self": 0.000624147,
+          "cumulative": 0.001034564
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 41,
+          "name": "capture",
+          "calls": 195,
+          "self": 0.000119599,
+          "cumulative": 0.000984705
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 10970,
+          "self": 0.000917575,
+          "cumulative": 0.000917575
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 252,
+          "name": "_from_parsed_string",
+          "calls": 325,
+          "self": 7.974800000000001e-05,
+          "cumulative": 0.000859079
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 5,
+          "self": 1.0501e-05,
+          "cumulative": 0.000755876
+        }
+      ]
+    },
+    {
+      "label": "snapshots-cold",
+      "repeats": 1,
+      "cpu_seconds": [
+        7.2977170000000005
+      ],
+      "wall_seconds": [
+        7.3753103339113295
+      ],
+      "payload": {
+        "bytes": 262429,
+        "sha256": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 54,
+          "name": "<lambda>",
+          "calls": 1,
+          "self": 2.166e-06,
+          "cumulative": 7.375245125
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 1,
+          "self": 0.000429761,
+          "cumulative": 7.375242959
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 858,
+          "self": 0.07015471000000001,
+          "cumulative": 7.374808198
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 238,
+          "name": "json_array_bytes",
+          "calls": 89717,
+          "self": 3.193159672,
+          "cumulative": 5.621955016
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 799,
+          "name": "add_snapshot_json",
+          "calls": 89187,
+          "self": 0.064584025,
+          "cumulative": 1.6702068950000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 811,
+          "name": "add_snapshot",
+          "calls": 89187,
+          "self": 0.365716872,
+          "cumulative": 0.9011073110000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'search' of 're.Pattern' objects>",
+          "calls": 3926623,
+          "self": 0.899936893,
+          "cumulative": 0.899936893
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 742,
+          "name": "model_validate_json",
+          "calls": 89200,
+          "self": 0.026443954000000002,
+          "cumulative": 0.704642934
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 89200,
+          "self": 0.30143311100000003,
+          "cumulative": 0.67819898
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.len>",
+          "calls": 7869154,
+          "self": 0.573255119,
+          "cumulative": 0.5732750640000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'extend' of 'bytearray' objects>",
+          "calls": 3748236,
+          "self": 0.5005327,
+          "cumulative": 0.5005327
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'end' of 're.Match' objects>",
+          "calls": 3926166,
+          "self": 0.386824761,
+          "cumulative": 0.386824761
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 45,
+          "name": "_coerce_decimal",
+          "calls": 379583,
+          "self": 0.158703484,
+          "cumulative": 0.196407043
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 108,
+          "name": "coerce_pnl",
+          "calls": 178400,
+          "self": 0.03484376,
+          "cumulative": 0.12590004400000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 88,
+          "name": "coerce_balances",
+          "calls": 89200,
+          "self": 0.046810628,
+          "cumulative": 0.11498493700000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 98,
+          "name": "coerce_current_prices",
+          "calls": 89200,
+          "self": 0.045583423000000005,
+          "cumulative": 0.105920911
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'isoformat' of 'datetime.datetime' objects>",
+          "calls": 89188,
+          "self": 0.09430313700000001,
+          "cumulative": 0.09430313700000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 446283,
+          "self": 0.08242729900000001,
+          "cumulative": 0.08242729900000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 131,
+          "name": "total_equity",
+          "calls": 89187,
+          "self": 0.030216803,
+          "cumulative": 0.077193908
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 197,
+          "name": "reserve",
+          "calls": 178400,
+          "self": 0.047345420000000006,
+          "cumulative": 0.047345420000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.min>",
+          "calls": 27877,
+          "self": 0.01840579,
+          "cumulative": 0.047249461
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 126,
+          "name": "quote_balance",
+          "calls": 89187,
+          "self": 0.036201784,
+          "cumulative": 0.046977105000000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 470400,
+          "self": 0.046641421,
+          "cumulative": 0.046641421
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.max>",
+          "calls": 13682,
+          "self": 0.016093506,
+          "cumulative": 0.042300000000000004
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'get' of 'dict' objects>",
+          "calls": 267614,
+          "self": 0.033884496,
+          "cumulative": 0.033884496
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.sorted>",
+          "calls": 14026,
+          "self": 0.017253815000000002,
+          "cumulative": 0.033528419000000004
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 47,
+          "name": "_blocks",
+          "calls": 530,
+          "self": 0.001002083,
+          "cumulative": 0.03203956
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/trading/portfolio.py",
+          "line": 114,
+          "name": "_coerce_timestamp_to_utc",
+          "calls": 89200,
+          "self": 0.020333673,
+          "cumulative": 0.029959977000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 867,
+          "name": "<lambda>",
+          "calls": 107388,
+          "self": 0.028843671,
+          "cumulative": 0.028843671
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'read' of '_io.BufferedReader' objects>",
+          "calls": 517,
+          "self": 0.027432960000000003,
+          "cumulative": 0.027432960000000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 868,
+          "name": "<lambda>",
+          "calls": 107388,
+          "self": 0.026206494,
+          "cumulative": 0.026206494
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'items' of 'dict' objects>",
+          "calls": 178403,
+          "self": 0.02316158,
+          "cumulative": 0.02316158
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'start' of 're.Match' objects>",
+          "calls": 178387,
+          "self": 0.022340573000000002,
+          "cumulative": 0.022340573000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.sum>",
+          "calls": 685,
+          "self": 0.011192368000000001,
+          "cumulative": 0.019107925
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'clear' of 'bytearray' objects>",
+          "calls": 89187,
+          "self": 0.01833303,
+          "cumulative": 0.01833303
+        }
+      ]
+    },
+    {
+      "label": "snapshots-revalidate",
+      "repeats": 5,
+      "cpu_seconds": [
+        0.026244999999999408,
+        0.025597999999998677,
+        0.025675999999998922,
+        0.026332000000000022,
+        0.026111000000000217
+      ],
+      "wall_seconds": [
+        0.02711004193406552,
+        0.02693991595879197,
+        0.02766041597351432,
+        0.02798062504734844,
+        0.0280607920140028
+      ],
+      "payload": {
+        "bytes": 262429,
+        "sha256": "2cebb0ad08f3f261d82f4e0cd538b73bfeb6761519fe88b53f47f6ee00a4e5d8"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 56,
+          "name": "<lambda>",
+          "calls": 5,
+          "self": 6.54e-06,
+          "cumulative": 0.136876499
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 5,
+          "self": 6.4544e-05,
+          "cumulative": 0.136869959
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 10,
+          "self": 0.000142001,
+          "cumulative": 0.136782165
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 5,
+          "self": 5.75e-06,
+          "cumulative": 0.11053937500000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 5,
+          "self": 0.0006108330000000001,
+          "cumulative": 0.11053362500000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 5,
+          "self": 0.055818410000000006,
+          "cumulative": 0.10991170800000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 5,
+          "self": 0.00018407500000000002,
+          "cumulative": 0.019227792
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 130,
+          "self": 0.000124665,
+          "cumulative": 0.013043872000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 29520,
+          "self": 0.008262665,
+          "cumulative": 0.012900705
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 130,
+          "self": 0.005502740000000001,
+          "cumulative": 0.012590788
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 105680,
+          "self": 0.009705984,
+          "cumulative": 0.009705984
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 117675,
+          "self": 0.008341359000000001,
+          "cumulative": 0.008341359000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'add' of 'set' objects>",
+          "calls": 44130,
+          "self": 0.006559552000000001,
+          "cumulative": 0.006559552000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 73545,
+          "self": 0.006471452000000001,
+          "cumulative": 0.006471452000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 44195,
+          "self": 0.0058955480000000005,
+          "cumulative": 0.0058955480000000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.scandir>",
+          "calls": 65,
+          "self": 0.005180498,
+          "cumulative": 0.005201917
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 88,
+          "name": "add",
+          "calls": 65,
+          "self": 0.000245577,
+          "cumulative": 0.0050999140000000005
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 5,
+          "self": 1.6751e-05,
+          "cumulative": 0.004702082000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 339,
+          "name": "decode",
+          "calls": 5,
+          "self": 2.4834000000000003e-05,
+          "cumulative": 0.004560917
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 350,
+          "name": "raw_decode",
+          "calls": 5,
+          "self": 0.004515832,
+          "cumulative": 0.004515832
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 390,
+          "self": 0.0018542710000000002,
+          "cumulative": 0.003814567
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'extend' of 'list' objects>",
+          "calls": 29450,
+          "self": 0.0035467880000000004,
+          "cumulative": 0.0035467880000000004
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 510,
+          "name": "stat",
+          "calls": 325,
+          "self": 6.675600000000001e-05,
+          "cumulative": 0.003468533
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 365,
+          "name": "relative_to",
+          "calls": 65,
+          "self": 0.00022153300000000002,
+          "cumulative": 0.0028597080000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.hasattr>",
+          "calls": 29520,
+          "self": 0.0022593640000000003,
+          "cumulative": 0.0022593640000000003
+        },
+        {
+          "file": "<frozen _collections_abc>",
+          "line": 1037,
+          "name": "__contains__",
+          "calls": 65,
+          "self": 0.000146901,
+          "cumulative": 0.002072998
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 166,
+          "name": "__fspath__",
+          "calls": 395,
+          "self": 0.000124771,
+          "cumulative": 0.001990132
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 5,
+          "self": 0.000163921,
+          "cumulative": 0.0019220410000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 650,
+          "self": 0.00039967100000000004,
+          "cumulative": 0.0019200450000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 227,
+          "name": "__str__",
+          "calls": 850,
+          "self": 0.000290238,
+          "cumulative": 0.0018958780000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'keys' of 'dict' objects>",
+          "calls": 14515,
+          "self": 0.001687083,
+          "cumulative": 0.001687083
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'values' of 'dict' objects>",
+          "calls": 14515,
+          "self": 0.0016761380000000002,
+          "cumulative": 0.0016761380000000002
+        },
+        {
+          "file": "<frozen _collections_abc>",
+          "line": 1027,
+          "name": "__iter__",
+          "calls": 325,
+          "self": 0.00010133100000000001,
+          "cumulative": 0.00155718
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 476,
+          "name": "is_file",
+          "calls": 65,
+          "self": 4.6322e-05,
+          "cumulative": 0.0015187500000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 289,
+          "name": "drive",
+          "calls": 260,
+          "self": 0.00016196600000000001,
+          "cumulative": 0.0015128390000000002
+        }
+      ]
+    },
+    {
+      "label": "candidates-cold",
+      "repeats": 1,
+      "cpu_seconds": [
+        0.0011650000000003047
+      ],
+      "wall_seconds": [
+        0.0020446659764274955
+      ],
+      "payload": {
+        "bytes": 1823,
+        "sha256": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 54,
+          "name": "<lambda>",
+          "calls": 1,
+          "self": 9.58e-07,
+          "cumulative": 0.002011208
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 1,
+          "self": 7.585e-06,
+          "cumulative": 0.0020102500000000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 3,
+          "self": 3.2664000000000004e-05,
+          "cumulative": 0.00199804
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 1,
+          "self": 1.8625000000000002e-05,
+          "cumulative": 0.000821917
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 2,
+          "self": 3.3760000000000004e-06,
+          "cumulative": 0.0007069590000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 2,
+          "self": 0.0001095,
+          "cumulative": 0.0006850830000000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.scandir>",
+          "calls": 1,
+          "self": 0.0005215420000000001,
+          "cumulative": 0.0005217500000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 144,
+          "name": "json_object",
+          "calls": 3,
+          "self": 7.3750000000000005e-06,
+          "cumulative": 0.00044637500000000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 47,
+          "name": "_blocks",
+          "calls": 2,
+          "self": 1.2377e-05,
+          "cumulative": 0.00040916700000000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 881,
+          "name": "add",
+          "calls": 1,
+          "self": 4.6418e-05,
+          "cumulative": 0.000369167
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'read' of '_io.BufferedReader' objects>",
+          "calls": 1,
+          "self": 0.000265917,
+          "cumulative": 0.000265917
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 2,
+          "self": 1.0834e-05,
+          "cumulative": 0.000198125
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.open>",
+          "calls": 2,
+          "self": 0.00015191600000000001,
+          "cumulative": 0.00015279100000000002
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 427,
+          "name": "model_dump",
+          "calls": 1,
+          "self": 1.916e-06,
+          "cumulative": 0.00012625
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'to_python' of 'pydantic_core._pydantic_core.SchemaSerializer' objects>",
+          "calls": 1,
+          "self": 8.962600000000001e-05,
+          "cumulative": 0.000124334
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 529,
+          "name": "open",
+          "calls": 1,
+          "self": 1.292e-06,
+          "cumulative": 9.875e-05
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 693,
+          "name": "model_validate",
+          "calls": 1,
+          "self": 3.1660000000000003e-06,
+          "cumulative": 9.8416e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method _io.open>",
+          "calls": 1,
+          "self": 8.8083e-05,
+          "cumulative": 9.7458e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 1,
+          "self": 6.012600000000001e-05,
+          "cumulative": 9.525000000000001e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 9,
+          "self": 5.1455e-05,
+          "cumulative": 8.679e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 233,
+          "name": "add",
+          "calls": 1,
+          "self": 1.3916e-05,
+          "cumulative": 8.241700000000001e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 510,
+          "name": "stat",
+          "calls": 7,
+          "self": 2.751e-06,
+          "cumulative": 7.8792e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 2,
+          "self": 1.125e-06,
+          "cumulative": 7.7625e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 2,
+          "self": 2.6250000000000003e-06,
+          "cumulative": 7.65e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 289,
+          "name": "drive",
+          "calls": 8,
+          "self": 8.5e-06,
+          "cumulative": 7.2834e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 88,
+          "name": "add",
+          "calls": 1,
+          "self": 1.4041000000000002e-05,
+          "cumulative": 7.2e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 2,
+          "self": 3.5543e-05,
+          "cumulative": 7.191700000000001e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 227,
+          "name": "__str__",
+          "calls": 16,
+          "self": 1.0626000000000001e-05,
+          "cumulative": 7.083500000000001e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 257,
+          "name": "_parse_path",
+          "calls": 6,
+          "self": 2.8542000000000002e-05,
+          "cumulative": 6.6417e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 39,
+          "name": "files",
+          "calls": 4,
+          "self": 2.876e-06,
+          "cumulative": 5.9876e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 51,
+          "name": "_sources",
+          "calls": 4,
+          "self": 1.1039e-05,
+          "cumulative": 5.7e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 166,
+          "name": "__fspath__",
+          "calls": 11,
+          "self": 4.583e-06,
+          "cumulative": 4.5793e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 8,
+          "self": 7.2050000000000005e-06,
+          "cumulative": 4.1082000000000004e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 41,
+          "name": "capture",
+          "calls": 5,
+          "self": 6.459e-06,
+          "cumulative": 4.0959000000000005e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 460,
+          "name": "is_dir",
+          "calls": 1,
+          "self": 2.25e-06,
+          "cumulative": 3.8292000000000005e-05
+        }
+      ]
+    },
+    {
+      "label": "candidates-revalidate",
+      "repeats": 5,
+      "cpu_seconds": [
+        0.0006079999999997199,
+        0.0004849999999994026,
+        0.0006540000000008206,
+        0.0006810000000001537,
+        0.0006419999999991433
+      ],
+      "wall_seconds": [
+        0.0008659170707687736,
+        0.0005963749717921019,
+        0.0007684999145567417,
+        0.000760416965931654,
+        0.0007219999097287655
+      ],
+      "payload": {
+        "bytes": 1823,
+        "sha256": "eff879fbb4d111c95aba847ab94b5d8bb6da1633669c799ad15e4e882ca9426a"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 56,
+          "name": "<lambda>",
+          "calls": 5,
+          "self": 3.165e-06,
+          "cumulative": 0.003497042
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 5,
+          "self": 2.0920000000000003e-05,
+          "cumulative": 0.0034938770000000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 10,
+          "self": 3.5503e-05,
+          "cumulative": 0.003458792
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 190,
+          "name": "change",
+          "calls": 5,
+          "self": 2.916e-06,
+          "cumulative": 0.001275041
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 193,
+          "name": "replace",
+          "calls": 5,
+          "self": 1.1665000000000001e-05,
+          "cumulative": 0.001272125
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 171,
+          "name": "size",
+          "calls": 5,
+          "self": 0.000603593,
+          "cumulative": 0.0012560420000000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 5,
+          "self": 2.1669000000000002e-05,
+          "cumulative": 0.001238708
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 111,
+          "name": "entries",
+          "calls": 10,
+          "self": 9.626e-06,
+          "cumulative": 0.0008378750000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 10,
+          "self": 0.000372703,
+          "cumulative": 0.0007905820000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 5,
+          "self": 3.7876e-05,
+          "cumulative": 0.000661542
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.open>",
+          "calls": 5,
+          "self": 0.00048875,
+          "cumulative": 0.000492124
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.scandir>",
+          "calls": 5,
+          "self": 0.000337417,
+          "cumulative": 0.000339252
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 88,
+          "name": "add",
+          "calls": 5,
+          "self": 2.3330000000000002e-05,
+          "cumulative": 0.00028604
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 30,
+          "self": 0.00017033800000000002,
+          "cumulative": 0.000211919
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/dataclasses.py",
+          "line": 1331,
+          "name": "is_dataclass",
+          "calls": 435,
+          "self": 0.000126257,
+          "cumulative": 0.000194959
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 510,
+          "name": "stat",
+          "calls": 25,
+          "self": 6.374e-06,
+          "cumulative": 0.00017233300000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 365,
+          "name": "relative_to",
+          "calls": 5,
+          "self": 2.4537000000000002e-05,
+          "cumulative": 0.000150459
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 1490,
+          "self": 0.00014284600000000002,
+          "cumulative": 0.00014284600000000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 5,
+          "self": 1.1712e-05,
+          "cumulative": 0.000139541
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 339,
+          "name": "decode",
+          "calls": 5,
+          "self": 1.0205000000000001e-05,
+          "cumulative": 0.00010766500000000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 41,
+          "name": "capture",
+          "calls": 15,
+          "self": 1.5998e-05,
+          "cumulative": 0.000105124
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+          "calls": 5,
+          "self": 9.6834e-05,
+          "cumulative": 9.6834e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 167,
+          "name": "suffix",
+          "calls": 5,
+          "self": 5.832e-06,
+          "cumulative": 9.099800000000001e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.id>",
+          "calls": 1230,
+          "self": 8.8101e-05,
+          "cumulative": 8.8101e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 346,
+          "name": "name",
+          "calls": 10,
+          "self": 4.872e-06,
+          "cumulative": 8.6625e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 350,
+          "name": "raw_decode",
+          "calls": 5,
+          "self": 8.6334e-05,
+          "cumulative": 8.6334e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'pop' of 'list' objects>",
+          "calls": 710,
+          "self": 8.3756e-05,
+          "cumulative": 8.3756e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 307,
+          "name": "_tail",
+          "calls": 35,
+          "self": 1.7461e-05,
+          "cumulative": 8.375300000000001e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.getsizeof>",
+          "calls": 525,
+          "self": 7.7055e-05,
+          "cumulative": 7.7055e-05
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'add' of 'set' objects>",
+          "calls": 520,
+          "self": 7.1687e-05,
+          "cumulative": 7.1687e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 476,
+          "name": "is_file",
+          "calls": 5,
+          "self": 4.417e-06,
+          "cumulative": 7.0876e-05
+        },
+        {
+          "file": "<frozen _collections_abc>",
+          "line": 1037,
+          "name": "__contains__",
+          "calls": 5,
+          "self": 1e-05,
+          "cumulative": 7.016800000000001e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 15,
+          "self": 1.5083000000000001e-05,
+          "cumulative": 6.7585e-05
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 70,
+          "name": "digest",
+          "calls": 5,
+          "self": 2.0580000000000003e-05,
+          "cumulative": 5.5874e-05
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 245,
+          "name": "_from_parsed_parts",
+          "calls": 10,
+          "self": 6.753e-06,
+          "cumulative": 5.5168000000000004e-05
+        }
+      ]
+    },
+    {
+      "label": "proposals-cold",
+      "repeats": 1,
+      "cpu_seconds": [
+        2.8749769999999994
+      ],
+      "wall_seconds": [
+        4.742083290941082
+      ],
+      "payload": {
+        "bytes": 38436,
+        "sha256": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 54,
+          "name": "<lambda>",
+          "calls": 1,
+          "self": 2.7833000000000003e-05,
+          "cumulative": 4.742030958
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 1,
+          "self": 0.0035815990000000004,
+          "cumulative": 4.742003125
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 13086,
+          "self": 0.088266155,
+          "cumulative": 4.738418360000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 144,
+          "name": "json_object",
+          "calls": 39252,
+          "self": 0.036483565,
+          "cumulative": 3.1791657640000004
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 47,
+          "name": "_blocks",
+          "calls": 26168,
+          "self": 0.068494098,
+          "cumulative": 2.920579016
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'read' of '_io.BufferedReader' objects>",
+          "calls": 13084,
+          "self": 1.61870887,
+          "cumulative": 1.61870887
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 529,
+          "name": "open",
+          "calls": 13084,
+          "self": 0.00680483,
+          "cumulative": 0.9581769790000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method _io.open>",
+          "calls": 13084,
+          "self": 0.8174266870000001,
+          "cumulative": 0.9513721490000001
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 39,
+          "name": "files",
+          "calls": 39255,
+          "self": 0.009351014000000001,
+          "cumulative": 0.843654435
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 51,
+          "name": "_sources",
+          "calls": 39255,
+          "self": 0.09435710400000001,
+          "cumulative": 0.8343034210000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 329,
+          "name": "parent",
+          "calls": 39252,
+          "self": 0.033173473,
+          "cumulative": 0.5086045180000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.sum>",
+          "calls": 2,
+          "self": 0.002914458,
+          "cumulative": 0.505643417
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 289,
+          "name": "drive",
+          "calls": 52350,
+          "self": 0.057276273,
+          "cumulative": 0.42178465800000003
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 881,
+          "name": "add",
+          "calls": 13084,
+          "self": 0.019590813000000002,
+          "cumulative": 0.313781348
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 91601,
+          "self": 0.051473532,
+          "cumulative": 0.26480584
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1309,
+          "name": "<genexpr>",
+          "calls": 13085,
+          "self": 0.004505105000000001,
+          "cumulative": 0.252135836
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1143,
+          "name": "<genexpr>",
+          "calls": 13085,
+          "self": 0.004156521,
+          "cumulative": 0.25059312300000003
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 257,
+          "name": "_parse_path",
+          "calls": 52350,
+          "self": 0.10968467800000001,
+          "cumulative": 0.23624999100000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 74,
+          "name": "_object",
+          "calls": 13084,
+          "self": 0.010599776,
+          "cumulative": 0.212811257
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/__init__.py",
+          "line": 299,
+          "name": "loads",
+          "calls": 13084,
+          "self": 0.020762120000000002,
+          "cumulative": 0.200966581
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 39308,
+          "self": 0.19046357800000002,
+          "cumulative": 0.19846329000000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 148,
+          "name": "__truediv__",
+          "calls": 52349,
+          "self": 0.013258618000000002,
+          "cumulative": 0.182867508
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 498,
+          "name": "__init__",
+          "calls": 91601,
+          "self": 0.041614219,
+          "cumulative": 0.180178065
+        },
+        {
+          "file": "/Users/user/Desktop/Projects/crypto-master/.venv/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 693,
+          "name": "model_validate",
+          "calls": 13084,
+          "self": 0.006403134,
+          "cumulative": 0.16380450800000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 13084,
+          "self": 0.132683917,
+          "cumulative": 0.157401374
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 245,
+          "name": "_from_parsed_parts",
+          "calls": 39252,
+          "self": 0.019342611000000003,
+          "cumulative": 0.147157318
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 339,
+          "name": "decode",
+          "calls": 13084,
+          "self": 0.020341129000000003,
+          "cumulative": 0.145850488
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 166,
+          "name": "__fspath__",
+          "calls": 26240,
+          "self": 0.011210003000000001,
+          "cumulative": 0.141950716
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 117,
+          "name": "__init__",
+          "calls": 91601,
+          "self": 0.083405385,
+          "cumulative": 0.13856384600000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 227,
+          "name": "__str__",
+          "calls": 26254,
+          "self": 0.019805849,
+          "cumulative": 0.13074213
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 277,
+          "name": "_raw_path",
+          "calls": 52350,
+          "self": 0.031050428,
+          "cumulative": 0.128258394
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 2,
+          "self": 0.014202862,
+          "cumulative": 0.123937
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/utils/bounded_read.py",
+          "line": 41,
+          "name": "capture",
+          "calls": 13126,
+          "self": 0.012298646000000002,
+          "cumulative": 0.12262618400000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method '__exit__' of '_io._IOBase' objects>",
+          "calls": 13084,
+          "self": 0.11044914500000001,
+          "cumulative": 0.11044914500000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/json/decoder.py",
+          "line": 350,
+          "name": "raw_decode",
+          "calls": 13084,
+          "self": 0.108782136,
+          "cumulative": 0.108782136
+        }
+      ]
+    },
+    {
+      "label": "proposals-revalidate",
+      "repeats": 5,
+      "cpu_seconds": [
+        0.4258070000000025,
+        0.40714499999999987,
+        0.40857400000000155,
+        0.41263899999999865,
+        0.4135990000000014
+      ],
+      "wall_seconds": [
+        0.4509594580158591,
+        0.4121987499529496,
+        0.41862487490288913,
+        0.4257114169886336,
+        0.42815391696058214
+      ],
+      "payload": {
+        "bytes": 38436,
+        "sha256": "3ee8372c6bdf2a7391167929c72657ded3f536658e1bc127940f485ef50a32b0"
+      },
+      "top": [
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 56,
+          "name": "<lambda>",
+          "calls": 5,
+          "self": 6e-06,
+          "cumulative": 2.135346749
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/profile_baseline.py",
+          "line": 24,
+          "name": "consume",
+          "calls": 5,
+          "self": 0.0011077510000000001,
+          "cumulative": 2.135340749
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1121,
+          "name": "build_projection",
+          "calls": 10,
+          "self": 0.00016649700000000002,
+          "cumulative": 2.134203831
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.sum>",
+          "calls": 5,
+          "self": 0.0073114320000000005,
+          "cumulative": 1.215075501
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/projections.py",
+          "line": 1143,
+          "name": "<genexpr>",
+          "calls": 65425,
+          "self": 0.021319657000000002,
+          "cumulative": 1.207764069
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 39,
+          "name": "files",
+          "calls": 65425,
+          "self": 0.012490925,
+          "cumulative": 1.1864444120000002
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 51,
+          "name": "_sources",
+          "calls": 65425,
+          "self": 0.12425118900000001,
+          "cumulative": 1.1739534870000001
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 329,
+          "name": "parent",
+          "calls": 65420,
+          "self": 0.044535132000000005,
+          "cumulative": 0.722164137
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 188,
+          "name": "discover",
+          "calls": 5,
+          "self": 0.035478185,
+          "cumulative": 0.546009209
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 289,
+          "name": "drive",
+          "calls": 65485,
+          "self": 0.057522659000000004,
+          "cumulative": 0.44706547100000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 132,
+          "name": "add_entry",
+          "calls": 65420,
+          "self": 0.071324441,
+          "cumulative": 0.379690581
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_abc.py",
+          "line": 130,
+          "name": "with_segments",
+          "calls": 130905,
+          "self": 0.062877264,
+          "cumulative": 0.32384584800000005
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 154,
+          "name": "verify",
+          "calls": 5,
+          "self": 0.034599788,
+          "cumulative": 0.306136958
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'stat' of 'posix.DirEntry' objects>",
+          "calls": 65420,
+          "self": 0.26409239,
+          "cumulative": 0.26409239
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.stat>",
+          "calls": 65630,
+          "self": 0.24982899500000003,
+          "cumulative": 0.251588495
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 257,
+          "name": "_parse_path",
+          "calls": 65485,
+          "self": 0.121803531,
+          "cumulative": 0.24669659900000002
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 245,
+          "name": "_from_parsed_parts",
+          "calls": 65420,
+          "self": 0.027295604,
+          "cumulative": 0.221022939
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 498,
+          "name": "__init__",
+          "calls": 130905,
+          "self": 0.049742027,
+          "cumulative": 0.21792248800000003
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 148,
+          "name": "__truediv__",
+          "calls": 65485,
+          "self": 0.014290770000000001,
+          "cumulative": 0.191632574
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 117,
+          "name": "__init__",
+          "calls": 130905,
+          "self": 0.10106026000000001,
+          "cumulative": 0.168180461
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 252,
+          "name": "_from_parsed_string",
+          "calls": 65420,
+          "self": 0.015280762000000002,
+          "cumulative": 0.161784806
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 277,
+          "name": "_raw_path",
+          "calls": 65485,
+          "self": 0.033989388,
+          "cumulative": 0.142846213
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 115,
+          "name": "scan",
+          "calls": 65555,
+          "self": 0.10270079400000001,
+          "cumulative": 0.11185850100000001
+        },
+        {
+          "file": "<frozen posixpath>",
+          "line": 71,
+          "name": "join",
+          "calls": 65485,
+          "self": 0.055585502,
+          "cumulative": 0.09858124400000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method sys.intern>",
+          "calls": 457770,
+          "self": 0.081888367,
+          "cumulative": 0.081888367
+        },
+        {
+          "file": "/private/tmp/crypto-master-cpu-cost-20261027/src/dashboard/sources.py",
+          "line": 70,
+          "name": "digest",
+          "calls": 5,
+          "self": 0.027632421,
+          "cumulative": 0.053510708000000004
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 505,
+          "name": "__new__",
+          "calls": 130905,
+          "self": 0.026270051000000003,
+          "cumulative": 0.043046096000000006
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method builtins.isinstance>",
+          "calls": 400710,
+          "self": 0.037314333000000005,
+          "cumulative": 0.037314333000000005
+        },
+        {
+          "file": "<string>",
+          "line": 2,
+          "name": "__init__",
+          "calls": 65560,
+          "self": 0.03323323,
+          "cumulative": 0.03323323
+        },
+        {
+          "file": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py",
+          "line": 237,
+          "name": "_format_parsed_parts",
+          "calls": 65485,
+          "self": 0.018302556,
+          "cumulative": 0.032011327
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix._path_splitroot_ex>",
+          "calls": 65485,
+          "self": 0.026130779000000003,
+          "cumulative": 0.026130779000000003
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method _struct.pack>",
+          "calls": 130840,
+          "self": 0.023636733,
+          "cumulative": 0.023636733
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'append' of 'list' objects>",
+          "calls": 196325,
+          "self": 0.023627897000000002,
+          "cumulative": 0.023627897000000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<method 'split' of 'bytes' objects>",
+          "calls": 130840,
+          "self": 0.022954703,
+          "cumulative": 0.022954703
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "name": "<built-in method posix.fspath>",
+          "calls": 261875,
+          "self": 0.022021857000000002,
+          "cumulative": 0.022021857000000002
+        }
+      ]
+    }
+  ],
+  "source_hashes": {
+    "src/dashboard/__init__.py": "53b61b142dabfdc7d4ea9847221f66b369508bffcdb8862381f366c178002666",
+    "src/dashboard/app.py": "5d73c1dedd9e70046067ab98f86bdd2f2e5ee05dd8c09bc808de4115653547a8",
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/pages/__init__.py": "f8cb1ba875e2c367254aed9ce7479a76ea841c9f4162b2bef74461125d3f99a6",
+    "src/dashboard/pages/autopsy.py": "c78c9596a6423d980178430c6d85067c5b756e6ca6eac29cd6e4dff058bddc29",
+    "src/dashboard/pages/engine.py": "95d786bed0cec26a589d1bba4705823d665bad3671e3275482a6e1f4af21b553",
+    "src/dashboard/pages/engine_cross_account_risk.py": "580a8cacdd5bd4b193d17033c16d5e0a181846709589670e7eef0a718edc126d",
+    "src/dashboard/pages/engine_market_regime.py": "4bc85d485dc94ae7cab83db38a5a12567c59077e4c9eceea4c4531d18b0f7758",
+    "src/dashboard/pages/engine_reconciliation.py": "9e5b2924f5faefbad3781b2ffaa81231e26d4d1a006dbd5661e211ea6c70bfba",
+    "src/dashboard/pages/feedback.py": "28fb378934bb68e2064d3bcbaee44d9341ce50dafbc0924f39fe407c8494e5bf",
+    "src/dashboard/pages/home.py": "97420a6d30c2e913ea120abdf6e0d24cc0680c043bfc81e5e7e056423f0e5524",
+    "src/dashboard/pages/ops.py": "eb9c1d27dd12a38b6605cc4e8b4afb803837cd48417fbea535cc5e7c3852a3a0",
+    "src/dashboard/pages/proposals.py": "9a09c9d4248a58f892bd2074880fabd96f2ca810bb4bf141b4d81cc284b35755",
+    "src/dashboard/pages/replay.py": "79f1d6a7ac7601f52ff1a1a3d5ddb7855f221e77380a3b9fc18e5de3b4297484",
+    "src/dashboard/pages/strategies.py": "ae2e8586ecca502aa4708735e8003251cfdf45a30852bb64a24f49fb7385d194",
+    "src/dashboard/pages/trading.py": "c5b166582054d5cbbef979a34bfb33bb2e4906fca41d9edc0f66f022f29b086b",
+    "src/dashboard/projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "src/dashboard/query_params.py": "2473fcb7bc130bd5fa6508b1dcb60a5b9c446bac232e5829e8953e8f211280c8",
+    "src/dashboard/read_diagnostics.py": "83373891dc7c87e5d3d99064231998632206f9d84f28771deb47360706777061",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/dashboard/theme.py": "4a2f2b675b6d15c4bfb4c03532a641149cf2b749543488f5fb8de21e668b2694"
+  },
+  "input_hashes_unchanged": true
+}

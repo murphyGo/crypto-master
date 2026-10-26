@@ -1,0 +1,55 @@
+Tue Oct 27 02:41:35 2026    /private/tmp/crypto-master-cpu-cost-delivery-20261027/developer/trading-render-baseline.prof
+
+         2081274 function calls (1940914 primitive calls) in -12.191 seconds
+
+   Ordered by: internal time
+   List reduced from 1911 to 45 due to restriction <45>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13084 1384.231    0.106 1384.231    0.106 {method 'stat' of 'posix.DirEntry' objects}
+    13362  780.811    0.058  780.813    0.058 {built-in method posix.stat}
+    26540  209.195    0.008  209.231    0.008 _local.py:117(__init__)
+    13193  166.077    0.013  166.123    0.013 _local.py:257(_parse_path)
+    13085  148.624    0.011  163.047    0.012 sources.py:51(_sources)
+       43  109.337    2.543  109.337    2.543 {built-in method posix.scandir}
+62422/59246   70.829    0.001   59.303    0.001 encoder.py:278(_iterencode_list)
+173609/60490   70.790    0.000    0.155    0.000 encoder.py:334(_iterencode_dict)
+    13161   61.820    0.005   61.844    0.005 <frozen posixpath>:71(join)
+    26540   61.623    0.002   61.631    0.002 _local.py:505(__new__)
+    13184   60.745    0.005   87.702    0.007 sources.py:115(scan)
+    13237   49.145    0.004   91.162    0.007 _local.py:289(drive)
+    26540   49.064    0.002   76.817    0.003 _local.py:498(__init__)
+        4   47.655   11.914   47.655   11.914 {built-in method posix.open}
+    13315   37.520    0.003   37.525    0.003 _local.py:237(_format_parsed_parts)
+    71/10   24.666    0.347   -0.743   -0.074 threading.py:327(wait)
+    13193   24.587    0.002   24.644    0.002 _local.py:277(_raw_path)
+    13086   24.555    0.002   38.761    0.003 _local.py:329(parent)
+        4   23.324    5.831   23.335    5.834 projections.py:171(size)
+    11074   23.080    0.002   23.086    0.002 dataclasses.py:1331(is_dataclass)
+        4   12.625    3.156   12.628    3.157 sources.py:70(digest)
+       17   12.574    0.740   12.599    0.741 {built-in method builtins.sum}
+    26539   12.141    0.000   12.269    0.000 _abc.py:130(with_segments)
+    13233   12.134    0.001   26.422    0.002 _local.py:245(_from_parsed_parts)
+      2/1   11.926    5.963   -1.368   -1.368 trading.py:675(_render_bounded_trading)
+      223    1.653    0.007   13.338    0.060 _local.py:510(stat)
+        2    0.229    0.115    0.000    0.000 {method 'join' of '_thread._ThreadHandle' objects}
+249015/248692    0.068    0.000    0.075    0.000 {built-in method builtins.isinstance}
+    92220    0.032    0.000    0.032    0.000 {built-in method sys.intern}
+    13084    0.032    0.000   27.438    0.002 sources.py:132(add_entry)
+    60490    0.031    0.000    0.185    0.000 encoder.py:414(_iterencode)
+108966/106968    0.028    0.000    0.029    0.000 {built-in method builtins.len}
+    73774    0.023    0.000    0.023    0.000 {method 'encode' of 'str' objects}
+    60486    0.018    0.000    0.018    0.000 {method 'extend' of 'bytearray' objects}
+        4    0.014    0.004   13.310    3.328 sources.py:188(discover)
+53066/53064    0.014    0.000    0.014    0.000 {built-in method posix.fspath}
+    42379    0.013    0.000    0.013    0.000 {method 'append' of 'list' objects}
+    50029    0.012    0.000    0.012    0.000 {built-in method builtins.id}
+    13085    0.010    0.000    0.516    0.000 projections.py:1143(<genexpr>)
+    26234    0.009    0.000    0.009    0.000 {built-in method _struct.pack}
+    28303    0.009    0.000    0.009    0.000 {built-in method sys.getsizeof}
+    26201    0.009    0.000    0.009    0.000 {method 'split' of 'bytes' objects}
+    13199    0.009    0.000    0.009    0.000 <string>:2(__init__)
+        4    0.009    0.002   14.356    3.589 sources.py:154(verify)
+    27472    0.009    0.000    0.009    0.000 {built-in method __new__ of type object at 0x102dabcd0}
+
+

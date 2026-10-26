@@ -1,0 +1,48 @@
+         4049549 function calls in 4.712 seconds
+
+   Ordered by: cumulative time
+   List reduced from 141 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    4.742    4.742 profile_baseline.py:54(<lambda>)
+        1    0.004    0.004    4.742    4.742 profile_baseline.py:24(consume)
+    13086    0.088    0.000    4.738    0.000 projections.py:1121(build_projection)
+    39252    0.036    0.000    3.179    0.000 bounded_read.py:144(json_object)
+    26168    0.068    0.000    2.921    0.000 bounded_read.py:47(_blocks)
+    13084    1.619    0.000    1.619    0.000 {method 'read' of '_io.BufferedReader' objects}
+    13084    0.007    0.000    0.958    0.000 _local.py:529(open)
+    13084    0.817    0.000    0.951    0.000 {built-in method _io.open}
+    39255    0.009    0.000    0.844    0.000 sources.py:39(files)
+    39255    0.094    0.000    0.834    0.000 sources.py:51(_sources)
+    39252    0.033    0.000    0.509    0.000 _local.py:329(parent)
+        2    0.003    0.001    0.506    0.253 {built-in method builtins.sum}
+    52350    0.057    0.000    0.422    0.000 _local.py:289(drive)
+    13084    0.020    0.000    0.314    0.000 projections.py:881(add)
+    91601    0.051    0.000    0.265    0.000 _abc.py:130(with_segments)
+    13085    0.005    0.000    0.252    0.000 projections.py:1309(<genexpr>)
+    13085    0.004    0.000    0.251    0.000 projections.py:1143(<genexpr>)
+    52350    0.110    0.000    0.236    0.000 _local.py:257(_parse_path)
+    13084    0.011    0.000    0.213    0.000 bounded_read.py:74(_object)
+    13084    0.021    0.000    0.201    0.000 __init__.py:299(loads)
+    39308    0.190    0.000    0.198    0.000 {built-in method posix.stat}
+    52349    0.013    0.000    0.183    0.000 _local.py:148(__truediv__)
+    91601    0.042    0.000    0.180    0.000 _local.py:498(__init__)
+    13084    0.006    0.000    0.164    0.000 main.py:693(model_validate)
+    13084    0.133    0.000    0.157    0.000 {method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+    39252    0.019    0.000    0.147    0.000 _local.py:245(_from_parsed_parts)
+    13084    0.020    0.000    0.146    0.000 decoder.py:339(decode)
+    26240    0.011    0.000    0.142    0.000 _local.py:166(__fspath__)
+    91601    0.083    0.000    0.139    0.000 _local.py:117(__init__)
+    26254    0.020    0.000    0.131    0.000 _local.py:227(__str__)
+    52350    0.031    0.000    0.128    0.000 _local.py:277(_raw_path)
+        2    0.014    0.007    0.124    0.062 sources.py:154(verify)
+    13126    0.012    0.000    0.123    0.000 bounded_read.py:41(capture)
+    13084    0.110    0.000    0.110    0.000 {method '__exit__' of '_io._IOBase' objects}
+    13084    0.109    0.000    0.109    0.000 decoder.py:350(raw_decode)
+        1    0.007    0.007    0.106    0.106 sources.py:188(discover)
+    39252    0.010    0.000    0.106    0.000 _local.py:252(_from_parsed_string)
+    13140    0.004    0.000    0.102    0.000 _local.py:510(stat)
+    52349    0.051    0.000    0.089    0.000 <frozen posixpath>:71(join)
+   365987    0.085    0.000    0.085    0.000 {built-in method sys.intern}
+
+

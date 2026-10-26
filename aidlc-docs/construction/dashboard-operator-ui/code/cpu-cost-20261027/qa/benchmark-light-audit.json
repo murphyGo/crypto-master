@@ -1,0 +1,67 @@
+{
+  "verdict": "GREEN for local CPU-cost comparison only",
+  "rows": [
+    {
+      "scenario": "direct_disabled_store",
+      "pairs": 20,
+      "all_40_output_hashes_equal": true,
+      "baseline_median_cpu": 0.20577749999999995,
+      "candidate_median_cpu": 0.13503049999999917,
+      "median_cpu_reduction_fraction": 0.3438033798641775,
+      "candidate_lower_cpu_pairs": 20
+    },
+    {
+      "scenario": "direct_enabled_store",
+      "pairs": 20,
+      "all_40_output_hashes_equal": true,
+      "baseline_median_cpu": 0.20535100000000028,
+      "candidate_median_cpu": 0.13314700000000013,
+      "median_cpu_reduction_fraction": 0.3516126047596557,
+      "candidate_lower_cpu_pairs": 20
+    },
+    {
+      "scenario": "service_home_enabled",
+      "pairs": 20,
+      "all_40_output_hashes_equal": true,
+      "baseline_median_cpu": 0.23749650000000067,
+      "candidate_median_cpu": 0.16578349999999986,
+      "median_cpu_reduction_fraction": 0.3019539235315072,
+      "candidate_lower_cpu_pairs": 20
+    },
+    {
+      "scenario": "service_trading_enabled",
+      "pairs": 20,
+      "all_40_output_hashes_equal": true,
+      "baseline_median_cpu": 0.23325449999999748,
+      "candidate_median_cpu": 0.16397250000000163,
+      "median_cpu_reduction_fraction": 0.2970232085554474,
+      "candidate_lower_cpu_pairs": 20
+    }
+  ],
+  "fixture_manifest_files": 13132,
+  "fixture_manifest_bytes": 146872185,
+  "baseline_git_hash_matches": true,
+  "candidate_source_matches_QA": true,
+  "artifact_hashes": {
+    "paired_benchmark.py": "fdb167d063ad109fddd57f9c0c89b9c4b01317c05d615f7aab88d3edeb9f362d",
+    "paired-cpu-results.json": "8c8d70b32e936065a63d48d4a75f5092bcdd26f269fbc1beaf1ce976252a0a85",
+    "input-manifest.json": "1e4158c2c14dea9ddb5bf145c1af8d73e68ca77f393f8123ab801a11914c42fb",
+    "baseline-projections.py": "9b3dfb326d5a64e682bb6364eee4a49fe5537ea6b39f24a8e66622ab85b4efab",
+    "service-page-baseline-correction.json": "e711670a4f8b9775ff2e7e73156a3ca3f00f43052604be9c753715ff86d4b9c0"
+  },
+  "method_review": [
+    "AST extracts exact frozen baseline build_projection into the unchanged candidate module helper environment; scoped diff contains no other helper changes.",
+    "Trial order alternates baseline/candidate and candidate/baseline over20 pairs in every scenario. No cProfile timing included.",
+    "Both enabled store root existence and prepareTrue are explicitly asserted. Initial mislabeled absent-root baseline is retained with correction.",
+    "Service scenarios seed only previously canonical-validated bytes at age20s, exceeding2s complete freshness; actual request_many and one worker revalidate inputs. Service closes before next variant.",
+    "Output fingerprinting and setup/teardown are outside timed section; comparison measures projection/service refresh, not page rendering."
+  ],
+  "caveats": [
+    "Historical Oct25 frozen input with warm imports and hash-warmed OS filesystem cache, not current production data or process-cold behavior.",
+    "Prepared bytes and injected builder isolate the modified function; this is a controlled query-service replay, not full actual Home/Trading UI time.",
+    "Time.process_time measures this benchmark process including its service thread, not Fly guest, engine, separate observer, or concurrent pytest CPU.",
+    "Concurrent full-suite host activity makes wall timings diagnostic only; even process-CPU improvement does not prove guest throttling/health recovery.",
+    "Input unchanged verification is an explicit terminal assertion in retained driver/results; independent light audit verifies exact manifest/artifact/git hashes rather than rehashing every frozen data file.",
+    "No production/native/original1GiB/depleted CPU acceptance and no change to v66 FAIL_SAMPLE."
+  ]
+}

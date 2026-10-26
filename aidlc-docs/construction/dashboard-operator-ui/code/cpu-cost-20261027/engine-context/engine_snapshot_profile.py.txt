@@ -1,0 +1,129 @@
+"""Read-only frozen portfolio replay; never calls a writer/engine/exchange."""
+
+from __future__ import annotations
+
+import cProfile
+import hashlib
+import importlib.metadata
+import json
+import os
+import platform
+import pstats
+import statistics
+import sys
+import time
+from pathlib import Path
+
+REPO = Path('/private/tmp/crypto-master-cpu-cost-20261027')
+FIXTURE = Path('/private/tmp/crypto-master-strategy-snapshots/fly-data-20261025T105002Z')
+OUT = Path('/private/tmp/crypto-master-cpu-cost-delivery-20261027/engine-snapshot-profile')
+OUT.mkdir(exist_ok=False)
+os.environ['LOG_FILE'] = str(OUT / 'import.log')
+os.environ['DATA_DIR'] = str(OUT / 'unused-data-root')
+sys.path.insert(0, str(REPO))
+
+from src.trading.portfolio import AssetSnapshot, PortfolioTracker  # noqa: E402
+
+FILES = sorted((FIXTURE / 'portfolio').glob('**/snapshots.json'))
+SOURCES = [REPO / p for p in (
+    'src/trading/portfolio.py', 'src/runtime/snapshot_recorder.py',
+    'src/strategy/trade_history.py', 'src/strategy/performance.py',
+)]
+
+
+def fingerprint(path):
+    stat = path.stat()
+    return {'bytes': stat.st_size, 'mtime_ns': stat.st_mtime_ns,
+            'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+before = {str(p.relative_to(FIXTURE)): fingerprint(p) for p in FILES}
+source_before = {str(p.relative_to(REPO)): fingerprint(p) for p in SOURCES}
+
+
+def phase(fn):
+    wall, cpu = time.perf_counter(), time.process_time()
+    value = fn()
+    return value, {'cpu_seconds': time.process_time()-cpu,
+                   'wall_seconds': time.perf_counter()-wall}
+
+
+def pure_pipeline(text):
+    rows = json.loads(text)
+    models = [AssetSnapshot(**row) for row in rows]
+    converted = [PortfolioTracker._snapshot_to_dict(model) for model in models]
+    return json.dumps(converted, indent=2)
+
+
+runs = []
+for repeat in range(5):
+    accounts = []
+    for path in FILES:
+        raw, read = phase(lambda: path.read_text(encoding='utf-8'))
+        rows, decode = phase(lambda: json.loads(raw))
+        models, validate = phase(lambda: [AssetSnapshot(**row) for row in rows])
+        converted, to_dict = phase(lambda: [PortfolioTracker._snapshot_to_dict(m) for m in models])
+        encoded, encode = phase(lambda: json.dumps(converted, indent=2))
+        relative = str(path.relative_to(FIXTURE))
+        group = ('legacy-root' if path.parent.name == 'paper' else
+                 'disabled-default' if path.parent.name == 'default' else 'active-lab')
+        accounts.append({'path': relative, 'group': group, 'rows': len(rows),
+                         'output_bytes': len(encoded.encode()),
+                         'output_sha256': hashlib.sha256(encoded.encode()).hexdigest(),
+                         'read': read, 'json_decode': decode, 'model_validate': validate,
+                         'to_dict': to_dict, 'json_encode': encode})
+        del raw, rows, models, converted, encoded
+    runs.append(accounts)
+
+# Profile only canonical Python decoding/model validation/serialization. The
+# texts are read before profiling, so file IO is not attributed to CPU stages.
+texts = [p.read_text(encoding='utf-8') for p in FILES]
+profiler = cProfile.Profile()
+wall, cpu = time.perf_counter(), time.process_time()
+profiler.enable()
+for text in texts:
+    pure_pipeline(text)
+profiler.disable()
+profile_elapsed = {'cpu_seconds': time.process_time()-cpu,
+                   'wall_seconds': time.perf_counter()-wall}
+profiler.dump_stats(str(OUT / 'canonical-snapshot.prof'))
+stats = pstats.Stats(profiler)
+functions = []
+for (filename, lineno, function), (primitive, calls, own, cumulative, _) in stats.stats.items():
+    functions.append({'file': filename, 'line': lineno, 'function': function,
+                      'primitive_calls': primitive, 'calls': calls,
+                      'self_seconds': own, 'cumulative_seconds': cumulative})
+summary = {}
+for group in ['active-lab', 'disabled-default', 'legacy-root', 'all']:
+    selected = [[a for a in run if group == 'all' or a['group'] == group] for run in runs]
+    sums = [{stage: sum(a[stage]['cpu_seconds'] for a in run)
+             for stage in ['read', 'json_decode', 'model_validate', 'to_dict', 'json_encode']}
+            for run in selected]
+    pure = [sum(v for key, v in row.items() if key != 'read') for row in sums]
+    summary[group] = {'files': len(selected[0]), 'rows': sum(a['rows'] for a in selected[0]),
+                      'cpu_stage_medians': {key: statistics.median(row[key] for row in sums)
+                                            for key in sums[0]},
+                      'pure_pipeline_cpu_seconds': pure,
+                      'pure_pipeline_cpu_median': statistics.median(pure),
+                      'read_wall_seconds': [sum(a['read']['wall_seconds'] for a in run)
+                                            for run in selected]}
+after = {str(p.relative_to(FIXTURE)): fingerprint(p) for p in FILES}
+source_after = {str(p.relative_to(REPO)): fingerprint(p) for p in SOURCES}
+stable_outputs = all([(a['path'], a['output_sha256']) for a in run] ==
+                     [(a['path'], a['output_sha256']) for a in runs[0]] for run in runs)
+assert before == after and source_before == source_after and stable_outputs
+result = {'scope': 'Historical frozen Oct25 fixture; read-only local CPU replay, not v66 production attribution',
+          'excludes': ['fresh snapshot construction/appending', 'trade PnL aggregation',
+                       'atomic file writing', 'engine/proposal/exchange/network', 'import/bootstrap'],
+          'io_caveat': 'File reads are separately timed, warm OS cache (fingerprints precede trials); no cold IO claim.',
+          'source_repo': str(REPO), 'fixture_root': str(FIXTURE),
+          'python': platform.python_version(), 'pydantic': importlib.metadata.version('pydantic'),
+          'platform': platform.platform(), 'fixture_files': before,
+          'source_files': source_before, 'fixture_unchanged': before == after,
+          'source_unchanged': source_before == source_after, 'outputs_stable': stable_outputs,
+          'runs': runs, 'summary': summary, 'profile_elapsed': profile_elapsed,
+          'profile_top_cumulative': sorted(functions,key=lambda r:r['cumulative_seconds'],reverse=True)[:25],
+          'profile_top_self': sorted(functions,key=lambda r:r['self_seconds'],reverse=True)[:25]}
+(OUT / 'result.json').write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps({'summary':summary,'profile_elapsed':profile_elapsed,
+                  'fixture_unchanged':True,'source_unchanged':True,'outputs_stable':True},indent=2))
