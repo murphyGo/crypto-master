@@ -1,0 +1,500 @@
+{
+  "scope": "Bounded offline residual diagnosis. No app/source/runtime changes, production calls, new load, benchmark or test execution. Only this residual-analysis folder written.",
+  "deployed_source": "120b4408dc0d3eedb241edf26f8f161c062cf126",
+  "inputs_sha256": {
+    "v67-observation/v67-page-observations.jsonl": "9e693a51e3aa8c6b5aba51a2b3e892776ca820cec86b1fc001e79e1026755fa2",
+    "v67-diagnostics-framed.jsonl": "a3aad3be88afc36f130571b01d417d53af3ecefc0f9cbc57e779ed772f562492",
+    "v67-cpu-final.json": "c04a48873d88bdaed23c3e8681c8bab1d087b81c4be8ba09114da0875e39f874",
+    "postdeploy.json": "a64e19e1ae410ca4591a19c2f190ca02fe771d843bc08a6739e254c0d0d649dd",
+    "deployment-verification.json": "1aef8842920da8bbcb7077febd25371d7d7e65ab75ff4c0971bb15d3970049df",
+    "qa-ops-v67/diagnostics-supplement.json": "c17b3de527a3ad14dac8f522ae36d39c7346dadd412e3df4a2013f7ac83c05a6",
+    "engine-snapshot-profile/result.json": "ff0181ab8126897b96612bc72349e58dbf9d009a21832964893a33e50ec3654a"
+  },
+  "examined_source_sha256": {
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471",
+    "src/dashboard/segment_checkpoints.py": "fa4b570d3173e2df4ac27e5860d0bdd37781eb26bf9d4429046d81d784896fbb",
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6",
+    "src/dashboard/read_diagnostics.py": "83373891dc7c87e5d3d99064231998632206f9d84f28771deb47360706777061",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "src/utils/bounded_read.py": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9",
+    "src/runtime/engine.py": "fb438cd722bba4b1cdd334d04b54dda21bfb40dae3480feb25ad7ef8c0c6afde",
+    "src/runtime/snapshot_recorder.py": "1b42cbdbd4be76b516af116982922707f207383452547158bbc36eb1f72f5a9d",
+    "src/trading/portfolio.py": "ab0e6b5c8e8224e2ec5ede2af3df48dd1df41d1a076ce2b83f8aaf3df6afc803",
+    "src/dashboard/pages/home.py": "97420a6d30c2e913ea120abdf6e0d24cc0680c043bfc81e5e7e056423f0e5524",
+    "src/dashboard/pages/trading.py": "c5b166582054d5cbbef979a34bfb33bb2e4906fca41d9edc0f66f022f29b086b"
+  },
+  "all_14_source_files_match_postdeploy_manifest": true,
+  "outcomes": {
+    "complete": 348,
+    "incomplete": 8
+  },
+  "failure_rows": [
+    {
+      "line": 341,
+      "started_at": "2026-10-26T18:22:37.987081+00:00",
+      "client": 3,
+      "page": "Home",
+      "seconds": 0.6823324169963598,
+      "status": "incomplete",
+      "maximum_background_watchers": 0,
+      "auto_rerun_registrations": 0,
+      "script_finished_values": [
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 0.4940323329064995
+    },
+    {
+      "line": 342,
+      "started_at": "2026-10-26T18:22:37.173027+00:00",
+      "client": 1,
+      "page": "Home",
+      "seconds": 1.6288826670497656,
+      "status": "incomplete",
+      "maximum_background_watchers": 0,
+      "auto_rerun_registrations": 0,
+      "script_finished_values": [
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 1.3053722500335425
+    },
+    {
+      "line": 343,
+      "started_at": "2026-10-26T18:22:37.176246+00:00",
+      "client": 2,
+      "page": "Trading",
+      "seconds": 2.013394584064372,
+      "status": "incomplete",
+      "maximum_background_watchers": 0,
+      "auto_rerun_registrations": 0,
+      "script_finished_values": [
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 1.2847332500386983
+    },
+    {
+      "line": 344,
+      "started_at": "2026-10-26T18:22:36.576700+00:00",
+      "client": 0,
+      "page": "Trading",
+      "seconds": 2.877808916964568,
+      "status": "incomplete",
+      "maximum_background_watchers": 0,
+      "auto_rerun_registrations": 0,
+      "script_finished_values": [
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 1.9011332499794662
+    },
+    {
+      "line": 345,
+      "started_at": "2026-10-26T18:22:56.577707+00:00",
+      "client": 0,
+      "page": "Home",
+      "seconds": 18.581197957973927,
+      "status": "incomplete",
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 2,
+      "script_finished_values": [
+        0,
+        3,
+        3,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "snapshots",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 4.306432457990013
+    },
+    {
+      "line": 346,
+      "started_at": "2026-10-26T18:22:57.176014+00:00",
+      "client": 2,
+      "page": "Home",
+      "seconds": 18.092193457996473,
+      "status": "incomplete",
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 2,
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        0,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "snapshots",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 4.228767374996096
+    },
+    {
+      "line": 347,
+      "started_at": "2026-10-26T18:22:57.987369+00:00",
+      "client": 3,
+      "page": "Trading",
+      "seconds": 17.281580041977577,
+      "status": "incomplete",
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 2,
+      "script_finished_values": [
+        0,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "snapshots",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 4.202530417009257
+    },
+    {
+      "line": 348,
+      "started_at": "2026-10-26T18:22:57.173843+00:00",
+      "client": 1,
+      "page": "Trading",
+      "seconds": 18.099543165997602,
+      "status": "incomplete",
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 2,
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "final_incomplete_alerts": [
+        {
+          "section": "snapshots",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "first_incomplete_shell_seconds": 4.230101999943145
+    }
+  ],
+  "selected_diagnostics": [
+    {
+      "line": 528,
+      "received_at": "2026-10-26T18:22:37.703377+00:00",
+      "fly_timestamp": "2026-10-26T18:22:39.885627325Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 21.038,
+        "event": "dashboard_read_incomplete",
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "projection",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 529,
+      "received_at": "2026-10-26T18:22:37.703450+00:00",
+      "fly_timestamp": "2026-10-26T18:22:39.885927175Z",
+      "diagnostic": {
+        "admitted": 3,
+        "cache_age_seconds": 21.042,
+        "event": "dashboard_read_incomplete",
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "error_cache",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 538,
+      "received_at": "2026-10-26T18:22:59.665748+00:00",
+      "fly_timestamp": "2026-10-26T18:23:01.844005603Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 2.038,
+        "event": "dashboard_read_incomplete",
+        "kind": "activity",
+        "reason": "queue_full",
+        "stage": "admission",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 539,
+      "received_at": "2026-10-26T18:22:59.665946+00:00",
+      "fly_timestamp": "2026-10-26T18:23:01.844013593Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 2.034,
+        "event": "dashboard_read_incomplete",
+        "kind": "ledger",
+        "reason": "queue_full",
+        "stage": "admission",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 541,
+      "received_at": "2026-10-26T18:23:02.592950+00:00",
+      "fly_timestamp": "2026-10-26T18:23:04.770195723Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 24.379,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "projection",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 544,
+      "received_at": "2026-10-26T18:23:03.105010+00:00",
+      "fly_timestamp": "2026-10-26T18:23:05.294751237Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 24.779,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "error_cache",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 547,
+      "received_at": "2026-10-26T18:23:06.684237+00:00",
+      "fly_timestamp": "2026-10-26T18:23:08.869500649Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 28.48,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 548,
+      "received_at": "2026-10-26T18:23:07.592204+00:00",
+      "fly_timestamp": "2026-10-26T18:23:09.738170702Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 2.134,
+        "event": "dashboard_read_incomplete",
+        "kind": "activity",
+        "reason": "queue_full",
+        "stage": "admission",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 549,
+      "received_at": "2026-10-26T18:23:07.594907+00:00",
+      "fly_timestamp": "2026-10-26T18:23:09.742733604Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 2.122,
+        "event": "dashboard_read_incomplete",
+        "kind": "ledger",
+        "reason": "queue_full",
+        "stage": "admission",
+        "status": "stale"
+      }
+    },
+    {
+      "line": 550,
+      "received_at": "2026-10-26T18:23:13.355628+00:00",
+      "fly_timestamp": "2026-10-26T18:23:15.545239432Z",
+      "diagnostic": {
+        "admitted": 4,
+        "cache_age_seconds": 35.155,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "projection",
+        "status": "unavailable"
+      }
+    },
+    {
+      "line": 553,
+      "received_at": "2026-10-26T18:23:13.839144+00:00",
+      "fly_timestamp": "2026-10-26T18:23:16.027565196Z",
+      "diagnostic": {
+        "admitted": 2,
+        "cache_age_seconds": 35.632,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "error_cache",
+        "status": "unavailable"
+      }
+    },
+    {
+      "line": 554,
+      "received_at": "2026-10-26T18:23:16.641397+00:00",
+      "fly_timestamp": "2026-10-26T18:23:18.83236651Z",
+      "diagnostic": {
+        "admitted": 1,
+        "cache_age_seconds": 38.44,
+        "event": "dashboard_read_incomplete",
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "status": "pending"
+      }
+    }
+  ],
+  "all_emitted_reason_counts": {
+    "rebuild_pending": 505,
+    "queue_full": 55,
+    "source_changed": 6
+  },
+  "cpu_sample_summary": {
+    "fly_instance_cpu_balance": {
+      "count": 123,
+      "min": 932.0077104,
+      "max": 4031.0047002,
+      "last": 1017.0092344
+    },
+    "fly_instance_cpu_baseline": {
+      "count": 123,
+      "min": 0.0625,
+      "max": 0.0625,
+      "last": 0.0625
+    },
+    "fly_instance_cpu_throttle": {
+      "count": 123,
+      "min": 0.0,
+      "max": 0.0,
+      "last": 0.0
+    }
+  },
+  "cycle_window_as_supplied_by_lead_and_qa": [
+    "2026-10-26T18:22:37.998358Z",
+    "2026-10-26T18:23:12.286517Z"
+  ],
+  "after_failure_complete_rows": [
+    {
+      "line": 349,
+      "started_at": "2026-10-26T18:23:17.175867+00:00",
+      "seconds": 3.870223625097424
+    },
+    {
+      "line": 350,
+      "started_at": "2026-10-26T18:23:16.578031+00:00",
+      "seconds": 4.611964792013168
+    },
+    {
+      "line": 351,
+      "started_at": "2026-10-26T18:23:17.993026+00:00",
+      "seconds": 3.465224790968932
+    },
+    {
+      "line": 352,
+      "started_at": "2026-10-26T18:23:17.174674+00:00",
+      "seconds": 4.290196666028351
+    },
+    {
+      "line": 353,
+      "started_at": "2026-10-26T18:23:36.579121+00:00",
+      "seconds": 0.3508149159606546
+    },
+    {
+      "line": 354,
+      "started_at": "2026-10-26T18:23:37.178894+00:00",
+      "seconds": 0.22998579195700586
+    },
+    {
+      "line": 355,
+      "started_at": "2026-10-26T18:23:37.176856+00:00",
+      "seconds": 0.4377708330284804
+    },
+    {
+      "line": 356,
+      "started_at": "2026-10-26T18:23:37.993743+00:00",
+      "seconds": 0.30578054196666926
+    }
+  ],
+  "limits": [
+    "Diagnostic classifications are asynchronous, rate-limited, lack query/job/request identifiers, and do not identify the source verification branch. They cannot be joined one-to-one to page failures.",
+    "Fly and observer receipt timestamps are not a synchronized event timeline. For example diagnostic528 received_at18:22:37.703377 versus fly_timestamp18:22:39.885627325Z.",
+    "No emitted budget reason and sampled throttle0 do not exclude dropped diagnostics, CPU contention, IO latency, or exact unsampled behavior.",
+    "The frozen local snapshot profile excludes writes and comes from Oct25, not the v67 failure window.",
+    "No existing full-source validation or failed operational result was reclassified by this analysis."
+  ],
+  "inputs_unchanged_after_read": true
+}

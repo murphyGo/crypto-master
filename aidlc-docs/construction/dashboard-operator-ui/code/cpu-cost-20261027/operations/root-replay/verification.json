@@ -1,0 +1,23 @@
+{
+  "offline_only": true,
+  "original_package_untouched": true,
+  "package_files_verified": 42,
+  "results": {
+    "audit-summary.json": {
+      "semantic_match_ignoring_created_at": true,
+      "original_sha256": "fa9308c817e2d7dcbba04b39a315a9644d63eafef21c6eb5be6f84d396f682de",
+      "replay_sha256": "fa9308c817e2d7dcbba04b39a315a9644d63eafef21c6eb5be6f84d396f682de"
+    },
+    "cpu-window-proof.json": {
+      "semantic_match_ignoring_created_at": true,
+      "original_sha256": "8f0ea821768145f2d36d48bebe932dbc0c43c45c29e5a028ff989ef1dd4d71df",
+      "replay_sha256": "64c9c78a61594db04dc5d29e4c9eb25672b85f0e9b171a1f96588ad782ee2a56"
+    },
+    "cpu-counter-interpretation.json": {
+      "semantic_match_ignoring_created_at": true,
+      "original_sha256": "1541702ca1e30f577e57511883cc49d451c6f7452f178beeea6b8218e5898985",
+      "replay_sha256": "1541702ca1e30f577e57511883cc49d451c6f7452f178beeea6b8218e5898985"
+    }
+  },
+  "copy_guard": "Initial CPU replay refused to overwrite copied immutable output with FileExistsError; copied baseline outputs renamed only in separate replay directory, then replay passed."
+}

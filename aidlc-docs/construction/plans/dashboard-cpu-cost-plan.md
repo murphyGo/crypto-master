@@ -40,9 +40,9 @@ unless separately qualified. This is one evidence-led correction cycle.
 - [x] Developer: implement with regression/parity/bounds checks.
 - [x] QA/lead: targeted tests, full suite, formatting, typing and unchanged-input
   before/after CPU/output comparison.
-- [ ] Lead: commit/push exact correction; deploy same config and verify source,
+- [x] Lead: commit/push exact correction; deploy same config and verify source,
   health, natural engine cycle and one bounded concurrent observation.
-- [ ] Docs: session/cross-check/state/debt map and final evidence, with all
+- [x] Docs: session/cross-check/state/debt map and final evidence, with all
   failures retained; separate operational commit/push and remote confirmation.
 
 Likely source scope: dashboard projections, discovery/read services or rendering,
@@ -80,3 +80,11 @@ for direct disabled/enabled checkpoint refresh and 30.20/29.70% for controlled
 Home/Trading query-service replays. These are not full-page/native or production
 latency measurements; independent arithmetic/method review is GREEN. Retain the
 initial incorrectly labelled store measurement with its correction supplement.
+
+Operational execution is complete, but acceptance fails: v67 / `120b440`
+retains exact runtime/configuration with 182 hashes verified. One 1,774.272 s
+four-session observation records 348/356 complete and eight terminal incomplete
+outcomes; the full natural cycle and health pass. Sampled CPU throttle increments
+are zero. This is a completed measurement, not a successful readiness gate.
+Initial Home warmup and cold/native/depleted/original 1024 MiB remain open.
+See the session/cross-check and `code/cpu-cost-20261027/operations/` evidence.

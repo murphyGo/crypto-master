@@ -1,0 +1,63 @@
+{
+  "freeze": {
+    "source": "/private/tmp/crypto-master-debt087-089-closeout/cpu-cost-final.json",
+    "relative_copy": "supplements/runtime/cpu-cost-final.json",
+    "bytes": 32803,
+    "sha256": "4e7828161f8f2a390d6c0591dd2ef9767736bf6cd53d0492bf23189fbb7403f4",
+    "source_mtime_ns": 1793039082343271423
+  },
+  "captured_at": "2026-10-26T18:24:40.539128+00:00",
+  "expected_source": "120b4408dc0d3eedb241edf26f8f161c062cf126",
+  "independent_git_blob_hash_matches": true,
+  "runtime_files_checked": 182,
+  "release": 67,
+  "machine": "6835752b711958",
+  "instance": "01M5WNEGCGSRY9CE34VRT7K6X3",
+  "image": {
+    "registry": "registry.fly.io",
+    "repository": "crypto-master",
+    "tag": "git-120b4408dc0d3eedb241edf26f8f161c062cf126",
+    "digest": "sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+    "labels": {
+      "org.opencontainers.image.revision": "120b4408dc0d3eedb241edf26f8f161c062cf126"
+    }
+  },
+  "configuration_unchanged_vs_v66": {
+    "dependencies": true,
+    "configuration": true,
+    "guest": true,
+    "mounts": true
+  },
+  "guest": {
+    "cpu_kind": "shared",
+    "cpus": 1,
+    "memory_mb": 2048
+  },
+  "observed_process_ids_still_match": true,
+  "health": {
+    "public": {
+      "status": 200,
+      "body": "ok"
+    },
+    "internal": {
+      "status": 200,
+      "body": "ok"
+    }
+  },
+  "cycle_matches_in_window_observation": true,
+  "cycle": {
+    "cycle_id": "54425221-0b58-4c65-bbec-573474aa4d00",
+    "started_at": "2026-10-26T18:22:37.998358Z",
+    "completed_at": "2026-10-26T18:23:12.286517Z",
+    "seconds": 34.288159,
+    "cycle_errored_seen": false
+  },
+  "event_counts": {
+    "cycle_started": 1,
+    "monitor_pass": 12,
+    "cycle_completed": 1,
+    "sleeping": 1
+  },
+  "errors": [],
+  "interpretation": "Separate post-observation source/config/process/health proof. Does not erase eight incomplete page outcomes or warmup misses. Matching PID numbers across different releases alone are not proof of absence of deployment restart."
+}

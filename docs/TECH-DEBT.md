@@ -366,10 +366,20 @@ semantics remain unchanged. Baseline three behavioral failures now pass;
 Twenty alternating unprofiled pairs preserve exact outputs and frozen inputs:
 median CPU falls 34.38/35.16% for disabled/enabled direct refresh and
 30.20/29.70% for controlled Home/Trading query-service replay. These are local
-CPU measurements, not full-page/native/production readiness. Source delivery
-and one same-capacity runtime observation follow. The initial store-label
-mistake is retained with a correction; the v66 failed sample and original
-cold/native/depleted/1024 MiB conditions remain open. See
+CPU measurements, not full-page/native/production readiness. Source `120b440`
+is pushed to main and deployed as v67; 182 runtime hashes, unchanged settings,
+process continuity and health are verified before/after observation. The
+1,774.272 s four-session sample is **FAIL_SAMPLE**: 348/356 complete, eight
+terminal incomplete (four activity stale, four snapshots unavailable), not
+thirty-second timeouts or guard aborts. Health passes 352/352 (max 0.662 s);
+a full natural cycle completes in 34.288 s with twelve monitors and zero errors.
+Guest peak is 663.172 MiB and dashboard growth 31.578 MiB on unchanged 2048 MiB.
+The 118 in-window CPU samples have zero throttle counter increments and
+positive balance; depleted CPU acceptance is unqualified. Initial Home
+completion 12.956 s and first incomplete receipt 5.507 s miss five-second
+targets. The initial store-label mistake is retained with a correction. All
+prior failed samples and cold/native/depleted/original 1024 MiB conditions
+remain open; DEBT-083 stays Critical/active. See
 `docs/sessions/2026-10-27-dashboard-cpu-cost.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅

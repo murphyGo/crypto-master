@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-26T18:09:38.406081+00:00",
+  "source": "120b4408dc0d3eedb241edf26f8f161c062cf126",
+  "command": "gh run list --repo murphyGo/crypto-master --branch main --limit 5 --json databaseId,headSha,status,conclusion,url",
+  "returncode": 0,
+  "runs": [],
+  "interpretation": "No runs returned for this query; not a CI pass. Full local source qualification is recorded separately."
+}

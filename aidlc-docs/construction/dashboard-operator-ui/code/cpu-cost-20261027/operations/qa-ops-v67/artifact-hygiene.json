@@ -1,0 +1,19 @@
+{
+  "scanned_files": [
+    "frozen/context/observe_dashboard_protocol.py",
+    "frozen/raw/v67-memory-samples.jsonl",
+    "frozen/raw/v67-page-starts.jsonl",
+    "frozen/raw/v67-warmup-page-observations.jsonl",
+    "frozen/raw/v67-concurrency-summary.json",
+    "frozen/raw/v67-observer-config.json",
+    "frozen/raw/v67-warmup-page-starts.jsonl",
+    "frozen/raw/v67-warmup-protocol.json",
+    "frozen/raw/v67-page-observations.jsonl",
+    "frozen/raw/v67-health-samples.json",
+    "supplements/cpu/v67-cpu-final.json",
+    "supplements/runtime/cpu-cost-final.json",
+    "supplements/diagnostics/v67-diagnostics-framed.jsonl"
+  ],
+  "credential_pattern_hits": [],
+  "limits": "Known credential patterns only, not a proof against arbitrary secret formats; no values are reproduced."
+}

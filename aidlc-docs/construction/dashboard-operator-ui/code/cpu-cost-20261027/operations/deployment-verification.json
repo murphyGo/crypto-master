@@ -1,0 +1,34 @@
+{
+  "source": "120b4408dc0d3eedb241edf26f8f161c062cf126",
+  "release": 67,
+  "instance": "01M5WNEGCGSRY9CE34VRT7K6X3",
+  "image": "sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+  "runtime_files_checked": 182,
+  "source_matches": true,
+  "dependencies_unchanged": true,
+  "configuration_unchanged": true,
+  "guest_and_volume_unchanged": true,
+  "first_cycle": [
+    {
+      "timestamp": "2026-10-26T17:52:18.752809Z",
+      "event_type": "cycle_started",
+      "cycle_id": "bfb58896-6917-4a20-9523-ca4b5bf3c6ed",
+      "details": {
+        "cycle_index": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-26T17:52:37.908691Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "bfb58896-6917-4a20-9523-ca4b5bf3c6ed",
+      "details": {
+        "proposals": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "opened": 0,
+        "closed": 0
+      }
+    }
+  ],
+  "observation_pending": true
+}

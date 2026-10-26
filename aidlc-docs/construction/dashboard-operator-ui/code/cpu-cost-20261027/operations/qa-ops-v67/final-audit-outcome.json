@@ -1,0 +1,163 @@
+{
+  "verdict": "FAIL_SAMPLE",
+  "window": {
+    "start": "2026-10-26T17:54:18.225469+00:00",
+    "end": "2026-10-26T18:23:52.497955+00:00",
+    "seconds": 1774.272486
+  },
+  "requests": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 348,
+      "incomplete": 8
+    },
+    "completion_ratio": 0.9775280898876404
+  },
+  "pages": {
+    "Home": {
+      "attempts": 178,
+      "complete": 174,
+      "failures": 4,
+      "failure_ratio": 0.02247191011235955,
+      "all_outcome_seconds_nearest_rank_p95": 0.6823324169963598,
+      "complete_seconds_nearest_rank_p95": 0.5762496249517426
+    },
+    "Trading": {
+      "attempts": 178,
+      "complete": 174,
+      "failures": 4,
+      "failure_ratio": 0.02247191011235955,
+      "all_outcome_seconds_nearest_rank_p95": 1.0260173339629546,
+      "complete_seconds_nearest_rank_p95": 0.48771404195576906
+    }
+  },
+  "failure_kind": "8 terminal incomplete outcomes, neither30s deadline timeouts nor guard aborts; all retained.",
+  "failure_durations_seconds": [
+    0.6823324169963598,
+    1.6288826670497656,
+    2.013394584064372,
+    2.877808916964568,
+    18.581197957973927,
+    18.092193457996473,
+    17.281580041977577,
+    18.099543165997602
+  ],
+  "health_samples": 352,
+  "health_failures": 0,
+  "health_max_seconds": 0.6617283330997452,
+  "full_cycles": [
+    {
+      "cycle_id": "54425221-0b58-4c65-bbec-573474aa4d00",
+      "started_at": "2026-10-26T18:22:37.998358Z",
+      "completed_at": "2026-10-26T18:23:12.286517Z",
+      "seconds": 34.288159,
+      "cycle_errored_seen": false
+    }
+  ],
+  "cycle_errors": [],
+  "memory": {
+    "samples": 1775,
+    "first_at": "2026-10-26T17:54:18.440613+00:00",
+    "last_at": "2026-10-26T18:23:54.176212+00:00",
+    "max_sample_gap_seconds": 1.012032,
+    "guest_peak_mib": 663.171875,
+    "guest_memtotal_kib": 2015880,
+    "dashboard_growth_mib": 31.578125,
+    "dashboard_hwm_growth_mib": 40.05859375,
+    "pid_sets": {
+      "engine": [
+        652
+      ],
+      "dashboard": [
+        653
+      ]
+    },
+    "missing_processes": [],
+    "processes": {
+      "engine": {
+        "rss_first_kib": 218096,
+        "rss_last_kib": 223332,
+        "rss_peak_kib": 228336,
+        "hwm_peak_kib": 228336,
+        "threads_first": 2,
+        "threads_last": 2,
+        "threads_min": 2,
+        "threads_max": 2,
+        "cpu_delta_seconds": 12.68
+      },
+      "dashboard": {
+        "rss_first_kib": 295376,
+        "rss_last_kib": 326428,
+        "rss_peak_kib": 327712,
+        "hwm_peak_kib": 336396,
+        "threads_first": 10,
+        "threads_last": 10,
+        "threads_min": 10,
+        "threads_max": 38,
+        "cpu_delta_seconds": 112.69
+      }
+    }
+  },
+  "warmup": [
+    {
+      "key": [
+        "2026-10-26T17:53:46.865457+00:00",
+        "warmup",
+        "Home"
+      ],
+      "status": "complete",
+      "seconds": 12.95624679105822,
+      "first_incomplete_shell_seconds": 5.507020249962807
+    },
+    {
+      "key": [
+        "2026-10-26T17:53:59.823340+00:00",
+        "warmup",
+        "Trading"
+      ],
+      "status": "complete",
+      "seconds": 0.9876748750684783,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "diagnostics_rows": 566,
+  "diagnostics_window_rows": 555,
+  "diagnostic_source_changed_events_in_window": 6,
+  "cpu_sampled_original_window_coverage": true,
+  "cpu_balance_window_centiseconds": {
+    "min": 932.0077104,
+    "max": 4031.0047002
+  },
+  "cpu_throttle_counter": {
+    "positive_counter_samples_inside_window": 0,
+    "first_window_counter_centiseconds": 0.0,
+    "last_window_counter_centiseconds": 0.0,
+    "net_change_between_first_and_last_window_samples_centiseconds": 0.0,
+    "new_throttling_observed_in_wholly_inside_sample_intervals": false,
+    "sum_positive_deltas_in_wholly_inside_intervals_centiseconds": 0,
+    "positive_delta_intervals_inside_window": [],
+    "decrease_or_reset_intervals_touching_window": [],
+    "changed_boundary_crossing_intervals": [],
+    "interpretation": "A positive cumulative counter alone does not show new throttling. Positive deltas with both samples inside the observation prove increases during that sampled interval. Boundary-crossing increases cannot be assigned wholly to the observation. Decreases may indicate a reset; positive deltas are reported separately and are not an exact reset-corrected total. Fifteen-second samples can miss resets and do not localize request causality."
+  },
+  "runtime_verification": "post-run-runtime-verification.json",
+  "preserved_unqualified": [
+    "native viewport",
+    "cache-cold/process-cold >=20 samples per page",
+    "depleted CPU qualification",
+    "original1GiB configuration acceptance"
+  ],
+  "interpretation": [
+    "Correctness tests/local CPU improvement and successful health/fullcycle do not qualify incomplete page outcomes.",
+    "This failed observation has no sampled throttle counter increase; do not attribute these failures to sampled CPU throttling.",
+    "Async source_changed diagnostics overlap requests but have no request/query identity, so causality is not established.",
+    "Memory sampler retained1.678257s after formal page observation end; reported raw maxima include that small drain tail.",
+    "All previous v66 failures and this run warmup misses remain preserved."
+  ],
+  "production_load_added_by_auditor": false
+}

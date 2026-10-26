@@ -1,0 +1,1221 @@
+{
+  "audit_completed_at": "2026-10-26T18:24:44.940934+00:00",
+  "mode": "existing frozen evidence only; no new load",
+  "window": {
+    "start": "2026-10-26T17:54:18.225469+00:00",
+    "end": "2026-10-26T18:23:52.497955+00:00",
+    "seconds": 1774.272486
+  },
+  "existing_warm_protocol_sample_pass": false,
+  "original_debt083_acceptance": false,
+  "original_acceptance_unqualified": [
+    "declared 1 GiB guest",
+    "native viewport",
+    "per-page process-cold and cache-cold >=20 samples",
+    "depleted CPU qualification"
+  ],
+  "request_reconciliation": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 348,
+      "incomplete": 8
+    },
+    "completion_ratio": 0.9775280898876404
+  },
+  "parse_errors": {
+    "starts": [],
+    "outcomes": [],
+    "memory": []
+  },
+  "semantic_shape_failures": [
+    {
+      "key": [
+        "2026-10-26T18:22:37.987081+00:00",
+        3,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:37.173027+00:00",
+        1,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:37.176246+00:00",
+        2,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:36.576700+00:00",
+        0,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:56.577707+00:00",
+        0,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.176014+00:00",
+        2,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.987369+00:00",
+        3,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "placeholder_or_unproven_metric",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.173843+00:00",
+        1,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "placeholder_or_unproven_metric",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    }
+  ],
+  "pages": {
+    "Home": {
+      "observations": 178,
+      "complete": 174,
+      "incomplete": 4,
+      "complete_seconds_p95": 0.5762496249517426,
+      "complete_seconds_max": 4.290196666028351,
+      "all_complete": false,
+      "completion_ratio": 0.9775280898876404,
+      "status_counts": {
+        "complete": 174,
+        "incomplete": 4
+      },
+      "per_client": {
+        "0": 45,
+        "2": 45,
+        "1": 44,
+        "3": 44
+      }
+    },
+    "Trading": {
+      "observations": 178,
+      "complete": 174,
+      "incomplete": 4,
+      "complete_seconds_p95": 0.48771404195576906,
+      "complete_seconds_max": 4.611964792013168,
+      "all_complete": false,
+      "completion_ratio": 0.9775280898876404,
+      "status_counts": {
+        "complete": 174,
+        "incomplete": 4
+      },
+      "per_client": {
+        "1": 45,
+        "3": 45,
+        "0": 44,
+        "2": 44
+      }
+    }
+  },
+  "clients": {
+    "0": {
+      "requests": 89,
+      "first": "2026-10-26T17:54:18.384138+00:00",
+      "last": "2026-10-26T18:23:36.579121+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 18.086249,
+      "maximum_start_gap_seconds": 20.010096
+    },
+    "2": {
+      "requests": 89,
+      "first": "2026-10-26T17:54:18.978471+00:00",
+      "last": "2026-10-26T18:23:37.178894+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 18.087621,
+      "maximum_start_gap_seconds": 20.01197
+    },
+    "1": {
+      "requests": 89,
+      "first": "2026-10-26T17:54:18.959713+00:00",
+      "last": "2026-10-26T18:23:37.176856+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 18.086765,
+      "maximum_start_gap_seconds": 20.01335
+    },
+    "3": {
+      "requests": 89,
+      "first": "2026-10-26T17:54:19.793780+00:00",
+      "last": "2026-10-26T18:23:37.993743+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 18.087451,
+      "maximum_start_gap_seconds": 20.012243
+    }
+  },
+  "health": {
+    "samples": 352,
+    "failures": [],
+    "maximum_seconds": 0.6617283330997452,
+    "first_at": "2026-10-26T17:54:18.228311+00:00",
+    "last_at": "2026-10-26T18:23:48.574924+00:00",
+    "max_sample_gap_seconds": 5.66196
+  },
+  "memory": {
+    "samples": 1775,
+    "first_at": "2026-10-26T17:54:18.440613+00:00",
+    "last_at": "2026-10-26T18:23:54.176212+00:00",
+    "max_sample_gap_seconds": 1.012032,
+    "guest_peak_mib": 663.171875,
+    "guest_memtotal_kib": 2015880,
+    "dashboard_growth_mib": 31.578125,
+    "dashboard_hwm_growth_mib": 40.05859375,
+    "pid_sets": {
+      "engine": [
+        652
+      ],
+      "dashboard": [
+        653
+      ]
+    },
+    "missing_processes": [],
+    "processes": {
+      "engine": {
+        "rss_first_kib": 218096,
+        "rss_last_kib": 223332,
+        "rss_peak_kib": 228336,
+        "hwm_peak_kib": 228336,
+        "threads_first": 2,
+        "threads_last": 2,
+        "threads_min": 2,
+        "threads_max": 2,
+        "cpu_delta_seconds": 12.68
+      },
+      "dashboard": {
+        "rss_first_kib": 295376,
+        "rss_last_kib": 326428,
+        "rss_peak_kib": 327712,
+        "hwm_peak_kib": 336396,
+        "threads_first": 10,
+        "threads_last": 10,
+        "threads_min": 10,
+        "threads_max": 38,
+        "cpu_delta_seconds": 112.69
+      }
+    }
+  },
+  "full_cycles_inside_entire_window": [
+    {
+      "cycle_id": "54425221-0b58-4c65-bbec-573474aa4d00",
+      "started_at": "2026-10-26T18:22:37.998358Z",
+      "completed_at": "2026-10-26T18:23:12.286517Z",
+      "seconds": 34.288159,
+      "cycle_errored_seen": false
+    }
+  ],
+  "cpu": {
+    "series": {},
+    "depletion_observed": false,
+    "throttle_observed": false,
+    "full_window_coverage": false
+  },
+  "declared_summary_comparisons": {
+    "seconds": true,
+    "health_samples": true,
+    "health_all_ok_under_5s": true,
+    "health_max_seconds": true,
+    "memory_samples": true,
+    "warmed_dashboard_baseline_rss_kib": true,
+    "dashboard_peak_rss_kib": true,
+    "dashboard_process_hwm_kib": true,
+    "observed_dashboard_rss_increase_mib": true,
+    "conservative_hwm_minus_warmed_rss_mib": true,
+    "guest_use_peak_mib": true,
+    "guest_memtotal_kib": true,
+    "request_starts_recorded": true,
+    "every_start_has_outcome": true,
+    "observed_guest_768_mib_ceiling_pass": true,
+    "dashboard_growth_256_mib_pass": true,
+    "warm_page_p95_2s_pass": true,
+    "minimum_duration_and_cycle_observed": true,
+    "pages.Home.observations": true,
+    "pages.Home.complete": true,
+    "pages.Home.incomplete": true,
+    "pages.Home.complete_seconds_p95": true,
+    "pages.Home.all_complete": true,
+    "pages.Trading.observations": true,
+    "pages.Trading.complete": true,
+    "pages.Trading.incomplete": true,
+    "pages.Trading.complete_seconds_p95": true,
+    "pages.Trading.all_complete": true,
+    "process_cpu_seconds_during_observation.engine": true,
+    "process_cpu_seconds_during_observation.dashboard": true,
+    "engine_full_cycle": true
+  },
+  "declared_summary_differences": [],
+  "limitations": [
+    "Semantic audit covers exact labels/placeholders/element presence, not table-cell oracle or native rendering.",
+    "Guest memory sampled about once per second; process HWM retained separately, no sum of process RSS.",
+    "CPU snapshots cover only their recorded timestamps; missing final coverage is not zero throttle.",
+    "Existing warmup and intermediate/canonical latency failures remain in frozen context."
+  ],
+  "enhanced_protocol_audit": {
+    "classifications": {
+      "failures": [],
+      "pages": {
+        "Home": {
+          "requests": 178,
+          "first_shell_observed": 4,
+          "first_shell_seconds_p95": 4.306432457990013,
+          "first_shell_seconds_max": 4.306432457990013,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 12,
+            "unavailable": 2
+          }
+        },
+        "Trading": {
+          "requests": 178,
+          "first_shell_observed": 4,
+          "first_shell_seconds_p95": 4.230101999943145,
+          "first_shell_seconds_max": 4.230101999943145,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 10,
+            "unavailable": 2
+          }
+        }
+      }
+    },
+    "warmup": {
+      "starts": 2,
+      "outcomes": 2,
+      "bijective": true,
+      "status_counts": {
+        "complete": 2
+      },
+      "aggregate_matches_jsonl": true,
+      "parse_errors": [],
+      "classification_audit": {
+        "failures": [],
+        "pages": {
+          "Home": {
+            "requests": 1,
+            "first_shell_observed": 1,
+            "first_shell_seconds_p95": 5.507020249962807,
+            "first_shell_seconds_max": 5.507020249962807,
+            "first_shell_over_5s": 1,
+            "incomplete_shell_classifications": {
+              "pending": 5,
+              "stale": 2
+            }
+          },
+          "Trading": {
+            "requests": 1,
+            "first_shell_observed": 0,
+            "first_shell_seconds_p95": null,
+            "first_shell_seconds_max": null,
+            "first_shell_over_5s": 0,
+            "incomplete_shell_classifications": {}
+          }
+        }
+      },
+      "observations": [
+        {
+          "key": [
+            "2026-10-26T17:53:46.865457+00:00",
+            "warmup",
+            "Home"
+          ],
+          "status": "complete",
+          "seconds": 12.95624679105822,
+          "first_incomplete_shell_seconds": 5.507020249962807
+        },
+        {
+          "key": [
+            "2026-10-26T17:53:59.823340+00:00",
+            "warmup",
+            "Trading"
+          ],
+          "status": "complete",
+          "seconds": 0.9876748750684783,
+          "first_incomplete_shell_seconds": null
+        }
+      ],
+      "cold_p95_qualified": false
+    },
+    "all_four_clients_alternate_both_pages": true,
+    "health_temporal_coverage": true,
+    "memory_temporal_coverage": true,
+    "pinned_shape_matches_observer_configuration": true,
+    "all_observed_cycle_errors": [],
+    "cycle_continuity_pass": true,
+    "summary_extra_differences": [],
+    "preserved_failure_rows": [
+      {
+        "started_at": "2026-10-26T18:22:37.987081+00:00",
+        "client": 3,
+        "page": "Home",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 0.4940323329064995,
+        "first_incomplete_script_finished_seconds": 0.6823270419845358,
+        "seconds": 0.6823324169963598,
+        "messages": 31,
+        "elements": {
+          "metric": 3,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 0.4940323329064995
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 0.6821169579634443
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "d007b1b0954d9e235d4cd69575e071195bc3193b818cc50f9a5b5caa0b787d69",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Candidates",
+            "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0
+        ],
+        "maximum_background_watchers": 0,
+        "auto_rerun_registrations": 0
+      },
+      {
+        "started_at": "2026-10-26T18:22:37.173027+00:00",
+        "client": 1,
+        "page": "Home",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 1.3053722500335425,
+        "first_incomplete_script_finished_seconds": 1.6288813340943307,
+        "seconds": 1.6288826670497656,
+        "messages": 31,
+        "elements": {
+          "metric": 3,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 1.3053722500335425
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 1.6268625420052558
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "d007b1b0954d9e235d4cd69575e071195bc3193b818cc50f9a5b5caa0b787d69",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Candidates",
+            "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0
+        ],
+        "maximum_background_watchers": 0,
+        "auto_rerun_registrations": 0
+      },
+      {
+        "started_at": "2026-10-26T18:22:37.176246+00:00",
+        "client": 2,
+        "page": "Trading",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 1.2847332500386983,
+        "first_incomplete_script_finished_seconds": 2.0133942920947447,
+        "seconds": 2.013394584064372,
+        "messages": 37,
+        "elements": {
+          "metric": 6,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 1,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 1.2847332500386983
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "ec9c68253f05a8ab313ef72d494d6e0cc587e38fca5485b2721b8586e5e35702",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "c8bcad7f2864e0f66e4f8441c5547e899da3efcc43256c4be51280bb072cb018",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "79868d5e710643436b362f345e3f44a6c3280d77aeea1b85a2415e81ac91a851",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "6e844c9c0e5f79f67c1e23e8447f395909a09818599643929b0b0f43d0036cfd",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0
+        ],
+        "maximum_background_watchers": 0,
+        "auto_rerun_registrations": 0
+      },
+      {
+        "started_at": "2026-10-26T18:22:36.576700+00:00",
+        "client": 0,
+        "page": "Trading",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 1.9011332499794662,
+        "first_incomplete_script_finished_seconds": 2.8778078749310225,
+        "seconds": 2.877808916964568,
+        "messages": 37,
+        "elements": {
+          "metric": 6,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 1,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 1.9011332499794662
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "ec9c68253f05a8ab313ef72d494d6e0cc587e38fca5485b2721b8586e5e35702",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "c8bcad7f2864e0f66e4f8441c5547e899da3efcc43256c4be51280bb072cb018",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "79868d5e710643436b362f345e3f44a6c3280d77aeea1b85a2415e81ac91a851",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "6e844c9c0e5f79f67c1e23e8447f395909a09818599643929b0b0f43d0036cfd",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0
+        ],
+        "maximum_background_watchers": 0,
+        "auto_rerun_registrations": 0
+      },
+      {
+        "started_at": "2026-10-26T18:22:56.577707+00:00",
+        "client": 0,
+        "page": "Home",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 4.306432457990013,
+        "first_incomplete_script_finished_seconds": 4.318638124968857,
+        "seconds": 18.581197957973927,
+        "messages": 142,
+        "elements": {
+          "metric": 3,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.306432457990013
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.306496165925637
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.30652816593647
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.3065669579664245
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.30659812502563
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.306751249940135
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true,
+            "first_seen_seconds": 18.229703499935567
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "unknown",
+            "value_sha256": "a5de04743d12b32ae47d9a62a20c5e7dac08fd70d0c6ab80e72a17f11339b127",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Candidates",
+            "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          2,
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          0
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T18:22:57.176014+00:00",
+        "client": 2,
+        "page": "Home",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 4.228767374996096,
+        "first_incomplete_script_finished_seconds": 4.231070207897574,
+        "seconds": 18.092193457996473,
+        "messages": 151,
+        "elements": {
+          "metric": 3,
+          "dataframe": 2,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.228767374996096
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.2287994580110535
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.228807499981485
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.228817707975395
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.229045416926965
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.231005041976459
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true,
+            "first_seen_seconds": 17.620546291931532
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "unknown",
+            "value_sha256": "a5de04743d12b32ae47d9a62a20c5e7dac08fd70d0c6ab80e72a17f11339b127",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Candidates",
+            "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0,
+          3,
+          2,
+          0,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          0
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T18:22:57.987369+00:00",
+        "client": 3,
+        "page": "Trading",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 4.202530417009257,
+        "first_incomplete_script_finished_seconds": 4.204939541989006,
+        "seconds": 17.281580041977577,
+        "messages": 148,
+        "elements": {
+          "metric": 6,
+          "dataframe": 3,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.202530417009257
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.202572250040248
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.20258266699966
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.204725499963388
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 16.81993912498001
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true,
+            "first_seen_seconds": 16.950666083022952
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "c8bcad7f2864e0f66e4f8441c5547e899da3efcc43256c4be51280bb072cb018",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "79868d5e710643436b362f345e3f44a6c3280d77aeea1b85a2415e81ac91a851",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "6e844c9c0e5f79f67c1e23e8447f395909a09818599643929b0b0f43d0036cfd",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0,
+          2,
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          0
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T18:22:57.173843+00:00",
+        "client": 1,
+        "page": "Trading",
+        "status": "incomplete",
+        "first_incomplete_shell_seconds": 4.230101999943145,
+        "first_incomplete_script_finished_seconds": 4.230919166002423,
+        "seconds": 18.099543165997602,
+        "messages": 152,
+        "elements": {
+          "metric": 6,
+          "dataframe": 3,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 1,
+        "alerts": [
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230101999943145
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230124208028428
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230133333010599
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230140332947485
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 17.63368750002701
+          },
+          {
+            "section": "snapshots",
+            "category": "unavailable",
+            "incomplete": true,
+            "first_seen_seconds": 17.634584125014953
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "c8bcad7f2864e0f66e4f8441c5547e899da3efcc43256c4be51280bb072cb018",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "79868d5e710643436b362f345e3f44a6c3280d77aeea1b85a2415e81ac91a851",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "6e844c9c0e5f79f67c1e23e8447f395909a09818599643929b0b0f43d0036cfd",
+            "placeholder": false
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+            "placeholder": false
+          }
+        ],
+        "script_finished_values": [
+          0,
+          3,
+          2,
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          0
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      }
+    ]
+  },
+  "diagnostic_sidecar": {
+    "status": "separate supplement required; not inferred from absence"
+  },
+  "freeze": {
+    "manifest": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/freeze-manifest.json",
+    "file_count": 10,
+    "total_bytes": 1638524,
+    "sha256_verified": true
+  },
+  "auditor_completed_at": "2026-10-26T18:24:44.959212+00:00"
+}

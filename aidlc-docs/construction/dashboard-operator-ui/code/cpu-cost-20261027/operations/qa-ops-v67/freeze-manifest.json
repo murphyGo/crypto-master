@@ -1,0 +1,93 @@
+{
+  "captured_at": "2026-10-26T18:24:44.910465+00:00",
+  "mode": "existing final evidence copied offline",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-concurrency-summary.json",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-concurrency-summary.json",
+      "relative_copy": "frozen/raw/v67-concurrency-summary.json",
+      "source_mtime_ns": 1793039032503382940,
+      "bytes": 1949,
+      "sha256": "37a8b3709d50af21f3c945eeef6a9843db23b66c379ceda43f22b764da8fff11"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-health-samples.json",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-health-samples.json",
+      "relative_copy": "frozen/raw/v67-health-samples.json",
+      "source_mtime_ns": 1793039032503951970,
+      "bytes": 40560,
+      "sha256": "c43bd2cff419cd5b16efd6c1e6714e411b62a66c389fa9bbd069b0ce1d5cc651"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-memory-samples.jsonl",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-memory-samples.jsonl",
+      "relative_copy": "frozen/raw/v67-memory-samples.jsonl",
+      "source_mtime_ns": 1793039031982629224,
+      "bytes": 771248,
+      "sha256": "6f651a0dbe2328b2833d1c5fa4182391f096a62e3cdbe39826bd43b975b08eb1"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-observer-config.json",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-observer-config.json",
+      "relative_copy": "frozen/raw/v67-observer-config.json",
+      "source_mtime_ns": 1793037226513976747,
+      "bytes": 1003,
+      "sha256": "d0b6f9a7abea16c57269656e5bbdd58c49903d414fdd7f0d4cd8efdceafbb177"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v67-page-observations.jsonl",
+      "source_mtime_ns": 1793039018300184171,
+      "bytes": 745043,
+      "sha256": "9e693a51e3aa8c6b5aba51a2b3e892776ca820cec86b1fc001e79e1026755fa2"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v67-page-starts.jsonl",
+      "source_mtime_ns": 1793039017994030295,
+      "bytes": 36490,
+      "sha256": "d9118244f42ac8c64b3edb3b44a45640f1d40f5f9b754f9c5ec8437f02b4f47d"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-warmup-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-warmup-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v67-warmup-page-observations.jsonl",
+      "source_mtime_ns": 1793037240811896737,
+      "bytes": 5014,
+      "sha256": "f2ad72ab8a1f227310ca8e4921498fae6e7661d0eab3ecb8456448fbf605562a"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-warmup-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-warmup-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v67-warmup-page-starts.jsonl",
+      "source_mtime_ns": 1793037239824106826,
+      "bytes": 219,
+      "sha256": "67cdc620347c8e9b941c7416a845371ac70c7694a036de807f81f0a6302a603b"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation/v67-warmup-protocol.json",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/raw/v67-warmup-protocol.json",
+      "relative_copy": "frozen/raw/v67-warmup-protocol.json",
+      "source_mtime_ns": 1793037246028921951,
+      "bytes": 6721,
+      "sha256": "fb3b34332f849e7eb9d02eb9337b44bac887d5c94111c1023e44e7c30227a70b"
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-20261027/scripts/observe_dashboard_protocol.py",
+      "copy": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/qa-ops-v67/frozen/context/observe_dashboard_protocol.py",
+      "relative_copy": "frozen/context/observe_dashboard_protocol.py",
+      "source_mtime_ns": 1793036172932238724,
+      "bytes": 30277,
+      "sha256": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8"
+    }
+  ],
+  "diagnostic_sidecar_status": "separate immutable supplement after collector finishes",
+  "auditor_sha256": {
+    "audit_v67.py": "145ec5e332f8453fb445239ebf270379b4e6cac09bb5b5975e4ebeb80cbd72e9",
+    "base_auditor.py": "5e27b625224e919a4a1c4fd734dcde51209777d472095a5db9e11cf5ae3e7104"
+  },
+  "file_count": 10,
+  "total_bytes": 1638524
+}

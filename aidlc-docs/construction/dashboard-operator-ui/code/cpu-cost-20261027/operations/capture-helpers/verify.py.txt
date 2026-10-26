@@ -1,0 +1,35 @@
+import argparse
+import base64
+import hashlib
+import json
+import shlex
+import subprocess
+from pathlib import Path
+from urllib.request import urlopen
+
+p = argparse.ArgumentParser()
+p.add_argument('--source', required=True)
+p.add_argument('--phase', required=True)
+p.add_argument('--since')
+a = p.parse_args()
+here = Path('/private/tmp/crypto-master-debt087-089-closeout')
+files = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', a.source], text=True).splitlines()
+paths = [f for f in files if f.startswith(('src/', 'scripts/', 'config/', 'strategies/', 'trading_profiles/', 'docs/research/strategies/')) or f in ('start.sh', 'requirements.txt', 'pyproject.toml')]
+expected = {name: hashlib.sha256(subprocess.check_output(['git', 'show', f'{a.source}:{name}'])).hexdigest() for name in paths}
+code = 'PARAMS = ' + repr({'paths': paths, 'since': a.since}) + '\n' + (here / 'remote_verify.py').read_text()
+command = 'python -c ' + shlex.quote('import base64;exec(base64.b64decode(' + repr(base64.b64encode(code.encode()).decode()) + '))')
+r = subprocess.run(['flyctl', 'ssh', 'console', '--app', 'crypto-master', '--machine', '6835752b711958', '--quiet', '--command', command], capture_output=True, text=True, timeout=60)
+if r.returncode:
+    raise RuntimeError(r.stderr[-2000:] + r.stdout[-1000:])
+out = json.loads(next(line for line in reversed(r.stdout.splitlines()) if line.startswith('{')))
+out['expected_source'] = a.source
+out['runtime_files_checked'] = len(expected)
+out['runtime_files_match'] = out['runtime_sha256'] == expected
+with urlopen('https://crypto-master.fly.dev/_stcore/health', timeout=10) as response:
+    out['public_health'] = {'status': response.status, 'body': response.read().decode()}
+status = json.loads(subprocess.check_output(['flyctl', 'status', '--app', 'crypto-master', '--json'], text=True))
+machine = status['Machines'][0]
+out['fly'] = {'release': status['Version'], 'machine': machine['id'], 'instance': machine['instance_id'], 'image': machine['image_ref'], 'state': machine['state'], 'guest': machine['config']['guest'], 'mounts': machine['config']['mounts'], 'checks': machine['checks']}
+(here / (a.phase + '.json')).write_text(json.dumps(out, indent=2) + '\n')
+assert out['runtime_files_match'], [name for name in expected if expected[name] != out['runtime_sha256'].get(name)]
+print(json.dumps({k: v for k, v in out.items() if k not in ('runtime_sha256',)}, indent=2))

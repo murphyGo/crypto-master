@@ -65,8 +65,16 @@ Construction artifacts are created just in time for new work. Existing Phase
 > the exact size threshold. Final source passes 3,021 tests; independent 175-case
 > QA, Black/Ruff two files and mypy 135 pass. Twenty paired local query-service
 > replays preserve full outputs while reducing Home/Trading median CPU about
-> 30%; this is not native/production qualification. Source delivery and runtime
-> observation follow; v66 failure and all original acceptance gates remain.
+> 30%; this is not native/production qualification. Source `120b440` runs on
+> v67; 182 runtime hashes, unchanged settings/processes and health are verified.
+> The 1,774.272 s four-session observation remains **FAIL_SAMPLE**: 348/356
+> complete, eight terminal incomplete (four activity stale, four snapshots
+> unavailable). Health passes 352/352 and a full natural cycle completes in
+> 34.288 s with twelve monitors and zero errors. Sampled CPU throttle increments
+> are zero; this does not identify the failure cause or qualify depleted CPU.
+> Initial Home completion 12.956 s / first incomplete receipt 5.507 s also miss
+> their targets. Prior failures and cold/native/depleted/original 1024 MiB gates
+> remain open; the deployed CPU correction does not resolve DEBT-083.
 > See `docs/sessions/2026-10-27-dashboard-cpu-cost.md`.
 
 > **Page-dependent recovery deployment (2026-10-27 KST):** DEBT-083 remains

@@ -1,0 +1,8 @@
+{
+  "reason": "Preserve frozen/hash-verified auditor and recorded command bytes; only exact listed EOF blank lines exempted.",
+  "exceptions": [
+    "aidlc-docs/construction/dashboard-operator-ui/code/cpu-cost-20261027/operations/qa-ops-v67/base_auditor.py:280: new blank line at EOF.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/cpu-cost-20261027/operations/rollout-output.txt:149: new blank line at EOF."
+  ],
+  "all_other_staged_whitespace_checks": "PASS"
+}

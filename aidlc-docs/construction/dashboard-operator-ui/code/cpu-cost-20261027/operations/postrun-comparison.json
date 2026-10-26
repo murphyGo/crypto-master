@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "expected_source": true,
+    "release": true,
+    "machine": true,
+    "instance": true,
+    "image": true,
+    "guest": true,
+    "mounts": true,
+    "pids_unchanged": true,
+    "182_hashes_match": true,
+    "public_internal_health_ok": true,
+    "engine_cycle_error_free": true
+  },
+  "overall_runtime_integrity": "PASS",
+  "page_observation": "FAIL_SAMPLE",
+  "runtime_source": "120b4408dc0d3eedb241edf26f8f161c062cf126",
+  "note": "Health and runtime integrity do not waive eight terminal incomplete page outcomes or original qualification gates."
+}

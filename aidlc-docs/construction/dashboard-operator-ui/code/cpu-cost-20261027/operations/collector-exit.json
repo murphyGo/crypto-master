@@ -1,0 +1,11 @@
+{
+  "diagnostic_events": 566,
+  "log_lines_seen": 154783,
+  "json_records_decoded": 4993,
+  "client_exit_code": 127,
+  "stopped_by_collector": true,
+  "seconds": 1836.3202677499503,
+  "collector_exec_exit_code": 0,
+  "observer_exec_exit_code": 1,
+  "no_observer_collector_or_fly_log_process_matches_after_stop": true
+}

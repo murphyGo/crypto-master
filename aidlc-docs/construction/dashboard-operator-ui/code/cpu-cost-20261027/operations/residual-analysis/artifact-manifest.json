@@ -1,0 +1,10 @@
+{
+  "findings.json": {
+    "bytes": 14883,
+    "sha256": "4b1a8e0ae1ea6d9e810fc66e3b5457f809cac6592dd7cb5f079767724749c34e"
+  },
+  "findings.md": {
+    "bytes": 9274,
+    "sha256": "db911a1b742a3679747b5a0997f9df56dce1e1ff029a836150850d87b09386c5"
+  }
+}

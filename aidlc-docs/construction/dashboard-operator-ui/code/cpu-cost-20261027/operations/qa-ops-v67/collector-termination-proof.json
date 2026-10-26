@@ -1,0 +1,12 @@
+{
+  "authority": "Parent confirmed observer session73599 exited1, diagnosticcollector21879 exited0 and local process check found no observer/collector/flylogs process before freeze. Independent QA made no process or production query.",
+  "collector_report": {
+    "diagnostic_events": 566,
+    "log_lines": 154783,
+    "json_records": 4993,
+    "client_exit": 127,
+    "stopped_by_collector": true,
+    "seconds": 1836.32026775
+  },
+  "interpretation": "Collector requested stop is retained explicitly; client exit127 is not silently recast as zero. Framed payload bytes are audited separately. Rate limiting/drops and delivery delay prevent absence-of-diagnostic claims."
+}

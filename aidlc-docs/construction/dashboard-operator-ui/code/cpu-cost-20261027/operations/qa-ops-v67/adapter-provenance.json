@@ -1,0 +1,80 @@
+{
+  "mode": "offline adapter only; no production load or waits started",
+  "expected_phase": "v67 provisional; verify actual release before freeze",
+  "baseline_package": "/private/tmp/crypto-master-cpu-cost-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/audit_v66.py",
+      "source_sha256": "a4b42569db352c0963df5def0993190f0d6cf810758e8422e5ea98e4878204c3",
+      "target": "audit_v67.py",
+      "target_sha256": "145ec5e332f8453fb445239ebf270379b4e6cac09bb5b5975e4ebeb80cbd72e9",
+      "changes": [
+        {
+          "old": "v66",
+          "new": "v67",
+          "count": 12
+        },
+        {
+          "old": "/private/tmp/crypto-master-page-progress-20261027/scripts/observe_dashboard_protocol.py",
+          "new": "/private/tmp/crypto-master-cpu-cost-20261027/scripts/observe_dashboard_protocol.py",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/base_auditor.py",
+      "source_sha256": "e5fbb841868bff95e7c6872f5bd624cbac56c2ff50c801ca308cfdd3064339c9",
+      "target": "base_auditor.py",
+      "target_sha256": "5e27b625224e919a4a1c4fd734dcde51209777d472095a5db9e11cf5ae3e7104",
+      "changes": [
+        {
+          "old": "v66",
+          "new": "v67",
+          "count": 7
+        }
+      ]
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/supplement_audit.py",
+      "source_sha256": "ab2763dd66c0af188e95fac0a4255d8ae9b4cc8735e713da98fc0278ff8d7f6e",
+      "target": "supplement_audit.py",
+      "target_sha256": "19bc36135d66fb27c6f0e1a5dd29876d805a8725ce69285424013ce0b9491dde",
+      "changes": [
+        {
+          "old": "v66",
+          "new": "v67",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "source": "/private/tmp/crypto-master-cpu-cost-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/cpu_window_proof.py",
+      "source_sha256": "fad84a5c51dc4dd7e9e05c3fea4df5e6eff58793c1cb4792eab3a16f7529ba1d",
+      "target": "cpu_window_proof.py",
+      "target_sha256": "a191318d281e52233cf65e2d8da8c5c3b1a9bcdc9abb95dc6dd3107a5d3be602",
+      "changes": [
+        {
+          "old": "v66",
+          "new": "v67",
+          "count": 1
+        },
+        {
+          "old": "Positive sampled balance is buffered CPU evidence. Fifteen-second samples do not exclude shorter unsampled transients. No native, 1 GiB, or depleted-CPU acceptance follows.",
+          "new": "Balance and throttle are evaluated independently. Positive sampled balance does not imply buffered-only or unthrottled operation. Fifteen-second samples do not exclude shorter unsampled transients. No native, 1 GiB, or depleted-CPU acceptance follows.",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "acceptance_logic": "Phase filenames and source harness path only. CPU qualification prose corrected to avoid implying positive balance excludes throttle. All request/shape/health/cycle/freshness/memory thresholds unchanged.",
+  "future_source": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-observation",
+  "future_diagnostics": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-diagnostics-framed.jsonl",
+  "future_cpu": "/private/tmp/crypto-master-cpu-cost-delivery-20261027/v67-cpu-final.json",
+  "freeze_preconditions": [
+    "Parent confirms actual deployed release/source/config before observation.",
+    "Observer exits and final-health file exists.",
+    "Copy raw/context once; diagnostics captured separately only after collector has stopped.",
+    "CPU supplement captured separately after final values cover original observation window.",
+    "No initial freeze or failure row can be overwritten."
+  ]
+}

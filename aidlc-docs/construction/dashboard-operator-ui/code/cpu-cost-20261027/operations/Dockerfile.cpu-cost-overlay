@@ -1,0 +1,3 @@
+FROM registry.fly.io/crypto-master@sha256:d9a234ff67bd9dd6b1fc1ea76cb1f302c049e677019ae8a388db7179e4c91709
+LABEL org.opencontainers.image.revision="120b4408dc0d3eedb241edf26f8f161c062cf126"
+COPY src/dashboard/projections.py /app/src/dashboard/projections.py

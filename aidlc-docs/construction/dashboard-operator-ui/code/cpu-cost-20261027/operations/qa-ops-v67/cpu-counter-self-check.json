@@ -1,0 +1,22 @@
+{
+  "result": "PASS",
+  "cases": [
+    {
+      "name": "flat_positive",
+      "pass": true
+    },
+    {
+      "name": "increase",
+      "pass": true
+    },
+    {
+      "name": "reset_then_increase",
+      "pass": true
+    },
+    {
+      "name": "only_boundary_increase",
+      "pass": true
+    }
+  ],
+  "script_sha256": "6aee5f5ad7c4583c0b05e3b8cb0069dec06ac1b258ca1f95152f7dfbe974484c"
+}

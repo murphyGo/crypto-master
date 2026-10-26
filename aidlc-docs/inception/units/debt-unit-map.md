@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Measured proposal-refresh CPU correction passes3021tests/175independent tests and local paired replay (~30% Home/Trading query-service CPU reduction); delivery pending. Current v66 / ce5c4f5 and182hashes verified. Four-session FAIL_SAMPLE: 352/356 complete, four guard-aborted, health timeout5.219s with observed CPU throttling. Post-window health/cycle recovery is separate. Shared-guest CPU profiling follows; prior failures and cold/native/depleted/1024MiB/cost gates remain. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Proposal refresh CPU correction passes 3,021 tests and local parity/CPU proof; source `120b440` deployed as v67 with 182 runtime hashes verified. V67 remains FAIL_SAMPLE: 348/356 complete, eight terminal incomplete during natural cycle; health 352/352 and cycle pass, sampled throttle increments zero. Retain prior v64/v65/v66 failures and cold/native/depleted/original 1024 MiB/cost gates. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Proposal checkpoint heuristic now runs only on eligible rebuilds;3021-test source gate/local paired CPU proof pass, delivery pending. Current same-capacity v66/ce5c4f5 with182hashes verified. Final observation fails352/356, four guard-aborted, health timeout5.219s and CPU throttle; whole cycle completes only after window. Profile shared-guest CPU costs; retain all historical failures, freshness/source proof and cold/native/depleted/1024MiB/cost gates. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Optional proposal heuristic now runs only on eligible rebuilds; v67/`120b440` source and runtime integrity pass. Four-session observation fails with four activity-stale and four snapshot-unavailable terminal outcomes; a full 34.288 s natural cycle and health pass. Preserve source/freshness proof, all failed samples, and cold/native/depleted/original 1024 MiB/cost gates. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

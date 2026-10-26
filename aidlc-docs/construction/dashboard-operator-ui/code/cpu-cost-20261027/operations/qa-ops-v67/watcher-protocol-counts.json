@@ -1,0 +1,167 @@
+{
+  "complete_request_watcher_counts": {
+    "0": 348
+  },
+  "failed_requests": [
+    {
+      "key": [
+        "2026-10-26T18:22:37.987081+00:00",
+        3,
+        "Home"
+      ],
+      "status": "incomplete",
+      "seconds": 0.6823324169963598,
+      "maximum_background_watchers": 0,
+      "script_finished_values": [
+        0
+      ],
+      "auto_rerun_registrations": 0
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:37.173027+00:00",
+        1,
+        "Home"
+      ],
+      "status": "incomplete",
+      "seconds": 1.6288826670497656,
+      "maximum_background_watchers": 0,
+      "script_finished_values": [
+        0
+      ],
+      "auto_rerun_registrations": 0
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:37.176246+00:00",
+        2,
+        "Trading"
+      ],
+      "status": "incomplete",
+      "seconds": 2.013394584064372,
+      "maximum_background_watchers": 0,
+      "script_finished_values": [
+        0
+      ],
+      "auto_rerun_registrations": 0
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:36.576700+00:00",
+        0,
+        "Trading"
+      ],
+      "status": "incomplete",
+      "seconds": 2.877808916964568,
+      "maximum_background_watchers": 0,
+      "script_finished_values": [
+        0
+      ],
+      "auto_rerun_registrations": 0
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:56.577707+00:00",
+        0,
+        "Home"
+      ],
+      "status": "incomplete",
+      "seconds": 18.581197957973927,
+      "maximum_background_watchers": 1,
+      "script_finished_values": [
+        0,
+        3,
+        3,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "auto_rerun_registrations": 2
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.176014+00:00",
+        2,
+        "Home"
+      ],
+      "status": "incomplete",
+      "seconds": 18.092193457996473,
+      "maximum_background_watchers": 1,
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        0,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "auto_rerun_registrations": 2
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.987369+00:00",
+        3,
+        "Trading"
+      ],
+      "status": "incomplete",
+      "seconds": 17.281580041977577,
+      "maximum_background_watchers": 1,
+      "script_finished_values": [
+        0,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "auto_rerun_registrations": 2
+    },
+    {
+      "key": [
+        "2026-10-26T18:22:57.173843+00:00",
+        1,
+        "Trading"
+      ],
+      "status": "incomplete",
+      "seconds": 18.099543165997602,
+      "maximum_background_watchers": 1,
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        0,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        0
+      ],
+      "auto_rerun_registrations": 2
+    }
+  ],
+  "interpretation": "The first four terminal incomplete responses had zero watchers; the latter four had max one watcher and bounded registered reruns. These protocol counts do not identify function-level CPU costs or a sole failure cause."
+}

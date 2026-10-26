@@ -1,0 +1,79 @@
+{
+  "verdict": "FAIL_SAMPLE",
+  "original_debt083_acceptance": false,
+  "window": {
+    "start": "2026-10-26T17:54:18.225469+00:00",
+    "end": "2026-10-26T18:23:52.497955+00:00",
+    "seconds": 1774.272486
+  },
+  "requests": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 348,
+      "incomplete": 8
+    },
+    "completion_ratio": 0.9775280898876404
+  },
+  "pages": {
+    "Home": {
+      "observations": 178,
+      "complete": 174,
+      "incomplete": 4,
+      "complete_seconds_p95": 0.5762496249517426,
+      "complete_seconds_max": 4.290196666028351,
+      "all_complete": false,
+      "completion_ratio": 0.9775280898876404,
+      "status_counts": {
+        "complete": 174,
+        "incomplete": 4
+      },
+      "per_client": {
+        "0": 45,
+        "2": 45,
+        "1": 44,
+        "3": 44
+      }
+    },
+    "Trading": {
+      "observations": 178,
+      "complete": 174,
+      "incomplete": 4,
+      "complete_seconds_p95": 0.48771404195576906,
+      "complete_seconds_max": 4.611964792013168,
+      "all_complete": false,
+      "completion_ratio": 0.9775280898876404,
+      "status_counts": {
+        "complete": 174,
+        "incomplete": 4
+      },
+      "per_client": {
+        "1": 45,
+        "3": 45,
+        "0": 44,
+        "2": 44
+      }
+    }
+  },
+  "full_cycles": [
+    {
+      "cycle_id": "54425221-0b58-4c65-bbec-573474aa4d00",
+      "started_at": "2026-10-26T18:22:37.998358Z",
+      "completed_at": "2026-10-26T18:23:12.286517Z",
+      "seconds": 34.288159,
+      "cycle_errored_seen": false
+    }
+  ],
+  "cycle_errors": [],
+  "health_max_seconds": 0.6617283330997452,
+  "guest_peak_mib": 663.171875,
+  "dashboard_growth_mib": 31.578125,
+  "classification_failures": 0,
+  "summary_differences": [],
+  "cpu_full_window_coverage": false,
+  "cpu_note": "CPU final proof, if subsequently captured by lead, requires a separate immutable supplement."
+}
