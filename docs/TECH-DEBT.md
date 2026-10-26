@@ -320,7 +320,7 @@ for all four timeouts. The historical two Home failures retain unknown causes;
 cold/native/depleted/original-guest and full readiness acceptance remain open.
 See `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
 
-**2026-10-27 page-dependent recovery source checkpoint:** Corrected the
+**2026-10-27 page-dependent recovery deployment:** Corrected the
 reproduced dependency on global queue drain. A page observes compact signals
 for its own admitted generation and read-only admission readiness; unrelated
 jobs need not finish. At most sixteen private probes and one latch per render,
@@ -330,9 +330,28 @@ focused coverage is 77 cases, actual two-session Streamlit closure/rerun smoke
 passes, and final full pytest passes 3,008 tests in 231.58 s. Black/Ruff seven
 files and mypy 135 pass; all 261 inputs remain unchanged during final pytest.
 The first full run's three old mock-signature failures are preserved and fixed
-without changing runtime hashes. Source commit/push and same-capacity rollout
-remain next; current production is v65. This is not proof that all four v65
-timeouts share that cause or that full DEBT-083 acceptance is achieved. See
+without changing runtime hashes. Source `ce5c4f5` is pushed to main and
+same-capacity deployed as Fly v66. All 182 runtime hashes, health and the first
+natural paper cycle pass. The final 1800.914 s four-session observation is
+**FAIL_SAMPLE**: 356 starts match 356 outcomes, 352 complete and four
+`aborted_after_guard_stop` after 22.012–23.958 s. These are censored by the
+health guard, not four observed 30 s timeouts. Health has 353 samples and ends
+in TimeoutError at 5.219 s; no complete natural cycle lies inside the window.
+Successful-only Home/Trading p95 values of 0.726/0.704 s do not hide failures.
+Dashboard RSS growth is 67.395 MiB and guest peak 694.719 MiB on current 2048 MiB.
+The full-window CPU series shows near-floor positive balance and positive
+throttle at 17:09:00/15 UTC. This is not a buffered-only pass, proof of exact
+zero between samples, or request-level causal attribution. All four interrupted
+requests show one rerun signal and at most one watcher; a rerender storm is not
+observed. The next bounded investigation is dashboard baseline and engine-burst
+CPU cost on the shared guest, with no capacity/cost or policy change.
+
+At 17:10:21 UTC, public/internal health is 200, PIDs/source remain unchanged and
+the natural cycle has completed in 104.926 s with 12 monitors and zero errors.
+That post-window recovery does not retroactively pass the failed observation;
+there is no evidence requiring rollback for persistent failure. Initial Home
+completion 10.777 s and first incomplete receipt 5.069 s miss 5 s. Prior failed
+samples and original cold/native/depleted/1024 MiB acceptance remain open. See
 `docs/sessions/2026-10-27-dashboard-page-progress.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅

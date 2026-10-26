@@ -1,0 +1,360 @@
+{
+  "created_at": "2026-10-26T17:11:37.016313+00:00",
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "auditor_sha256": "ab2763dd66c0af188e95fac0a4255d8ae9b4cc8735e713da98fc0278ff8d7f6e",
+  "initial_frozen_hashes_verified": true,
+  "main_shape_failures": [
+    {
+      "key": [
+        "2026-10-26T17:08:45.722390+00:00",
+        3,
+        "Trading"
+      ],
+      "problems": [
+        "exact_metric_labels",
+        "exact_element_counts",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.543805+00:00",
+        1,
+        "Trading"
+      ],
+      "problems": [
+        "exact_element_counts",
+        "placeholder_or_unproven",
+        "terminal_incomplete_alerts_present",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.255393+00:00",
+        0,
+        "Home"
+      ],
+      "problems": [
+        "exact_metric_labels",
+        "exact_element_counts",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.905292+00:00",
+        2,
+        "Home"
+      ],
+      "problems": [
+        "exact_metric_labels",
+        "exact_element_counts",
+        "not_successfully_completed"
+      ]
+    }
+  ],
+  "warmup_shape_failures": [],
+  "first_shell_over_5s": [
+    {
+      "scope": "warmup",
+      "key": [
+        "2026-10-26T16:39:04.177676+00:00",
+        "warmup",
+        "Home"
+      ],
+      "first_shell_seconds": 5.069114207988605,
+      "complete_seconds": 10.777153500006534,
+      "terminal_status": "complete"
+    }
+  ],
+  "all_first_shell_timing_scope": "Protocol receipt offsets, not native browser visual rendering.",
+  "production_load_added": false,
+  "page_distributions": {
+    "Home": {
+      "attempts": 178,
+      "complete": 176,
+      "failures": 2,
+      "failure_ratio": 0.011235955056179775,
+      "all_outcome_seconds_nearest_rank_p95": 0.7483823749935254,
+      "complete_seconds_nearest_rank_p95": 0.7262889579869807
+    },
+    "Trading": {
+      "attempts": 178,
+      "complete": 176,
+      "failures": 2,
+      "failure_ratio": 0.011235955056179775,
+      "all_outcome_seconds_nearest_rank_p95": 0.7118818330345675,
+      "complete_seconds_nearest_rank_p95": 0.7037906249752268
+    }
+  },
+  "failed_request_timeline": [
+    {
+      "key": [
+        "2026-10-26T17:08:45.722390+00:00",
+        3,
+        "Trading"
+      ],
+      "started_at": "2026-10-26T17:08:45.722390+00:00",
+      "finished_at_derived": "2026-10-26T17:09:07.734035+00:00",
+      "status": "aborted_after_guard_stop",
+      "seconds": 22.011645042104647,
+      "first_incomplete_shell_seconds": 4.315040292101912,
+      "first_incomplete_script_finished_seconds": 4.315318833105266,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315040292101912
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315091458032839
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315102333086543
+        }
+      ],
+      "elements": {
+        "metric": 0,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": []
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.543805+00:00",
+        1,
+        "Trading"
+      ],
+      "started_at": "2026-10-26T17:08:44.543805+00:00",
+      "finished_at_derived": "2026-10-26T17:09:08.059404+00:00",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.515599458944052,
+      "first_incomplete_shell_seconds": 4.230064374976791,
+      "first_incomplete_script_finished_seconds": 4.231144874938764,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230064374976791
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230234917020425
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230306959012523
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 12.96839541697409
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 12.968431459041312
+        }
+      ],
+      "elements": {
+        "metric": 6,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": []
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.255393+00:00",
+        0,
+        "Home"
+      ],
+      "started_at": "2026-10-26T17:08:44.255393+00:00",
+      "finished_at_derived": "2026-10-26T17:09:08.212990+00:00",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.957597083062865,
+      "first_incomplete_shell_seconds": 4.079212250071578,
+      "first_incomplete_script_finished_seconds": 4.312826458015479,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.079212250071578
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.0794114579912275
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.079464958049357
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.311993750045076
+        }
+      ],
+      "elements": {
+        "metric": 0,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": []
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.905292+00:00",
+        2,
+        "Home"
+      ],
+      "started_at": "2026-10-26T17:08:44.905292+00:00",
+      "finished_at_derived": "2026-10-26T17:09:08.213984+00:00",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.308691625017673,
+      "first_incomplete_shell_seconds": 4.103067875024863,
+      "first_incomplete_script_finished_seconds": 4.595241250004619,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.103067875024863
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.1031362500507385
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.103168540983461
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.594722582958639
+        }
+      ],
+      "elements": {
+        "metric": 0,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": []
+    }
+  ],
+  "cpu": {
+    "freeze": {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-cpu-final.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/supplements/cpu/v66-cpu-final.json",
+      "bytes": 27748,
+      "source_mtime_ns": 1793034634551347255,
+      "sha256": "053510aa4238f234546922720c6a4df2954cec28d740d65749288a79ded8cfa1"
+    },
+    "series": {
+      "fly_instance_cpu_balance": {
+        "points": 127,
+        "valid_points": true,
+        "first_at": "2026-10-26T16:38:45+00:00",
+        "last_at": "2026-10-26T17:10:15+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 120,
+        "window_min": 0.9868925,
+        "window_max": 1756.0051584
+      },
+      "fly_instance_cpu_baseline": {
+        "points": 127,
+        "valid_points": true,
+        "first_at": "2026-10-26T16:38:45+00:00",
+        "last_at": "2026-10-26T17:10:15+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 120,
+        "window_min": 0.0625,
+        "window_max": 0.0625
+      },
+      "fly_instance_cpu_throttle": {
+        "points": 127,
+        "valid_points": true,
+        "first_at": "2026-10-26T16:38:45+00:00",
+        "last_at": "2026-10-26T17:10:15+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 120,
+        "window_min": 0.0,
+        "window_max": 1089.6281763
+      }
+    },
+    "duplicate_series": [],
+    "full_window_coverage": true,
+    "depletion_observed": false,
+    "throttle_observed": true,
+    "depleted_cpu_qualified": false,
+    "interpretation": "Sampled CPU evidence only. Positive balance does not establish depleted-load acceptance."
+  }
+}

@@ -42,10 +42,11 @@ acceptance remains open regardless of the bounded source correction.
 - [x] Lead/QA: focused tests, full pytest, changed-file Black/Ruff and source mypy.
 - [x] Docs audit: update session/cross-check, current state/debt and this plan;
   distinguish source delivery, observed readiness and remaining qualification.
-- [ ] Lead: commit/push scoped correction and confirm exact remote source.
-- [ ] Lead: deploy exact validated source on existing configuration; confirm
-  hashes/health and a full natural cycle with one four-session protocol run.
-- [ ] QA/docs: preserve all outcomes, compare the reproduced behavior and
+- [x] Lead: commit/push scoped correction and confirm exact remote source.
+- [x] Lead: deploy exact validated source on existing configuration; confirm
+  hashes/health and run one four-session protocol observation. Preserve its
+  health-guard failure; a full cycle completed only after the closed window.
+- [x] QA/docs: preserve all outcomes, compare the reproduced behavior and
   production result, commit/push final operational evidence separately.
 
 ## Design applicability and existing answers
@@ -82,3 +83,14 @@ mypy passes all 135 source files. Independent coverage is 77 focused cases and
 a real two-session Streamlit fragment smoke. The first full run exposed three
 old one-argument test mocks; their single optional-argument fixture update
 preserves assertions and runtime hashes. Both iterations are retained.
+
+Source `ce5c4f5eb71a1954ec264c0380eaa7e5c4b0742d` is confirmed on remote
+main and deployed as v66 by the existing-machine rolling command. All 182
+runtime hashes match. The 1800.914 s observation is FAIL_SAMPLE: 352/356 complete,
+four guard-aborted requests and a 5.219 s health TimeoutError during observed
+CPU throttling. A full natural cycle is absent inside the window; subsequent
+cycle completion and restored health are separate recovery evidence. No rerun
+storm or persistent process failure is observed, so v66 is retained. Original
+cold/native/depleted/1024 MiB acceptance remains open; follow-up is bounded
+profiling of dashboard baseline and engine-burst CPU cost, not another
+unattributed watcher patch or capacity/cost change.

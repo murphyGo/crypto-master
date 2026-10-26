@@ -1,0 +1,7 @@
+{
+  "checked_at": "2026-10-26T16:57:36.984596+00:00",
+  "command": "gh run list --repo murphyGo/crypto-master --branch main --limit 5 --json databaseId,headSha,status,conclusion,name,url",
+  "exit_code": 0,
+  "runs": [],
+  "scope": "No main-branch Actions runs returned; this is not a CI pass claim. Source qualification is the recorded local exact-source gate."
+}

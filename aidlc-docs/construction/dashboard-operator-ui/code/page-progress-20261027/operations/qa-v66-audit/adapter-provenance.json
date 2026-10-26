@@ -1,0 +1,53 @@
+{
+  "prepared_at": "2026-10-26T16:28:06.845745+00:00",
+  "source_commit": "37b29d74d44b633dee7cf58d75dea0e89b6d1061",
+  "mode": "Offline adapters only; no observer/production execution",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/audit_v65.py",
+      "source_sha256": "3acf27b1b3f6ddde7a90a9f087767bb8448af1cd9f0da8caf5d2e40f7bdc6805",
+      "target": "audit_v66.py",
+      "initial_sha256": "a4b42569db352c0963df5def0993190f0d6cf810758e8422e5ea98e4878204c3",
+      "prepared_sha256": "a4b42569db352c0963df5def0993190f0d6cf810758e8422e5ea98e4878204c3"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/base_auditor.py",
+      "source_sha256": "da97aa1d998aa3ba1174fd8f793fc7627d0fc78047b201e40f5b9e371c25279d",
+      "target": "base_auditor.py",
+      "initial_sha256": "e5fbb841868bff95e7c6872f5bd624cbac56c2ff50c801ca308cfdd3064339c9",
+      "prepared_sha256": "e5fbb841868bff95e7c6872f5bd624cbac56c2ff50c801ca308cfdd3064339c9"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/supplement_audit.py",
+      "source_sha256": "d629a4eef96d8c90bff1f111be69ed385e49e0860f1295c62d54fe0b483c8cc4",
+      "target": "supplement_audit.py",
+      "initial_sha256": "ab2763dd66c0af188e95fac0a4255d8ae9b4cc8735e713da98fc0278ff8d7f6e",
+      "prepared_sha256": "ab2763dd66c0af188e95fac0a4255d8ae9b4cc8735e713da98fc0278ff8d7f6e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/cpu_window_proof.py",
+      "source_sha256": "41bffd4cb6c060dafdacc34bbce018d9651ae199d48bdcbea014d41ecc950e09",
+      "target": "cpu_window_proof.py",
+      "initial_sha256": "fad84a5c51dc4dd7e9e05c3fea4df5e6eff58793c1cb4792eab3a16f7529ba1d",
+      "prepared_sha256": "fad84a5c51dc4dd7e9e05c3fea4df5e6eff58793c1cb4792eab3a16f7529ba1d"
+    }
+  ],
+  "changes": [
+    "v66 phase and current worktree paths",
+    "Base module restricted to audit calculations; removed obsolete snapshot/main entrypoint",
+    "Live diagnostics excluded from initial final-health freeze and captured later in a separate supplement",
+    "Removed v65-specific failed-collector and late-start statements; v66 collection coverage must have its own evidence",
+    "Functional supplement captures current two-session fragment AppTest evidence"
+  ],
+  "observation_status": "not started by this auditor; runtime release must be independently verified before root launches observer",
+  "self_check": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/adapter-self-check-result.json",
+  "run_after_final_health": [
+    "python3 audit_v66.py --wait-seconds 0",
+    "python3 supplement_audit.py --name diagnostics-functional-supplement --diagnostics <finished-v66-diagnostics-path> --functional",
+    "python3 supplement_audit.py --name cpu-supplement --cpu <v66-cpu-final.json>",
+    "python3 cpu_window_proof.py"
+  ],
+  "methodology": "Committed v65 acceptance calculations unchanged; strict warmup shapes remain in existing supplement.",
+  "self_check_summary": "adapter-self-check.json",
+  "self_check_summary_sha256": "025835aadba5d714cb554203e6bbc8f46d0b68a13b68112ca5bdaa2e4bffb19b"
+}

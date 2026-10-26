@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-10-26T17:18:07.216085+00:00",
+  "verdict": "FAIL_SAMPLE",
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "requests": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 352,
+      "aborted_after_guard_stop": 4
+    },
+    "completion_ratio": 0.9887640449438202
+  },
+  "pages": {
+    "Home": {
+      "attempts": 178,
+      "complete": 176,
+      "failures": 2,
+      "failure_ratio": 0.011235955056179775,
+      "all_outcome_seconds_nearest_rank_p95": 0.7483823749935254,
+      "complete_seconds_nearest_rank_p95": 0.7262889579869807
+    },
+    "Trading": {
+      "attempts": 178,
+      "complete": 176,
+      "failures": 2,
+      "failure_ratio": 0.011235955056179775,
+      "all_outcome_seconds_nearest_rank_p95": 0.7118818330345675,
+      "complete_seconds_nearest_rank_p95": 0.7037906249752268
+    }
+  },
+  "health": {
+    "samples": 353,
+    "failed": 1,
+    "maximum_seconds": 5.219426207942888
+  },
+  "full_cycle_inside_observation": false,
+  "guard_stop": "health_failed_or_deadline_exceeded",
+  "guard_aborts_are_censored_before_30_second_page_deadline": true,
+  "warmup_home_seconds": 10.777153500006534,
+  "warmup_home_first_shell_seconds": 5.069114207988605,
+  "cpu_original_window_coverage": true,
+  "positive_throttle_samples": 2,
+  "minimum_sampled_balance": 0.9868925,
+  "cpu_interpretation": "Low-positive balance with positive throttle; no sampled exact zero; no passed depleted-CPU qualification.",
+  "post_window_recovery": "post-window-recovery.json",
+  "guest_peak_mib": 694.71875,
+  "dashboard_growth_mib": 67.39453125,
+  "maximum_background_watchers": 1,
+  "original_debt083_acceptance": false,
+  "no_production_query_by_auditor": true,
+  "interpretation_corrections": [
+    "cpu-interpretation-correction.json",
+    "cpu-throttle-timeline.json"
+  ]
+}

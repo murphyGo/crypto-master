@@ -1,0 +1,14 @@
+{
+  "frozen_audit_package_files": 36,
+  "frozen_audit_package_bytes": 2003000,
+  "manifest_and_transferred_hashes_verified": true,
+  "root_offline_replay_exact_summary_match": true,
+  "verdict": "FAIL_SAMPLE",
+  "unchanged_application_test_config_delta": true,
+  "whitespace_check": {
+    "all_other_staged_paths_pass": true,
+    "preserved_exception": "aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/base_auditor.py:280: new blank line at EOF.",
+    "reason": "Historical auditor is a hashed immutable evidence input; retain exact bytes rather than silently change the frozen provenance."
+  },
+  "additional_production_load": false
+}

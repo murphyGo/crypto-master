@@ -1,0 +1,46 @@
+{
+  "scope": "Separate post-window recovery proof; it does not change original FAIL_SAMPLE or supply a full cycle inside the closed observation.",
+  "freeze": {
+    "source": "/private/tmp/crypto-master-debt087-089-closeout/page-progress-final.json",
+    "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/supplements/recovery/page-progress-final.json",
+    "bytes": 32803,
+    "sha256": "0691163bba7d4279d18e00921695f538f8dac53439e18d44cb2ddd6d5cecf993",
+    "source_mtime_ns": 1793034649632004981
+  },
+  "captured_at": "2026-10-26T17:10:21.712921+00:00",
+  "observation_ended_at": "2026-10-26T17:09:24.908115+00:00",
+  "health": {
+    "public": {
+      "status": 200,
+      "body": "ok"
+    },
+    "internal": {
+      "status": 200,
+      "body": "ok"
+    }
+  },
+  "runtime_files_checked": 182,
+  "runtime_files_match": true,
+  "expected_source": "ce5c4f5eb71a1954ec264c0380eaa7e5c4b0742d",
+  "processes": [
+    {
+      "kind": "engine",
+      "pid": 652,
+      "rss_kib": 226524
+    },
+    {
+      "kind": "dashboard",
+      "pid": 653,
+      "rss_kib": 344368
+    }
+  ],
+  "cycle": {
+    "id": "a78ac2c8-bca3-408e-8370-5d616ea9919c",
+    "started_at": "2026-10-26T17:08:35.825169Z",
+    "completed_at": "2026-10-26T17:10:20.751571Z",
+    "seconds": 104.926402,
+    "completion_seconds_after_observation_end": 55.843456,
+    "inside_original_window": false
+  },
+  "no_new_query_by_auditor": true
+}

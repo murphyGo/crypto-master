@@ -1,0 +1,110 @@
+{
+  "inputs": {
+    "v66-memory-samples.jsonl": "6fbaab2e5baa30d1e590b9c4294fea072cf36437ba9e9c8ffaf89bd498f2a6a3",
+    "v66-page-observations.jsonl": "0aa59003e01fac97a608871b4ead027dae4b1be4a191524ac634bdcce1cb78c9"
+  },
+  "status_counts": {
+    "complete": 352,
+    "aborted_after_guard_stop": 4
+  },
+  "complete_requests_all_zero_watchers": true,
+  "failed_request_watchers": [
+    {
+      "started_at": "2026-10-26T17:08:45.722390+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "script_finished_values": [
+        0,
+        3,
+        2
+      ],
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 1
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.543805+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "script_finished_values": [
+        0,
+        3,
+        3,
+        2,
+        0
+      ],
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 2
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.255393+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "script_finished_values": [
+        0,
+        3,
+        3,
+        2
+      ],
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 1
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.905292+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "script_finished_values": [
+        0,
+        3,
+        2
+      ],
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 1
+    }
+  ],
+  "pre_cycle": {
+    "first": "2026-10-26T16:39:24.107028+00:00",
+    "last": "2026-10-26T17:08:29.845921+00:00",
+    "wall_seconds": 1745.738893,
+    "cpu_seconds_delta": {
+      "engine": 0.0,
+      "dashboard": 105.63
+    },
+    "single_core_fraction": {
+      "engine": 0.0,
+      "dashboard": 0.060507330405223436
+    }
+  },
+  "cycle_start_to_pre_guard": {
+    "first": "2026-10-26T17:08:34.849214+00:00",
+    "last": "2026-10-26T17:09:02.270888+00:00",
+    "wall_seconds": 27.421674,
+    "cpu_seconds_delta": {
+      "engine": 9.51,
+      "dashboard": 6.63
+    },
+    "single_core_fraction": {
+      "engine": 0.34680596086147036,
+      "dashboard": 0.24177955000121437
+    }
+  },
+  "throttle_interval": {
+    "first": "2026-10-26T17:09:00.190868+00:00",
+    "last": "2026-10-26T17:09:14.830837+00:00",
+    "wall_seconds": 14.639969,
+    "cpu_seconds_delta": {
+      "engine": 0.59,
+      "dashboard": 0.68
+    },
+    "single_core_fraction": {
+      "engine": 0.04030063178412468,
+      "dashboard": 0.046448185785092855
+    }
+  },
+  "interpretation": "No rerender storm is observed. Per-process counters show simultaneous engine and dashboard CPU demand on the shared guest. They do not profile functions, include child/observer CPU, identify the exact failed request's cause, or establish causality for the deployed change. Baseline here means pre-cycle during the four-session observation, not zero-load idle cost.",
+  "follow_up": "Bounded CPU profiling and offline replay before any additional code or capacity change.",
+  "rollback": "Not indicated by present evidence: no persistent process failure or observed bounds loss."
+}

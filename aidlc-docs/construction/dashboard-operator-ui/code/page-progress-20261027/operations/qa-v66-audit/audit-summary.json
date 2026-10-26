@@ -1,0 +1,71 @@
+{
+  "verdict": "FAIL_SAMPLE",
+  "original_debt083_acceptance": false,
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "requests": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 352,
+      "aborted_after_guard_stop": 4
+    },
+    "completion_ratio": 0.9887640449438202
+  },
+  "pages": {
+    "Home": {
+      "observations": 178,
+      "complete": 176,
+      "incomplete": 2,
+      "complete_seconds_p95": 0.7262889579869807,
+      "complete_seconds_max": 1.826816083979793,
+      "all_complete": false,
+      "completion_ratio": 0.9887640449438202,
+      "status_counts": {
+        "complete": 176,
+        "aborted_after_guard_stop": 2
+      },
+      "per_client": {
+        "0": 45,
+        "2": 45,
+        "1": 44,
+        "3": 44
+      }
+    },
+    "Trading": {
+      "observations": 178,
+      "complete": 176,
+      "incomplete": 2,
+      "complete_seconds_p95": 0.7037906249752268,
+      "complete_seconds_max": 3.3714927500113845,
+      "all_complete": false,
+      "completion_ratio": 0.9887640449438202,
+      "status_counts": {
+        "complete": 176,
+        "aborted_after_guard_stop": 2
+      },
+      "per_client": {
+        "1": 45,
+        "3": 45,
+        "0": 44,
+        "2": 44
+      }
+    }
+  },
+  "full_cycles": [],
+  "cycle_errors": [],
+  "health_max_seconds": 5.219426207942888,
+  "guest_peak_mib": 694.71875,
+  "dashboard_growth_mib": 67.39453125,
+  "classification_failures": 0,
+  "summary_differences": [],
+  "cpu_full_window_coverage": false,
+  "cpu_note": "CPU final proof, if subsequently captured by lead, requires a separate immutable supplement."
+}

@@ -1,14 +1,16 @@
 # Dashboard page-dependent progress cross-check — 2026-10-27 KST
 
 Unit: `dashboard-operator-ui`; secondary `dashboard-operator-command-center`.
-Baseline main `37b29d7`, deployed source `382c26b` / Fly v65.
+Baseline main `37b29d7`, previous runtime `382c26b` / Fly v65;
+new deployed source `ce5c4f5` / Fly v66.
 Requirements: BDL-NFR-03/04/06/07/08; FR-029/031/032/036/042;
 NFR-003/007/008/011/012; US-012/014/020/023.
 
-**Source qualified:** final regression, source-wide typing, changed-file static
-checks, independent QA and actual local Streamlit fragment smoke pass.
-Commit/push, rollout and post-change readiness remain next. No production
-acceptance is inferred from this source gate.
+**Bounded correction deployed:** source gate, remote push, v66 source/health
+and first-natural-cycle checks pass. Final four-session observation is
+`FAIL_SAMPLE`: 352/356 complete, four guard-aborted requests, a failed health
+sample and no full cycle captured inside its window. Warm-up Home misses both
+5 s targets. Full DEBT-083 acceptance remains open.
 
 | Contract | Design / verification obligation | Current disposition |
 |---|---|---|
@@ -20,7 +22,12 @@ acceptance is inferred from this source gate.
 | BDL-NFR-07/08: meaning and failure | Settled attempt is not verified success. Normal request retains generation proof, four-second foreground deadline, two-second complete freshness and thirty-second explicit stale fallback. Terminal retry stays manual. | Focused expiry and retained availability/service/diagnostic tests pass; expired siblings are not pinned complete. Final full regression passes 3,008 tests. |
 | Compatibility/privacy | Optional nonserialized probe defaults to None, excluded from repr/equality; missing/excess probes cannot suppress known relevant progress. No path/query identifiers in diagnostics. | Targeted legacy fallback, probe-cap/dedup and mixed-result tests pass. |
 | Fragment absence | Existing manual control remains, without duplicate retry buttons. | Existing fragment-absent mixed-terminal test passes in the focused gate; native rendering remains unqualified. |
-| BDL-NFR-03/04: page/resource acceptance | Original complete-page, shell, concurrency, engine and memory targets remain. | New measured result pending; previous v65 remains `FAIL_SAMPLE`. |
+| BDL-NFR-03/04: page/resource acceptance | Original complete-page, shell, concurrency, engine and memory targets remain. | v66 `FAIL_SAMPLE`: 356 matched requests, 352 complete and four guard-aborted. Home/Trading each 176/178; successful p95 0.726289/0.703791 s cannot hide failures. Previous v65 remains `FAIL_SAMPLE`. |
+| Deployment identity | Exact validated source, unchanged capacity/config/dependencies/volume. | Remote main `ce5c4f5`, Fly v66, all 182 runtime hashes match; public/internal health 200/ok. |
+| First natural cycle | Existing cadence and monitoring, independent of page-readiness acceptance. | 16:38:08.677457–16:38:35.739136 UTC, twelve monitors, zero recorded errors, three upstream accepted proposals, one later rejection and two opened paper positions. |
+| Warm-up | Preserve first-shell and complete timings even if subsequent responses improve. | Home 10.777154 s complete / 5.069114 s first incomplete receipt miss 5 s; Trading 0.975259 s. Single warm-up is not cold p95/native qualification. |
+| Measured health/continuity | Every health sample <5 s and one complete natural cycle within the observation window. | Failed: final of 353 health checks reports `TimeoutError` after 5.219426 s; no full cycle completes inside 16:39:23.994031–17:09:24.908115 UTC. |
+| Observed memory subset | Keep current-allocation measurements separate from original guest qualification. | RSS growth 67.394531 MiB, HWM increase 67.714844 MiB, guest peak 694.718750 MiB on 2048 MiB only. |
 
 ## Preserved evidence and causal scope
 
@@ -74,15 +81,66 @@ unchanged** during the run. Final Black/Ruff pass seven changed Python files;
 passes all 135 source files using the same root interpreter. Evidence:
 `source-qualification.json`, `source-input-sha256.json`, `full-pytest.txt`,
 `mypy-final.json`, `qa-source-verdict.json`, `qa-page-fixture-followup.json`
-and the separately preserved initial iteration. Commit/deployment and
-production-readiness evidence remain pending.
+and the separately preserved initial iteration. Commit/deployment are complete;
+the measured production-readiness sample fails.
 
-After the validated source is committed/pushed, the authorized rollout must
-preserve the machine, capacity, volume, dependencies, paper/Codex settings and
-engine cadence. Verify the exact deployed hashes and run one fresh protocol
-observation across a full natural cycle. Keep warm-up, every request outcome,
-health/memory/CPU scope and original failures explicit; do not manufacture a
-pass by forcing a cycle or excluding timeout samples.
+The authorized rollout retains machine `6835752b711958`, shared CPU 1 / 2048 MiB,
+volume, dependencies, paper/Codex settings and cadence. Deployed source
+`ce5c4f5eb71a1954ec264c0380eaa7e5c4b0742d` has image
+`sha256:d9a234ff67bd9dd6b1fc1ea76cb1f302c049e677019ae8a388db7179e4c91709`,
+instance `01M5WH6PXMT865Y5XEDDWETVA0`. The 16:38:36.531715 UTC post-deploy
+capture and `operations/deployment-verification.json` retain identity/config
+checks. The final observer reconciles every request but fails readiness/health
+and the full-cycle-in-window requirement; deployment checks do not replace them.
+
+Actual checks cover three proposals across MA `1.0.0` (one; prior sample 227,
+expected value -0.3738099982477091) and Raschke `1.0.0` (two; sample 266,
+expected value 0.00931627480353263). All sample/expected-value fields match;
+one final symbol-cap rejection and two opens are distinct from upstream
+acceptance. The single matching cap row has null account/no proposal ID and
+does not prove all-account/proposal cap coverage. Separate pure replay covers
+eighteen score rows/twelve accounts and eleven cap trades, with twenty-four
+input hashes unchanged only across that read-only replay; do not equate it
+with emitted decision coverage.
+
+The independent final audit spans **1,800.914084 s**, with no duplicate/unmatched
+request identities or summary differences. Four pages are canceled after
+**22.012–23.958 s** following the health sample at **17:09:02.513768 UTC** that
+reports `TimeoutError` after **5.219426 s**. These observations are censored by
+the guard, not thirty-second request timeouts; eventual completion is unknown.
+Their first incomplete receipts arrive in 4.079–4.315 s, with at most one watcher.
+
+The CPU supplement provides full original-window sampled coverage: **120 points
+per series / 15 s**, with seven outside points excluded. Positive throttle at
+**17:09:00/17:09:15** coincides with low positive balance **1.0000096/0.9868925
+raw units**. Do not label this run uniformly buffered/unthrottled or infer exact
+causality from overlap. The retrospectively collected history is published at
+17:10:34.551347 UTC; successful depleted-load qualification is not established.
+`cpu-interpretation-correction.json` expressly qualifies the inherited
+buffered-CPU sentence while retaining the original artifact and failed verdict.
+
+The separate **17:10:21.712921 UTC** verifier confirms 182 source hashes,
+public/internal 200/ok and stable PIDs **652/653**. The cycle starting
+17:08:35.825169 completes only at **17:10:20.751571**, after **104.926402 s**,
+with twelve monitors, zero recorded errors and no proposals. Its completion is
+outside the observation and cannot retroactively pass that failed cycle/health
+gate. No additional production load or resource/config/policy changes follow
+from this evidence.
+
+Final supplemental artifacts are separate from the unchanged initial audit.
+`diagnostics-functional-supplement.json` validates 560 records, 550 within the
+page window, with no parse/schema failure; asynchronous/rate-limited delivery
+and absent request identity prevent exact page attribution. Collection has
+stopped per `collector-termination-proof.json`; `post-window-recovery.json`
+freezes the later continuity proof separately. Artifact completion is not an
+operational pass.
+
+`operations/contention-analysis.json` records zero watchers on all 352 complete
+requests and at most one watcher per aborted request, with one or two auto-rerun
+registrations. No rerender storm is demonstrated. Its pre-cycle dashboard CPU
+estimate (6.05% of one core) is during the four-session workload, not idle cost;
+process counters and temporal throttle overlap do not identify exact functions
+or establish the cause of each failure.
 
 Original qualification still requires >=20 cold and >=20 warm observations per
 page/scenario, p95 <=5/2 s complete readiness, separate <=5 s incomplete-shell

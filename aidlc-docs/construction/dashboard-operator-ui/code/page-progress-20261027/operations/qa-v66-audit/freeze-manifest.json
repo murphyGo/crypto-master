@@ -1,0 +1,93 @@
+{
+  "captured_at": "2026-10-26T17:09:42.481844+00:00",
+  "mode": "existing final evidence copied offline",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-concurrency-summary.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-concurrency-summary.json",
+      "relative_copy": "frozen/raw/v66-concurrency-summary.json",
+      "source_mtime_ns": 1793034564913626404,
+      "bytes": 1988,
+      "sha256": "0617aec98bb8ac5c25c6b07a7b3c2700626e4c44fef7f34b335f69b0d193512c"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-health-samples.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-health-samples.json",
+      "relative_copy": "frozen/raw/v66-health-samples.json",
+      "source_mtime_ns": 1793034564914327543,
+      "bytes": 40695,
+      "sha256": "15d9149d9d7548dcf8fdfeb8c9405d3d0620b00344fba4e02014e0eac857ab80"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-memory-samples.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-memory-samples.jsonl",
+      "relative_copy": "frozen/raw/v66-memory-samples.jsonl",
+      "source_mtime_ns": 1793034563988869982,
+      "bytes": 779149,
+      "sha256": "6fbaab2e5baa30d1e590b9c4294fea072cf36437ba9e9c8ffaf89bd498f2a6a3"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-observer-config.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-observer-config.json",
+      "relative_copy": "frozen/raw/v66-observer-config.json",
+      "source_mtime_ns": 1793032743447823665,
+      "bytes": 1003,
+      "sha256": "6a102084f4ccbb16528a0ceb02406c7c12a38c8e32dca8b3df0c2b77ff7587e8"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v66-page-observations.jsonl",
+      "source_mtime_ns": 1793034548213687790,
+      "bytes": 743720,
+      "sha256": "0aa59003e01fac97a608871b4ead027dae4b1be4a191524ac634bdcce1cb78c9"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v66-page-starts.jsonl",
+      "source_mtime_ns": 1793034525722994044,
+      "bytes": 36490,
+      "sha256": "f9b2932367739e137e02067deca0005845aaa1e9ae1e5a033061688afbb069b2"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-warmup-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-warmup-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v66-warmup-page-observations.jsonl",
+      "source_mtime_ns": 1793032755934328154,
+      "bytes": 4585,
+      "sha256": "3b3939058d8e4d3473ab9c321b466bca02a5e671141e4b5617a35b514f772d9e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-warmup-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-warmup-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v66-warmup-page-starts.jsonl",
+      "source_mtime_ns": 1793032754960303604,
+      "bytes": 219,
+      "sha256": "9d03f8e21a302ac00cdd0c9bfba616b0bc0cfdc4cadc5f13e6a398d7d429a718"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-delivery-20261027/v66-observation/v66-warmup-protocol.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/raw/v66-warmup-protocol.json",
+      "relative_copy": "frozen/raw/v66-warmup-protocol.json",
+      "source_mtime_ns": 1793032761176142293,
+      "bytes": 6108,
+      "sha256": "0983aa5b3377a0eaac7782526684fef6871b4177de8b9820eee2d8f567249b89"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/scripts/observe_dashboard_protocol.py",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/frozen/context/observe_dashboard_protocol.py",
+      "relative_copy": "frozen/context/observe_dashboard_protocol.py",
+      "source_mtime_ns": 1793031468146535366,
+      "bytes": 30277,
+      "sha256": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8"
+    }
+  ],
+  "diagnostic_sidecar_status": "separate immutable supplement after collector finishes",
+  "auditor_sha256": {
+    "audit_v66.py": "a4b42569db352c0963df5def0993190f0d6cf810758e8422e5ea98e4878204c3",
+    "base_auditor.py": "e5fbb841868bff95e7c6872f5bd624cbac56c2ff50c801ca308cfdd3064339c9"
+  },
+  "file_count": 10,
+  "total_bytes": 1644234
+}

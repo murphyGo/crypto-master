@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Page-dependent recovery source gate: 3008 tests, Black/Ruff7, mypy135 and independent77-case/AppTest review pass. Current v65 / 382c26b retains116/120 complete with4timeouts; scoped source commit/rollout pending. Original cold/native/depleted/1024MiB acceptance and CPU/cost deferral remain. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Page-dependent recovery source gate passes (3008 tests); v66 / ce5c4f5 and 182 hashes verified. Four-session FAIL_SAMPLE: 352/356 complete, four guard-aborted, health timeout5.219s with observed CPU throttling. Post-window health/cycle recovery is separate. Shared-guest CPU profiling follows; prior failures and cold/native/depleted/1024MiB/cost gates remain. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Reproduced global-drain coupling corrected with exact-generation page progress; 3008-test source gate passes, same-capacity rollout pending. v65/source382c26b remains deployed with182 hashes verified and four failed concurrent views retained. Preserve original freshness/source proof and cold/native/depleted/1024MiB gates; cost upgrade deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Global-drain coupling corrected; 3008-test gate and same-capacity v66/ce5c4f5 with182 hashes verified. Final observation fails352/356, four guard-aborted, health timeout5.219s and CPU throttle; whole cycle completes only after window. Profile shared-guest CPU costs; retain all historical failures, freshness/source proof and cold/native/depleted/1024MiB/cost gates. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

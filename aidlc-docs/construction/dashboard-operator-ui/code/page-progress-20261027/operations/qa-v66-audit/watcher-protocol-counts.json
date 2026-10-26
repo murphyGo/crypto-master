@@ -1,0 +1,61 @@
+{
+  "scope": "Observed protocol counters only; no function-level CPU or full timeout causality claim.",
+  "complete_requests": 352,
+  "complete_maximum_watchers_distribution": {
+    "0": 352
+  },
+  "failed_requests": [
+    {
+      "started_at": "2026-10-26T17:08:45.722390+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "maximum_background_watchers": 1,
+      "script_finished_value_counts": {
+        "0": 1,
+        "3": 1,
+        "2": 1
+      },
+      "auto_rerun_registrations": 1
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.543805+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "maximum_background_watchers": 1,
+      "script_finished_value_counts": {
+        "0": 2,
+        "3": 2,
+        "2": 1
+      },
+      "auto_rerun_registrations": 2
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.255393+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "maximum_background_watchers": 1,
+      "script_finished_value_counts": {
+        "0": 1,
+        "3": 2,
+        "2": 1
+      },
+      "auto_rerun_registrations": 1
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.905292+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "maximum_background_watchers": 1,
+      "script_finished_value_counts": {
+        "0": 1,
+        "3": 1,
+        "2": 1
+      },
+      "auto_rerun_registrations": 1
+    }
+  ]
+}

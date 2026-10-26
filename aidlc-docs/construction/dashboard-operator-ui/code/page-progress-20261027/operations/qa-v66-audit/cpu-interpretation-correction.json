@@ -1,0 +1,22 @@
+{
+  "scope": "Interpretation-only supplement; original initial audit and CPU artifacts remain unchanged.",
+  "amends": {
+    "cpu-window-proof.json": "e3ccaffabd935abdc7051570bfc2f1aae150fcfa6ccc880dc90dd4630f950be8"
+  },
+  "clarifies_sentence": "Positive sampled balance is buffered CPU evidence.",
+  "correct_interpretation": "The original window includes low-positive balance and two positive fly_instance_cpu_throttle samples. It must not be characterized as buffered-only or no-throttle. Exact zero balance was not sampled at 15-second cadence; shorter unsampled depletion cannot be ruled in or out. This is failed observed readiness with throttle present, not passed depleted-CPU qualification.",
+  "facts": [
+    {
+      "at": "2026-10-26T17:09:00+00:00",
+      "balance": 1.0000096,
+      "throttle": 178.849236
+    },
+    {
+      "at": "2026-10-26T17:09:15+00:00",
+      "balance": 0.9868925,
+      "throttle": 1089.6281763
+    }
+  ],
+  "original_verdict": "FAIL_SAMPLE",
+  "depleted_cpu_qualified": false
+}

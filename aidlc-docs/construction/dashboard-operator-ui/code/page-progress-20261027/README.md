@@ -30,3 +30,10 @@ The prior v65 116/120 result and all older failures remain valid observations.
 This correction addresses the reproduced page dependency bug; it does not
 attribute every historical timeout to that bug or change the original cold,
 native, depleted-CPU or 1024 MiB acceptance criteria.
+
+`operations/README.md` records exact v66 delivery and the independent
+**FAIL_SAMPLE** operational result: 352/356 complete, four health-guard aborts,
+observed CPU throttling and a full natural cycle completed only after the
+observation. The frozen raw audit, separate supplements and offline root replay
+agree. Later healthy endpoints do not erase this failure. Shared-guest CPU
+profiling remains the next investigation under the existing open debt.

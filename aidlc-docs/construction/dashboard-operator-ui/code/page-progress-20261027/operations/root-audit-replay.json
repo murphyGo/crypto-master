@@ -1,0 +1,13 @@
+{
+  "command": [
+    "/opt/homebrew/opt/python@3.14/bin/python3.14",
+    "/private/tmp/crypto-master-page-progress-delivery-20261027/root-audit-replay/audit_v66.py",
+    "--audit-frozen"
+  ],
+  "exit_code": 0,
+  "original_audit_unchanged": true,
+  "exact_summary_match": true,
+  "verdict": "FAIL_SAMPLE",
+  "input_manifest_sha256": "e9d856484089a47bced0be130ee13e618a3c6e8a2f11926bd6f1224bf23c0736",
+  "runtime_or_production_queries": false
+}

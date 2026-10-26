@@ -1,0 +1,241 @@
+{
+  "scope": "Frozen original observation only; no later cycle completion can qualify this closed window.",
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "stop_reasons": [
+    "health_failed_or_deadline_exceeded"
+  ],
+  "cycle_events_in_window": [
+    {
+      "timestamp": "2026-10-26T17:08:35.825169Z",
+      "event_type": "cycle_started",
+      "cycle_id": "a78ac2c8-bca3-408e-8370-5d616ea9919c"
+    }
+  ],
+  "failed_requests": [
+    {
+      "started_at": "2026-10-26T17:08:45.722390+00:00",
+      "derived_end": "2026-10-26T17:09:07.734035+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "seconds": 22.011645042104647,
+      "first_incomplete_shell_seconds": 4.315040292101912,
+      "first_incomplete_script_finished_seconds": 4.315318833105266,
+      "maximum_background_watchers": 1,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315040292101912
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315091458032839
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.315102333086543
+        }
+      ]
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.543805+00:00",
+      "derived_end": "2026-10-26T17:09:08.059404+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.515599458944052,
+      "first_incomplete_shell_seconds": 4.230064374976791,
+      "first_incomplete_script_finished_seconds": 4.231144874938764,
+      "maximum_background_watchers": 1,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230064374976791
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230234917020425
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.230306959012523
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 12.96839541697409
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 12.968431459041312
+        }
+      ]
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.255393+00:00",
+      "derived_end": "2026-10-26T17:09:08.212990+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.957597083062865,
+      "first_incomplete_shell_seconds": 4.079212250071578,
+      "first_incomplete_script_finished_seconds": 4.312826458015479,
+      "maximum_background_watchers": 1,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.079212250071578
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.0794114579912275
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.079464958049357
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.311993750045076
+        }
+      ]
+    },
+    {
+      "started_at": "2026-10-26T17:08:44.905292+00:00",
+      "derived_end": "2026-10-26T17:09:08.213984+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "aborted_after_guard_stop",
+      "seconds": 23.308691625017673,
+      "first_incomplete_shell_seconds": 4.103067875024863,
+      "first_incomplete_script_finished_seconds": 4.595241250004619,
+      "maximum_background_watchers": 1,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.103067875024863
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.1031362500507385
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.103168540983461
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.594722582958639
+        }
+      ]
+    }
+  ],
+  "health_failures": [
+    {
+      "captured_at": "2026-10-26T17:09:02.513768+00:00",
+      "ok": false,
+      "reason": "TimeoutError",
+      "seconds": 5.219426207942888
+    }
+  ],
+  "per_client": {
+    "0": {
+      "attempts": 89,
+      "status_counts": {
+        "complete": 88,
+        "aborted_after_guard_stop": 1
+      },
+      "failure_ratio": 0.011235955056179775
+    },
+    "1": {
+      "attempts": 89,
+      "status_counts": {
+        "complete": 88,
+        "aborted_after_guard_stop": 1
+      },
+      "failure_ratio": 0.011235955056179775
+    },
+    "2": {
+      "attempts": 89,
+      "status_counts": {
+        "complete": 88,
+        "aborted_after_guard_stop": 1
+      },
+      "failure_ratio": 0.011235955056179775
+    },
+    "3": {
+      "attempts": 89,
+      "status_counts": {
+        "complete": 88,
+        "aborted_after_guard_stop": 1
+      },
+      "failure_ratio": 0.011235955056179775
+    }
+  },
+  "maximum_watchers": 1,
+  "frozen_input_hashes": {
+    "v66-page-observations.jsonl": "0aa59003e01fac97a608871b4ead027dae4b1be4a191524ac634bdcce1cb78c9",
+    "v66-memory-samples.jsonl": "6fbaab2e5baa30d1e590b9c4294fea072cf36437ba9e9c8ffaf89bd498f2a6a3",
+    "v66-health-samples.json": "15d9149d9d7548dcf8fdfeb8c9405d3d0620b00344fba4e02014e0eac857ab80"
+  }
+}

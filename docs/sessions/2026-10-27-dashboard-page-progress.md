@@ -1,17 +1,20 @@
 # Dashboard page-dependent progress — 2026-10-27 KST
 
 Unit: `dashboard-operator-ui`; secondary `dashboard-operator-command-center`.
-DEBT-083 remains Critical / active. Baseline main is `37b29d7`; deployed source
-is `382c26b` / Fly v65. Work is isolated in
+DEBT-083 remains Critical / active. Baseline main is `37b29d7`, previously
+deployed source `382c26b` / Fly v65; the correction is now `ce5c4f5` / Fly v66.
+Work is isolated in
 `/private/tmp/crypto-master-page-progress-20261027`, preserving unrelated root
 and worktree changes. The user's `고칠 수 있음?` continues the registered
 correction; earlier sequential commit/push and same-capacity rollout authority
 persists.
 
-**Source qualified:** three source files and four test files pass final
-regression, static checks, independent QA and the actual local Streamlit
-two-session fragment check. Commit/push, deployment and operational observation
-are next; no production recovery claim follows from this local source gate.
+**Bounded correction deployed:** qualified source `ce5c4f5` is confirmed on
+remote main and Fly v66. Source hashes, unchanged configuration and the first
+natural cycle pass verification. The four-session observation is `FAIL_SAMPLE`:
+352/356 complete, four requests aborted after a health guard, and no full
+natural cycle captured within the observation window. Warm-up Home also misses
+both 5 s targets. DEBT-083 remains Critical / active.
 
 ## Evidence motivating the correction
 
@@ -82,8 +85,9 @@ session and cross-check.
 | Actual Streamlit fragment interaction | PASS: two independent AppTest sessions dispatch their captured fragment after shared activity completes while unrelated audit work remains admitted. Both rerender to complete; old-fragment redispatch returns without another fragment-induced rerun. No exception or extra read build. Explicit closure dispatch does not certify browser timer/native rendering. |
 | Final static gate | Black/Ruff pass seven changed Python files; source-wide mypy passes 135 files. Earlier three-source-file typing remains supplementary. |
 | Final full regression | 3,008 passed in 231.58 s on Python 3.13.0, using `/Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest -q`. All 261 `src`/`tests`/`scripts` hashes remain unchanged during the final run. |
-| Commit/push and rollout | Pending: confirm validated remote SHA, preserve concurrent work, use existing configuration. |
-| Operational observation | Pending: deployed hashes/health, one fresh four-session run spanning a full natural cycle, all outcomes retained, independent final audit. No forced cycle or overlapping observers. |
+| Commit/push and rollout | `ce5c4f5eb71a1954ec264c0380eaa7e5c4b0742d` confirmed on remote main; deployed as Fly v66, with local main fast-forwarded. |
+| Initial deployed verification | All 182 runtime hashes match; dependencies, configuration, guest and volume unchanged; public/internal health 200/ok. First natural cycle completes with twelve monitors and zero recorded errors. |
+| Four-session observation | `FAIL_SAMPLE`: 1,800.914084 s, 356 matched starts/outcomes, 352 complete and four `aborted_after_guard_stop`; health guard fires and no full cycle completes inside the window. Warm-up Home 10.777154 s / first shell 5.069114 s remain misses. |
 
 The focused command is the existing root `.venv/bin/python -m pytest
 tests/test_dashboard_page_progress.py tests/test_dashboard_availability.py
@@ -112,6 +116,113 @@ one unrelated admitted job and one worker; activity/audit each build once.
 Redispatching each old fragment returns normally through its local latch. The
 three source hashes are unchanged before/after. This is controlled local
 interaction evidence, not timer scheduling, page latency or production proof.
+
+## Deployment checkpoint and measured scope
+
+Fly v66 runs source `ce5c4f5eb71a1954ec264c0380eaa7e5c4b0742d`, image
+`sha256:d9a234ff67bd9dd6b1fc1ea76cb1f302c049e677019ae8a388db7179e4c91709`,
+instance `01M5WH6PXMT865Y5XEDDWETVA0` on existing machine `6835752b711958`.
+The existing shared CPU 1 / 2048 MiB, `/data` volume, installed dependencies,
+paper/Codex configuration and 1800-second cadence are unchanged. The
+16:38:36.531715 UTC capture verifies 182 runtime hashes and 200/ok public/internal
+health. Evidence: `operations/postdeploy.json` and `deployment-verification.json`.
+
+The first natural cycle spans **2026-10-26 16:38:08.677457–16:38:35.739136 UTC**
+(27.061679 s), with twelve monitor events and zero recorded errors. It generates
+three proposals, accepts all three upstream, rejects one at a later gate and
+opens two paper positions. Upstream acceptance is not execution count.
+
+Actual proposal checks cover two account/version pairs: one `ma_crossover`
+`1.0.0` proposal has sample 227 and expected value -0.3738099982477091, ending
+`gate_rejected_symbol_cap`; two `raschke_holy_grail` `1.0.0` proposals each have
+sample 266 and expected value 0.00931627480353263, ending `trade_opened`. All
+sample-size/expected-value comparisons match prior closes. This does not
+certify every score field, other accounts or profitability. One cap-event row
+matches `legacy_no_perf_link` / `monitorable=true`, but has null account and no
+proposal ID, so it does not establish complete proposal-level cap attribution.
+
+Separate pure replay checks eighteen account/version score rows across twelve
+accounts and eleven cap trades. All score comparisons match and twenty-four
+input hashes remain unchanged across that read-only replay. Its current-data,
+fixed-confidence, omitted-proposal-join and unknown-market-mark basis remains
+separate from emitted decisions and runtime-wide data immutability.
+
+The observation retains warm-up separately. Home starts at
+16:39:04.177676 UTC and completes in **10.777154 s**; first incomplete protocol
+receipt is **5.069114 s**, and the first incomplete script finish is 5.956060 s.
+Complete readiness and first-shell receipt both miss their 5 s single-sample
+targets. Trading then completes in 0.975259 s. These are warm-up observations,
+not twenty-sample cold qualification or native visual timing.
+
+## Final v66 operational observation: failed sample
+
+Independent audit reconciles **356 starts and 356 outcomes**, with no duplicate
+or unmatched request identities and no summary differences. The window is
+**2026-10-26 16:39:23.994031–17:09:24.908115 UTC**, **1,800.914084 s**.
+There are **352 complete responses and four `aborted_after_guard_stop`**:
+
+| Page | Complete / attempts | Guard-aborted requests | Successful complete p95 |
+|---|---:|---:|---:|
+| Home | 176 / 178 | 2 | 0.726289 s |
+| Trading | 176 / 178 | 2 | 0.703791 s |
+
+The last of **353 health samples**, timestamped 17:09:02.513768 UTC, reports
+`TimeoutError` after **5.219426 s**, triggering `health_failed_or_deadline_exceeded`.
+Four in-flight pages are then canceled after **22.012–23.958 s**. These are
+guard-censored observations, not completed responses or thirty-second request
+timeouts; their eventual completion times are unknown. Their first incomplete
+receipts arrive in 4.079–4.315 s, and each retains at most one watcher. Fast
+successful-response p95 does not make this failed set pass.
+
+Observed dashboard RSS growth is **67.394531 MiB**, conservative process HWM
+minus warmed RSS **67.714844 MiB**, and guest use **694.718750 MiB** on the
+current **2048 MiB** machine. Numeric memory ceilings pass this observed subset;
+the original 1024 MiB condition remains unqualified. No full natural cycle
+completes inside the observation interval, so its continuity gate also fails.
+
+The separate CPU supplement covers the original window with **120 samples per
+series at 15 s spacing**, bounded by 16:39:15 and 17:09:30 UTC, excluding seven
+out-of-window points per series. Throttle is positive at **17:09:00 and
+17:09:15**, when balance is **1.0000096 and 0.9868925 in raw metric units**.
+This is observed throttling with low positive balance, not uniformly buffered,
+unthrottled execution. Its overlap with the guard failure is correlation, not
+an exact cause assignment. The CPU history is published at 17:10:34.551347 UTC,
+after the run; sampled coverage does not establish successful depleted-load
+qualification or exclude shorter unsampled behavior. The separate
+`cpu-interpretation-correction.json` qualifies inherited buffered-CPU wording
+without rewriting the original CPU artifacts or `FAIL_SAMPLE` verdict.
+
+A **post-window** verifier at 17:10:21.712921 UTC confirms all 182 source hashes,
+200/ok public/internal health and the same engine/dashboard PIDs **652/653**.
+The second natural cycle started at 17:08:35.825169 and completed at
+**17:10:20.751571 UTC**, lasting **104.926402 s**, with twelve monitors, zero
+recorded errors and no proposals. This later continuity result does not
+retroactively satisfy the failed observation's full-cycle or health gate.
+
+Final supplements retain the evidence boundaries explicitly:
+`diagnostics-functional-supplement.json` contains 560 diagnostic records, 550
+inside the page window, with zero parse/schema failures; delivery remains
+asynchronous and rate-limited without request identity, so these are not page
+failure counts or precise causal assignments. `collector-termination-proof.json`
+confirms collection stopped before the final diagnostic freeze.
+`post-window-recovery.json` preserves the later health/cycle result separately.
+Completing these audit artifacts does not turn the operational sample into a
+pass.
+
+`operations/contention-analysis.json` finds zero watchers for all 352 complete
+requests; each guard-aborted request has at most one watcher and one or two
+auto-rerun registrations. These records do not show a rerender storm. The
+pre-cycle dashboard CPU estimate of 6.05% of one core is measured during the
+four-session workload, not idle overhead. Simultaneous engine/dashboard demand
+and throttling support further bounded diagnosis, without identifying function
+costs or the exact cause of an individual failed request.
+
+The deployment/source checks and controlled page-progress regression are valid,
+but complete operational readiness remains unproven. Earlier v65/v64 failed
+samples stay separate, and this run does not establish a sole timeout cause.
+No additional production load, resource/configuration or trading-policy change
+is part of this closeout. Detailed audit and post-window evidence are retained
+with the task's operational artifacts.
 
 ## Acceptance boundaries
 

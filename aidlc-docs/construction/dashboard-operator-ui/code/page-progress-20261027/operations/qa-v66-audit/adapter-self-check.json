@@ -1,0 +1,81 @@
+{
+  "created_at": "2026-10-26T16:30:32.587442+00:00",
+  "verdict": "PASS_ADAPTER_SELF_CHECK",
+  "fixture_scope": "Historical v65 data copied/renamed only in this separate offline self-check directory; not v66 observation evidence. Original bytes unchanged.",
+  "initial_check_note": "First in-memory comparison rejected integer client keys versus JSON string keys. Comparing canonical JSON confirms identical values; no audit calculations changed.",
+  "preserved_prior_verdict": "FAIL_SAMPLE",
+  "counts": {
+    "starts": 120,
+    "outcomes": 120,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 116,
+      "timeout": 4
+    },
+    "completion_ratio": 0.9666666666666667
+  },
+  "validated": [
+    "all prior request/page/cycle statistics equal committed v65 audit",
+    "no declared summary discrepancies",
+    "existing four failures preserved",
+    "classified histories and warmup exact shapes valid",
+    "nearest-rank p95 oracle",
+    "placeholder/missing-label/first-shell corruption rejected"
+  ],
+  "fixtures": [
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-concurrency-summary.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-concurrency-summary.json",
+      "sha256": "22639723e2f1881c1609ece4f56b8bce004d330838c04f009b80a4972eb73e6b"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-health-samples.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-health-samples.json",
+      "sha256": "88aa6b72beaff023dfa5960369cb403fc6aa75c750488916203e70065d84cc86"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-memory-samples.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-memory-samples.jsonl",
+      "sha256": "ab5284111a48e2fb58bee65dedb00a32a0f44ae5c61842f8c55fbd8c4c0e2ebc"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-observer-config.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-observer-config.json",
+      "sha256": "75630e26a029a652052709163d8f19ef30d499109598d5abaa9a91a80d726f9e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-page-observations.jsonl",
+      "sha256": "233959fda15576793f5172aa81a55af9e87bcc28c0fae15b01f7fcea70da6e4e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-page-starts.jsonl",
+      "sha256": "8eab72c1122f79455aedc0efdb436bdf41a8b90f7f259b6945ef985a1b235d9c"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-warmup-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-warmup-page-observations.jsonl",
+      "sha256": "7354b576ffe8170424dff883abbab7672944dd85692f4134ca870a5b29d8ab43"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-warmup-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-warmup-page-starts.jsonl",
+      "sha256": "e7e3f03dbbd95563d38dd70e18a6183fbd462b4ff12780cd873d5d37ba25a460"
+    },
+    {
+      "source": "/private/tmp/crypto-master-page-progress-20261027/aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/protocol-audit/frozen/raw/v65-warmup-protocol.json",
+      "copy": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-adapter-self-check/frozen/raw/v66-warmup-protocol.json",
+      "sha256": "090dbb5e4b1830a114eee4bdbce8f1385010fa17229b26f5ed32185a3605d92b"
+    }
+  ],
+  "adapter_sha256": {
+    "cpu_window_proof.py": "fad84a5c51dc4dd7e9e05c3fea4df5e6eff58793c1cb4792eab3a16f7529ba1d",
+    "audit_v66.py": "a4b42569db352c0963df5def0993190f0d6cf810758e8422e5ea98e4878204c3",
+    "base_auditor.py": "e5fbb841868bff95e7c6872f5bd624cbac56c2ff50c801ca308cfdd3064339c9",
+    "supplement_audit.py": "ab2763dd66c0af188e95fac0a4255d8ae9b4cc8735e713da98fc0278ff8d7f6e"
+  }
+}

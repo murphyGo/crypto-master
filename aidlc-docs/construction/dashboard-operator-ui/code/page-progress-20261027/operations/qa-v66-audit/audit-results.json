@@ -1,0 +1,641 @@
+{
+  "audit_completed_at": "2026-10-26T17:09:42.512974+00:00",
+  "mode": "existing frozen evidence only; no new load",
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "existing_warm_protocol_sample_pass": false,
+  "original_debt083_acceptance": false,
+  "original_acceptance_unqualified": [
+    "declared 1 GiB guest",
+    "native viewport",
+    "per-page process-cold and cache-cold >=20 samples",
+    "depleted CPU qualification"
+  ],
+  "request_reconciliation": {
+    "starts": 356,
+    "outcomes": 356,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 352,
+      "aborted_after_guard_stop": 4
+    },
+    "completion_ratio": 0.9887640449438202
+  },
+  "parse_errors": {
+    "starts": [],
+    "outcomes": [],
+    "memory": []
+  },
+  "semantic_shape_failures": [
+    {
+      "key": [
+        "2026-10-26T17:08:45.722390+00:00",
+        3,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.543805+00:00",
+        1,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "placeholder_or_unproven_metric",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.255393+00:00",
+        0,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T17:08:44.905292+00:00",
+        2,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ"
+      ]
+    }
+  ],
+  "pages": {
+    "Home": {
+      "observations": 178,
+      "complete": 176,
+      "incomplete": 2,
+      "complete_seconds_p95": 0.7262889579869807,
+      "complete_seconds_max": 1.826816083979793,
+      "all_complete": false,
+      "completion_ratio": 0.9887640449438202,
+      "status_counts": {
+        "complete": 176,
+        "aborted_after_guard_stop": 2
+      },
+      "per_client": {
+        "0": 45,
+        "2": 45,
+        "1": 44,
+        "3": 44
+      }
+    },
+    "Trading": {
+      "observations": 178,
+      "complete": 176,
+      "incomplete": 2,
+      "complete_seconds_p95": 0.7037906249752268,
+      "complete_seconds_max": 3.3714927500113845,
+      "all_complete": false,
+      "completion_ratio": 0.9887640449438202,
+      "status_counts": {
+        "complete": 176,
+        "aborted_after_guard_stop": 2
+      },
+      "per_client": {
+        "1": 45,
+        "3": 45,
+        "0": 44,
+        "2": 44
+      }
+    }
+  },
+  "clients": {
+    "0": {
+      "requests": 89,
+      "first": "2026-10-26T16:39:24.150712+00:00",
+      "last": "2026-10-26T17:08:44.255393+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999289,
+      "maximum_start_gap_seconds": 20.011612
+    },
+    "2": {
+      "requests": 89,
+      "first": "2026-10-26T16:39:24.855353+00:00",
+      "last": "2026-10-26T17:08:44.905292+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999269,
+      "maximum_start_gap_seconds": 20.011368
+    },
+    "1": {
+      "requests": 89,
+      "first": "2026-10-26T16:39:24.448909+00:00",
+      "last": "2026-10-26T17:08:44.543805+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999379,
+      "maximum_start_gap_seconds": 20.018059
+    },
+    "3": {
+      "requests": 89,
+      "first": "2026-10-26T16:39:25.648138+00:00",
+      "last": "2026-10-26T17:08:45.722390+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.999348,
+      "maximum_start_gap_seconds": 20.010108
+    }
+  },
+  "health": {
+    "samples": 353,
+    "failures": [
+      {
+        "captured_at": "2026-10-26T17:09:02.513768+00:00",
+        "ok": false,
+        "reason": "TimeoutError",
+        "seconds": 5.219426207942888
+      }
+    ],
+    "maximum_seconds": 5.219426207942888,
+    "first_at": "2026-10-26T16:39:24.000554+00:00",
+    "last_at": "2026-10-26T17:09:02.513768+00:00",
+    "max_sample_gap_seconds": 6.714517
+  },
+  "memory": {
+    "samples": 1798,
+    "first_at": "2026-10-26T16:39:24.107028+00:00",
+    "last_at": "2026-10-26T17:09:24.190783+00:00",
+    "max_sample_gap_seconds": 1.12029,
+    "guest_peak_mib": 694.71875,
+    "guest_memtotal_kib": 2015880,
+    "dashboard_growth_mib": 67.39453125,
+    "dashboard_hwm_growth_mib": 67.71484375,
+    "pid_sets": {
+      "engine": [
+        652
+      ],
+      "dashboard": [
+        653
+      ]
+    },
+    "missing_processes": [],
+    "processes": {
+      "engine": {
+        "rss_first_kib": 223460,
+        "rss_last_kib": 228560,
+        "rss_peak_kib": 229112,
+        "hwm_peak_kib": 229112,
+        "threads_first": 3,
+        "threads_last": 3,
+        "threads_min": 3,
+        "threads_max": 3,
+        "cpu_delta_seconds": 10.380000000000003
+      },
+      "dashboard": {
+        "rss_first_kib": 296832,
+        "rss_last_kib": 344368,
+        "rss_peak_kib": 365844,
+        "hwm_peak_kib": 366172,
+        "threads_first": 10,
+        "threads_last": 10,
+        "threads_min": 10,
+        "threads_max": 38,
+        "cpu_delta_seconds": 113.25
+      }
+    }
+  },
+  "full_cycles_inside_entire_window": [],
+  "cpu": {
+    "series": {},
+    "depletion_observed": false,
+    "throttle_observed": false,
+    "full_window_coverage": false
+  },
+  "declared_summary_comparisons": {
+    "seconds": true,
+    "health_samples": true,
+    "health_all_ok_under_5s": true,
+    "health_max_seconds": true,
+    "memory_samples": true,
+    "warmed_dashboard_baseline_rss_kib": true,
+    "dashboard_peak_rss_kib": true,
+    "dashboard_process_hwm_kib": true,
+    "observed_dashboard_rss_increase_mib": true,
+    "conservative_hwm_minus_warmed_rss_mib": true,
+    "guest_use_peak_mib": true,
+    "guest_memtotal_kib": true,
+    "request_starts_recorded": true,
+    "every_start_has_outcome": true,
+    "observed_guest_768_mib_ceiling_pass": true,
+    "dashboard_growth_256_mib_pass": true,
+    "warm_page_p95_2s_pass": true,
+    "minimum_duration_and_cycle_observed": true,
+    "pages.Home.observations": true,
+    "pages.Home.complete": true,
+    "pages.Home.incomplete": true,
+    "pages.Home.complete_seconds_p95": true,
+    "pages.Home.all_complete": true,
+    "pages.Trading.observations": true,
+    "pages.Trading.complete": true,
+    "pages.Trading.incomplete": true,
+    "pages.Trading.complete_seconds_p95": true,
+    "pages.Trading.all_complete": true,
+    "process_cpu_seconds_during_observation.engine": true,
+    "process_cpu_seconds_during_observation.dashboard": true,
+    "engine_full_cycle": true
+  },
+  "declared_summary_differences": [],
+  "limitations": [
+    "Semantic audit covers exact labels/placeholders/element presence, not table-cell oracle or native rendering.",
+    "Guest memory sampled about once per second; process HWM retained separately, no sum of process RSS.",
+    "CPU snapshots cover only their recorded timestamps; missing final coverage is not zero throttle.",
+    "Existing warmup and intermediate/canonical latency failures remain in frozen context."
+  ],
+  "enhanced_protocol_audit": {
+    "classifications": {
+      "failures": [],
+      "pages": {
+        "Home": {
+          "requests": 178,
+          "first_shell_observed": 2,
+          "first_shell_seconds_p95": 4.103067875024863,
+          "first_shell_seconds_max": 4.103067875024863,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 6
+          }
+        },
+        "Trading": {
+          "requests": 178,
+          "first_shell_observed": 2,
+          "first_shell_seconds_p95": 4.315040292101912,
+          "first_shell_seconds_max": 4.315040292101912,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 7,
+            "pending": 1
+          }
+        }
+      }
+    },
+    "warmup": {
+      "starts": 2,
+      "outcomes": 2,
+      "bijective": true,
+      "status_counts": {
+        "complete": 2
+      },
+      "aggregate_matches_jsonl": true,
+      "parse_errors": [],
+      "classification_audit": {
+        "failures": [],
+        "pages": {
+          "Home": {
+            "requests": 1,
+            "first_shell_observed": 1,
+            "first_shell_seconds_p95": 5.069114207988605,
+            "first_shell_seconds_max": 5.069114207988605,
+            "first_shell_over_5s": 1,
+            "incomplete_shell_classifications": {
+              "pending": 3
+            }
+          },
+          "Trading": {
+            "requests": 1,
+            "first_shell_observed": 0,
+            "first_shell_seconds_p95": null,
+            "first_shell_seconds_max": null,
+            "first_shell_over_5s": 0,
+            "incomplete_shell_classifications": {}
+          }
+        }
+      },
+      "observations": [
+        {
+          "key": [
+            "2026-10-26T16:39:04.177676+00:00",
+            "warmup",
+            "Home"
+          ],
+          "status": "complete",
+          "seconds": 10.777153500006534,
+          "first_incomplete_shell_seconds": 5.069114207988605
+        },
+        {
+          "key": [
+            "2026-10-26T16:39:14.958432+00:00",
+            "warmup",
+            "Trading"
+          ],
+          "status": "complete",
+          "seconds": 0.9752594579476863,
+          "first_incomplete_shell_seconds": null
+        }
+      ],
+      "cold_p95_qualified": false
+    },
+    "all_four_clients_alternate_both_pages": true,
+    "health_temporal_coverage": false,
+    "memory_temporal_coverage": true,
+    "pinned_shape_matches_observer_configuration": true,
+    "all_observed_cycle_errors": [],
+    "cycle_continuity_pass": false,
+    "summary_extra_differences": [],
+    "preserved_failure_rows": [
+      {
+        "started_at": "2026-10-26T17:08:45.722390+00:00",
+        "client": 3,
+        "page": "Trading",
+        "status": "aborted_after_guard_stop",
+        "first_incomplete_shell_seconds": 4.315040292101912,
+        "first_incomplete_script_finished_seconds": 4.315318833105266,
+        "seconds": 22.011645042104647,
+        "messages": 58,
+        "elements": {
+          "metric": 0,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 0,
+        "alerts": [],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.315040292101912
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.315091458032839
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.315102333086543
+          }
+        ],
+        "metrics": [],
+        "script_finished_values": [
+          0,
+          3,
+          2
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 1
+      },
+      {
+        "started_at": "2026-10-26T17:08:44.543805+00:00",
+        "client": 1,
+        "page": "Trading",
+        "status": "aborted_after_guard_stop",
+        "first_incomplete_shell_seconds": 4.230064374976791,
+        "first_incomplete_script_finished_seconds": 4.231144874938764,
+        "seconds": 23.515599458944052,
+        "messages": 87,
+        "elements": {
+          "metric": 6,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 4,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230064374976791
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230234917020425
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.230306959012523
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 12.96839541697409
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 12.968431459041312
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          }
+        ],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          2,
+          0
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T17:08:44.255393+00:00",
+        "client": 0,
+        "page": "Home",
+        "status": "aborted_after_guard_stop",
+        "first_incomplete_shell_seconds": 4.079212250071578,
+        "first_incomplete_script_finished_seconds": 4.312826458015479,
+        "seconds": 23.957597083062865,
+        "messages": 58,
+        "elements": {
+          "metric": 0,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 0,
+        "alerts": [],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.079212250071578
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.0794114579912275
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.079464958049357
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.311993750045076
+          }
+        ],
+        "metrics": [],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          2
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 1
+      },
+      {
+        "started_at": "2026-10-26T17:08:44.905292+00:00",
+        "client": 2,
+        "page": "Home",
+        "status": "aborted_after_guard_stop",
+        "first_incomplete_shell_seconds": 4.103067875024863,
+        "first_incomplete_script_finished_seconds": 4.595241250004619,
+        "seconds": 23.308691625017673,
+        "messages": 53,
+        "elements": {
+          "metric": 0,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 0,
+        "alerts": [],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.103067875024863
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.1031362500507385
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.103168540983461
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.594722582958639
+          }
+        ],
+        "metrics": [],
+        "script_finished_values": [
+          0,
+          3,
+          2
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 1
+      }
+    ]
+  },
+  "diagnostic_sidecar": {
+    "status": "separate supplement required; not inferred from absence"
+  },
+  "freeze": {
+    "manifest": "/private/tmp/crypto-master-page-progress-delivery-20261027/qa-v66-audit/freeze-manifest.json",
+    "file_count": 10,
+    "total_bytes": 1644234,
+    "sha256_verified": true
+  },
+  "auditor_completed_at": "2026-10-26T17:09:42.527352+00:00"
+}

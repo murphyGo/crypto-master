@@ -57,7 +57,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
-> **Page-dependent recovery source gate (2026-10-27 KST):** DEBT-083 remains
+> **Page-dependent recovery deployment (2026-10-27 KST):** DEBT-083 remains
 > Critical/active. The reproduced global-drain watcher coupling is corrected
 > using compact exact-generation progress and read-only queue readiness, with
 > one watcher and one notification per render. One worker/four admissions,
@@ -65,9 +65,16 @@ Construction artifacts are created just in time for new work. Existing Phase
 > Final source passes 3,008 tests, seven-file Black/Ruff and 135-file mypy;
 > independent 77-case review and real two-session fragment smoke pass. The
 > initial full-suite fixture incompatibility is fixed with runtime hashes
-> unchanged. Current production is v65 / `382c26b`; exact commit/push and the
-> authorized same-capacity rollout are next. Prior failed samples and original
-> cold/native/depleted/1024 MiB acceptance remain open. See
+> unchanged. Source `ce5c4f5` is pushed to main and deployed as Fly v66; all
+> 182 runtime hashes, health and the first natural paper cycle pass. The
+> unchanged-capacity four-session observation is **FAIL_SAMPLE**: 352/356
+> complete, four guard-aborted requests, health TimeoutError at 5.219 s and no
+> complete natural cycle inside its 1800.914 s window. CPU throttle is observed
+> with near-floor positive balance; exact request causality is not established.
+> Post-window public/internal health, unchanged PIDs/source and completed cycle
+> pass independently; they do not erase the failed sample. Initial Home
+> completion 10.777 s and first incomplete receipt 5.069 s miss 5 s. Prior
+> failures and original cold/native/depleted/1024 MiB acceptance remain open. See
 > `docs/sessions/2026-10-27-dashboard-page-progress.md`.
 
 > **Home recovery deployment (2026-10-26 KST):** DEBT-083 remains
@@ -359,7 +366,7 @@ Construction artifacts are created just in time for new work. Existing Phase
 | `backtesting-validation` | Complete | Brownfield-complete; construction-ready; 2026-05-24 (`50a7080`) added `raschke_holy_grail` + `ma_crossover` robustness specs and verified both exploratory live runs; 2026-07-19 Derivatives Data Slice 2 Snapshot Schema v2 **Build & Test approved, Operations N/A, cross-checked PASS for LC-10** — immutable content-addressed generations and v1 compatibility verified; 2026-07-22 Slice 4 LC-11 **Build & Test PASS; cross-check PASS; SEALED 2026-07-22 (operator approved, Operations N/A)** — exact v1/v2 replay serves same-generation OHLCV and no-lookahead Funding/OI through the shared builder; engine/harness/gates preserve optional callers and block missing required evidence as `INSUFFICIENT_DATA`; reports pin generation/configuration digest/seed/coverage; explicit refresh is separated from offline snapshot-default replay; Build & Test repaired unexplained Funding-prefix acceptance and raw exception serialization; 210 focused tests, 183 generated-path tests at 92% combined coverage, 103 builder-parity tests, 46 script-consumer tests, and 2585 full tests passed; changed-file Black/Ruff, repository mypy, lock, compile, offline import, diff, scope, credential, dependency, deployment, and `data/` checks passed; DEBT-081 isolated; LC-11 and FR-046/US-025 are Complete across Slices 1-4 | Slice 4 sealed 2026-07-22; track future robustness/baseline changes in construction plans |
 | `ai-feedback-loop` | Complete | Brownfield-complete; construction-ready; 2026-05-13 DEBT-056 closed (fixture-vs-validator drift in `tests/test_scripts_auto_research_candidates.py` aligned with `85a33b0` runtime-validator hardening; `## Output Contract` block + `"hypothesis"` keys added; 2 lint sites cleared via `ruff --fix`; pytest 1808 passed) | Track future Claude/improver loop changes in construction plans |
 | `proposal-runtime` | Complete | Brownfield-complete; construction-ready; 2026-05-13 DEBT-061 closed (per-strategy fail-closed counter instrumentation in `ProposalEngine._build_proposal_for_strategy` at emit / `StrategyError` catch / `TradingValidationError` catch; new `src/proposal/fail_closed_metrics.py` with `StrategyFailClosedCounts` Pydantic model `model_validate`-enforced on every increment + `FailClosedMetricsTracker` writing `data/performance/<sub_account_id>/<technique_name>/fail_closed.json` via `atomic_write_text`; `sub_account_id` plumbed as per-call argument after second-round 🔴 fix; quant Q1/Q2/Q4 ratified-as-shipped, Q4 per-reason breakdown deferred as non-breaking extension; pytest 1843 passed, net +31); 2026-05-13 DEBT-070 closed (ranking-side `total_trades` → `real_trade_count` sweep: 4 reads in `ProposalEngine._select_best_technique` at `src/proposal/engine.py:996, 1010, 1014` and `_select_all_techniques` at `:1132` switched with inline `# DEBT-070:` comments; display sites at `src/dashboard/pages/strategies.py:118` and `src/ai/improver.py:667` intentionally untouched; pinned by `test_select_best_technique_tiebreaks_on_real_trade_count` + `test_select_best_technique_any_history_ignores_synthetic_only` in `tests/test_proposal_engine.py`; pytest 2061 passed, net +2) | Track future proposal/runtime cycle changes in construction plans |
-| `dashboard-operator-ui` | Complete (brownfield); v64 deployed, DEBT-083 Critical/active | dca38fb: source gate retained; 180 hashes verified. Final four-session run 347/349 complete, two Home incomplete; health/full cycle and observed 708.25 MiB guest / 83.902 MiB dashboard increase verified on 2048 MiB | Resolve incomplete Home/cold readiness; complete native/depleted/original 1 GiB qualification; cost gate retained |
+| `dashboard-operator-ui` | Complete (brownfield); v66 deployed, DEBT-083 Critical/active | ce5c4f5: 3008 tests and 182 deployed hashes verified. Four-session sample fails: 352/356 complete, four guard-aborted requests and 5.219 s health timeout during observed CPU throttling; full natural cycle only completes after the window. Post-window health/PIDs/source pass | Profile shared-guest CPU contention without changing cost/capacity; retain cold/native/depleted/original 1 GiB gates and all failed samples |
 | `dashboard-operator-command-center` | Complete (brownfield); DEBT-083 secondary | Home command center shipped with safety/freshness, account context, exposure detail, strategy evidence drilldown, incident actions, runtime diagnostics, and page-level drillthrough links. DEBT-083 preserves Home's latest cycle, recent safety/incident, account, exposure and funnel meanings through bounded queries | Participate in DEBT-083 semantic parity and resource qualification; unrelated workflow refinements remain separate |
 | `notifications-ops` | Complete | Runtime notification operations plus Ops Diagnostics dashboard shipped; 2026-10-09 DEBT-082 resolved on current native v55 evidence: compatible Node/Claude, repeated help/flags, ldd, 167 source35e14b4 artifacts, health, and completed paper cycle; initial v53/v54 chronology overlaps another session's v55 Codex activation | Retain temporary 2 GB recovery capacity while bounded-loading work remains open; later DEBT-074/078/084/085/086 source through 3f4864f is not deployed |
 | `sub-account-capital-segmentation` | Complete | Brownfield-complete; construction-ready | Track future capital isolation changes in construction plans |

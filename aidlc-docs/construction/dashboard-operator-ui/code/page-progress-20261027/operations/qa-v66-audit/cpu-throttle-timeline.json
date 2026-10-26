@@ -1,0 +1,54 @@
+{
+  "scope": "Original observation window only; values are raw Fly metric values with no unit conversion.",
+  "frozen_cpu_sha256": "053510aa4238f234546922720c6a4df2954cec28d740d65749288a79ded8cfa1",
+  "window": {
+    "start": "2026-10-26T16:39:23.994031+00:00",
+    "end": "2026-10-26T17:09:24.908115+00:00",
+    "seconds": 1800.914084
+  },
+  "late_window_samples": [
+    {
+      "at": "2026-10-26T17:08:00+00:00",
+      "balance": 1411.0035274,
+      "throttle": 0.0
+    },
+    {
+      "at": "2026-10-26T17:08:15+00:00",
+      "balance": 1394.0060827,
+      "throttle": 0.0
+    },
+    {
+      "at": "2026-10-26T17:08:30+00:00",
+      "balance": 1389.0057551,
+      "throttle": 0.0
+    },
+    {
+      "at": "2026-10-26T17:08:45+00:00",
+      "balance": 1409.0039808,
+      "throttle": 0.0
+    },
+    {
+      "at": "2026-10-26T17:09:00+00:00",
+      "balance": 1.0000096,
+      "throttle": 178.849236
+    },
+    {
+      "at": "2026-10-26T17:09:15+00:00",
+      "balance": 0.9868925,
+      "throttle": 1089.6281763
+    }
+  ],
+  "positive_throttle_samples": [
+    {
+      "at": "2026-10-26T17:09:00+00:00",
+      "balance": 1.0000096,
+      "throttle": 178.849236
+    },
+    {
+      "at": "2026-10-26T17:09:15+00:00",
+      "balance": 0.9868925,
+      "throttle": 1089.6281763
+    }
+  ],
+  "interpretation": "Two positive throttle samples coincide with the late natural-cycle/health-failure interval. Sampled balance stays above zero but falls to 0.9868925. This run must not be characterized as buffered-only/no-throttle. Exact zero depletion between 15-second samples and request-level causality are not established. Acceptance remains FAIL_SAMPLE; depleted-CPU qualification does not pass."
+}
