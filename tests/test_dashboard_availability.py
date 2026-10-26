@@ -15,6 +15,7 @@ def loading_ui(monkeypatch):
     watchers = []
     monkeypatch.setattr(availability.st, "info", messages.append)
     monkeypatch.setattr(availability.st, "warning", messages.append)
+    monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: False)
     monkeypatch.setattr(
         availability, "_watch_background", lambda label: watchers.append(label)
     )
@@ -129,3 +130,104 @@ def test_concurrent_renders_each_schedule_one_watcher(loading_ui, monkeypatch):
         list(executor.map(render, range(2)))
     assert len(messages) == 4
     assert len(watchers) == len(set(watchers)) == 2
+
+
+@pytest.mark.parametrize("status", ["unavailable", "stale"])
+def test_queue_full_sections_keep_one_page_watcher(loading_ui, status):
+    messages, watchers = loading_ui
+
+    @availability.watch_loading
+    def render():
+        for kind in ("Activity", "Snapshots"):
+            availability.show_availability(
+                ReadResult(status, reason="queue_full"), kind
+            )
+
+    render()
+    assert len(messages) == 2
+    assert len(watchers) == 1
+
+
+def test_terminal_home_sections_have_one_explicit_retry_and_no_watcher(
+    loading_ui, monkeypatch
+):
+    messages, watchers = loading_ui
+    buttons = []
+    monkeypatch.setattr(
+        availability.st,
+        "button",
+        lambda label, **kwargs: buttons.append((label, kwargs)) or False,
+    )
+
+    @availability.watch_loading
+    def render():
+        for kind in ("Activity", "Ledger", "Snapshots", "Candidates", "Funnel"):
+            result = (
+                ReadResult("unavailable", reason="source_changed")
+                if kind in {"Activity", "Snapshots"}
+                else ReadResult("complete")
+            )
+            availability.show_availability(result, kind)
+
+    render()
+    assert len(messages) == 2
+    assert not watchers
+    assert len(buttons) == 1
+    assert buttons[0][0] == "Refresh data"
+
+
+def test_explicit_retry_invokes_only_terminal_actions_once_and_cleans_context(
+    loading_ui, monkeypatch
+):
+    calls = []
+
+    class Rerun(BaseException):
+        pass
+
+    def rerun():
+        raise Rerun()
+
+    monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: True)
+    monkeypatch.setattr(availability.st, "rerun", rerun)
+    failure = ReadResult(
+        "stale", reason="source_changed", retry=lambda: calls.append("retry")
+    )
+
+    @availability.watch_loading
+    def render():
+        availability.show_availability(failure, "Activity")
+        availability.show_availability(failure, "Activity nested")
+
+    with pytest.raises(Rerun):
+        render()
+    assert calls == ["retry"]
+    assert availability._page_reads.get() is None
+    assert "retry=" not in repr(failure)
+    assert failure == ReadResult("stale", reason="source_changed")
+
+
+def test_mixed_terminal_and_pending_without_fragments_has_one_retry_control(
+    loading_ui, monkeypatch
+):
+    buttons, actions = [], []
+    monkeypatch.delattr(availability.st, "fragment")
+    monkeypatch.setattr(
+        availability.st, "button", lambda label, **kwargs: buttons.append(label) or True
+    )
+    monkeypatch.setattr(availability.st, "rerun", lambda: actions.append("rerun"))
+
+    @availability.watch_loading
+    def render():
+        availability.show_availability(ReadResult("pending"), "Activity")
+        availability.show_availability(
+            ReadResult(
+                "unavailable",
+                reason="invalid_record",
+                retry=lambda: actions.append("retry"),
+            ),
+            "Snapshots",
+        )
+
+    render()
+    assert buttons == ["Refresh data"]
+    assert actions == ["retry", "rerun"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
@@ -13,7 +14,16 @@ from src.dashboard.read_models import ReadResult
 
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
-_page_pending: ContextVar[bool | None] = ContextVar("page_pending", default=None)
+
+
+@dataclass
+class _PageReads:
+    pending: bool = False
+    terminal: bool = False
+    retries: list[Callable[[], None]] = field(default_factory=list)
+
+
+_page_reads: ContextVar[_PageReads | None] = ContextVar("page_reads", default=None)
 
 
 def watch_loading(render: Callable[_P, _T]) -> Callable[_P, _T]:
@@ -21,18 +31,21 @@ def watch_loading(render: Callable[_P, _T]) -> Callable[_P, _T]:
 
     @wraps(render)
     def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-        if _page_pending.get() is not None:
+        if _page_reads.get() is not None:
             return render(*args, **kwargs)
-        token = _page_pending.set(False)
+        page = _PageReads()
+        token = _page_reads.set(page)
         try:
             result = render(*args, **kwargs)
-            if _page_pending.get():
+            if page.terminal:
+                _refresh_terminal(render.__qualname__, page.retries)
+            if page.pending and (not page.terminal or hasattr(st, "fragment")):
                 _refresh_loading(render.__qualname__)
             return result
         finally:
             # Streamlit rerun/stop and failed renders must not leave a flag
             # behind. ContextVar keeps concurrent sessions independent.
-            _page_pending.reset(token)
+            _page_reads.reset(token)
 
     return wrapped
 
@@ -41,6 +54,13 @@ def _refresh_loading(label: str) -> None:
     if hasattr(st, "fragment"):
         _watch_background(label)
     elif st.button("Refresh data", key=f"refresh-{label}"):
+        st.rerun()
+
+
+def _refresh_terminal(label: str, retries: list[Callable[[], None]]) -> None:
+    if st.button("Refresh data", key=f"refresh-data-{label}"):
+        for retry in retries:
+            retry()
         st.rerun()
 
 
@@ -56,17 +76,24 @@ def show_availability(result: ReadResult, label: str) -> bool:
         st.warning(
             f"{label}: last complete view at {at}; current data is unavailable. Refresh to retry."
         )
-    elif result.status == "pending":
+    elif result.status == "pending" or result.reason == "queue_full":
         st.info(f"{label}: loading in the background. Refresh to check progress.")
     else:
         st.warning(f"{label}: data could not be verified. Refresh to retry.")
-    if result.status == "pending" or result.reason == "rebuild_pending":
-        if _page_pending.get() is None:
+    page = _page_reads.get()
+    if result.status == "pending" or result.reason in {"rebuild_pending", "queue_full"}:
+        if page is None:
             _refresh_loading(label)
         else:
-            _page_pending.set(True)
-    # Stable code aids diagnosis without displaying persisted payloads,
-    # filesystem paths, exception strings or implementation internals.
+            page.pending = True
+    else:
+        if page is None:
+            _refresh_terminal(label, [result.retry] if result.retry else [])
+        else:
+            page.terminal = True
+            if result.retry is not None and result.retry not in page.retries:
+                page.retries.append(result.retry)
+    # Detailed reasons stay in bounded server diagnostics, not the user flow.
     return False
 
 

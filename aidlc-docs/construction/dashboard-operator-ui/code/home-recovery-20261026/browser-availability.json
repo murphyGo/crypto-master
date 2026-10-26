@@ -1,0 +1,11 @@
+{
+  "checked_at_utc": "2026-10-26T02:08:11Z",
+  "status": "blocked_before_navigation",
+  "reason": "packaged_browser_service_missing",
+  "client_version": "26.814.41407",
+  "requested_service_version": "26.1007.30912",
+  "missing_module": "scripts/browser-service.mjs",
+  "native_page_opened": false,
+  "native_acceptance_passed": false,
+  "operator_recovery_reply_received": false
+}

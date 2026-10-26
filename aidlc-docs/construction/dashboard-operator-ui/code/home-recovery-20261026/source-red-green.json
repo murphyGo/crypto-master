@@ -1,0 +1,54 @@
+{
+  "scope": "Home incomplete-result recovery and diagnostics; local source verification only",
+  "worktree": "/private/tmp/crypto-master-home-recovery-20261026",
+  "baseline_commit": "5fcad5434ab11f355cd1699352811a052eb07532",
+  "baseline_application": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "red": {
+    "command": "uv run pytest tests/test_dashboard_availability.py -q -k 'queue_full_sections or terminal_home_sections'",
+    "observed_before_source_edit": true,
+    "failed": 3,
+    "deselected": 9,
+    "seconds": 0.83,
+    "failures": [
+      "test_queue_full_sections_keep_one_page_watcher[unavailable]: 0 watchers, expected 1",
+      "test_queue_full_sections_keep_one_page_watcher[stale]: 0 watchers, expected 1",
+      "test_terminal_home_sections_have_one_explicit_retry_and_no_watcher: 0 buttons, expected 1"
+    ],
+    "baseline_availability_sha256": "988e864eefb29809416c3b9ff397f1b49457cebc5c70e9c2ea74dd22e56ad0fa"
+  },
+  "green_same_repro": {
+    "command": "uv run pytest tests/test_dashboard_availability.py -q -k 'queue_full_sections or terminal_home_sections'",
+    "passed": 3,
+    "deselected": 11,
+    "seconds": 0.19
+  },
+  "targeted": {
+    "command": "uv run pytest tests/test_dashboard_availability.py tests/test_dashboard_data_service.py tests/test_dashboard_read_diagnostics.py -q",
+    "passed": 48,
+    "seconds": 4.69,
+    "python": "3.11.13"
+  },
+  "static": {
+    "black": "7 files unchanged",
+    "ruff": "7 files pass",
+    "mypy": "4 source files pass",
+    "git_diff_check": "pass"
+  },
+  "earlier_intermediate_run": {
+    "passed": 25,
+    "failed": 1,
+    "seconds": 19.23,
+    "test": "test_unchanged_projection_survives_stale_display_deadline",
+    "outcome": "Initial default 4-second cold projection returned pending. Same existing test passed unchanged on final 48-test run; no timing policy changed."
+  },
+  "evidence_limit": "These are controlled local failure reproductions. The two historical v64 Home failures have no retained reason and remain causally unresolved.",
+  "files_sha256": {
+    "src/dashboard/availability.py": "d23af24e0498be490a36d45a12766543ba3dc98a9f6b88527045b481cfac847a",
+    "src/dashboard/data_service.py": "30fb80e299e01df02666cb82b696f355dc59c30dd8fe0a1b3e89f6454ff5c5dc",
+    "src/dashboard/read_models.py": "dd91a0fa97a723301a7b3eb165e32a269964887ea5ea693daf31c677999b3df4",
+    "src/dashboard/read_diagnostics.py": "83373891dc7c87e5d3d99064231998632206f9d84f28771deb47360706777061",
+    "tests/test_dashboard_availability.py": "23c17aabc00543dd838d206c1026208fab16b642d111d2c343e2cf2e0a5b07ba",
+    "tests/test_dashboard_data_service.py": "101d52ec154aa4d1debefa359bd43ed8b1bba39518457a719bf42f23fd8757d4",
+    "tests/test_dashboard_read_diagnostics.py": "bd4086800d403c501c4b929e137da961fbd50901c32c6d5802f247f90f4d3a2a"
+  }
+}

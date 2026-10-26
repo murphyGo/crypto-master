@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from src.dashboard.read_diagnostics import ReadDiagnostics, shared_read_diagnostics
 from src.dashboard.read_models import Limits, Query, ReadResult, utc_now
 from src.utils.bounded_read import ReadFailure
 
@@ -41,9 +42,13 @@ class DashboardDataService:
         limits: Limits | None = None,
         builder: Builder | None = None,
         checkpoint_store: CheckpointStore | None = None,
+        diagnostics: ReadDiagnostics | None = None,
     ):
         self.limits = limits or Limits()
         self.checkpoint_store = checkpoint_store
+        self._diagnostics = (
+            diagnostics if diagnostics is not None else shared_read_diagnostics
+        )
         self._index_reservation = (
             min(4 * 1024 * 1024, self.limits.cache_bytes // 4)
             if checkpoint_store is not None
@@ -76,7 +81,9 @@ class DashboardDataService:
     def _request_normalized(self, query: Query, deadline: float) -> ReadResult:
         with self._condition:
             if self._closed:
-                return ReadResult("unavailable", reason="service_closed")
+                return self._fallback(
+                    query, "service_closed", stage="admission", allow_stale=False
+                )
             now = time.monotonic()
             entry = self._cache.get(query)
             if entry and now - entry.evaluated <= self.limits.fresh_seconds:
@@ -97,7 +104,7 @@ class DashboardDataService:
                         return cached.threshold
             error = self._errors.get(query)
             if error and now - error[0] < self.limits.fresh_seconds:
-                return self._fallback(query, error[1])
+                return self._fallback(query, error[1], stage="error_cache")
             future = self._jobs.get(query)
             if future is None:
                 active_roots = {key.root for key in self._jobs}
@@ -114,9 +121,11 @@ class DashboardDataService:
                         self._cache_bytes -= cached.charge
                 roots = {key.root for key in (*self._cache, *self._jobs)}
                 if query.root not in roots and len(roots) >= self.limits.roots:
-                    return ReadResult("unavailable", reason="root_budget_exhausted")
+                    return self._fallback(
+                        query, "root_budget_exhausted", stage="admission"
+                    )
                 if len(self._jobs) >= self.limits.admitted:
-                    return self._fallback(query, "queue_full")
+                    return self._fallback(query, "queue_full", stage="admission")
                 future = Future()
                 self._jobs[query] = future
                 self._condition.notify()
@@ -124,7 +133,7 @@ class DashboardDataService:
             return future.result(timeout=max(0, deadline - time.monotonic()))
         except TimeoutError:
             with self._condition:
-                return self._fallback(query, "rebuild_pending")
+                return self._fallback(query, "rebuild_pending", stage="foreground_wait")
 
     def _build_cached(
         self, query: Query, limits: Limits
@@ -138,19 +147,61 @@ class DashboardDataService:
             query, limits, previous=previous, checkpoint_store=self.checkpoint_store
         )
 
-    def _fallback(self, query: Query, reason: str) -> ReadResult:
+    def _fallback(
+        self, query: Query, reason: str, *, stage: str, allow_stale: bool = True
+    ) -> ReadResult:
         entry = self._cache.get(query)
-        if entry and time.monotonic() - entry.evaluated <= self.limits.stale_seconds:
-            return ReadResult(
+        age = time.monotonic() - entry.evaluated if entry else None
+        error = self._errors.get(query)
+        retry = None
+        if (
+            error is not None
+            and error[1] == reason
+            and reason not in {"rebuild_pending", "queue_full"}
+        ):
+
+            def retry() -> None:
+                with self._condition:
+                    # A stale page callback cannot erase a later failure. Only
+                    # explicit retry clears this error generation; valid cache
+                    # contents/age and any active job remain untouched.
+                    if self._errors.get(query) is error:
+                        self._errors.pop(query)
+
+        if (
+            allow_stale
+            and entry
+            and age is not None
+            and age <= self.limits.stale_seconds
+        ):
+            result = ReadResult(
                 "stale",
                 entry.result.payload,
                 entry.result.evaluated_at,
                 reason,
                 entry.evaluated,
+                retry=retry,
             )
-        return ReadResult(
-            "pending" if reason == "rebuild_pending" else "unavailable", reason=reason
-        )
+        else:
+            result = ReadResult(
+                "pending" if reason == "rebuild_pending" else "unavailable",
+                reason=reason,
+                retry=retry,
+            )
+        try:
+            self._diagnostics.record(
+                kind=query.kind,
+                status=result.status,
+                reason=reason,
+                stage=stage,
+                cache_age_seconds=age,
+                admitted=len(self._jobs),
+            )
+        except Exception:
+            # Only telemetry failure is suppressed. The original verified or
+            # incomplete outcome, worker and waiting future remain unchanged.
+            pass
+        return result
 
     def request_many(self, queries: list[Query]) -> dict[str, ReadResult]:
         """Share one foreground deadline across independent page sections."""
@@ -198,6 +249,7 @@ class DashboardDataService:
                 self._active = query
             iterator = None
             evaluated_at = query.at or utc_now()
+            stage = "projection"
             try:
                 iterator = self._builder(query, self.limits)
                 data = None
@@ -220,6 +272,7 @@ class DashboardDataService:
                         checkpoints = 0
                 if data is None:
                     raise ReadFailure("empty_projection")
+                stage = "encoding"
                 # Bound incremental encoding before joining the payload.
                 buffer = bytearray()
                 size = 0
@@ -269,6 +322,7 @@ class DashboardDataService:
                             verified_monotonic=evaluated,
                         )
                 with self._condition:
+                    stage = "cache_publication"
                     # Reducers re-evaluate time windows at publication after
                     # verifying the captured sources. Source timestamps remain
                     # separate from this evaluation age.
@@ -306,7 +360,7 @@ class DashboardDataService:
                     # Bounded failure metadata; it cannot grow with every key.
                     while len(self._errors) > self.limits.cache_entries:
                         self._errors.pop(next(iter(self._errors)))
-                    result = self._fallback(query, reason)
+                    result = self._fallback(query, reason, stage=stage)
             finally:
                 if iterator is not None:
                     iterator.close()

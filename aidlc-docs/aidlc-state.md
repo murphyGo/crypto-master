@@ -57,6 +57,18 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Home recovery source gate (2026-10-26 KST):** The continued DEBT-083 task
+> reproduces missing queue-full recovery watches and missing terminal retry
+> controls. Both are corrected with generation-scoped explicit retry, unchanged
+> read limits and bounded asynchronous diagnostics. Final source: 2,989 tests,
+> nine-file Black/Ruff, mypy 135 and independent QA green. The enhanced protocol
+> observer retains classified alerts, first-shell times and exact cycle-window
+> boundaries. Concurrent v64 operational docs `f1863de` are preserved. The
+> validated correction awaits its authorized same-capacity rollout; current
+> production remains v64. Historical failure attribution and the original
+> cold/native/depleted/1 GiB gates remain open. See
+> `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
+
 > **Current v64 input/operation refresh (2026-10-26):** Same dca38fb image,
 > machine and180 live hashes reconfirmed at01:57Z. A separate deployed read-only
 > stream processes230271 rows/7 files and exactly matches the independent score

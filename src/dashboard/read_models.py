@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -68,6 +69,9 @@ class ReadResult:
     evaluated_at: datetime | None = None
     reason: str = ""
     verified_monotonic: float = 0.0
+    # Explicit operator action only. Never serialize or compare query-bearing
+    # callbacks, and never invoke them as part of automatic loading polling.
+    retry: Callable[[], None] | None = field(default=None, compare=False, repr=False)
 
     @property
     def complete(self) -> bool:

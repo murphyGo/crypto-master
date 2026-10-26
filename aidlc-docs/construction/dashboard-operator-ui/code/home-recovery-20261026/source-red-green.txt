@@ -1,0 +1,15 @@
+Original observed red command (before source fix):
+uv run pytest tests/test_dashboard_availability.py -q -k 'queue_full_sections or terminal_home_sections'
+3 failed, 9 deselected in 0.83s
+
+Same regression selection after source fix:
+uv run pytest tests/test_dashboard_availability.py -q -k 'queue_full_sections or terminal_home_sections'
+3 passed, 11 deselected in 0.19s
+
+Final targeted command:
+uv run pytest tests/test_dashboard_availability.py tests/test_dashboard_data_service.py tests/test_dashboard_read_diagnostics.py -q
+48 passed in 4.69s
+
+Black 7 files unchanged; Ruff 7 files pass; mypy 4 source files pass; git diff --check pass.
+
+The additional two deselected tests were added after the original red run. No historical incident cause is inferred.

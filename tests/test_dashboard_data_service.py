@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
 
+from src.dashboard import availability
 from src.dashboard.data_service import DashboardDataService
 from src.dashboard.read_models import Limits, Query
 from src.utils.bounded_read import ReadFailure
@@ -379,3 +380,215 @@ def test_page_wait_canonicalizes_each_query_once_instead_of_polling_filesystem(
     finally:
         release.set()
         service.close()
+
+
+def test_five_home_queries_queue_full_release_and_watcher_coalescing(
+    tmp_path, monkeypatch
+):
+    entered, release = threading.Event(), threading.Event()
+    calls, watchers = [], []
+
+    def build(query, limits):
+        calls.append(query.kind)
+        entered.set()
+        assert release.wait(5)
+        yield {"kind": query.kind}
+
+    service = DashboardDataService(limits=Limits(wait_seconds=0.03), builder=build)
+    kinds = ("activity", "ledger", "snapshots", "candidates", "proposals")
+    queries = [Query(tmp_path, kind) for kind in kinds]
+    monkeypatch.setattr(availability.st, "info", lambda message: None)
+    monkeypatch.setattr(availability.st, "warning", lambda message: None)
+    monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: False)
+    monkeypatch.setattr(availability, "_watch_background", watchers.append)
+
+    @availability.watch_loading
+    def render(results):
+        for kind, result in results.items():
+            availability.show_availability(result, kind)
+
+    try:
+        results = service.request_many(queries)
+        assert entered.is_set()
+        assert results["proposals"].reason == "queue_full"
+        assert service.stats()["admitted"] == 4
+        assert service.stats()["workers"] == 1
+        # The final page may have only its not-yet-admitted section unresolved.
+        # That section must itself keep recovery alive, independently of pending.
+        render({"proposals": results["proposals"]})
+        assert len(watchers) == 1
+        assert results["proposals"].retry is None
+        release.set()
+        recovered = service.request_many(queries)
+        assert all(result.complete for result in recovered.values())
+        assert calls == list(kinds)
+        assert service.stats()["workers"] == 1
+    finally:
+        release.set()
+        service.close()
+
+
+def test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age(
+    tmp_path, monkeypatch
+):
+    calls = dict.fromkeys(
+        ("activity", "ledger", "snapshots", "candidates", "proposals"), 0
+    )
+    fail = False
+
+    def build(query, limits):
+        calls[query.kind] += 1
+        if fail and query.kind in {"activity", "snapshots"}:
+            raise ReadFailure("source_changed")
+        yield {"kind": query.kind, "generation": calls[query.kind]}
+
+    service = DashboardDataService(builder=build)
+    queries = [Query(tmp_path, kind) for kind in calls]
+    watchers, buttons = [], []
+    monkeypatch.setattr(availability.st, "warning", lambda message: None)
+    monkeypatch.setattr(availability.st, "info", lambda message: None)
+    monkeypatch.setattr(availability, "_watch_background", watchers.append)
+    monkeypatch.setattr(
+        availability.st,
+        "button",
+        lambda label, **kwargs: buttons.append(label) or False,
+    )
+
+    @availability.watch_loading
+    def render(results):
+        for kind, result in results.items():
+            availability.show_availability(result, kind)
+
+    try:
+        first = service.request_many(queries)
+        assert all(result.complete for result in first.values())
+        for query in queries:
+            if query.kind in {"activity", "snapshots"}:
+                service._cache[query.normalized()].evaluated -= (
+                    service.limits.fresh_seconds + 1
+                )
+        fail = True
+        failed = service.request_many(queries)
+        render(failed)
+        assert buttons == ["Refresh data"] and not watchers
+        for kind in ("activity", "snapshots"):
+            assert failed[kind].status == "stale"
+            assert failed[kind].reason == "source_changed"
+            assert failed[kind].payload == first[kind].payload
+        cached = service.request_many(queries)
+        assert calls["activity"] == calls["snapshots"] == 2
+        old_ages = {
+            query.kind: service._cache[query.normalized()].evaluated
+            for query in queries
+        }
+        fail = False
+        monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: True)
+        monkeypatch.setattr(availability.st, "rerun", lambda: None)
+        render(cached)
+        assert not service._errors
+        assert old_ages == {
+            query.kind: service._cache[query.normalized()].evaluated
+            for query in queries
+        }
+        recovered = service.request_many(queries)
+        assert all(result.complete for result in recovered.values())
+        assert calls["activity"] == calls["snapshots"] == 3
+        for kind in ("ledger", "candidates", "proposals"):
+            assert calls[kind] == 1
+            assert recovered[kind] is first[kind]
+    finally:
+        service.close()
+
+
+def test_stale_retry_callback_cannot_clear_new_failure_or_other_query(tmp_path):
+    def build(query, limits):
+        raise ReadFailure("invalid_record")
+        yield
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity")
+    other = Query(tmp_path, "snapshots")
+    try:
+        first = service.request(query)
+        separate = service.request(other)
+        assert first.retry is not None and separate.retry is not None
+        first.retry()
+        second = service.request(query)
+        assert not second.complete and second.retry is not None
+        error = service._errors[query.normalized()]
+        first.retry()
+        assert service._errors[query.normalized()] is error
+        assert other.normalized() in service._errors
+        assert service.request(query).retry is not None
+    finally:
+        service.close()
+
+
+def test_concurrent_explicit_retries_coalesce_one_new_read(tmp_path):
+    calls = 0
+    entered, release = threading.Event(), threading.Event()
+
+    def build(query, limits):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ReadFailure("source_changed")
+        entered.set()
+        assert release.wait(5)
+        yield {"value": 1}
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity")
+    try:
+        failed = service.request(query)
+        assert failed.retry is not None
+
+        def refresh(_):
+            failed.retry()
+            return service.request(query, wait=0)
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(refresh, range(4)))
+        assert entered.wait(1)
+        assert calls == 2
+        assert all(not result.complete for result in results)
+        assert service.stats()["admitted"] == service.stats()["workers"] == 1
+        release.set()
+        assert service.request(query).complete
+        assert calls == 2
+    finally:
+        release.set()
+        service.close()
+
+
+def test_diagnostic_failure_never_strands_worker_or_changes_read_outcome(tmp_path):
+    class BrokenDiagnostics:
+        def record(self, **kwargs):
+            raise RuntimeError("diagnostic sink failed")
+
+    def build(query, limits):
+        if query.kind == "activity":
+            raise ReadFailure("invalid_record")
+        yield {"value": 1}
+
+    service = DashboardDataService(builder=build, diagnostics=BrokenDiagnostics())
+    try:
+        failed = service.request(Query(tmp_path, "activity"))
+        assert failed.reason == "invalid_record" and failed.retry is not None
+        assert service.request(Query(tmp_path, "ledger")).complete
+        assert service.stats()["workers"] == 1
+    finally:
+        service.close()
+
+
+def test_closed_service_does_not_return_cached_stale_data(tmp_path):
+    def build(query, limits):
+        yield {"value": 1}
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity")
+    assert service.request(query).complete
+    service.close()
+    result = service.request(query)
+    assert result.status == "unavailable" and result.reason == "service_closed"
+    assert result.payload is None

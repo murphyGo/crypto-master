@@ -1,0 +1,27 @@
+{
+  "status": "pass",
+  "baseline": "5fcad5434ab11f355cd1699352811a052eb07532",
+  "concurrent_docs_parent": "f1863de304c4ecc3dac328a462e6f9eb3cb4f2ad",
+  "full_suite": {
+    "python": "3.13.0",
+    "passed": 2989,
+    "seconds": 224.06,
+    "command": "/Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest -q"
+  },
+  "earlier_suite_before_observer_boundary": {
+    "python": "3.11.13",
+    "passed": 2984,
+    "seconds": 61.06,
+    "subsequent_changes": [
+      "scripts/observe_dashboard_protocol.py",
+      "tests/test_dashboard_protocol_observer.py"
+    ]
+  },
+  "independent_targeted_cases": 106,
+  "black_ruff_files": 9,
+  "mypy_source_files": 135,
+  "input_hashes_checked": 260,
+  "input_hashes_unchanged_during_final_suite": true,
+  "runtime_config_dependencies_changed": false,
+  "debt083_full_acceptance": false
+}

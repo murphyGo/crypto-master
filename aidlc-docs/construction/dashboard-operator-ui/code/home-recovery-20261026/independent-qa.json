@@ -1,0 +1,23 @@
+{
+  "verdict": "green",
+  "targeted_cases": 106,
+  "initial_gate": {
+    "passed": 101,
+    "seconds": 3.53
+  },
+  "final_protocol_gate": {
+    "passed": 48,
+    "seconds": 0.18,
+    "new_boundary_cases": 5
+  },
+  "independent_checks": [
+    "blocked diagnostic sink leaves wait=0 requests and service condition available",
+    "retry scoped to exact account query and captured error generation",
+    "old callback cannot erase newer failure",
+    "shared bounded diagnostic worker and callable cleanup",
+    "exact inclusive cycle window and all cycle errors retained"
+  ],
+  "protocol_sha256": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8",
+  "protocol_test_sha256": "a3593afc9e9d47826346002bd69ee4224af8823d800a94171fd2c443cbb219c2",
+  "historical_cause_proven": false
+}

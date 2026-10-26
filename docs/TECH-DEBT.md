@@ -293,6 +293,18 @@ readiness and unqualified native/depleted/original1GiB conditions are unchanged.
 No new source/deployment/cost or debt closure is inferred. See the bounded-read
 session and `v64-observation-verdict.json` under its evidence folder.
 
+**2026-10-26 Home recovery source correction:** Deterministic tests reproduce
+queue-full responses losing their recovery watcher and terminal failures lacking
+an actionable retry control. Both are corrected without changing validation,
+cache ages or worker/admission caps. Explicit retry clears only the captured
+error generation; diagnostics use allowlisted fields and a bounded asynchronous
+console queue. The protocol observer now retains alert classification/first-shell
+time and enforces the whole cycle inside its window. Final source passes 2,989
+tests, nine-file Black/Ruff, mypy 135 and independent QA. Same-capacity rollout
+is next; production is still v64 at this checkpoint. The historical two Home
+failures retain unknown causes, and broader DEBT-083 acceptance remains open.
+See `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |
