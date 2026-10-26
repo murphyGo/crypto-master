@@ -1,0 +1,60 @@
+{
+  "initial": {
+    "exceptions": [],
+    "buttons": [
+      "Refresh data"
+    ],
+    "metrics": {
+      "Open Positions": "7"
+    },
+    "calls": {
+      "activity": 1,
+      "ledger": 1
+    },
+    "renders": 1,
+    "result_statuses": {
+      "activity": "unavailable",
+      "ledger": "complete"
+    }
+  },
+  "error_age_before_click_seconds": 0.0605561250122264,
+  "clicked": {
+    "exceptions": [],
+    "buttons": [
+      "Refresh data"
+    ],
+    "metrics": {
+      "Safety status": "Ready",
+      "Open Positions": "7"
+    },
+    "calls": {
+      "activity": 2,
+      "ledger": 1
+    },
+    "renders": 3,
+    "result_statuses": {
+      "activity": "complete",
+      "ledger": "complete"
+    }
+  },
+  "healthy_sibling_identity_preserved": true,
+  "error_cache_cleared": true,
+  "subsequent": {
+    "exceptions": [],
+    "buttons": [],
+    "metrics": {
+      "Safety status": "Ready",
+      "Open Positions": "7"
+    },
+    "calls": {
+      "activity": 2,
+      "ledger": 1
+    },
+    "renders": 4,
+    "result_statuses": {
+      "activity": "complete",
+      "ledger": "complete"
+    }
+  },
+  "fresh_seconds": 2
+}

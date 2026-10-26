@@ -1,0 +1,5 @@
+{
+  "self_test": "PASS",
+  "checks": 8,
+  "scope": "Offline arithmetic, strict shape and alert/first-shell corruption controls; no production calls"
+}

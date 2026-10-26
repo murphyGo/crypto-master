@@ -1,0 +1,560 @@
+{
+  "created_at": "2026-10-26T07:04:44.268250+00:00",
+  "window": {
+    "start": "2026-10-26T04:56:43.681997+00:00",
+    "end": "2026-10-26T05:06:50.782715+00:00",
+    "seconds": 607.100718
+  },
+  "auditor_sha256": "d629a4eef96d8c90bff1f111be69ed385e49e0860f1295c62d54fe0b483c8cc4",
+  "initial_frozen_hashes_verified": true,
+  "main_shape_failures": [
+    {
+      "key": [
+        "2026-10-26T05:01:43.862770+00:00",
+        0,
+        "Trading"
+      ],
+      "problems": [
+        "exact_element_counts",
+        "placeholder_or_unproven",
+        "terminal_incomplete_alerts_present",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.149837+00:00",
+        1,
+        "Home"
+      ],
+      "problems": [
+        "exact_metric_labels",
+        "exact_element_counts",
+        "terminal_incomplete_alerts_present",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.539175+00:00",
+        2,
+        "Trading"
+      ],
+      "problems": [
+        "exact_element_counts",
+        "placeholder_or_unproven",
+        "terminal_incomplete_alerts_present",
+        "not_successfully_completed"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:45.356289+00:00",
+        3,
+        "Home"
+      ],
+      "problems": [
+        "exact_metric_labels",
+        "exact_element_counts",
+        "terminal_incomplete_alerts_present",
+        "not_successfully_completed"
+      ]
+    }
+  ],
+  "warmup_shape_failures": [],
+  "first_shell_over_5s": [
+    {
+      "scope": "warmup",
+      "key": [
+        "2026-10-26T04:56:23.379620+00:00",
+        "warmup",
+        "Home"
+      ],
+      "first_shell_seconds": 5.072113041067496,
+      "complete_seconds": 11.414766708039679,
+      "terminal_status": "complete"
+    }
+  ],
+  "all_first_shell_timing_scope": "Protocol receipt offsets, not native browser visual rendering.",
+  "production_load_added": false,
+  "page_distributions": {
+    "Home": {
+      "attempts": 60,
+      "complete": 58,
+      "failures": 2,
+      "failure_ratio": 0.03333333333333333,
+      "all_outcome_seconds_nearest_rank_p95": 2.3699652920477092,
+      "complete_seconds_nearest_rank_p95": 1.8522258750163019
+    },
+    "Trading": {
+      "attempts": 60,
+      "complete": 58,
+      "failures": 2,
+      "failure_ratio": 0.03333333333333333,
+      "all_outcome_seconds_nearest_rank_p95": 2.0551649159751832,
+      "complete_seconds_nearest_rank_p95": 1.3964724999386817
+    }
+  },
+  "failed_request_timeline": [
+    {
+      "key": [
+        "2026-10-26T05:01:43.862770+00:00",
+        0,
+        "Trading"
+      ],
+      "started_at": "2026-10-26T05:01:43.862770+00:00",
+      "finished_at_derived": "2026-10-26T05:02:13.907103+00:00",
+      "status": "timeout",
+      "seconds": 30.044333334080875,
+      "first_incomplete_shell_seconds": 4.307180792093277,
+      "first_incomplete_script_finished_seconds": 4.30993650003802,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.307180792093277
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.30728408403229
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.307336875004694
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.307461417047307
+        }
+      ],
+      "elements": {
+        "metric": 6,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": [
+        {
+          "cycle_id": "c9973b0e-7122-409a-aa7e-fcdf7cf771ac",
+          "request_started_after_cycle_start_seconds": 9.854177,
+          "request_finished_after_cycle_end_seconds": 9.655044,
+          "overlap_seconds": 20.389289
+        }
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.149837+00:00",
+        1,
+        "Home"
+      ],
+      "started_at": "2026-10-26T05:01:44.149837+00:00",
+      "finished_at_derived": "2026-10-26T05:02:14.410022+00:00",
+      "status": "timeout",
+      "seconds": 30.260184832965024,
+      "first_incomplete_shell_seconds": 4.313362624961883,
+      "first_incomplete_script_finished_seconds": 4.314335583010688,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.313362624961883
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.313438458018936
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.313490165979601
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.313539708033204
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.313597957952879
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.313980250037275
+        },
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 27.52359624998644
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 27.523742666002363
+        }
+      ],
+      "elements": {
+        "metric": 0,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": [
+        {
+          "cycle_id": "c9973b0e-7122-409a-aa7e-fcdf7cf771ac",
+          "request_started_after_cycle_start_seconds": 10.141244,
+          "request_finished_after_cycle_end_seconds": 10.157963,
+          "overlap_seconds": 20.102222
+        }
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.539175+00:00",
+        2,
+        "Trading"
+      ],
+      "started_at": "2026-10-26T05:01:44.539175+00:00",
+      "finished_at_derived": "2026-10-26T05:02:14.800203+00:00",
+      "status": "timeout",
+      "seconds": 30.261027625063434,
+      "first_incomplete_shell_seconds": 4.357536791008897,
+      "first_incomplete_script_finished_seconds": 4.360088000074029,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.357536791008897
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.357635625055991
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.357699083047919
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.357768541085534
+        },
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 27.254761291085742
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 27.257818500045687
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 27.25792987504974
+        }
+      ],
+      "elements": {
+        "metric": 6,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": [
+        {
+          "cycle_id": "c9973b0e-7122-409a-aa7e-fcdf7cf771ac",
+          "request_started_after_cycle_start_seconds": 10.530582,
+          "request_finished_after_cycle_end_seconds": 10.548144,
+          "overlap_seconds": 19.712884
+        }
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:45.356289+00:00",
+        3,
+        "Home"
+      ],
+      "started_at": "2026-10-26T05:01:45.356289+00:00",
+      "finished_at_derived": "2026-10-26T05:02:15.457236+00:00",
+      "status": "timeout",
+      "seconds": 30.1009474999737,
+      "first_incomplete_shell_seconds": 4.79374758398626,
+      "first_incomplete_script_finished_seconds": 4.804148124996573,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.79374758398626
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.802690417040139
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.802810334018432
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.802903666975908
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.802995292004198
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.803465459030122
+        },
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 26.444458417012356
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 26.444579959032126
+        }
+      ],
+      "elements": {
+        "metric": 0,
+        "dataframe": 0,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "cycles": [
+        {
+          "cycle_id": "c9973b0e-7122-409a-aa7e-fcdf7cf771ac",
+          "request_started_after_cycle_start_seconds": 11.347696,
+          "request_finished_after_cycle_end_seconds": 11.205177,
+          "overlap_seconds": 18.89577
+        }
+      ]
+    }
+  ],
+  "cpu": {
+    "freeze": {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-cpu-final.json",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/supplements/cpu/v65-cpu-final.json",
+      "bytes": 106763,
+      "source_mtime_ns": 1792998227085508821,
+      "sha256": "2f3c03a816ee44760060b77250684738b15c5dde48026810cc8986f881b541cb"
+    },
+    "series": {
+      "fly_instance_cpu_balance": {
+        "points": 511,
+        "valid_points": true,
+        "first_at": "2026-10-26T04:56:00+00:00",
+        "last_at": "2026-10-26T07:03:30+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 41,
+        "window_min": 41601.00212169,
+        "window_max": 45501.0023726
+      },
+      "fly_instance_cpu_baseline": {
+        "points": 511,
+        "valid_points": true,
+        "first_at": "2026-10-26T04:56:00+00:00",
+        "last_at": "2026-10-26T07:03:30+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 41,
+        "window_min": 0.0625,
+        "window_max": 0.0625
+      },
+      "fly_instance_cpu_throttle": {
+        "points": 511,
+        "valid_points": true,
+        "first_at": "2026-10-26T04:56:00+00:00",
+        "last_at": "2026-10-26T07:03:30+00:00",
+        "maximum_gap_seconds": 15.0,
+        "covers_entire_window": true,
+        "window_points": 41,
+        "window_min": 0.0,
+        "window_max": 0.0
+      }
+    },
+    "duplicate_series": [],
+    "full_window_coverage": true,
+    "depletion_observed": false,
+    "throttle_observed": false,
+    "depleted_cpu_qualified": false,
+    "interpretation": "Sampled CPU evidence only. Positive balance does not establish depleted-load acceptance."
+  }
+}

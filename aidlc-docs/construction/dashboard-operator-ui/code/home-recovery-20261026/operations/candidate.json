@@ -1,0 +1,12 @@
+{
+  "source": "382c26b1290c4b1a7cc843f28686fc9e2e4f2323",
+  "base_source": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "base_image": "registry.fly.io/crypto-master@sha256:a0e1bd753ba92935c7227bb7c1c5f52fa267eebe2784d1ece99c0a1fab070786",
+  "files": {
+    "scripts/observe_dashboard_protocol.py": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8",
+    "src/dashboard/availability.py": "d23af24e0498be490a36d45a12766543ba3dc98a9f6b88527045b481cfac847a",
+    "src/dashboard/data_service.py": "30fb80e299e01df02666cb82b696f355dc59c30dd8fe0a1b3e89f6454ff5c5dc",
+    "src/dashboard/read_diagnostics.py": "83373891dc7c87e5d3d99064231998632206f9d84f28771deb47360706777061",
+    "src/dashboard/read_models.py": "dd91a0fa97a723301a7b3eb165e32a269964887ea5ea693daf31c677999b3df4"
+  }
+}

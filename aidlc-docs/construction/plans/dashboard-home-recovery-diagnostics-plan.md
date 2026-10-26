@@ -44,11 +44,11 @@ viewport acceptance. Keep the original cold, native, depleted and 1 GiB gates.
   and a bounded same-capacity deployment/rollback recipe.
 - [x] QA: independently review source/tests, privacy, retry bounds and coverage;
   targeted tests, full pytest, changed-file Black/Ruff and source mypy.
-- [ ] Commit/push the scoped correction with source/test evidence and confirm
+- [x] Commit/push the scoped correction with source/test evidence and confirm
   the exact remote SHA, preserving concurrent commits.
-- [ ] Deploy that exact validated SHA under the existing authorization, verify
+- [x] Deploy that exact validated SHA under the existing authorization, verify
   runtime hashes/health/first natural cycle and the corrected protocol behavior.
-- [ ] Docs audit: state, plan, session, cross-check and DEBT-083 status. Preserve
+- [x] Docs audit: state, plan, session, cross-check and DEBT-083 status. Preserve
   historical failures and distinguish measured recovery from full acceptance.
 
 ## Validation
@@ -66,5 +66,31 @@ Final source passes 2,989 tests on Python 3.13.0 (224.06s), nine-file
 Black/Ruff and 135-file source mypy. Independent QA validates 106 targeted
 cases and returns green. All 260 source/test/script hashes are unchanged
 during the final full run. Concurrent documentation commit `f1863de` was
-fast-forwarded without runtime/test changes. Exact source commit/push and
-same-capacity rollout remain next; no production recovery pass yet.
+fast-forwarded without runtime/test changes. The exact source commit
+`382c26b1290c4b1a7cc843f28686fc9e2e4f2323` is pushed to main and deployed as
+Fly v65 on the existing shared-CPU-1 / 2048 MiB machine and volume. All 182
+runtime hashes match. Deployment and operational verification are complete for
+this bounded correction; the measured readiness verdict is **FAIL_SAMPLE**,
+not debt closure. The 607.101 s run retains 120 matched requests, 116 complete
+and four timeouts. Health 120/120 and a full error-free 30.243 s natural cycle
+pass. Original cold/native/depleted/guest gates remain open.
+
+## Retained failure and next bounded candidate
+
+Operations evidence is in `code/home-recovery-20261026/operations/` under the
+unit directory. It retains the failed sample, exact deployment checks, independent
+freeze/replay audit, CPU supplement, AppTest and three offline liveness probes.
+Warmup Home misses 5 s completion (11.415 s) and first incomplete receipt
+(5.072 s). Diagnostic source-generation failures establish verification failures,
+not exact request attribution or the sole cause of these timeouts.
+
+The next candidate under DEBT-083 is page-dependent progress notification for
+the existing single watcher. Offline evidence proves that waiting for global
+admitted-job count zero can delay an otherwise ready page behind unrelated work.
+Design and review bounded per-page job-generation/capacity progress before
+implementation. Preserve one worker/four admissions, one watcher, the 4 s
+foreground bound, 2 s complete freshness, original timestamps, full generation
+verification and explicit terminal retry. Do not solve repeated sibling admission
+by labelling expired results complete. This candidate is registered, not
+implemented or established as a full readiness fix; its acceptance cases are in
+`operations/offline-diagnosis.md`.

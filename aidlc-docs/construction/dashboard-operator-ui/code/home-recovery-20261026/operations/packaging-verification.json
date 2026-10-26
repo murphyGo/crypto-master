@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-10-26T07:07:02.273427+00:00",
+  "source_commit": "382c26b1290c4b1a7cc843f28686fc9e2e4f2323",
+  "runtime_source_tests_scripts_changed_since_source_gate": false,
+  "independent_frozen_replay_matches_original_summary": true,
+  "initial_frozen_files_sha256_verified": 11,
+  "replay_verdict": "FAIL_SAMPLE",
+  "observer_exit_code": 1,
+  "observer_exit_scope": "Readiness failure retained; deployment and engine health are separate.",
+  "collector": {
+    "diagnostic_events": 169,
+    "log_lines_seen": 44330,
+    "json_records_decoded": 1430,
+    "client_exit_code": 127,
+    "stopped_by_collector": true,
+    "seconds": 503.79770412505604,
+    "coverage": "Partial best-effort framed capture; earlier line parser captures cannot prove absence."
+  }
+}

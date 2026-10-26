@@ -1,0 +1,952 @@
+{
+  "audit_completed_at": "2026-10-26T05:07:02.508148+00:00",
+  "mode": "existing frozen evidence only; no new load",
+  "window": {
+    "start": "2026-10-26T04:56:43.681997+00:00",
+    "end": "2026-10-26T05:06:50.782715+00:00",
+    "seconds": 607.100718
+  },
+  "existing_warm_protocol_sample_pass": false,
+  "original_debt083_acceptance": false,
+  "original_acceptance_unqualified": [
+    "declared 1 GiB guest",
+    "native viewport",
+    "per-page process-cold and cache-cold >=20 samples",
+    "depleted CPU qualification"
+  ],
+  "request_reconciliation": {
+    "starts": 120,
+    "outcomes": 120,
+    "unmatched_starts": [],
+    "unmatched_outcomes": [],
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 116,
+      "timeout": 4
+    },
+    "completion_ratio": 0.9666666666666667
+  },
+  "parse_errors": {
+    "starts": [],
+    "outcomes": [],
+    "memory": []
+  },
+  "semantic_shape_failures": [
+    {
+      "key": [
+        "2026-10-26T05:01:43.862770+00:00",
+        0,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "placeholder_or_unproven_metric",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.149837+00:00",
+        1,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:44.539175+00:00",
+        2,
+        "Trading"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "placeholder_or_unproven_metric",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    },
+    {
+      "key": [
+        "2026-10-26T05:01:45.356289+00:00",
+        3,
+        "Home"
+      ],
+      "problems": [
+        "outcome_not_complete",
+        "exact_metric_labels_differ",
+        "exact_element_counts_differ",
+        "incomplete_alert_present_or_unknown"
+      ]
+    }
+  ],
+  "pages": {
+    "Home": {
+      "observations": 60,
+      "complete": 58,
+      "incomplete": 2,
+      "complete_seconds_p95": 1.8522258750163019,
+      "complete_seconds_max": 3.2617713749641553,
+      "all_complete": false,
+      "completion_ratio": 0.9666666666666667,
+      "status_counts": {
+        "complete": 58,
+        "timeout": 2
+      },
+      "per_client": {
+        "0": 15,
+        "2": 15,
+        "1": 15,
+        "3": 15
+      }
+    },
+    "Trading": {
+      "observations": 60,
+      "complete": 58,
+      "incomplete": 2,
+      "complete_seconds_p95": 1.3964724999386817,
+      "complete_seconds_max": 2.5459033750230446,
+      "all_complete": false,
+      "completion_ratio": 0.9666666666666667,
+      "status_counts": {
+        "complete": 58,
+        "timeout": 2
+      },
+      "per_client": {
+        "1": 15,
+        "3": 15,
+        "2": 15,
+        "0": 15
+      }
+    }
+  },
+  "clients": {
+    "0": {
+      "requests": 30,
+      "first": "2026-10-26T04:56:43.836750+00:00",
+      "last": "2026-10-26T05:06:33.862945+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.932407,
+      "maximum_start_gap_seconds": 30.046664
+    },
+    "2": {
+      "requests": 30,
+      "first": "2026-10-26T04:56:44.516314+00:00",
+      "last": "2026-10-26T05:06:34.766836+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.933062,
+      "maximum_start_gap_seconds": 30.262457
+    },
+    "1": {
+      "requests": 30,
+      "first": "2026-10-26T04:56:44.129058+00:00",
+      "last": "2026-10-26T05:06:34.367887+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.932244,
+      "maximum_start_gap_seconds": 30.260912
+    },
+    "3": {
+      "requests": 30,
+      "first": "2026-10-26T04:56:45.335163+00:00",
+      "last": "2026-10-26T05:06:35.412104+00:00",
+      "alternates_home_trading": true,
+      "minimum_start_gap_seconds": 19.932366,
+      "maximum_start_gap_seconds": 30.102996
+    }
+  },
+  "health": {
+    "samples": 120,
+    "failures": [],
+    "maximum_seconds": 4.0011871251044795,
+    "first_at": "2026-10-26T04:56:43.686948+00:00",
+    "last_at": "2026-10-26T05:06:49.049858+00:00",
+    "max_sample_gap_seconds": 9.002378
+  },
+  "memory": {
+    "samples": 607,
+    "first_at": "2026-10-26T04:56:43.640864+00:00",
+    "last_at": "2026-10-26T05:06:50.304278+00:00",
+    "max_sample_gap_seconds": 1.01213,
+    "guest_peak_mib": 701.94921875,
+    "guest_memtotal_kib": 2015880,
+    "dashboard_growth_mib": 65.6484375,
+    "dashboard_hwm_growth_mib": 65.74609375,
+    "pid_sets": {
+      "engine": [
+        655
+      ],
+      "dashboard": [
+        656
+      ]
+    },
+    "missing_processes": [],
+    "processes": {
+      "engine": {
+        "rss_first_kib": 228868,
+        "rss_last_kib": 229028,
+        "rss_peak_kib": 229028,
+        "hwm_peak_kib": 229760,
+        "threads_first": 3,
+        "threads_last": 3,
+        "threads_min": 3,
+        "threads_max": 3,
+        "cpu_delta_seconds": 14.810000000000002
+      },
+      "dashboard": {
+        "rss_first_kib": 297000,
+        "rss_last_kib": 342884,
+        "rss_peak_kib": 364224,
+        "hwm_peak_kib": 364324,
+        "threads_first": 10,
+        "threads_last": 10,
+        "threads_min": 10,
+        "threads_max": 38,
+        "cpu_delta_seconds": 60.279999999999994
+      }
+    }
+  },
+  "full_cycles_inside_entire_window": [
+    {
+      "cycle_id": "c9973b0e-7122-409a-aa7e-fcdf7cf771ac",
+      "started_at": "2026-10-26T05:01:34.008593Z",
+      "completed_at": "2026-10-26T05:02:04.252059Z",
+      "seconds": 30.243466,
+      "cycle_errored_seen": false
+    }
+  ],
+  "cpu": {
+    "series": {},
+    "depletion_observed": false,
+    "throttle_observed": false,
+    "full_window_coverage": false
+  },
+  "declared_summary_comparisons": {
+    "seconds": true,
+    "health_samples": true,
+    "health_all_ok_under_5s": true,
+    "health_max_seconds": true,
+    "memory_samples": true,
+    "warmed_dashboard_baseline_rss_kib": true,
+    "dashboard_peak_rss_kib": true,
+    "dashboard_process_hwm_kib": true,
+    "observed_dashboard_rss_increase_mib": true,
+    "conservative_hwm_minus_warmed_rss_mib": true,
+    "guest_use_peak_mib": true,
+    "guest_memtotal_kib": true,
+    "request_starts_recorded": true,
+    "every_start_has_outcome": true,
+    "observed_guest_768_mib_ceiling_pass": true,
+    "dashboard_growth_256_mib_pass": true,
+    "warm_page_p95_2s_pass": true,
+    "minimum_duration_and_cycle_observed": true,
+    "pages.Home.observations": true,
+    "pages.Home.complete": true,
+    "pages.Home.incomplete": true,
+    "pages.Home.complete_seconds_p95": true,
+    "pages.Home.all_complete": true,
+    "pages.Trading.observations": true,
+    "pages.Trading.complete": true,
+    "pages.Trading.incomplete": true,
+    "pages.Trading.complete_seconds_p95": true,
+    "pages.Trading.all_complete": true,
+    "process_cpu_seconds_during_observation.engine": true,
+    "process_cpu_seconds_during_observation.dashboard": true,
+    "engine_full_cycle": true
+  },
+  "declared_summary_differences": [],
+  "limitations": [
+    "Semantic audit covers exact labels/placeholders/element presence, not table-cell oracle or native rendering.",
+    "Guest memory sampled about once per second; process HWM retained separately, no sum of process RSS.",
+    "CPU snapshots cover only their recorded timestamps; missing final coverage is not zero throttle.",
+    "Existing warmup and intermediate/canonical latency failures remain in frozen context."
+  ],
+  "enhanced_protocol_audit": {
+    "classifications": {
+      "failures": [],
+      "pages": {
+        "Home": {
+          "requests": 60,
+          "first_shell_observed": 2,
+          "first_shell_seconds_p95": 4.79374758398626,
+          "first_shell_seconds_max": 4.79374758398626,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 10,
+            "pending": 4
+          }
+        },
+        "Trading": {
+          "requests": 60,
+          "first_shell_observed": 2,
+          "first_shell_seconds_p95": 4.357536791008897,
+          "first_shell_seconds_max": 4.357536791008897,
+          "first_shell_over_5s": 0,
+          "incomplete_shell_classifications": {
+            "stale": 8,
+            "pending": 3
+          }
+        }
+      }
+    },
+    "warmup": {
+      "starts": 2,
+      "outcomes": 2,
+      "bijective": true,
+      "status_counts": {
+        "complete": 2
+      },
+      "aggregate_matches_jsonl": true,
+      "parse_errors": [],
+      "classification_audit": {
+        "failures": [],
+        "pages": {
+          "Home": {
+            "requests": 1,
+            "first_shell_observed": 1,
+            "first_shell_seconds_p95": 5.072113041067496,
+            "first_shell_seconds_max": 5.072113041067496,
+            "first_shell_over_5s": 1,
+            "incomplete_shell_classifications": {
+              "pending": 3
+            }
+          },
+          "Trading": {
+            "requests": 1,
+            "first_shell_observed": 0,
+            "first_shell_seconds_p95": null,
+            "first_shell_seconds_max": null,
+            "first_shell_over_5s": 0,
+            "incomplete_shell_classifications": {}
+          }
+        }
+      },
+      "observations": [
+        {
+          "key": [
+            "2026-10-26T04:56:23.379620+00:00",
+            "warmup",
+            "Home"
+          ],
+          "status": "complete",
+          "seconds": 11.414766708039679,
+          "first_incomplete_shell_seconds": 5.072113041067496
+        },
+        {
+          "key": [
+            "2026-10-26T04:56:34.794988+00:00",
+            "warmup",
+            "Trading"
+          ],
+          "status": "complete",
+          "seconds": 0.9625621669692919,
+          "first_incomplete_shell_seconds": null
+        }
+      ],
+      "cold_p95_qualified": false
+    },
+    "all_four_clients_alternate_both_pages": true,
+    "health_temporal_coverage": true,
+    "memory_temporal_coverage": true,
+    "pinned_shape_matches_observer_configuration": true,
+    "all_observed_cycle_errors": [],
+    "cycle_continuity_pass": true,
+    "summary_extra_differences": [],
+    "preserved_failure_rows": [
+      {
+        "started_at": "2026-10-26T05:01:43.862770+00:00",
+        "client": 0,
+        "page": "Trading",
+        "status": "timeout",
+        "first_incomplete_shell_seconds": 4.307180792093277,
+        "first_incomplete_script_finished_seconds": 4.30993650003802,
+        "seconds": 30.044333334080875,
+        "messages": 160,
+        "elements": {
+          "metric": 6,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 4,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.307180792093277
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.30728408403229
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.307336875004694
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.307461417047307
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          }
+        ],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3,
+          3
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 1
+      },
+      {
+        "started_at": "2026-10-26T05:01:44.149837+00:00",
+        "client": 1,
+        "page": "Home",
+        "status": "timeout",
+        "first_incomplete_shell_seconds": 4.313362624961883,
+        "first_incomplete_script_finished_seconds": 4.314335583010688,
+        "seconds": 30.260184832965024,
+        "messages": 175,
+        "elements": {
+          "metric": 0,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 5,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.313362624961883
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.313438458018936
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.313490165979601
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.313539708033204
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.313597957952879
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.313980250037275
+          },
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 27.52359624998644
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 27.523742666002363
+          }
+        ],
+        "metrics": [],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          0,
+          3,
+          3,
+          3
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T05:01:44.539175+00:00",
+        "client": 2,
+        "page": "Trading",
+        "status": "timeout",
+        "first_incomplete_shell_seconds": 4.357536791008897,
+        "first_incomplete_script_finished_seconds": 4.360088000074029,
+        "seconds": 30.261027625063434,
+        "messages": 187,
+        "elements": {
+          "metric": 6,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 4,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "proposals",
+            "category": "pending",
+            "incomplete": true
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.357536791008897
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.357635625055991
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.357699083047919
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.357768541085534
+          },
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 27.254761291085742
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 27.257818500045687
+          },
+          {
+            "section": "proposals",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 27.25792987504974
+          }
+        ],
+        "metrics": [
+          {
+            "kind": "metric",
+            "label": "Current Equity",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Open Positions",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Closed Trades",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Win Rate",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Realized P&L",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          },
+          {
+            "kind": "metric",
+            "label": "Proposals rejected (threshold)",
+            "value_sha256": "bda050585a00f0f6cb502350559d75532ae3b244c9498b996e7c5df2d98dfc8d",
+            "placeholder": true
+          }
+        ],
+        "script_finished_values": [
+          0,
+          2,
+          3,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          0,
+          3,
+          3,
+          3
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      },
+      {
+        "started_at": "2026-10-26T05:01:45.356289+00:00",
+        "client": 3,
+        "page": "Home",
+        "status": "timeout",
+        "first_incomplete_shell_seconds": 4.79374758398626,
+        "first_incomplete_script_finished_seconds": 4.804148124996573,
+        "seconds": 30.1009474999737,
+        "messages": 182,
+        "elements": {
+          "metric": 0,
+          "dataframe": 0,
+          "table": 0,
+          "vega_lite_chart": 0,
+          "exception": 0
+        },
+        "incomplete_alerts": 5,
+        "alerts": [
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false
+          }
+        ],
+        "alert_history": [
+          {
+            "section": "activity",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.79374758398626
+          },
+          {
+            "section": "ledger",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.802690417040139
+          },
+          {
+            "section": "snapshots",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.802810334018432
+          },
+          {
+            "section": "candidates",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.802903666975908
+          },
+          {
+            "section": "proposals",
+            "category": "stale",
+            "incomplete": true,
+            "first_seen_seconds": 4.802995292004198
+          },
+          {
+            "section": "unknown",
+            "category": "other",
+            "incomplete": false,
+            "first_seen_seconds": 4.803465459030122
+          },
+          {
+            "section": "activity",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 26.444458417012356
+          },
+          {
+            "section": "snapshots",
+            "category": "pending",
+            "incomplete": true,
+            "first_seen_seconds": 26.444579959032126
+          }
+        ],
+        "metrics": [],
+        "script_finished_values": [
+          0,
+          3,
+          3,
+          3,
+          2,
+          3,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          3,
+          2,
+          0,
+          3,
+          3,
+          3,
+          3
+        ],
+        "maximum_background_watchers": 1,
+        "auto_rerun_registrations": 2
+      }
+    ]
+  },
+  "diagnostic_sidecar": {
+    "captured_rows": 0,
+    "parse_errors": [],
+    "scope": "separate read-only capture; no automatic causal attribution to failed page requests",
+    "sample_keys": []
+  },
+  "freeze": {
+    "manifest": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/freeze-manifest.json",
+    "file_count": 11,
+    "total_bytes": 586829,
+    "sha256_verified": true
+  },
+  "auditor_completed_at": "2026-10-26T05:07:02.514879+00:00"
+}

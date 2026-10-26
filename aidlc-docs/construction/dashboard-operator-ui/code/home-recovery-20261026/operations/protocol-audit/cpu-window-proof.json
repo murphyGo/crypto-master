@@ -1,0 +1,65 @@
+{
+  "created_at": "2026-10-26T07:05:21.859129+00:00",
+  "scope": "Original observation interval only; no new measurement or production query.",
+  "observation_window": {
+    "start": "2026-10-26T04:56:43.681997+00:00",
+    "end": "2026-10-26T05:06:50.782715+00:00",
+    "seconds": 607.100718
+  },
+  "initial_protocol_verdict": "FAIL_SAMPLE",
+  "initial_manifest_and_driver_hashes_verified": true,
+  "frozen_cpu_sha256": "2f3c03a816ee44760060b77250684738b15c5dde48026810cc8986f881b541cb",
+  "source_file_written_at_from_mtime": "2026-10-26T07:03:47.085509+00:00",
+  "source_file_write_seconds_after_observation_end": 7016.302793741226,
+  "late_capture_caveat": "This is a retrospectively queried CPU history written well after observation ended. File mtime identifies local result publication, not query start. Later values are excluded from the original-window metrics.",
+  "series": {
+    "fly_instance_cpu_balance": {
+      "all_capture_points": 511,
+      "original_window_points": 41,
+      "first_original_window_point": "2026-10-26T04:56:45+00:00",
+      "last_original_window_point": "2026-10-26T05:06:45+00:00",
+      "preceding_bracket": "2026-10-26T04:56:30+00:00",
+      "following_bracket": "2026-10-26T05:07:00+00:00",
+      "bracketed_window_max_gap_seconds": 15,
+      "window_minimum": 41601.00212169,
+      "window_maximum": 45501.0023726,
+      "window_zero_or_below_points": 0,
+      "window_positive_points": 41,
+      "excluded_value_points": 470
+    },
+    "fly_instance_cpu_baseline": {
+      "all_capture_points": 511,
+      "original_window_points": 41,
+      "first_original_window_point": "2026-10-26T04:56:45+00:00",
+      "last_original_window_point": "2026-10-26T05:06:45+00:00",
+      "preceding_bracket": "2026-10-26T04:56:30+00:00",
+      "following_bracket": "2026-10-26T05:07:00+00:00",
+      "bracketed_window_max_gap_seconds": 15,
+      "window_minimum": 0.0625,
+      "window_maximum": 0.0625,
+      "window_zero_or_below_points": 0,
+      "window_positive_points": 41,
+      "excluded_value_points": 470
+    },
+    "fly_instance_cpu_throttle": {
+      "all_capture_points": 511,
+      "original_window_points": 41,
+      "first_original_window_point": "2026-10-26T04:56:45+00:00",
+      "last_original_window_point": "2026-10-26T05:06:45+00:00",
+      "preceding_bracket": "2026-10-26T04:56:30+00:00",
+      "following_bracket": "2026-10-26T05:07:00+00:00",
+      "bracketed_window_max_gap_seconds": 15,
+      "window_minimum": 0.0,
+      "window_maximum": 0.0,
+      "window_zero_or_below_points": 41,
+      "window_positive_points": 0,
+      "excluded_value_points": 470
+    }
+  },
+  "sampled_original_window_coverage": true,
+  "sampled_zero_balance_observed": false,
+  "sampled_throttle_observed": false,
+  "depleted_cpu_qualified": false,
+  "qualification_limits": "Positive sampled balance is buffered CPU evidence. Fifteen-second samples do not exclude shorter unsampled transients. No native, 1 GiB, or depleted-CPU acceptance follows.",
+  "auditor_sha256": "41bffd4cb6c060dafdacc34bbce018d9651ae199d48bdcbea014d41ecc950e09"
+}

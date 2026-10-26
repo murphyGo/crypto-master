@@ -1,0 +1,101 @@
+{
+  "captured_at": "2026-10-26T05:07:02.494312+00:00",
+  "mode": "existing final evidence copied offline",
+  "files": [
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-concurrency-summary.json",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-concurrency-summary.json",
+      "relative_copy": "frozen/raw/v65-concurrency-summary.json",
+      "source_mtime_ns": 1792991210784893606,
+      "bytes": 1967,
+      "sha256": "22639723e2f1881c1609ece4f56b8bce004d330838c04f009b80a4972eb73e6b"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-health-samples.json",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-health-samples.json",
+      "relative_copy": "frozen/raw/v65-health-samples.json",
+      "source_mtime_ns": 1792991210785514106,
+      "bytes": 13829,
+      "sha256": "88aa6b72beaff023dfa5960369cb403fc6aa75c750488916203e70065d84cc86"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-memory-samples.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-memory-samples.jsonl",
+      "relative_copy": "frozen/raw/v65-memory-samples.jsonl",
+      "source_mtime_ns": 1792991210271289209,
+      "bytes": 264327,
+      "sha256": "ab5284111a48e2fb58bee65dedb00a32a0f44ae5c61842f8c55fbd8c4c0e2ebc"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-observer-config.json",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-observer-config.json",
+      "relative_copy": "frozen/raw/v65-observer-config.json",
+      "source_mtime_ns": 1792990582732555046,
+      "bytes": 1003,
+      "sha256": "75630e26a029a652052709163d8f19ef30d499109598d5abaa9a91a80d726f9e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v65-page-observations.jsonl",
+      "source_mtime_ns": 1792991195606493731,
+      "bytes": 252174,
+      "sha256": "233959fda15576793f5172aa81a55af9e87bcc28c0fae15b01f7fcea70da6e4e"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v65-page-starts.jsonl",
+      "source_mtime_ns": 1792991195412527228,
+      "bytes": 12300,
+      "sha256": "8eab72c1122f79455aedc0efdb436bdf41a8b90f7f259b6945ef985a1b235d9c"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-warmup-page-observations.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-warmup-page-observations.jsonl",
+      "relative_copy": "frozen/raw/v65-warmup-page-observations.jsonl",
+      "source_mtime_ns": 1792990595757728159,
+      "bytes": 4596,
+      "sha256": "7354b576ffe8170424dff883abbab7672944dd85692f4134ca870a5b29d8ab43"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-warmup-page-starts.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-warmup-page-starts.jsonl",
+      "relative_copy": "frozen/raw/v65-warmup-page-starts.jsonl",
+      "source_mtime_ns": 1792990594795234469,
+      "bytes": 219,
+      "sha256": "e7e3f03dbbd95563d38dd70e18a6183fbd462b4ff12780cd873d5d37ba25a460"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation/v65-warmup-protocol.json",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/raw/v65-warmup-protocol.json",
+      "relative_copy": "frozen/raw/v65-warmup-protocol.json",
+      "source_mtime_ns": 1792990601039900175,
+      "bytes": 6137,
+      "sha256": "090dbb5e4b1830a114eee4bdbce8f1385010fa17229b26f5ed32185a3605d92b"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-delivery/v65-observation-diagnostics.jsonl",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/context/v65-observation-diagnostics.jsonl",
+      "relative_copy": "frozen/context/v65-observation-diagnostics.jsonl",
+      "source_mtime_ns": 1792990568380141717,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/private/tmp/crypto-master-home-recovery-20261026/scripts/observe_dashboard_protocol.py",
+      "copy": "/private/tmp/crypto-master-home-recovery-delivery/qa-v65-audit/frozen/context/observe_dashboard_protocol.py",
+      "relative_copy": "frozen/context/observe_dashboard_protocol.py",
+      "source_mtime_ns": 1792981088808240069,
+      "bytes": 30277,
+      "sha256": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8"
+    }
+  ],
+  "diagnostic_sidecar_status": "snapshot at capture; may include events outside page-observation window",
+  "auditor_sha256": {
+    "audit_v65.py": "3acf27b1b3f6ddde7a90a9f087767bb8448af1cd9f0da8caf5d2e40f7bdc6805",
+    "base_auditor.py": "da97aa1d998aa3ba1174fd8f793fc7627d0fc78047b201e40f5b9e371c25279d"
+  },
+  "file_count": 11,
+  "total_bytes": 586829
+}

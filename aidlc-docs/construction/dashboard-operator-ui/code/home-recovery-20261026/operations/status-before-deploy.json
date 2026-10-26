@@ -1,0 +1,147 @@
+{
+    "AppURL": "https://2a09:8280:1::10b:aaf3:0",
+    "Deployed": true,
+    "Hostname": "crypto-master.fly.dev",
+    "ID": "crypto-master",
+    "Machines": [
+        {
+            "id": "6835752b711958",
+            "name": "morning-glitter-7732",
+            "state": "started",
+            "region": "nrt",
+            "image_ref": {
+                "registry": "registry.fly.io",
+                "repository": "crypto-master",
+                "tag": "git-dca38fbf25a9b96ec91400b628bc71513cf3357d",
+                "digest": "sha256:a0e1bd753ba92935c7227bb7c1c5f52fa267eebe2784d1ece99c0a1fab070786",
+                "labels": {
+                    "org.opencontainers.image.revision": "dca38fbf25a9b96ec91400b628bc71513cf3357d"
+                }
+            },
+            "instance_id": "01M5T2A60CT97ACSNWHAY60D12",
+            "version": "01M5T2A60CT97ACSNWHAY60D12",
+            "private_ip": "fdaa:70:64f8:a7b:7ca:a58d:f788:2",
+            "created_at": "2026-04-26T17:25:55Z",
+            "updated_at": "2026-10-25T17:39:17Z",
+            "config": {
+                "env": {
+                    "CLAUDE_CLI_MODEL": "sonnet",
+                    "CODEX_AUTH_HOME": "/data/codex-auth",
+                    "CODEX_CLI_MODEL": "gpt-6-astra",
+                    "ENGINE_CYCLE_INTERVAL": "1800",
+                    "ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS": "300",
+                    "FLY_PROCESS_GROUP": "app",
+                    "LLM_PROVIDER": "codex",
+                    "PRIMARY_REGION": "nrt"
+                },
+                "init": {},
+                "guest": {
+                    "cpu_kind": "shared",
+                    "cpus": 1,
+                    "memory_mb": 2048
+                },
+                "metadata": {
+                    "fly_builder_id": "8654630f1d7928",
+                    "fly_flyctl_version": "0.4.115",
+                    "fly_platform_version": "v2",
+                    "fly_process_group": "app",
+                    "fly_release_id": "rel_v6gwzpwm64x929ok",
+                    "fly_release_version": "64"
+                },
+                "mounts": [
+                    {
+                        "encrypted": true,
+                        "path": "/data",
+                        "size_gb": 1,
+                        "volume": "vol_4m3l58dkk29y19zv",
+                        "name": "data"
+                    }
+                ],
+                "services": [
+                    {
+                        "protocol": "tcp",
+                        "internal_port": 8080,
+                        "autostop": false,
+                        "autostart": true,
+                        "min_machines_running": 1,
+                        "ports": [
+                            {
+                                "port": 80,
+                                "handlers": [
+                                    "http"
+                                ],
+                                "force_https": true
+                            },
+                            {
+                                "port": 443,
+                                "handlers": [
+                                    "http",
+                                    "tls"
+                                ]
+                            }
+                        ],
+                        "checks": [
+                            {
+                                "type": "http",
+                                "interval": "30s",
+                                "timeout": "5s",
+                                "grace_period": "2m0s",
+                                "method": "GET",
+                                "path": "/_stcore/health"
+                            }
+                        ],
+                        "force_instance_key": null
+                    }
+                ],
+                "image": "registry.fly.io/crypto-master:git-dca38fbf25a9b96ec91400b628bc71513cf3357d",
+                "restart": {
+                    "policy": "on-failure",
+                    "max_retries": 10
+                }
+            },
+            "events": [
+                {
+                    "type": "start",
+                    "status": "started",
+                    "request": {},
+                    "source": "flyd",
+                    "timestamp": 1792949957551
+                },
+                {
+                    "type": "launch",
+                    "status": "created",
+                    "source": "user",
+                    "timestamp": 1792949950600
+                },
+                {
+                    "type": "launch",
+                    "status": "pending",
+                    "source": "flyd",
+                    "timestamp": 1792949950477
+                }
+            ],
+            "checks": [
+                {
+                    "name": "servicecheck-00-http-8080",
+                    "status": "passing",
+                    "output": "ok",
+                    "updated_at": "2026-10-25T17:39:20.469Z"
+                }
+            ],
+            "host_status": "ok",
+            "cordoned": false
+        }
+    ],
+    "Name": "crypto-master",
+    "Organization": {
+        "ID": "X14ZNqpmoA4vDI0145MNGeBYKNhOK4bZo",
+        "InternalNumericID": "1615334",
+        "Name": "",
+        "Slug": "personal",
+        "RawSlug": "",
+        "PaidPlan": true
+    },
+    "PlatformVersion": "machines",
+    "Status": "deployed",
+    "Version": 64
+}

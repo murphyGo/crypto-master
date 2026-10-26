@@ -1,0 +1,7 @@
+FROM registry.fly.io/crypto-master@sha256:a0e1bd753ba92935c7227bb7c1c5f52fa267eebe2784d1ece99c0a1fab070786
+LABEL org.opencontainers.image.revision="382c26b1290c4b1a7cc843f28686fc9e2e4f2323"
+COPY scripts/observe_dashboard_protocol.py /app/scripts/observe_dashboard_protocol.py
+COPY src/dashboard/availability.py /app/src/dashboard/availability.py
+COPY src/dashboard/data_service.py /app/src/dashboard/data_service.py
+COPY src/dashboard/read_diagnostics.py /app/src/dashboard/read_diagnostics.py
+COPY src/dashboard/read_models.py /app/src/dashboard/read_models.py

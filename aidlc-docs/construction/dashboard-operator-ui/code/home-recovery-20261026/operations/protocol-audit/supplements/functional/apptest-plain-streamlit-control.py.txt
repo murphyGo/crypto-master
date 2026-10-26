@@ -1,0 +1,12 @@
+
+import streamlit as st
+if 'done' not in st.session_state:st.session_state.done=False
+if not st.session_state.done:
+    st.warning('Data unavailable')
+else:
+    st.metric('Safety status','Ready')
+st.metric('Open Positions',7)
+if not st.session_state.done:
+    if st.button('Refresh data'):
+        st.session_state.done=True
+        st.rerun()

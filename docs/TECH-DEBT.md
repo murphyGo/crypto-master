@@ -300,9 +300,24 @@ cache ages or worker/admission caps. Explicit retry clears only the captured
 error generation; diagnostics use allowlisted fields and a bounded asynchronous
 console queue. The protocol observer now retains alert classification/first-shell
 time and enforces the whole cycle inside its window. Final source passes 2,989
-tests, nine-file Black/Ruff, mypy 135 and independent QA. Same-capacity rollout
-is next; production is still v64 at this checkpoint. The historical two Home
-failures retain unknown causes, and broader DEBT-083 acceptance remains open.
+tests, nine-file Black/Ruff, mypy 135 and independent QA. Source `382c26b` is
+pushed to main and deployed as Fly v65; all 182 running hashes match. Shared
+CPU 1 / 2048 MiB, original volume/dependencies/paper/Codex and 1800 s cadence
+remain unchanged. The final four-session observation lasts 607.101 s with
+120 matched starts/outcomes: 116 complete and four 30 s timeouts, so readiness
+**fails**. Successful-only Home/Trading p95 is 1.852/1.396 s; counting every
+outcome gives 2.370/2.055 s. Health 120/120 (max 4.001 s), the full 30.243 s
+natural cycle and observed RSS growth 65.648 MiB pass. Guest peak 701.949 MiB
+is on the current 2048 MiB allocation, not original 1024 MiB qualification.
+Warmup Home completion 11.415 s and first incomplete receipt 5.072 s miss their
+5 s targets. Seven asynchronous `source_changed` diagnostic deliveries overlap
+the failed-request window; they do not identify a failed request or exact
+verification branch. Offline probes establish global-drain watcher coupling,
+while repeated admission is required by the 2 s freshness contract and changed
+generations are correctly rejected. Page-dependent progress notification is a
+bounded follow-up candidate under this existing debt, not an attributed fix
+for all four timeouts. The historical two Home failures retain unknown causes;
+cold/native/depleted/original-guest and full readiness acceptance remain open.
 See `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅

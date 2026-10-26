@@ -1,0 +1,31 @@
+{
+  "verdict": "green",
+  "scope": "local actual Streamlit AppTest; temporary test data only",
+  "actual_button_clicked_within_error_cooldown": true,
+  "error_age_before_click_seconds": 0.0605561250122264,
+  "fresh_seconds": 2,
+  "activity_builds_before_after": [
+    1,
+    2
+  ],
+  "ledger_builds_before_after": [
+    1,
+    1
+  ],
+  "healthy_sibling_identity_preserved": true,
+  "error_cache_cleared": true,
+  "post_click_statuses": {
+    "activity": "complete",
+    "ledger": "complete"
+  },
+  "extra_builds_on_subsequent_run": false,
+  "exceptions": [],
+  "plain_streamlit_same_stale_button_tree": true,
+  "note": "Immediate zero-button assertion was an AppTest stale extra-element assumption, reproduced without application code. Next normal run removes it. No native DOM or viewport claim.",
+  "files": {
+    "apptest-smoke.py": "a45cb5240e5c289fb2151b4cb35a0c6c8e801b8613b642f90313ed1c3ed7d75a",
+    "apptest-smoke.json": "0909f394c8ecb14cf04c84f0a40413a9690b3d07098ef3bdaf559da357328485",
+    "apptest-plain-streamlit-control.py.txt": "2914741c5e1e88d1e03aecbb613885919041c033a87a3bb21f0472334b5d7dba",
+    "apptest-plain-streamlit-control.json": "681ac2830c3d652cd5d521a3d019ad4a54bdefe517293ef4719e0101e48a7c78"
+  }
+}

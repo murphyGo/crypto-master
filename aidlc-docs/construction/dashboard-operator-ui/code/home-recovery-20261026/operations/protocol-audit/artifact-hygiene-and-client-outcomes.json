@@ -1,0 +1,40 @@
+{
+  "scanned_files": 17,
+  "credential_pattern_hits": [],
+  "scope": "Known private-key and credential patterns, plus allowlisted diagnostic schema; no assertion that every possible secret format can be detected.",
+  "per_client_outcomes": {
+    "0": {
+      "attempts": 30,
+      "status_counts": {
+        "complete": 29,
+        "timeout": 1
+      },
+      "failure_ratio": 0.03333333333333333
+    },
+    "1": {
+      "attempts": 30,
+      "status_counts": {
+        "complete": 29,
+        "timeout": 1
+      },
+      "failure_ratio": 0.03333333333333333
+    },
+    "2": {
+      "attempts": 30,
+      "status_counts": {
+        "complete": 29,
+        "timeout": 1
+      },
+      "failure_ratio": 0.03333333333333333
+    },
+    "3": {
+      "attempts": 30,
+      "status_counts": {
+        "complete": 29,
+        "timeout": 1
+      },
+      "failure_ratio": 0.03333333333333333
+    }
+  },
+  "source_outcomes_sha256": "233959fda15576793f5172aa81a55af9e87bcc28c0fae15b01f7fcea70da6e4e"
+}

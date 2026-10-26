@@ -1,0 +1,42 @@
+{
+  "candidate.json": {
+    "sha256": "65433ef97731f1ca2e2f47d5c4c922c0ef44b19ec29c52832ffafb8619b8eee2",
+    "bytes": 794
+  },
+  "postdeploy.json": {
+    "sha256": "970be3f5facd0201701d30ebfc6954c40ea0e2da071e59daa0d970629d3b5c60",
+    "bytes": 45278
+  },
+  "status-before-deploy.json": {
+    "sha256": "8c3a185333b7c14ae4be33812f155ca2595d13e6dc6eb29aa7a76097aa000528",
+    "bytes": 5409
+  },
+  "rollout-output.txt": {
+    "sha256": "f3a1ed4ce58e6964af9ccfbe618bd3aafc07fc5ec5a4ee16377c7e132f1939f8",
+    "bytes": 12339
+  },
+  "apptest-summary.json": {
+    "sha256": "06bcf1acf4c0ca18104c5a70610a00b8cfdab968221d6970f23af250923c2943",
+    "bytes": 1229
+  },
+  "apptest-smoke.json": {
+    "sha256": "0909f394c8ecb14cf04c84f0a40413a9690b3d07098ef3bdaf559da357328485",
+    "bytes": 1120
+  },
+  "apptest-smoke.py.txt": {
+    "sha256": "a45cb5240e5c289fb2151b4cb35a0c6c8e801b8613b642f90313ed1c3ed7d75a",
+    "bytes": 3186
+  },
+  "apptest-plain-streamlit-control.py.txt": {
+    "sha256": "2914741c5e1e88d1e03aecbb613885919041c033a87a3bb21f0472334b5d7dba",
+    "bytes": 344
+  },
+  "apptest-plain-streamlit-control.json": {
+    "sha256": "681ac2830c3d652cd5d521a3d019ad4a54bdefe517293ef4719e0101e48a7c78",
+    "bytes": 699
+  },
+  "Dockerfile.home-recovery-overlay": {
+    "sha256": "5f7553c9931dbd82e6b52eda931986eb7673a10e80e6fa7d9b9fdd41be5c5343",
+    "bytes": 562
+  }
+}

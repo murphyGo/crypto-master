@@ -1,0 +1,34 @@
+{
+  "initial": {
+    "buttons": [
+      "Refresh data"
+    ],
+    "metrics": {
+      "Open Positions": "7"
+    },
+    "done": false,
+    "exceptions": []
+  },
+  "clicked": {
+    "buttons": [
+      "Refresh data"
+    ],
+    "metrics": {
+      "Safety status": "Ready",
+      "Open Positions": "7"
+    },
+    "done": true,
+    "exceptions": []
+  },
+  "subsequent": {
+    "buttons": [],
+    "metrics": {
+      "Safety status": "Ready",
+      "Open Positions": "7"
+    },
+    "done": true,
+    "exceptions": []
+  },
+  "same_retained_button_with_plain_streamlit": true,
+  "conclusion": "AppTest stale element tree after internal st.rerun reproduces without application code; no native DOM conclusion."
+}

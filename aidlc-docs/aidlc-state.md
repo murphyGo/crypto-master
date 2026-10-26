@@ -57,17 +57,23 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
-> **Home recovery source gate (2026-10-26 KST):** The continued DEBT-083 task
-> reproduces missing queue-full recovery watches and missing terminal retry
-> controls. Both are corrected with generation-scoped explicit retry, unchanged
-> read limits and bounded asynchronous diagnostics. Final source: 2,989 tests,
-> nine-file Black/Ruff, mypy 135 and independent QA green. The enhanced protocol
-> observer retains classified alerts, first-shell times and exact cycle-window
-> boundaries. Concurrent v64 operational docs `f1863de` are preserved. The
-> validated correction awaits its authorized same-capacity rollout; current
-> production remains v64. Historical failure attribution and the original
-> cold/native/depleted/1 GiB gates remain open. See
-> `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
+> **Home recovery deployment (2026-10-26 KST):** DEBT-083 remains
+> Critical/active. Source `382c26b` is pushed to main and deployed as Fly v65;
+> 182 runtime hashes match. Queue-full results retain the recovery watcher and
+> terminal failures have one generation-scoped explicit retry control. Bounded
+> asynchronous diagnostics and the classified protocol observer are included.
+> Final source passes 2,989 tests, nine-file Black/Ruff, mypy 135 and independent
+> QA. Shared CPU 1 / 2048 MiB, original volume/dependencies/paper/Codex and engine
+> cadence are unchanged. The 607.101 s four-session observation **fails**:
+> 120 matched starts/outcomes, 116 complete and four 30 s timeouts. Health
+> 120/120 and the full 30.243 s natural cycle pass. Guest peak 701.949 MiB and
+> dashboard RSS growth 65.648 MiB are observations on current 2048 MiB only.
+> Warmup Home completes in 11.415 s; its first incomplete shell takes 5.072 s.
+> Source-generation verification failures overlap the timeout window, without
+> request-level causal attribution. Offline probes reproduce global-drain
+> watcher coupling; page-dependent progress is the next bounded design candidate.
+> Historical v64 failures and original cold/native/depleted/1 GiB gates remain
+> open. See `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
 
 > **Current v64 input/operation refresh (2026-10-26):** Same dca38fb image,
 > machine and180 live hashes reconfirmed at01:57Z. A separate deployed read-only
