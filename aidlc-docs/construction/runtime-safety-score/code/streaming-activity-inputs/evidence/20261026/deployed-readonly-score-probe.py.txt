@@ -1,0 +1,69 @@
+import asyncio,json,os,resource,time
+from contextlib import closing
+from datetime import timedelta
+from pathlib import Path
+from src.config import get_settings
+from src.runtime.activity_events import ActivityEvent
+from src.runtime.safety_reader import SafetyReadService,SafetyCycleBudget,SafetyReadLimits,ReadControl,SafetyReadUnavailable,capture_sources
+from src.runtime.safety_score import RuntimeSafetyInputs,compute_runtime_safety_score
+from src.utils.bounded_read import legacy_text_rows,ReadFailure
+
+async def main():
+ settings=get_settings();base=settings.data_dir/'runtime'/'activity'
+ limits=SafetyReadLimits();service=SafetyReadService(limits)
+ cycle=SafetyCycleBudget();at={}
+ original=service._reader.evaluate
+ def observe(*args):
+  at['utc']=args[3]
+  return original(*args)
+ service._reader.evaluate=observe
+ started=time.monotonic();peak_before=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+ def control():
+  now=time.monotonic()
+  return ReadControl(limits,SafetyCycleBudget(),now,now+limits.read_seconds)
+ out={'probe':'separate read-only deployed process; not an engine proposal/order','trading_mode':settings.trading_mode,'canonical_write_performed':False}
+ try:
+  before=capture_sources(base,settings.log_retention_months,control())
+  result=await service.score(base,settings.log_retention_months,[],cycle)
+  read_wall=time.monotonic()-started
+  score_peak=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+  counts={name:0 for name in RuntimeSafetyInputs.model_fields};conditions=set();reader_control=control();cutoff=at['utc']-timedelta(hours=24)
+  mapping={'cycle_errored':'recent_cycle_errors','notification_failed':'recent_notification_failures','llm_timeout':'recent_llm_timeouts','correlation_warning':'correlation_warnings','liquidated':'liquidation_events','cold_start_blocked':'cold_start_blocks'}
+  parsed=skipped=0
+  for source in before:
+   with closing(legacy_text_rows(source.path,source.generation,before_read=reader_control.read)) as rows:
+    for raw in rows:
+     if raw is None:reader_control.check();continue
+     if not raw:continue
+     try:payload=json.loads(raw)
+     except json.JSONDecodeError:skipped+=1;continue
+     if not isinstance(payload,dict):raise ReadFailure('invalid_record')
+     try:event=ActivityEvent(**payload)
+     except ValueError:skipped+=1;continue
+     parsed+=1
+     if event.timestamp<cutoff:continue
+     typ=event.event_type;details=event.details
+     if typ in mapping:counts[mapping[typ]]+=1
+     counts['stale_quote_warnings']+=int('stale_quote' in str(details.get('reason','')) or 'stale-quote' in event.message)
+     if typ=='risk_kill_switch_tripped' and not details.get('advisory'):
+      key=(event.cycle_id if event.cycle_id is not None else details.get('cycle_id'),details.get('gate_reason'),details.get('sub_account_id') or '__global__')
+      if key not in conditions:
+       if len(conditions)>=limits.conditions:raise ReadFailure('condition_limit')
+       reader_control.reserve(key);conditions.add(key)
+   source.verify()
+  counts['kill_switch_conditions']=len(conditions)
+  reference=compute_runtime_safety_score(RuntimeSafetyInputs(**counts))
+  after=capture_sources(base,settings.log_retention_months,control())
+  unchanged=before==after
+  out.update(complete=unchanged,full_score_matches_independent_streaming_oracle=result.model_dump(mode='json')==reference.model_dump(mode='json'),source_generations_unchanged=unchanged,source_files=len(before),canonical_rows_parsed=parsed,legacy_rows_skipped=skipped,evaluation_utc=at['utc'].isoformat(),reader_wall_seconds=read_wall,reader_bytes=cycle.bytes,reader_peak_growth_mib=(score_peak-peak_before)/1024,score=result.model_dump(mode='json'))
+ except (SafetyReadUnavailable,ReadFailure) as error:
+  out.update(complete=False,stable_reason=str(error),elapsed_seconds=time.monotonic()-started)
+ except Exception as error:out.update(complete=False,error_type=type(error).__name__)
+ finally:service.close()
+ folder=settings.data_dir/'.dashboard-read-cache'/'v1'
+ if folder.is_dir():
+  entries=list(folder.iterdir())
+  info=[p.lstat() for p in entries]
+  out['derived_cache']={'files':len(entries),'charged_disk_bytes':8192+sum(max(s.st_size,s.st_blocks*512)+4096 for s in info),'owner_only_modes':all(s.st_uid==os.getuid() and not s.st_mode&0o077 for s in info),'available_bytes':os.statvfs(folder).f_bavail*os.statvfs(folder).f_frsize}
+ print(json.dumps(out))
+asyncio.run(main())

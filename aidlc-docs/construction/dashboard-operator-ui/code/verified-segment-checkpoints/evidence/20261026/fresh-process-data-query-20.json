@@ -1,0 +1,327 @@
+{
+  "surface": "fresh local Python process including imports/service creation and seeded data query; not full Streamlit page/native/Fly restart",
+  "source": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "series": [
+    {
+      "case": "million",
+      "samples": [
+        {
+          "whole_process_seconds": 2.6762276249937713,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 3.0542852089274675,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.8161346670240164,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.331626957980916,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.2784688340034336,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.5852795829996467,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.5780130409402773,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.0517725000390783,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.222934207995422,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.7388365420047194,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.294759041047655,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.9875705839367583,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.5687562499661,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.3731489999918267,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.4136456670239568,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.5607414160622284,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.9907068330794573,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.017028708010912,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.3419378750259057,
+          "hits": 10,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.386384875047952,
+          "hits": 10,
+          "complete": true
+        }
+      ],
+      "full_payloads_equal": true,
+      "p95": 2.8161346670240164
+    },
+    {
+      "case": "snapshots",
+      "samples": [
+        {
+          "whole_process_seconds": 1.5944702080450952,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.5779716250253841,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.79129245900549,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.5152134170057252,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.410083374939859,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.4095909999450669,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.4855302500072867,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.063769624917768,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.5255670830374584,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.6938219999428838,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.337665249942802,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.7003747499547899,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.4739279999630526,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.7579087500926107,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.5369091250468045,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.7423371250042692,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.862147750100121,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.4120959170395508,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.561938041006215,
+          "hits": 13,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.8333015410462394,
+          "hits": 13,
+          "complete": true
+        }
+      ],
+      "full_payloads_equal": true,
+      "p95": 1.862147750100121
+    },
+    {
+      "case": "proposals",
+      "samples": [
+        {
+          "whole_process_seconds": 6.075355125009082,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.9723841660888866,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.9713740000734106,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.080477875075303,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.291948958998546,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.2545824999688193,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.408878833986819,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.169520540977828,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 3.1362082499545068,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.5714482499752194,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.087375000002794,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.124869375023991,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.0934145000064746,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.588146499940194,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.2516091669676825,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 4.041809250018559,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.352773334016092,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.214023582986556,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 1.9768570830347016,
+          "hits": 0,
+          "complete": true
+        },
+        {
+          "whole_process_seconds": 2.3704069999512285,
+          "hits": 0,
+          "complete": true
+        }
+      ],
+      "full_payloads_equal": true,
+      "p95": 4.041809250018559
+    }
+  ]
+}

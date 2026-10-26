@@ -658,3 +658,11 @@ dependency, live network, or runtime `data/` action occurred.
 - Exact operator response: `gogo` after the combined concrete request.
 - Approves both NFR designs, typed safety-read monitoring amendment, presented implementation/test sequence and same-capacity rollout. No repeated stage permission is requested for the same scope.
 - Code plan: `aidlc-docs/construction/plans/dashboard-runtime-read-code-generation-plan.md`; runtime first then checkpoints. Cost/capacity deferral remains. Root concurrent changes preserved.
+
+## 2026-10-26T02:05:55.488864+00:00 — Approved v64 Read Work Closeout
+
+- Deployed source dca38fb/release64, same capacity/volume/paper-Codex.180 live hashes and2916 tests pass.
+-349 observed starts/outcomes:Trading175/175, Home172/174; all347 health checks pass. Two Home incomplete outcomes retain overall readiness failure and DEBT-083 active.
+- Independent458ef79/5fcad54 review/qualification docs preserved; alternative8053ae0 archived and not merged.
+- Later read-only deployed230271-row safety input oracle matches exactly; no canonical write/forced cycle/order by the probe. Current image/source rechecked unchanged.
+- Native/current2GiB/depleted/cold limits are not waived. Documentation-only closeout; no new deployment or added-cost approval.

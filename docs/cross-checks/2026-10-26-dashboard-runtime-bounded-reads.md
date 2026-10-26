@@ -28,3 +28,16 @@ The cycle has zero proposals; it does not prove natural safety-gate execution.
 The separately preserved candidate8053ae0 is not merged/deployed and its results
 are not v64 evidence. Original performance/native/depleted/guest qualification
 remains open. See [independent verification](../sessions/2026-10-26-runtime-safety-v64-independent-verification.md).
+
+
+## Observation closeout
+
+v64/dca38fb is deployed and current180 hashes match. All2916 source tests pass.
+Four-session349 starts/outcomes reconcile:347 complete, two Home incomplete,
+Trading175/175, all347 health checks pass;708.25 MiB guest peak is measured on2GiB.
+The complete engine cycle is captured. Full-readiness acceptance therefore
+**fails**, with native/depleted/declared1GiB still unqualified. No debt closure.
+Independent audit/cold-path findings in5fcad54 are preserved. A later deployed
+230271-row read-only score probe exactly matches its independent oracle in2.541s
+with0.625 MiB added peak RSS; it is outside the concurrent observation. Current
+natural paper proposal/order events and source identity are separately verified.

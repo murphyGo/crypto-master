@@ -1,0 +1,9 @@
+{
+  "recorded_at": "2026-10-26T02:05:55.479578+00:00",
+  "surface": "supported Browser bootstrap",
+  "outcome": "setup_failed_before_page_selection",
+  "reason": "missing_packaged_browser_service",
+  "missing_module": "/Users/user/.codex/plugins/cache/openai-bundled/browser/26.1007.30912/scripts/browser-service.mjs",
+  "native_acceptance": false,
+  "alternative_browser_used": false
+}

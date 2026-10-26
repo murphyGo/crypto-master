@@ -1,0 +1,75 @@
+{
+  "recorded_at": "2026-10-26T02:05:55.478902+00:00",
+  "deployment_source": "dca38fbf25a9b96ec91400b628bc71513cf3357d",
+  "release": 64,
+  "source_implementation_and_rollout": "complete",
+  "overall_DEBT_083_readiness": "failed_or_unqualified",
+  "source_gate": {
+    "tests_passed": 2916,
+    "black_ruff_files": 11,
+    "mypy_files": 134
+  },
+  "observer": {
+    "surface": "four concurrent actual Streamlit WebSocket sessions; not native viewport/browser acceptance",
+    "seconds": 1747.103737,
+    "starts": 349,
+    "outcomes": 349,
+    "complete": 347,
+    "incomplete": 2,
+    "cancelled_or_censored": 0,
+    "pages": {
+      "Home": {
+        "observations": 174,
+        "complete": 172,
+        "incomplete": 2,
+        "complete_seconds_p95": 0.7607109999516979,
+        "all_complete": false
+      },
+      "Trading": {
+        "observations": 175,
+        "complete": 175,
+        "incomplete": 0,
+        "complete_seconds_p95": 0.7241678340360522,
+        "all_complete": true
+      }
+    },
+    "health_samples": 347,
+    "health_all_ok_under_5s": true,
+    "health_max_seconds": 0.26862929097842425,
+    "dashboard_growth_mib": 83.90234375,
+    "guest_peak_mib": 708.25,
+    "full_engine_cycle": "6b0a2fe0-1b16-43be-9bfc-df7f61f398db"
+  },
+  "cpu": {
+    "balance_min_seconds": 12.770037027,
+    "balance_max_seconds": 30.760040665000002,
+    "throttle_increase_seconds": 0.0,
+    "depleted_cpu_qualification": false,
+    "unit_reference": "https://docs.fly.io/monitoring/metrics#instance-load-and-cpu"
+  },
+  "current_verification": {
+    "captured_at": "2026-10-26T01:57:36.322688+00:00",
+    "hashes_match": 180,
+    "same_process_ids": [
+      655,
+      656
+    ]
+  },
+  "deployed_input_oracle": {
+    "evaluation_utc": "2026-10-26T01:46:38.192756+00:00",
+    "rows": 230271,
+    "full_score_equal": true,
+    "reader_seconds": 2.5413116949966934,
+    "reader_growth_mib": 0.625,
+    "canonical_write_performed": false,
+    "performed_after_concurrency": true
+  },
+  "remaining": [
+    "Two Home incomplete views; exact failure reason was not retained by the protocol harness. Temporal overlap is not causal proof.",
+    "First observed Home17.838s; canonical no-store20-query p957.817s exceeds5s. Historical first_unseeded label11.143s did not prove empty-store state.",
+    "Native Browser setup still fails missing packaged service.",
+    "Original1GiB and depleted-CPU qualification remain unverified."
+  ],
+  "debt_status": "DEBT-083 Critical/active",
+  "duplicate_source": "alternative8053ae0 is archived and unmerged; source remainsdca38fb; no duplicate deployment"
+}

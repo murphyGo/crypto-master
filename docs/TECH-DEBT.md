@@ -283,6 +283,16 @@ strategy defects. See
 `docs/sessions/2026-10-26-dashboard-v64-qualification-continuation.md` and
 `docs/cross-checks/2026-10-26-dashboard-v64-qualification-continuation.md`.
 
+**2026-10-26 later input/operation refresh:** Same v64/dca38fb and180 running
+hashes reconfirmed at01:57Z. A separate deployed230271-row/7-file safety-input
+probe matches the independent count/score oracle in2.541s with0.625 MiB added
+peak RSS, unchanged source generations and no canonical write. A later natural
+paper cycle processes five proposals/four opens without cycle error. This is
+outside the349-view observation; its two Home incomplete outcomes, failed cold
+readiness and unqualified native/depleted/original1GiB conditions are unchanged.
+No new source/deployment/cost or debt closure is inferred. See the bounded-read
+session and `v64-observation-verdict.json` under its evidence folder.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |

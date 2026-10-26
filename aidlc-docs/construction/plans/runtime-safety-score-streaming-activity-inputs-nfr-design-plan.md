@@ -27,7 +27,7 @@
 
 - [x] Reviewable design and documentation QA complete
 - [x] NFR design explicitly approved
-- [ ] Implementation/verification/rollout completed after approval
+- [x] Implementation/verification/rollout completed after approval
 - [ ] Original acceptance actually passed before debt closure
 
 Verification: linked combined review, source-flow inspection and scoped documentation QA; see `docs/cross-checks/2026-10-25-dashboard-runtime-read-nfr-design.md`. Explicit approval and all implementation checks remain unchecked.

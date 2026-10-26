@@ -22,8 +22,8 @@ freshness/coverage contract. No DB migration/canonical writer changes.
 5. [x] Add eligible lossless per-file dashboard states/codecs, bounded64 MiB private pack/index store and canonical fallback; integrate existing worker only.
 6. [x] Verify all original output/window/tie/companion/curve/financial invariants, source/storage faults and global resource caps with independent targeted tests.
 7. [x] Full pytest, changed-file Black/Ruff, mypy; independent >=1M event memory/runtime and representative cold/restart benchmarks. Preserve failures and original thresholds.
-8. [ ] Update unit state, session, cross-check and debt, review final exact source, commit/push and verify remote; never alter concurrent root files.
-9. [ ] Build exact-dependency minimal overlay, deploy to existing sharedCPU1/2048 MiB/original volume/paper-Codex; verify all runtime hashes, health and whole cycle. Record cold/warm/four-session/native/original-guest qualification honestly.
+8. [x] Update unit state, session, cross-check and debt, review final exact source, commit/push and verify remote; never alter concurrent root files.
+9. [x] Build exact-dependency minimal overlay, deploy to existing sharedCPU1/2048 MiB/original volume/paper-Codex; verify all runtime hashes, health and whole cycle. Record cold/warm/four-session/native/original-guest qualification honestly.
 
 No new UI controls/API/database. Existing source layers own repository boundaries;
 tests in corresponding reader/safety/engine/dashboard suites. All new failures
@@ -31,3 +31,12 @@ are stable/sanitized, no live activation or cost upgrade. Any unresolved accepta
 keeps DEBT-083 active. Implementation details follow the approved component sequence
 in `dashboard-runtime-read-followup-nfr-review.md`; permission to run a tool is not
 substituted for this recorded operator approval.
+
+## Final outcome
+
+Source/rollout complete on v64/dca38fb;2916 tests and180 live hashes pass.
+The recorded349-view series fails complete-readiness acceptance (two Home
+incomplete outcomes). Trading175/175 and all347 health checks pass; guest708.25
+MiB is observed on2GiB, not declared1GiB qualification. DEBT-083 stays active;
+see `docs/sessions/2026-10-26-dashboard-v64-qualification-continuation.md` and
+[v64 observation verdict](../dashboard-operator-ui/code/verified-segment-checkpoints/evidence/20261026/v64-observation-verdict.json). No remaining target is waived.

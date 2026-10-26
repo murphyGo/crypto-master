@@ -1,0 +1,37 @@
+import argparse,hashlib,json,subprocess,sys,time
+from pathlib import Path
+p=argparse.ArgumentParser();p.add_argument('--worker');p.add_argument('--prime',action='store_true');a=p.parse_args()
+ROOT=Path.cwd();BASE=Path('/private/tmp/crypto-master-fresh-process-store-20261026');BASE.mkdir(exist_ok=True)
+OUT=Path('/private/tmp/crypto-master-fresh-process-checkpoints-20261026.json')
+CASES={'million':('/private/tmp/crypto-master-shared-cpu-fixtures-20261025/million','activity',('default',)),'snapshots':('/private/tmp/crypto-master-shared-cpu-fixtures-20261025/snapshots','snapshots',tuple(f'account-{i}' for i in range(13))),'proposals':('/private/tmp/crypto-master-cold-proposal-fixture-20261025','proposals',('default',))}
+if a.worker:
+ sys.path.insert(0,str(ROOT))
+ from datetime import datetime,timezone
+ from src.dashboard.checkpoint_store import CheckpointStore
+ from src.dashboard.data_service import DashboardDataService
+ from src.dashboard.read_models import Query
+ root,kind,accounts=CASES[a.worker]
+ folder=BASE/a.worker;folder.mkdir(exist_ok=True)
+ store=CheckpointStore(folder)
+ service=DashboardDataService(checkpoint_store=store)
+ try:
+  q=Query(Path(root),kind,accounts=accounts,at=datetime(2026,10,25,tzinfo=timezone.utc))
+  started=time.monotonic();result=service.request(q)
+  while result.status=='pending' and time.monotonic()-started<120:result=service.request(q,wait=.05)
+  assert result.complete,(result.status,result.reason)
+  fingerprint=hashlib.sha256(json.dumps(result.data(),sort_keys=True,separators=(',',':')).encode()).hexdigest()
+  print(json.dumps({'payload_sha256':fingerprint,'hits':store.hits,'complete':True,'query_seconds':time.monotonic()-started}))
+ finally:service.close()
+ sys.exit(0)
+report={'surface':'fresh local Python process including imports/service creation and seeded data query; not full Streamlit page/native/Fly restart','source':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'series':[]}
+for name in CASES:
+ prime=subprocess.run([sys.executable,__file__,'--worker',name],check=True,capture_output=True,text=True,timeout=180)
+ expected=json.loads(prime.stdout.strip().splitlines()[-1])['payload_sha256']
+ row={'case':name,'samples':[],'full_payloads_equal':True};report['series'].append(row)
+ for sample in range(20):
+  started=time.perf_counter();r=subprocess.run([sys.executable,__file__,'--worker',name],capture_output=True,text=True,check=True,timeout=180);wall=time.perf_counter()-started
+  result=json.loads(r.stdout.strip().splitlines()[-1]);assert result['payload_sha256']==expected
+  row['samples'].append({'whole_process_seconds':wall,'hits':result['hits'],'complete':result['complete']})
+  row['p95']=sorted(v['whole_process_seconds'] for v in row['samples'])[max(0,int(len(row['samples'])*.95+.999999)-1)]
+  OUT.write_text(json.dumps(report,indent=2)+'\n')
+  print(json.dumps({'case':name,'sample':sample+1,'whole_process_seconds':wall,'hits':result['hits']}),flush=True)

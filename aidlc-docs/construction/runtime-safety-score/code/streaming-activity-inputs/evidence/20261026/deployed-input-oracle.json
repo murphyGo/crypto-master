@@ -1,0 +1,39 @@
+{
+  "probe": "separate read-only deployed process; not an engine proposal/order",
+  "trading_mode": "paper",
+  "canonical_write_performed": false,
+  "complete": true,
+  "full_score_matches_independent_streaming_oracle": true,
+  "source_generations_unchanged": true,
+  "source_files": 7,
+  "canonical_rows_parsed": 230271,
+  "legacy_rows_skipped": 0,
+  "evaluation_utc": "2026-10-26T01:46:38.192756+00:00",
+  "reader_wall_seconds": 2.5413116949966934,
+  "reader_bytes": 96190075,
+  "reader_peak_growth_mib": 0.625,
+  "score": {
+    "score": 70,
+    "band": "degraded",
+    "inputs": {
+      "recent_cycle_errors": 0,
+      "recent_notification_failures": 0,
+      "recent_llm_timeouts": 0,
+      "stale_quote_warnings": 0,
+      "correlation_warnings": 24,
+      "liquidation_events": 0,
+      "cold_start_blocks": 0,
+      "kill_switch_conditions": 0,
+      "open_drawdown_percent": 0
+    },
+    "factors": [
+      "correlation warnings=24 (-30)"
+    ]
+  },
+  "derived_cache": {
+    "files": 16,
+    "charged_disk_bytes": 6602752,
+    "owner_only_modes": true,
+    "available_bytes": 742072320
+  }
+}
