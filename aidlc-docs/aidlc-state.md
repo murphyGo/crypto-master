@@ -57,6 +57,19 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Page-dependent recovery source gate (2026-10-27 KST):** DEBT-083 remains
+> Critical/active. The reproduced global-drain watcher coupling is corrected
+> using compact exact-generation progress and read-only queue readiness, with
+> one watcher and one notification per render. One worker/four admissions,
+> 2 s freshness/30 s stale/4 s foreground and explicit terminal retry remain.
+> Final source passes 3,008 tests, seven-file Black/Ruff and 135-file mypy;
+> independent 77-case review and real two-session fragment smoke pass. The
+> initial full-suite fixture incompatibility is fixed with runtime hashes
+> unchanged. Current production is v65 / `382c26b`; exact commit/push and the
+> authorized same-capacity rollout are next. Prior failed samples and original
+> cold/native/depleted/1024 MiB acceptance remain open. See
+> `docs/sessions/2026-10-27-dashboard-page-progress.md`.
+
 > **Home recovery deployment (2026-10-26 KST):** DEBT-083 remains
 > Critical/active. Source `382c26b` is pushed to main and deployed as Fly v65;
 > 182 runtime hashes match. Queue-full results retain the recovery watcher and

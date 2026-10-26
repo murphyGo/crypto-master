@@ -1,0 +1,32 @@
+{
+  "scope": "Test mock signature follow-up only; runtime source unchanged",
+  "modified_file": "tests/test_dashboard_bounded_pages.py",
+  "change": "_watch_background mock now accepts optional progress argument; one-watcher and per-section message assertions unchanged",
+  "first_full_suite": {
+    "passed": 3005,
+    "failed": 3,
+    "seconds": 221.8,
+    "failure": "test_pending_page_keeps_section_messages_with_one_watcher parameterizations Home, Trading, Proposals: old one-argument mock received second progress argument",
+    "reported_by": "lead; original full-suite evidence preserved"
+  },
+  "targeted": {
+    "command": "/Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest tests/test_dashboard_bounded_pages.py tests/test_dashboard_page_progress.py tests/test_dashboard_availability.py tests/test_dashboard_data_service.py tests/test_dashboard_read_diagnostics.py -q",
+    "passed": 77,
+    "seconds": 3.3
+  },
+  "static": {
+    "black": "7 changed files unchanged",
+    "ruff": "7 changed files passed",
+    "git_diff_check": "passed"
+  },
+  "runtime_sha256_unchanged": {
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a"
+  },
+  "test_sha256": {
+    "tests/test_dashboard_bounded_pages.py": "692ec15cba6005deb29090e478ab99c6c5302abb33ce3e8af9aab9e9eef10c4c"
+  },
+  "original_evidence_unchanged": true,
+  "source_and_tests_frozen_for_final_full_gate": true
+}

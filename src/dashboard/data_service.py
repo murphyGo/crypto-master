@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import weakref
 from collections import OrderedDict
 from collections.abc import Callable, Generator
 from concurrent.futures import Future
@@ -63,6 +64,9 @@ class DashboardDataService:
         self._cache: OrderedDict[Query, CacheEntry] = OrderedDict()
         self._cache_bytes = 0
         self._jobs: OrderedDict[Query, Future[ReadResult]] = OrderedDict()
+        # A page may retain this tiny generation signal, never the Future or
+        # its completed payload. At most one signal per admitted job (four).
+        self._job_progress: dict[Query, threading.Event] = {}
         self._errors: dict[Query, tuple[float, str]] = {}
         self._closed = False
         self._active: Query | None = None
@@ -85,23 +89,9 @@ class DashboardDataService:
                     query, "service_closed", stage="admission", allow_stale=False
                 )
             now = time.monotonic()
-            entry = self._cache.get(query)
-            if entry and now - entry.evaluated <= self.limits.fresh_seconds:
-                self._cache.move_to_end(query)
-                return entry.result
-            if query.kind == "proposals" and query.window == "threshold":
-                # The threshold is lifetime/global in every complete proposal
-                # projection, including Home's 24h funnel. Borrow only that
-                # scalar and its original age/coverage, not windowed counts.
-                for key, cached in reversed(self._cache.items()):
-                    if (
-                        key.kind == "proposals"
-                        and key.root == query.root
-                        and cached.threshold is not None
-                        and now - cached.evaluated <= self.limits.fresh_seconds
-                        and replace(key, window="threshold") == query
-                    ):
-                        return cached.threshold
+            fresh = self._fresh_result(query, now, touch=True)
+            if fresh is not None:
+                return fresh
             error = self._errors.get(query)
             if error and now - error[0] < self.limits.fresh_seconds:
                 return self._fallback(query, error[1], stage="error_cache")
@@ -125,15 +115,82 @@ class DashboardDataService:
                         query, "root_budget_exhausted", stage="admission"
                     )
                 if len(self._jobs) >= self.limits.admitted:
-                    return self._fallback(query, "queue_full", stage="admission")
+                    return self._fallback(
+                        query,
+                        "queue_full",
+                        stage="admission",
+                        progress=self._admission_progress(query),
+                    )
                 future = Future()
                 self._jobs[query] = future
+                self._job_progress[query] = threading.Event()
                 self._condition.notify()
+            # Bind before waiting. Settlement and a new same-query job may
+            # race with TimeoutError; the original generation must still wake
+            # this page without inspecting or retaining the newer Future.
+            progress = self._job_progress[query].is_set
         try:
             return future.result(timeout=max(0, deadline - time.monotonic()))
         except TimeoutError:
             with self._condition:
-                return self._fallback(query, "rebuild_pending", stage="foreground_wait")
+                return self._fallback(
+                    query, "rebuild_pending", stage="foreground_wait", progress=progress
+                )
+
+    def _fresh_result(
+        self, query: Query, now: float, *, touch: bool = False
+    ) -> ReadResult | None:
+        """The caller holds the condition; progress polling never touches LRU."""
+        entry = self._cache.get(query)
+        if entry and now - entry.evaluated <= self.limits.fresh_seconds:
+            if touch:
+                self._cache.move_to_end(query)
+            return entry.result
+        if query.kind == "proposals" and query.window == "threshold":
+            # Borrow only a compatible fresh scalar and its original age.
+            for key, cached in reversed(self._cache.items()):
+                if (
+                    key.kind == "proposals"
+                    and key.root == query.root
+                    and cached.threshold is not None
+                    and now - cached.evaluated <= self.limits.fresh_seconds
+                    and replace(key, window="threshold") == query
+                ):
+                    return cached.threshold
+        return None
+
+    def _admission_progress(self, query: Query) -> Callable[[], bool]:
+        service_ref = weakref.ref(self)
+
+        def ready() -> bool:
+            service = service_ref()
+            if service is None:
+                return True
+            with service._condition:
+                if service._closed or query in service._jobs:
+                    return True
+                now = time.monotonic()
+                if service._fresh_result(query, now) is not None:
+                    return True
+                error = service._errors.get(query)
+                if error and now - error[0] < service.limits.fresh_seconds:
+                    return True
+                active_roots = {key.root for key in service._jobs}
+                # Model request-time retirement without evicting anything.
+                roots = active_roots | {
+                    key.root
+                    for key, cached in service._cache.items()
+                    if not (
+                        key.root != query.root
+                        and key.root not in active_roots
+                        and now - cached.evaluated > service.limits.stale_seconds
+                    )
+                }
+                if query.root not in roots and len(roots) >= service.limits.roots:
+                    return False
+                return len(service._jobs) < service.limits.admitted
+
+        return ready
 
     def _build_cached(
         self, query: Query, limits: Limits
@@ -148,7 +205,13 @@ class DashboardDataService:
         )
 
     def _fallback(
-        self, query: Query, reason: str, *, stage: str, allow_stale: bool = True
+        self,
+        query: Query,
+        reason: str,
+        *,
+        stage: str,
+        allow_stale: bool = True,
+        progress: Callable[[], bool] | None = None,
     ) -> ReadResult:
         entry = self._cache.get(query)
         age = time.monotonic() - entry.evaluated if entry else None
@@ -181,12 +244,14 @@ class DashboardDataService:
                 reason,
                 entry.evaluated,
                 retry=retry,
+                progress=progress,
             )
         else:
             result = ReadResult(
                 "pending" if reason == "rebuild_pending" else "unavailable",
                 reason=reason,
                 retry=retry,
+                progress=progress,
             )
         try:
             self._diagnostics.record(
@@ -246,6 +311,7 @@ class DashboardDataService:
                 if self._closed:
                     return
                 query, future = next(iter(self._jobs.items()))
+                progress = self._job_progress[query]
                 self._active = query
             iterator = None
             evaluated_at = query.at or utc_now()
@@ -366,13 +432,18 @@ class DashboardDataService:
                     iterator.close()
             with self._condition:
                 self._jobs.pop(query, None)
+                self._job_progress.pop(query, None)
                 self._active = None
                 future.set_result(result)
+                progress.set()
                 self._condition.notify_all()
 
     def close(self, *, timeout: float = 1.0) -> None:
         with self._condition:
             self._closed = True
+            for progress in self._job_progress.values():
+                progress.set()
+            self._job_progress.clear()
             for query, future in list(self._jobs.items()):
                 if query != self._active:
                     future.set_result(

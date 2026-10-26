@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-10-26T16:31:23.982223+00:00",
+  "verdict": "GREEN",
+  "iteration": "Followup to initial full-suite fixture failure; initial QA/source proof retained unchanged.",
+  "review": "Only one watcher mock in tests/test_dashboard_bounded_pages.py changed from lambda label to lambda label, progress=None; all section/message/one-watcher assertions remain. No runtime source edits.",
+  "full_suite_initial": {
+    "artifact": "full-pytest-initial.txt",
+    "outcome": "3 failed, 3005 passed in 221.80s",
+    "classification": "Old one-argument watcher mock incompatible with newly optional private progress argument; not suppressed product assertions."
+  },
+  "independent_followup_checks": {
+    "bounded_page_tests": "10 passed in 2.45s (Python 3.13.0)",
+    "black": "1 file unchanged",
+    "ruff": "All checks passed",
+    "diff_review": "No blocker"
+  },
+  "aggregate_distinct_focused_cases": 77,
+  "source_hashes_unchanged": {
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a"
+  },
+  "changed_test_sha256": "692ec15cba6005deb29090e478ab99c6c5302abb33ce3e8af9aab9e9eef10c4c",
+  "app_test_evidence_unchanged": "qa-fragment-smoke-result.json",
+  "final_full_suite": "Root running final exact-source/test iteration; no broader pass inferred yet."
+}

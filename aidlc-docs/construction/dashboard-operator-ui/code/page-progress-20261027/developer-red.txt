@@ -1,0 +1,18 @@
+Baseline behavioral regression run, before application changes:
+/Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest tests/test_dashboard_page_progress.py -q
+2 collected; 2 failed in 0.35s (Python 3.13.0)
+
+FAILED test_page_ready_while_unrelated_job_blocks_reruns_once
+  assert reruns == ["rerun"]
+  AssertionError: assert [] == ['rerun']
+  The page activity job completed while an unrelated audit job remained blocked.
+  Twenty real watcher polls did not trigger the expected single rerun.
+
+FAILED test_queue_full_page_notices_one_free_slot_without_global_drain
+  assert reruns == ["rerun"]
+  AssertionError: assert [] == ['rerun']
+  Four jobs filled admission; one completed and three remained active/queued.
+  The fifth page dependency had capacity, but the real watcher did not rerun.
+
+Both failures used the existing public service + show_availability + unwrapped
+watcher. Neither failure depended on a new progress attribute or constructor.

@@ -111,7 +111,9 @@ def test_pending_page_keeps_section_messages_with_one_watcher(
     )
     watchers = []
     monkeypatch.setattr(
-        availability, "_watch_background", lambda label: watchers.append(label)
+        availability,
+        "_watch_background",
+        lambda label, progress=None: watchers.append(label),
     )
     at = AppTest.from_string(
         f"from src.dashboard.pages.{page} import {entry}\n{entry}()"

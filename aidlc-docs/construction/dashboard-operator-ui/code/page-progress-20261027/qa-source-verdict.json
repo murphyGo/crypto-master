@@ -1,0 +1,54 @@
+{
+  "created_at": "2026-10-26T16:26:42.182116+00:00",
+  "verdict": "GREEN",
+  "baseline": "37b29d74d44b633dee7cf58d75dea0e89b6d1061",
+  "review_scope": "Page-dependent progress only; exact generation, capacity readiness, lifetime and purity. No trading, persistence, freshness, worker/quota or production-load changes.",
+  "findings": [],
+  "test_results": [
+    {
+      "command": "pytest tests/test_dashboard_page_progress.py tests/test_dashboard_availability.py tests/test_dashboard_data_service.py tests/test_dashboard_read_diagnostics.py -q -p no:cacheprovider",
+      "result": "67 passed in 2.25s",
+      "python": "3.13.0"
+    },
+    {
+      "command": "black --check (6 changed Python files)",
+      "result": "6 files unchanged"
+    },
+    {
+      "command": "ruff check --no-cache (6 changed Python files)",
+      "result": "All checks passed"
+    },
+    {
+      "command": "mypy (3 changed source files)",
+      "result": "Success: no issues found in 3 source files"
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass"
+    }
+  ],
+  "app_test": {
+    "result": "PASS",
+    "artifact": "qa-fragment-smoke-result.json",
+    "two_independent_sessions": true,
+    "shared_job_built_once": true,
+    "unrelated_job_remained_active": true,
+    "actual_fragment_closure_argument_capture_and_st_rerun": true,
+    "repeated_old_closure_no_second_rerun": true,
+    "exceptions": [],
+    "limits": "Explicit real-fragment closure dispatch inside AppTest; automatic browser timers and native viewport not qualified."
+  },
+  "source_and_test_hashes": {
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "tests/test_dashboard_availability.py": "142e561720111eaa6162c7c5a20a9e435db219b9dc5dd7c9a70b1b59fce4e3ff",
+    "tests/test_dashboard_data_service.py": "0c223a0739e863287491f4600ac67c0a1e6caa16484948ed18003b7c3e988874",
+    "tests/test_dashboard_page_progress.py": "ef6519f2c6393ecc49dbec90471ca23323792e87b9fbf89532e4ba1a3bd8a1f3"
+  },
+  "source_unchanged_during_app_test": true,
+  "design_matrix": "qa-design-matrix.json",
+  "full_suite": "Root owns one final exact-source broader run; not duplicated by independent QA.",
+  "acceptance_boundary": "Design mechanism and source regression pass. v65/v64 failures remain; no claim that every live timeout or cold/native/depleted/1GiB criterion is fixed.",
+  "recommended_next_agent": "team-lead exact-source full-suite and existing-authority rollout"
+}

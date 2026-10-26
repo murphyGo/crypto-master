@@ -72,6 +72,9 @@ class ReadResult:
     # Explicit operator action only. Never serialize or compare query-bearing
     # callbacks, and never invoke them as part of automatic loading polling.
     retry: Callable[[], None] | None = field(default=None, compare=False, repr=False)
+    # Private, metadata-only progress for an unfinished read. Polling may only
+    # request a page rerender; it cannot admit work or change result coverage.
+    progress: Callable[[], bool] | None = field(default=None, compare=False, repr=False)
 
     @property
     def complete(self) -> bool:

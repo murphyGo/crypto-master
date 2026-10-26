@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Approved bounded runtime/checkpoint source gate:2916 tests, Black/Ruff11, mypy134; exact seeded projection parity. Fly v64 / dca38fb independently verified with 180 hashes, health and first 12-account monitor cycle; unseeded/native/depleted/concurrency/original1GiB remain open; CPU/cost deferred. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Page-dependent recovery source gate: 3008 tests, Black/Ruff7, mypy135 and independent77-case/AppTest review pass. Current v65 / 382c26b retains116/120 complete with4timeouts; scoped source commit/rollout pending. Original cold/native/depleted/1024MiB acceptance and CPU/cost deferral remain. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Approved streaming/typed-failure/checkpoint implementation verified with2916 tests and exact output evidence. V63 strategy work preserved and independently replayed on v64 / dca38fb; 180 deployed hashes, health and first monitor cycle pass. Original cold/native/depleted/concurrency/1GiB qualification remains; cost upgrade deferred. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Reproduced global-drain coupling corrected with exact-generation page progress; 3008-test source gate passes, same-capacity rollout pending. v65/source382c26b remains deployed with182 hashes verified and four failed concurrent views retained. Preserve original freshness/source proof and cold/native/depleted/1024MiB gates; cost upgrade deferred. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

@@ -1,0 +1,6 @@
+{
+  "completed_at": "2026-10-26T16:26:36.338325+00:00",
+  "command": "/Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m mypy src --cache-dir /private/tmp/crypto-master-page-progress-delivery-20261027/mypy-final-cache",
+  "result": "Success: no issues found in 135 source files",
+  "exit_code": 0
+}

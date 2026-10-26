@@ -1,0 +1,78 @@
+{
+  "created_at": "2026-10-26T16:20:47.396729+00:00",
+  "baseline": "37b29d74d44b633dee7cf58d75dea0e89b6d1061",
+  "design_verdict": "GREEN_FOR_BOUNDED_IMPLEMENTATION",
+  "implementation_status": "not yet independently reviewed",
+  "matrix": [
+    {
+      "id": "relevant_completion",
+      "obligation": "A page job completes while unrelated work remains blocked: no rerun before settlement, exactly one after, without global drain.",
+      "status": "required"
+    },
+    {
+      "id": "timeout_generation_race",
+      "obligation": "Force settlement between timeout and fallback; bind generation A before waiting. If same query generation B is admitted later, A remains ready and B remains pending independently.",
+      "status": "required"
+    },
+    {
+      "id": "capacity_release",
+      "obligation": "Four admitted jobs reject fifth; one slot frees while unrelated work remains, fifth watcher becomes ready. Polling never admits the fifth itself.",
+      "status": "required"
+    },
+    {
+      "id": "capacity_concurrent_session",
+      "obligation": "Another session admits the rejected query while total admitted stays four; same-query coalescing is useful progress. Unrelated refill with no usable query state must not cause repeated reruns.",
+      "status": "required"
+    },
+    {
+      "id": "usable_state_scope",
+      "obligation": "With full queue, fresh exact/threshold-compatible result or fresh terminal error can make the rejected query useful; wrong root/account/mode/scope/window must not. Expired >2s result cannot become complete.",
+      "status": "required"
+    },
+    {
+      "id": "root_admission",
+      "obligation": "Pure capacity probe mirrors normal expired-inactive-other-root retirement; blocked active roots stay protected. Probe does not actually evict cache or change LRU order.",
+      "status": "required"
+    },
+    {
+      "id": "poll_purity",
+      "obligation": "Repeated polls do not call request, builder, Query.normalized, filesystem resolution, retry callbacks, or diagnostics; admission/cache/error/timestamps remain unchanged.",
+      "status": "required"
+    },
+    {
+      "id": "terminal_failure",
+      "obligation": "Pending generation may settle as source_changed/invalid_record and trigger one redraw. The terminal result has no progress callback; polling never clears errors. Existing 2s error-cache/request semantics and explicit retry generation guards remain unchanged.",
+      "status": "required"
+    },
+    {
+      "id": "freshness_invariants",
+      "obligation": "Retain fast-sibling expiry behind slow work: original verification epoch remains; >2s is reverified or stale, never relabeled complete. Preserve 4s foreground bound and 30s stale limit.",
+      "status": "required"
+    },
+    {
+      "id": "session_watcher_isolation",
+      "obligation": "Shared generation wakes every affected session independently. Nested sections and duplicate handles produce one watcher and one per-render latch; latch set before rerun. Exception/stop and next render clear prior ContextVar state.",
+      "status": "required"
+    },
+    {
+      "id": "handle_bounds_lifetime",
+      "obligation": "At most four service events and sixteen page probes; no Future/payload retention, no growing generation history. Overflow stops retaining probes and enables one legacy fallback. Optional field default/positional/equality/repr compatibility preserved.",
+      "status": "required"
+    },
+    {
+      "id": "shutdown",
+      "obligation": "Close marks queued and active progress signals even if an active builder is blocked; next render is service_closed. Polling creates no replacement worker or new service. Service weakref can expire safely.",
+      "status": "required"
+    }
+  ],
+  "constraints": [
+    "one worker",
+    "four admitted jobs",
+    "one watcher per page",
+    "two-second complete freshness",
+    "four-second foreground bound",
+    "manual terminal retry actions unchanged",
+    "no production load in QA"
+  ],
+  "historical_evidence": "v65 four timeouts and v64 failures retained; reproduced global-drain coupling is not proven sole cause of all live failures."
+}

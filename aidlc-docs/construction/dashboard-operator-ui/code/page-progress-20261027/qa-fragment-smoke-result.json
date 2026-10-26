@@ -1,0 +1,112 @@
+{
+  "started_at": "2026-10-26T16:25:26.229785+00:00",
+  "source_hashes_before": {
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a"
+  },
+  "scope": "Actual local Streamlit AppTest fragment closure, argument capture, st.rerun and session isolation. Explicit closure dispatch, not browser timer/native viewport qualification.",
+  "production_load_added": false,
+  "sessions": [
+    {
+      "initial": {
+        "renders": 1,
+        "read_status": "pending",
+        "fragment_dispatches": 0,
+        "dispatches_that_returned": 0,
+        "fragment_count": 1,
+        "exceptions": [],
+        "metrics": []
+      },
+      "after_ready_dispatch": {
+        "renders": 2,
+        "read_status": "complete",
+        "fragment_dispatches": 1,
+        "dispatches_that_returned": 0,
+        "fragment_count": 0,
+        "exceptions": [],
+        "metrics": [
+          {
+            "label": "Ready",
+            "value": "7"
+          }
+        ]
+      },
+      "after_repeated_old_dispatch": {
+        "renders": 3,
+        "read_status": "complete",
+        "fragment_dispatches": 2,
+        "dispatches_that_returned": 1,
+        "fragment_count": 1,
+        "exceptions": [],
+        "metrics": [
+          {
+            "label": "Ready",
+            "value": "7"
+          }
+        ]
+      }
+    },
+    {
+      "initial": {
+        "renders": 1,
+        "read_status": "pending",
+        "fragment_dispatches": 0,
+        "dispatches_that_returned": 0,
+        "fragment_count": 1,
+        "exceptions": [],
+        "metrics": []
+      },
+      "after_ready_dispatch": {
+        "renders": 2,
+        "read_status": "complete",
+        "fragment_dispatches": 1,
+        "dispatches_that_returned": 0,
+        "fragment_count": 0,
+        "exceptions": [],
+        "metrics": [
+          {
+            "label": "Ready",
+            "value": "7"
+          }
+        ]
+      },
+      "after_repeated_old_dispatch": {
+        "renders": 3,
+        "read_status": "complete",
+        "fragment_dispatches": 2,
+        "dispatches_that_returned": 1,
+        "fragment_count": 1,
+        "exceptions": [],
+        "metrics": [
+          {
+            "label": "Ready",
+            "value": "7"
+          }
+        ]
+      }
+    }
+  ],
+  "calls": {
+    "activity": 1,
+    "audit": 1
+  },
+  "service_before_cleanup": {
+    "cache_bytes": 4431,
+    "entries": 1,
+    "admitted": 1,
+    "workers": 1
+  },
+  "verdict": "PASS",
+  "source_hashes_after": {
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a"
+  },
+  "source_hashes_unchanged": true,
+  "fixture_hashes": {
+    "qa-fragment-smoke.py": "c2bf1b071a1fe8997d9149db1af601a049721f7c784efadda5d75a07be382f53",
+    "qa-fragment-smoke-app.py": "77ee1aa3c815335c6007f0d8ba3e87e77ed34025aae31a98367bd41759eac777"
+  },
+  "completed_at": "2026-10-26T16:25:26.332521+00:00"
+}

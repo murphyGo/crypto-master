@@ -400,7 +400,9 @@ def test_five_home_queries_queue_full_release_and_watcher_coalescing(
     monkeypatch.setattr(availability.st, "info", lambda message: None)
     monkeypatch.setattr(availability.st, "warning", lambda message: None)
     monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: False)
-    monkeypatch.setattr(availability, "_watch_background", watchers.append)
+    monkeypatch.setattr(
+        availability, "_watch_background", lambda label, *_: watchers.append(label)
+    )
 
     @availability.watch_loading
     def render(results):
@@ -447,7 +449,9 @@ def test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age(
     watchers, buttons = [], []
     monkeypatch.setattr(availability.st, "warning", lambda message: None)
     monkeypatch.setattr(availability.st, "info", lambda message: None)
-    monkeypatch.setattr(availability, "_watch_background", watchers.append)
+    monkeypatch.setattr(
+        availability, "_watch_background", lambda label, *_: watchers.append(label)
+    )
     monkeypatch.setattr(
         availability.st,
         "button",

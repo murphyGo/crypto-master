@@ -320,6 +320,21 @@ for all four timeouts. The historical two Home failures retain unknown causes;
 cold/native/depleted/original-guest and full readiness acceptance remain open.
 See `docs/sessions/2026-10-26-dashboard-home-recovery-diagnostics.md`.
 
+**2026-10-27 page-dependent recovery source checkpoint:** Corrected the
+reproduced dependency on global queue drain. A page observes compact signals
+for its own admitted generation and read-only admission readiness; unrelated
+jobs need not finish. At most sixteen private probes and one latch per render,
+one worker/four jobs and the original freshness/validation/manual retry
+contracts remain. Baseline two behavioral failures now pass, independent
+focused coverage is 77 cases, actual two-session Streamlit closure/rerun smoke
+passes, and final full pytest passes 3,008 tests in 231.58 s. Black/Ruff seven
+files and mypy 135 pass; all 261 inputs remain unchanged during final pytest.
+The first full run's three old mock-signature failures are preserved and fixed
+without changing runtime hashes. Source commit/push and same-capacity rollout
+remain next; current production is v65. This is not proof that all four v65
+timeouts share that cause or that full DEBT-083 acceptance is achieved. See
+`docs/sessions/2026-10-27-dashboard-page-progress.md`.
+
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
 | Field | Value |

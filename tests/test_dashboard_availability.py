@@ -17,7 +17,7 @@ def loading_ui(monkeypatch):
     monkeypatch.setattr(availability.st, "warning", messages.append)
     monkeypatch.setattr(availability.st, "button", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        availability, "_watch_background", lambda label: watchers.append(label)
+        availability, "_watch_background", lambda label, *_: watchers.append(label)
     )
     return messages, watchers
 
@@ -116,7 +116,7 @@ def test_concurrent_renders_each_schedule_one_watcher(loading_ui, monkeypatch):
     monkeypatch.setattr(
         availability,
         "_watch_background",
-        lambda label: watchers.append(current_thread().name),
+        lambda label, *_: watchers.append(current_thread().name),
     )
 
     @availability.watch_loading
