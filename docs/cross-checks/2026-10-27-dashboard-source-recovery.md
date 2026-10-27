@@ -1,5 +1,16 @@
 # Cross-check: bounded source-generation recovery — 2026-10-27 KST
 
+> **Final checkpoint — 2026-10-28 KST:** Source `7b87d9a` is committed/pushed
+> and deployed as v68, with182runtime hashes and unchanged configuration verified.
+> User requested stop/wrap-up. Observer and collector are stopped; exact remote
+> sampler is absent. Partial raw16/16complete is not readiness acceptance: no
+> full cycle/minimum duration/final health/CPU proof. Home warmup10.430s remains
+> over target. **USER_STOPPED_INCOMPLETE; DEBT-083 Critical/active.**
+> Final evidence: `aidlc-docs/construction/dashboard-operator-ui/code/`
+> `source-recovery-20261027/operations/`. Earlier pending statements below are
+> source-stage checkpoints superseded by this deployment/stop record.
+
+
 Primary unit `dashboard-operator-ui`; related `dashboard-operator-command-center`.
 Baseline main `7d604ad`, deployed source `120b440` / Fly v67. DEBT-083 remains
 Critical / active. This is an implementation checkpoint, not final source or

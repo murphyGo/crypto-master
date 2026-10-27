@@ -1,0 +1,54 @@
+{
+  "recorded_at": "2026-10-27T18:00:55.072925+00:00",
+  "status": "USER_STOPPED_INCOMPLETE",
+  "user_request": "일단 여기까지만하고 정리하자",
+  "observer_exit_code": 130,
+  "collector_exit_code": 0,
+  "collector": {
+    "diagnostic_events": 22,
+    "log_lines_seen": 9114,
+    "json_records_decoded": 294,
+    "client_exit_code": 127,
+    "stopped_by_collector": true,
+    "seconds": 84.01758266682737
+  },
+  "local_observer_uv_and_ssh_pids_absent": [
+    62620,
+    62659,
+    62948
+  ],
+  "raw_starts": 16,
+  "raw_outcomes": 16,
+  "raw_status_counts": {
+    "complete": 16
+  },
+  "periodic_summary": {
+    "seconds": 60.004382,
+    "starts": 12,
+    "outcomes": 12,
+    "final": false,
+    "health_samples": 12,
+    "full_cycle": null
+  },
+  "warmup": [
+    {
+      "page": "Home",
+      "status": "complete",
+      "seconds": 10.430146832950413,
+      "first_incomplete_shell_seconds": 5.085120290983468
+    },
+    {
+      "page": "Trading",
+      "status": "complete",
+      "seconds": 0.9746089589316398,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "acceptance": "NOT QUALIFIED: manually stopped before minimum duration/full natural cycle; periodic summary is not final; no final health artifact or CPU history captured.",
+  "deployment": "v68 source7b87d9a retained; no rollback or further observation requested.",
+  "remote_sampler_cleanup": {
+    "command_sha256": "993ca9278754830ad5b36f3cd26a30de99fa5f7ef9e2dec978f00b9cf48aafc7",
+    "matching_processes": 0,
+    "terminated": 0
+  }
+}

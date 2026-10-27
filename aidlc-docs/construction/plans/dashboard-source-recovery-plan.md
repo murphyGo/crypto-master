@@ -43,8 +43,8 @@ and cold/native/depleted/original 1024 MiB gates remain independently open.
 - [x] QA: independent race/age/source-proof/manual-retry/close review and tests.
 - [x] Lead: final full `uv run pytest`, changed-file Black/Ruff and `mypy src`;
   freeze final source hashes and meaningful source/canonical parity evidence.
-- [ ] Docs: session/cross-check/state/debt-map/TECH-DEBT updates.
-- [ ] Lead: source commit/push, remote exact confirmation; same-config deploy.
+- [x] Docs: session/cross-check/state/debt-map/TECH-DEBT updates.
+- [x] Lead: source commit/push, remote exact confirmation; same-config deploy.
 - [ ] Lead/QA: source/image/settings/health verification; one bounded four-session
   observation including a full natural engine cycle; retain every failure.
 - [ ] Lead/docs: operational evidence and separate commit/push confirmation.
@@ -73,3 +73,9 @@ the exact v67 image for persistent new page unavailability after stable-source
 evidence, as well as persistent health/process/bounds regression. Cycle completion
 is a timing proxy, not proof that every source stopped changing. Do not hide a
 failed sample with manual refresh, retry-budget expansion or a second load run.
+
+User stopped work on2026-10-28KST. Source7b87d9a is pushed/deployed as v68;
+182hashes/settings verified. Long observation remains unchecked/incomplete,
+with partial16complete outcomes and no full-cycle qualification. All owned
+collection processes stopped. Final stop record is committed separately;
+resume only on new user instruction.

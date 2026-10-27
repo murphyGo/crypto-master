@@ -1,0 +1,11 @@
+{
+  "source": "7b87d9adee6fa05f2c0471360c85c7c0c9f38e34",
+  "base_release": 67,
+  "base_image": "sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+  "files": [
+    "src/dashboard/data_service.py",
+    "src/dashboard/read_diagnostics.py"
+  ],
+  "runtime_manifest_expected_files": 182,
+  "context": "/private/tmp/crypto-master-source-recovery-delivery-20261027/context-7b87d9adee6f"
+}

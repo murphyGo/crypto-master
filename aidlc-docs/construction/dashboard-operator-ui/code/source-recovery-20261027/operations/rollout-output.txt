@@ -1,0 +1,179 @@
+==> Verifying app config
+--> Verified app config
+Validating fly.toml
+[33mWARN[0m Service HTTP check has a grace period greater than 1 minute (2m0s); this will be lowered to 1 minute
+[32m✓[0m Configuration is valid
+==> Building image
+Waiting for depot builder...
+
+==> Building image with Depot
+--> build:  (​)
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile:
+#1 transferring dockerfile: 377B 0.6s done
+#1 DONE 0.6s
+
+#2 [internal] load metadata for registry.fly.io/crypto-master@sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382
+#2 DONE 1.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context:
+#3 transferring context: 2B 0.4s done
+#3 DONE 0.4s
+
+#4 [1/3] FROM registry.fly.io/crypto-master@sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382
+#4 resolve registry.fly.io/crypto-master@sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 32.42kB 0.8s done
+#5 DONE 0.8s
+
+#6 [2/3] COPY src/dashboard/data_service.py /app/src/dashboard/data_service.py
+#6 DONE 0.0s
+
+#7 [3/3] COPY src/dashboard/read_diagnostics.py /app/src/dashboard/read_diagnostics.py
+#7 DONE 0.0s
+
+#8 exporting to image
+#8 exporting layers 0.1s done
+#8 exporting manifest sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f done
+#8 exporting config sha256:94df49d66b4caf558875072edf4eb9949e49fb300f3679f05eab6d42b674c1ab done
+#8 pushing layers for registry.fly.io/crypto-master:git-7b87d9adee6fa05f2c0471360c85c7c0c9f38e34@sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f
+#8 pushing layer sha256:94df49d66b4caf558875072edf4eb9949e49fb300f3679f05eab6d42b674c1ab
+#8 pushing layer sha256:782c024cba6d02b2f116f602dd860e1a399aeb5625934c5fc7d0de4907eeabad
+#8 pushing layer sha256:ecb501c36cd98fd6df5f35ddbe476b53395478c4cee1c6af115f8bcf738066b3
+#8 pushing layer sha256:bf61d2c2e2d8dbf7cb369cf005dbe7f05d81411c4425c0cc53c3f60e316bdbdd
+#8 pushing layer sha256:86942277a7e695824c6ced0a8c441fc2f04031e7a5060bc8564eb12a378095c8
+#8 pushing layer sha256:fa5459d3e4699f215de2cf7237a66ef1361862fcf176164b9b320095a5dd540a
+#8 pushing layer sha256:4f6d2d8d1653260bea0ad4d25effe6d9cb32aae7ee1f6d321a6583676e49e8da
+#8 pushing layer sha256:f932465a746afed769b9aca9e86fd09d2aa3f6f876351bc2aca5636a428923f7
+#8 pushing layer sha256:2c1ce468d9f3d941396801f6e3afc8921466650dd05430fe644cd3537713d27f
+#8 pushing layer sha256:02ee22e3da40dc4889596f2fd9f24fdcf62733f4486a109c33b9313c8285c62d
+#8 pushing layer sha256:db80c79e128fb2d330c838fa8e226e05896b504562fff8579a4924f21730a6f1
+#8 pushing layer sha256:b11f411827bd94422e42ac7bc8bed99889b0bcf5ad3a9f426572538257eaccd8
+#8 pushing layer sha256:3fde63f1836b9bf0ec55a3ee9af01012ecfd08e99b74871b03d175f5ed5f32a4
+#8 pushing layer sha256:194d15d8ff541f2cc273f28a8d91e1160b1f89b2a9510a6372dd68657ae681e0
+#8 pushing layer sha256:c718b964f117e12b3edad7973963950f04e8613333d0d11b0e71c6f42bd34fe3
+#8 pushing layer sha256:0712a14ef28e291fd13662d0f3606b18d06832bc95c195dd74849efaddcbf548
+#8 pushing layer sha256:e90f6860a60091d4ab215e573affd8a91c982c8a6d87cb64817e27d768636c2d
+#8 pushing layer sha256:c971dd51b3dcdab1ad56f0c54bebdcc4f3e18e30138845959839b2a6f1d46de4
+#8 pushing layer sha256:bfda06523d35c4d763f6aaaf1c5b70515f304f2683521f55a2a7546b8458ab4e
+#8 pushing layer sha256:4a2e64ef4e1f64b7d74187d56f895d168cb43a2c907a1eed72921b6c72f7c6c3
+#8 pushing layer sha256:cbdfaaacc20b434567a62eabbd75157b5f7917ca1358be1a33723aaf3ce3a5bf
+#8 pushing layer sha256:61e5481baa5e981adf4a4ea4ae9b9d164845690da4c31f7ecdfc9445e2fa009a
+#8 pushing layer sha256:1af589c737c1bff9ef01f5adfdc19a726df6f54be15db8a88134c7cc1f68449e
+#8 pushing layer sha256:d345421026fb272cf8e4582965937a16bf4b09277334e942a4b2020a7cfc3229
+#8 pushing layer sha256:51097bda0f04392ed7fd826eaede2904c9515281defc44bd39e909f966ce1c89
+#8 pushing layer sha256:4135df2a44d9c6c4010fb41e51ebae20c8dcba23c3053048cc19179e6076b1ed
+#8 pushing layer sha256:95dfff512b2a7d6ddb8a4e02c440c880bc2f173c526d3bc60a898195900097f7
+#8 pushing layer sha256:3d4b62791eb2f0c65a731530530b3051894ffa6b210142157c0ab767c85a9a8e
+#8 pushing layer sha256:65c7b88e102a5b036b87e9e025c7f6431b9bdc84d874e3f57a5552ead91813ea
+#8 pushing layer sha256:c2e83c0d0b4d99074d0c2e099a7528e9bd812a97b4cb5322cd36d866dbb79d40
+#8 pushing layer sha256:734a347efe9892b61a8e42588eae78b7599a97b6e144918492a066f3e44578d1
+#8 pushing layer sha256:36392ee8b932dc3eb313087a75efc74418d2042a78242dd98014fc7fc697ab9c
+#8 pushing layer sha256:f9bde34a866db14fa25566e93725fab1e858a986f7355bc79a1660dafe734204
+#8 pushing layer sha256:2cc9b81952d3e9ed23cc8b57cc3de49271e731f0048b336e8a397ffcae2111f4
+#8 pushing layer sha256:636a0acd0771553187ce086c73039ccc9214e6eddb4c57ae6348a5840732dd1a
+#8 pushing layer sha256:f926f7665ab13e8b750ce1fd08f54444b127008a0ec8b22dbc5a0285c399e8dc
+#8 pushing layer sha256:d8d2e5ec6ca45f8dbec8c9c8c0e1b574137ebb446c9178d88387770379592aa2
+#8 pushing layer sha256:d963b28a88ede69fa2a0e08e87d885932a99212fa5b5ea008eae7e692e06303f
+#8 pushing layer sha256:8f86455f451fdddf164a0a0ab476101f7d8356845e9c21909afec83151268886
+#8 pushing layer sha256:6e97236f0dfc5a9f88c352f1247f0d820064a04a1f11779ea0b9b746bcfd409d
+#8 pushing layer sha256:0f514cc8b375854e903f2766cd4588ff33a99d1a29cecb935fd876ee0688c43b
+#8 pushing layer sha256:8a4e8a1344560b68898f1369bf24cce2dd3b26084a19e60f001471ce266209cf
+#8 pushing layer sha256:b15b3d8045c53e5f04fd36974523d30ee02a1e2ec8c333c533d361360da58d88
+#8 pushing layer sha256:b7a669e723cd9249912ba520ccdbac7d4905c41eafa5e31b223c3c081340bf0f
+#8 pushing layer sha256:dec2a3410a352a282342881388583c98f06382111ee5a43019f53a8c2cd2c591
+#8 pushing layer sha256:578ca58094421be5a4a2465fb6316b7a74293bbf078d9f6d3263d1b247d8e78e
+#8 pushing layer sha256:6c2f3e344d76f64f6a1518a1e6cb2b20ec844a71e64d2c4837cd9d512e9c7212
+#8 pushing layer sha256:2d1f1f3efa2cd26af63288822d9cb4b22aa288ecf844ae8102faa066ed225d9f
+#8 pushing layer sha256:fa7b4c30878ba38ae1f4a405b1c39c0ad80c13a86f6bb55fe4a602fdb4856f67
+#8 pushing layer sha256:c0b4a8c4c15573505cc36a52fa5122f49eca87de534441f0a1d7b233608543ce
+#8 pushing layer sha256:d2a76728a0eb1653ed61738ca4e24033df2b7a8aae86d62f87cef1e7a47eea6d
+#8 pushing layer sha256:e2580ca08043d2917601cd316515f2a3d6b152c3bf1e5620c4bee24d27801fb5
+#8 pushing layer sha256:fe835dacb660a5c712def1e82cfa9a14eef82438a5d689f2845701ad2321931a
+#8 pushing layer sha256:2c1ce468d9f3d941396801f6e3afc8921466650dd05430fe644cd3537713d27f 0.4s done
+#8 pushing layer sha256:4f6d2d8d1653260bea0ad4d25effe6d9cb32aae7ee1f6d321a6583676e49e8da 2.7s done
+#8 pushing layer sha256:fa5459d3e4699f215de2cf7237a66ef1361862fcf176164b9b320095a5dd540a 2.8s done
+#8 pushing layer sha256:f932465a746afed769b9aca9e86fd09d2aa3f6f876351bc2aca5636a428923f7 2.7s done
+#8 pushing layer sha256:94df49d66b4caf558875072edf4eb9949e49fb300f3679f05eab6d42b674c1ab 3.3s done
+#8 pushing layer sha256:782c024cba6d02b2f116f602dd860e1a399aeb5625934c5fc7d0de4907eeabad 3.4s done
+#8 pushing layer sha256:ecb501c36cd98fd6df5f35ddbe476b53395478c4cee1c6af115f8bcf738066b3 3.4s done
+#8 pushing layer sha256:86942277a7e695824c6ced0a8c441fc2f04031e7a5060bc8564eb12a378095c8 3.4s done
+#8 pushing layer sha256:db80c79e128fb2d330c838fa8e226e05896b504562fff8579a4924f21730a6f1 3.4s done
+#8 pushing layer sha256:b11f411827bd94422e42ac7bc8bed99889b0bcf5ad3a9f426572538257eaccd8 3.3s done
+#8 pushing layer sha256:3fde63f1836b9bf0ec55a3ee9af01012ecfd08e99b74871b03d175f5ed5f32a4 3.3s done
+#8 pushing layer sha256:194d15d8ff541f2cc273f28a8d91e1160b1f89b2a9510a6372dd68657ae681e0 3.4s done
+#8 pushing layer sha256:0712a14ef28e291fd13662d0f3606b18d06832bc95c195dd74849efaddcbf548 3.3s done
+#8 pushing layer sha256:e90f6860a60091d4ab215e573affd8a91c982c8a6d87cb64817e27d768636c2d 3.4s done
+#8 pushing layer sha256:c971dd51b3dcdab1ad56f0c54bebdcc4f3e18e30138845959839b2a6f1d46de4 3.6s done
+#8 pushing layer sha256:bfda06523d35c4d763f6aaaf1c5b70515f304f2683521f55a2a7546b8458ab4e 3.6s done
+#8 pushing layer sha256:4a2e64ef4e1f64b7d74187d56f895d168cb43a2c907a1eed72921b6c72f7c6c3 3.6s done
+#8 pushing layer sha256:cbdfaaacc20b434567a62eabbd75157b5f7917ca1358be1a33723aaf3ce3a5bf 3.6s done
+#8 pushing layer sha256:4135df2a44d9c6c4010fb41e51ebae20c8dcba23c3053048cc19179e6076b1ed 3.7s done
+#8 pushing layer sha256:61e5481baa5e981adf4a4ea4ae9b9d164845690da4c31f7ecdfc9445e2fa009a 3.7s done
+#8 pushing layer sha256:1af589c737c1bff9ef01f5adfdc19a726df6f54be15db8a88134c7cc1f68449e 3.7s done
+#8 pushing layer sha256:d345421026fb272cf8e4582965937a16bf4b09277334e942a4b2020a7cfc3229 3.7s done
+#8 pushing layer sha256:51097bda0f04392ed7fd826eaede2904c9515281defc44bd39e909f966ce1c89 3.7s done
+#8 pushing layer sha256:f9bde34a866db14fa25566e93725fab1e858a986f7355bc79a1660dafe734204 3.8s done
+#8 pushing layer sha256:95dfff512b2a7d6ddb8a4e02c440c880bc2f173c526d3bc60a898195900097f7 4.0s done
+#8 pushing layer sha256:3d4b62791eb2f0c65a731530530b3051894ffa6b210142157c0ab767c85a9a8e 4.0s done
+#8 pushing layer sha256:65c7b88e102a5b036b87e9e025c7f6431b9bdc84d874e3f57a5552ead91813ea 4.0s done
+#8 pushing layer sha256:c2e83c0d0b4d99074d0c2e099a7528e9bd812a97b4cb5322cd36d866dbb79d40 4.0s done
+#8 pushing layer sha256:f926f7665ab13e8b750ce1fd08f54444b127008a0ec8b22dbc5a0285c399e8dc 4.1s done
+#8 pushing layer sha256:734a347efe9892b61a8e42588eae78b7599a97b6e144918492a066f3e44578d1 7.8s done
+#8 pushing layer sha256:d8d2e5ec6ca45f8dbec8c9c8c0e1b574137ebb446c9178d88387770379592aa2 7.8s done
+#8 pushing layer sha256:36392ee8b932dc3eb313087a75efc74418d2042a78242dd98014fc7fc697ab9c 8.2s done
+#8 pushing layer sha256:636a0acd0771553187ce086c73039ccc9214e6eddb4c57ae6348a5840732dd1a 8.2s done
+#8 pushing layer sha256:bf61d2c2e2d8dbf7cb369cf005dbe7f05d81411c4425c0cc53c3f60e316bdbdd 8.2s done
+#8 pushing layer sha256:2cc9b81952d3e9ed23cc8b57cc3de49271e731f0048b336e8a397ffcae2111f4 8.2s done
+#8 pushing layer sha256:d963b28a88ede69fa2a0e08e87d885932a99212fa5b5ea008eae7e692e06303f 8.2s done
+#8 pushing layer sha256:8f86455f451fdddf164a0a0ab476101f7d8356845e9c21909afec83151268886 8.2s done
+#8 pushing layer sha256:6e97236f0dfc5a9f88c352f1247f0d820064a04a1f11779ea0b9b746bcfd409d 8.2s done
+#8 pushing layer sha256:0f514cc8b375854e903f2766cd4588ff33a99d1a29cecb935fd876ee0688c43b 8.2s done
+#8 pushing layer sha256:8a4e8a1344560b68898f1369bf24cce2dd3b26084a19e60f001471ce266209cf 8.2s done
+#8 pushing layer sha256:b15b3d8045c53e5f04fd36974523d30ee02a1e2ec8c333c533d361360da58d88 8.2s done
+#8 pushing layer sha256:578ca58094421be5a4a2465fb6316b7a74293bbf078d9f6d3263d1b247d8e78e 8.2s done
+#8 pushing layer sha256:c718b964f117e12b3edad7973963950f04e8613333d0d11b0e71c6f42bd34fe3 8.6s done
+#8 pushing layer sha256:b7a669e723cd9249912ba520ccdbac7d4905c41eafa5e31b223c3c081340bf0f 8.7s done
+#8 pushing layer sha256:dec2a3410a352a282342881388583c98f06382111ee5a43019f53a8c2cd2c591 8.7s done
+#8 pushing layer sha256:6c2f3e344d76f64f6a1518a1e6cb2b20ec844a71e64d2c4837cd9d512e9c7212 8.7s done
+#8 pushing layer sha256:2d1f1f3efa2cd26af63288822d9cb4b22aa288ecf844ae8102faa066ed225d9f 8.7s done
+#8 pushing layer sha256:fa7b4c30878ba38ae1f4a405b1c39c0ad80c13a86f6bb55fe4a602fdb4856f67 8.7s done
+#8 pushing layer sha256:c0b4a8c4c15573505cc36a52fa5122f49eca87de534441f0a1d7b233608543ce 8.7s done
+#8 pushing layer sha256:d2a76728a0eb1653ed61738ca4e24033df2b7a8aae86d62f87cef1e7a47eea6d 8.7s done
+#8 pushing layer sha256:e2580ca08043d2917601cd316515f2a3d6b152c3bf1e5620c4bee24d27801fb5 8.7s done
+#8 pushing layer sha256:fe835dacb660a5c712def1e82cfa9a14eef82438a5d689f2845701ad2321931a 8.7s done
+#8 pushing layers for registry.fly.io/crypto-master:git-7b87d9adee6fa05f2c0471360c85c7c0c9f38e34@sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f 10.0s done
+#8 pushing layer sha256:02ee22e3da40dc4889596f2fd9f24fdcf62733f4486a109c33b9313c8285c62d 10.0s done
+#8 pushing manifest for registry.fly.io/crypto-master:git-7b87d9adee6fa05f2c0471360c85c7c0c9f38e34@sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f
+#8 pushing manifest for registry.fly.io/crypto-master:git-7b87d9adee6fa05f2c0471360c85c7c0c9f38e34@sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f 0.1s done
+#8 DONE 10.4s
+--> Build Summary:  (​)
+[38;5;252m--> Building image done[0m
+
+Watch your deployment at https://fly.io/apps/crypto-master/monitoring
+
+image: registry.fly.io/crypto-master:git-7b87d9adee6fa05f2c0471360c85c7c0c9f38e34
+image size: 546 MB
+--only-machines filter applied, deploying to 1/1 machines
+Updating existing machines in 'crypto-master' with rolling strategy
+> Acquiring lease for 6835752b711958
+> Acquired lease for 6835752b711958
+> Updating machine config for 6835752b711958
+> Updating 6835752b711958 [app]
+> Updated machine config for 6835752b711958
+> Waiting for machine 6835752b711958 to reach a good state
+> Machine 6835752b711958 reached started state
+> Running smoke checks on machine 6835752b711958
+> Running machine checks on machine 6835752b711958
+> Checking health of machine 6835752b711958
+✔ Machine 6835752b711958 is now in a good state
+> Clearing lease for 6835752b711958
+✔ Cleared lease for 6835752b711958
+Checking DNS configuration for crypto-master.fly.dev
+
+Visit your newly deployed app at https://crypto-master.fly.dev/
+
+✓ DNS configuration verified

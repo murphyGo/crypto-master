@@ -1,0 +1,77 @@
+{
+  "files": {
+    "Dockerfile.source-recovery-overlay": {
+      "bytes": 338,
+      "sha256": "746f73990d6ec12e72d92497a9ed39c290becd5967819dccff95a296b2bab06b"
+    },
+    "README.md": {
+      "bytes": 1431,
+      "sha256": "3869616e4902b85429d6768111f8f51874d92d8e5223d2550a949c864d3dd884"
+    },
+    "candidate.json": {
+      "bytes": 407,
+      "sha256": "0bf07a3e182be1000051c42716097b97f5966f126103fedf66aa9db006deef4e"
+    },
+    "deployment-verification.json": {
+      "bytes": 1065,
+      "sha256": "2d8c54c70e45adf67997575ad5d17819d2234c0672d18485b7c9ddb1bda32a46"
+    },
+    "partial-observation/v68-concurrency-summary.json": {
+      "bytes": 1887,
+      "sha256": "4d4259d1e1ef1ada6410ee544beca083b3c033287f06adf82c99c850b04b445c"
+    },
+    "partial-observation/v68-memory-samples.jsonl": {
+      "bytes": 35588,
+      "sha256": "f64aa5fca49a5d7dd3263b07b04df792d5dd61165b01c41bcc0f4dbbd75da05b"
+    },
+    "partial-observation/v68-observer-config.json": {
+      "bytes": 1003,
+      "sha256": "89e988848b07b63138daeded59f685d631e82edb87b18bb9114a2f8a55682650"
+    },
+    "partial-observation/v68-page-observations.jsonl": {
+      "bytes": 33565,
+      "sha256": "16f03d52c565055530ae752c07f88d221e0dac5a052c67a6ab5eef9539c4f9a0"
+    },
+    "partial-observation/v68-page-starts.jsonl": {
+      "bytes": 1640,
+      "sha256": "deb59dbd37ee23eb43cc67c84f583a1d60a013dd52af8a69404addf3d12b55c6"
+    },
+    "partial-observation/v68-warmup-page-observations.jsonl": {
+      "bytes": 4587,
+      "sha256": "c5848aa4e90d6bb4ccf0ba971245f597866d4fa7d55e6a1627a38873c9fe9279"
+    },
+    "partial-observation/v68-warmup-page-starts.jsonl": {
+      "bytes": 219,
+      "sha256": "202841e6afe552fd458364000d0bfce859399e99eb34300f273f095b375ce0b6"
+    },
+    "partial-observation/v68-warmup-protocol.json": {
+      "bytes": 6110,
+      "sha256": "c87b970cf478b252ee5a1be21586e6d8f76bd7da9aab1e3f6db32166a215c947"
+    },
+    "postdeploy.json": {
+      "bytes": 33484,
+      "sha256": "599ff3f7aa4fa33fdc3e3e0a898716961812493817cae0ec59a1b3b8d26ad2a2"
+    },
+    "rollout-output.txt": {
+      "bytes": 13253,
+      "sha256": "db9c4b83f86e2bde94eda61926a8282eed76ed621ffe927eca06ae7072c44ff6"
+    },
+    "status-after-deploy.json": {
+      "bytes": 4081,
+      "sha256": "bdaa596588d2acfc64784529dd791d1cb9197e693f7dc8ae068d09cc344af7d6"
+    },
+    "status-before-deploy.json": {
+      "bytes": 4079,
+      "sha256": "06b827bba6b598fdaa57d9893590eae60dddcc06249575b7ef882171746fd1c5"
+    },
+    "user-stop.json": {
+      "bytes": 1525,
+      "sha256": "6ae15e809adf64aa8599a813a269ffa7d651b6bd41fc82f7e3296e30219ccd35"
+    },
+    "v68-diagnostics-framed.jsonl": {
+      "bytes": 6508,
+      "sha256": "911b4d2e2096f783bea90d65190ba66629eef3f2e2c44523c3bb6cce23fe3b19"
+    }
+  },
+  "status": "USER_STOPPED_INCOMPLETE"
+}

@@ -1,0 +1,16 @@
+{"started_at": "2026-10-27T17:56:47.592373+00:00", "client": 0, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:56:48.175701+00:00", "client": 1, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:56:48.179076+00:00", "client": 2, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:56:49.080387+00:00", "client": 3, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:07.593420+00:00", "client": 0, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:08.175517+00:00", "client": 1, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:57:08.178863+00:00", "client": 2, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:09.081080+00:00", "client": 3, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:57:27.593630+00:00", "client": 0, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:57:28.176158+00:00", "client": 1, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:28.178567+00:00", "client": 2, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:57:29.081771+00:00", "client": 3, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:47.594234+00:00", "client": 0, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:48.176597+00:00", "client": 1, "page": "Home", "status": "started"}
+{"started_at": "2026-10-27T17:57:48.178242+00:00", "client": 2, "page": "Trading", "status": "started"}
+{"started_at": "2026-10-27T17:57:49.081794+00:00", "client": 3, "page": "Home", "status": "started"}

@@ -63,8 +63,9 @@ Construction artifacts are created just in time for new work. Existing Phase
 > renewing stale age or bypassing full proof. Protected exhaustion requires
 > exact manual retry; ready siblings run during retry backoff. Source passes
 > 3,048 full tests, 236 independent cases, Black/Ruff five files and mypy 135.
-> Two-session local fragment behavior is corroborated. Deployment/production
-> verification pending; long churn may still exhaust before stability. DEBT-083
+> Two-session local fragment behavior is corroborated. Source `7b87d9a` deployed
+> as v68 with182hashes and unchanged settings verified. User stopped observation
+> on2026-10-28KST; partial16/16complete does not qualify the full-cycle gate. DEBT-083
 > remains Critical/active with all historical failures and original gates.
 > See `docs/sessions/2026-10-27-dashboard-source-recovery.md`.
 

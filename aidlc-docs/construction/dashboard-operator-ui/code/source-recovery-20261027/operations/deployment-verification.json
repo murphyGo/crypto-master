@@ -1,0 +1,43 @@
+{
+  "source": "7b87d9adee6fa05f2c0471360c85c7c0c9f38e34",
+  "release": 68,
+  "instance": "01M5XRF2KW16P9SGMGF90GF5YT",
+  "image": "sha256:39a0d2d2e6ad9032878ca09dacdaa2ebe24b35b2f2d24016477670e55618967f",
+  "checks": {
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "source182match": true,
+    "public_internal_health": true
+  },
+  "cycles": [
+    {
+      "timestamp": "2026-10-27T04:04:18.924108Z",
+      "event_type": "cycle_started",
+      "cycle_id": "df177d6d-3606-40c8-a5f3-7b47961c2b44",
+      "details": {
+        "cycle_index": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-27T04:04:42.644858Z",
+      "event_type": "cycle_completed",
+      "cycle_id": "df177d6d-3606-40c8-a5f3-7b47961c2b44",
+      "details": {
+        "proposals": 1,
+        "accepted": 1,
+        "rejected": 1,
+        "opened": 0,
+        "closed": 0
+      }
+    }
+  ],
+  "engine_errors": [],
+  "observation_pending": true
+}
