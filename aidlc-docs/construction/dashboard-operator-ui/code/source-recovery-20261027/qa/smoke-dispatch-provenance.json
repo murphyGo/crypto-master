@@ -1,0 +1,8 @@
+{
+  "source_fixture": "recovery-fragment-app.py",
+  "adapted_fixture": "recovery-fragment-dispatch-app.py",
+  "change": "Explicit saved-fragment callback that returns ends its synthetic AppTest run via st.stop, matching fragment-only dispatch; it does not fall through into an artificial additional full render. st.rerun on settlement still executes the actual full app.",
+  "adapted_sha256": "c893b701fac96e7a42a046427480d0ecd46f190d36d71687abbf6a645a0544cf",
+  "native_timer_claim": false,
+  "first_run_pending": true
+}

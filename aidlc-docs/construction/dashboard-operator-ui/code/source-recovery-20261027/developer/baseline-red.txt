@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/crypto-master-source-recovery-20261027
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 3 items
+
+tests/test_dashboard_source_recovery.py FFF                              [100%]
+
+=================================== FAILURES ===================================
+__________ test_real_activity_change_recovers_from_cached_generation ___________
+tests/test_dashboard_source_recovery.py:53: in test_real_activity_change_recovers_from_cached_generation
+    assert changed and recovered.complete
+E   assert (True and False)
+E    +  where False = ReadResult(status='stale', payload=b'{"total":1,"metrics":{"total_cycles":1,"last_cycle_started_at":"2026-10-25T00:00:...etime(2026, 10, 25, 0, 0, tzinfo=datetime.timezone.utc), reason='source_changed', verified_monotonic=1019583.840158958).complete
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:23:47,034 {"admitted":1,"cache_age_seconds":3.001,"event":"dashboard_read_incomplete","kind":"activity","reason":"source_changed","stage":"projection","status":"stale"}
+___________ test_real_snapshot_replacements_recover_on_third_attempt ___________
+tests/test_dashboard_source_recovery.py:90: in test_real_snapshot_replacements_recover_on_third_attempt
+    assert changes == 2 and result.complete
+E   assert (1 == 2)
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:23:47,134 {"admitted":1,"cache_age_seconds":null,"event":"dashboard_read_incomplete","kind":"snapshots","reason":"source_changed","stage":"projection","status":"unavailable"}
+_________ test_four_clients_keep_one_future_and_progress_through_retry _________
+tests/test_dashboard_source_recovery.py:122: in test_four_clients_keep_one_future_and_progress_through_retry
+    assert result.complete and result.data() == {"attempt": 2}
+E   AssertionError: assert (False)
+E    +  where False = ReadResult(status='unavailable', payload=None, evaluated_at=None, reason='source_changed', verified_monotonic=0.0).complete
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:23:47,139 {"admitted":1,"cache_age_seconds":null,"event":"dashboard_read_incomplete","kind":"activity","reason":"rebuild_pending","stage":"foreground_wait","status":"pending"}
+2026-10-27 03:23:47,140 {"admitted":1,"cache_age_seconds":null,"event":"dashboard_read_incomplete","kind":"activity","reason":"source_changed","stage":"projection","status":"unavailable"}
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_source_recovery.py::test_real_activity_change_recovers_from_cached_generation
+FAILED tests/test_dashboard_source_recovery.py::test_real_snapshot_replacements_recover_on_third_attempt
+FAILED tests/test_dashboard_source_recovery.py::test_four_clients_keep_one_future_and_progress_through_retry
+============================== 3 failed in 3.43s ===============================

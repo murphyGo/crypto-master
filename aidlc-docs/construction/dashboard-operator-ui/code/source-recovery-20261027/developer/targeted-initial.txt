@@ -1,0 +1,40 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/crypto-master-source-recovery-20261027
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 74 items
+
+tests/test_dashboard_source_recovery.py .....................            [ 28%]
+tests/test_dashboard_data_service.py ..........F....F.F..                [ 55%]
+tests/test_dashboard_page_progress.py ...................                [ 81%]
+tests/test_dashboard_availability.py ..............                      [100%]
+
+=================================== FAILURES ===================================
+__ test_threshold_borrow_never_renews_source_age_or_hides_failed_revalidation __
+tests/test_dashboard_data_service.py:301: in test_threshold_borrow_never_renews_source_age_or_hides_failed_revalidation
+    assert result.reason == "source_changed" and calls == 2
+E   AssertionError: assert ('source_changed' == 'source_changed'
+E     
+E       source_changed and 4 == 2)
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:26:45,950 {"admitted":1,"cache_age_seconds":null,"event":"dashboard_read_incomplete","kind":"proposals","reason":"source_changed","stage":"retry_exhausted","status":"unavailable"}
+_ test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age __
+tests/test_dashboard_data_service.py:483: in test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age
+    assert calls["activity"] == calls["snapshots"] == 2
+E   assert 4 == 2
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:26:46,631 {"admitted":2,"cache_age_seconds":3.416,"event":"dashboard_read_incomplete","kind":"activity","reason":"rebuild_pending","stage":"foreground_wait","status":"stale"}
+____________ test_concurrent_explicit_retries_coalesce_one_new_read ____________
+tests/test_dashboard_data_service.py:548: in test_concurrent_explicit_retries_coalesce_one_new_read
+    assert failed.retry is not None
+E   AssertionError: assert None is not None
+E    +  where None = ReadResult(status='pending', payload=None, evaluated_at=None, reason='rebuild_pending', verified_monotonic=0.0).retry
+----------------------------- Captured stderr call -----------------------------
+2026-10-27 03:26:50,997 {"admitted":1,"cache_age_seconds":null,"event":"dashboard_read_incomplete","kind":"activity","reason":"rebuild_pending","stage":"foreground_wait","status":"pending"}
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_data_service.py::test_threshold_borrow_never_renews_source_age_or_hides_failed_revalidation
+FAILED tests/test_dashboard_data_service.py::test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age
+FAILED tests/test_dashboard_data_service.py::test_concurrent_explicit_retries_coalesce_one_new_read
+======================== 3 failed, 71 passed in 10.73s =========================

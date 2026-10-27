@@ -1,0 +1,64 @@
+{
+  "role": "independent qa-reviewer",
+  "verdict": "GREEN for approved finite recovery source policy",
+  "blockers": [],
+  "baseline": "7d604ad8dc36acb52e22d16830c841e274657250",
+  "exact_input_hashes": {
+    "src/dashboard/data_service.py": "64dfd467db127b85410d47225e4e7bcfacdc8c56a8be4574f6694683a32024b4",
+    "src/dashboard/read_diagnostics.py": "4012d7e5889a5601a74ce63041f442b0ea0228c87c17666520ee64a3f7ecbc43",
+    "tests/test_dashboard_source_recovery.py": "9d75f0252e7c4d2bfc6f810da48139d29d76afef4cf529287429f9c199f8e2e4",
+    "tests/test_dashboard_data_service.py": "dedc1d33091f53c56a09251e92953d9bc0571751efee19a5b1e1d175446a2701",
+    "tests/test_dashboard_read_diagnostics.py": "c3142b05df5b0203932606b92f5ea7ac6e83341eb1d66dea9671f3e635a9d1d4",
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471"
+  },
+  "input_hashes_unchanged_during_checks": true,
+  "source_scope": [
+    "src/dashboard/data_service.py",
+    "src/dashboard/read_diagnostics.py"
+  ],
+  "tests": {
+    "independent_targeted": "236 passed in9.44s",
+    "targeted_output": "independent-targeted.txt",
+    "black": "5files unchanged",
+    "ruff": "5files passed",
+    "mypy": "2source files passed",
+    "diff_check": "passed",
+    "actual_streamlit": "Two-session actual stored-fragment AppTest PASS;3attempts, originalFuture/Event retained, one watcher/no manual terminal button while pending, eachsession one rerun on success."
+  },
+  "coverage_review": [
+    "Real source mutation at Manifest.verify and two real atomic snapshot replacements require full re-discovery/revalidation; checkpoint enabled and disabled variants match canonical output.",
+    "Persistent churn exhausts max3; source_changed latch survives2second TTL/normal rerenders; manual exact-identity ABA clearing remains safe.",
+    "Admission-origin30second deadline includes queue delays and is checked on retries/cooperative work/publication; initial ordinary slow read remains compatible.",
+    "Expired complete2second freshness and original30second stale age are not renewed by failures/retry/threshold borrowing.",
+    "63sticky+1reserved and64full boundary, ordinary error eviction and samequery reservation covered; recovery_budget_exhausted is explicit and allowlisted.",
+    "Ready sibling runs during delayed retry; failed partial state weakref is released before next builder; one worker/four admissions maintained.",
+    "Iterator.close faults become terminal read_failed before publication; SystemExit worker quarantine settles all outstanding generations, no replacement thread.",
+    "Close during delay/active retry settles future/event and rejects late cache publication.",
+    "Availability/read_models/projection/source verification files unchanged from predesign hashes.",
+    "Original evaluated_at fallback at attempt start preserved; real projection generator fully drains cleanup before encoding and verified_monotonic capture."
+  ],
+  "implementation_decisions_confirmed": [
+    "Intermediate diagnostics use source_changed with retry_scheduled while foreground remains rebuild_pending; no terminal latch during remaining recovery.",
+    "Error token insertion and reservation settlement are one condition-locked transition.",
+    "Fresh compatible verified cache remains usable without erasing an exhaustion latch."
+  ],
+  "limits": [
+    "AppTest used local Streamlit1.57.0 and explicit saved-fragment dispatch, not deployed1.65 timer/nativeviewport qualification.",
+    "Root owns full-suite/source-wide static and deployment/operational acceptance.",
+    "The3attempt policy can exhaust before a34second mutationwave finishes; sticky exhaustion intentionally stops passiveTTL healing until manual action.",
+    "Persistent pageunavailability after sufficient source-quiescence evidence is an operational rollback consideration even whenHTTP/process health is good.",
+    "Previousv67 FAIL_SAMPLE and warmup/cold/native/depleted/original1GiB gates remain unchanged."
+  ],
+  "evidence": {
+    "smoke": "recovery-fragment-smoke-result.json",
+    "smoke_driver": "recovery_fragment_smoke.py",
+    "smoke_fixture": "recovery-fragment-dispatch-app.py",
+    "risk": "operational-risk-note.json",
+    "design": "design-review.json"
+  },
+  "application_docs_edits_by_QA": false,
+  "production_calls_or_load_by_QA": false
+}

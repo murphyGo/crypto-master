@@ -1,0 +1,81 @@
+{
+  "role": "independent qa-reviewer",
+  "phase": "design review before implementation",
+  "baseline": "7d604ad8dc36acb52e22d16830c841e274657250",
+  "verdict": "GREEN refined design; source and tests still pending",
+  "source_hashes_before": {
+    "src/dashboard/data_service.py": "48c1e4c1260f03ea3a862e07179e0665e20cea3a941a4f6395098c19146dc2b3",
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "src/dashboard/read_diagnostics.py": "83373891dc7c87e5d3d99064231998632206f9d84f28771deb47360706777061",
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471"
+  },
+  "approved_contract": [
+    "One logical admission owns same Future and compact Event through at most3 attempts.",
+    "Monotonic30second recovery budget originates at admission; .25/.5second delayed retries; initial slow read without source_changed preserves existing behavior.",
+    "Only source_changed retries automatically. Intermediate result remains rebuild_pending, with labelled stale only until original30second age.",
+    "Each attempt rebuilds/re-discovers/verifies; failed iterator/state is closed/discarded before another starts.",
+    "One worker/four admitted jobs remain; oldest ready job wins, delayed retries do not block eligible siblings or spin.",
+    "Exhausted source_changed latch survives ordinary2second error TTL and rerenders. Fresh independently verified compatible cached data may remain usable without changing the latch.",
+    "Combined sticky errors/admitted reservations capped at existing64-entry metadata pool; ordinary errors may evict, sticky exhaustion never silently evicts. New admission fails recovery_budget_exhausted when no slot remains.",
+    "Manual callback clears only matching exact-query error identity; close retires reservations and progress.",
+    "Ordinary cleanup fault becomes terminal read_failed and must settle Future/Event; no replacement thread."
+  ],
+  "test_obligations": [
+    {
+      "area": "transient recovery",
+      "cases": [
+        "first or second source_changed then success; exact builder attempt count; one shared Future/Event and one publication",
+        "four sessions join same query without multiplying budget",
+        "no incomplete intermediate source_changed terminal UI while recovery remains admitted"
+      ]
+    },
+    {
+      "area": "deadline",
+      "cases": [
+        "admission queue age counts against30seconds",
+        "retry due/start checks at boundary; cooperative yields/publication after first failure enforce deadline",
+        "original first slow successful read unchanged; no hard filesystem interruption claim"
+      ]
+    },
+    {
+      "area": "exhaustion",
+      "cases": [
+        "three failures latch; calls at2s/30s and rerenders do not read again",
+        "manual retry starts one new budget; stale callback cannot clear later latch/other query",
+        "fresh cache, complete2s and stale30s timestamps never reset on failure"
+      ]
+    },
+    {
+      "area": "metadata bounds",
+      "cases": [
+        "63sticky+one admitted reservation allowed;64sticky blocks new admission",
+        "ordinary errors evict before sticky; same-query old ordinary entry not double charged",
+        "new allowlisted recovery_budget_exhausted diagnostic; no hidden fifth admission or unbounded query map"
+      ]
+    },
+    {
+      "area": "fairness and cleanup",
+      "cases": [
+        "ready sibling runs while retry is delayed; multiple due jobs fair; condition waits without lock-held sleep",
+        "close during delay/builder/settlement schedules no retry; futures and events settle once",
+        "iterator.close raising ordinary exception becomes terminal read_failed and worker remains available",
+        "unexpected worker exit must not silently strand futures; clarify BaseException guarantee",
+        "weakrefs/GC show failed iterator/data/exception traceback not retained across attempts"
+      ]
+    },
+    {
+      "area": "source proof and UI",
+      "cases": [
+        "actual filesystem append/replace/membership churn fails each partial attempt; later stable full canonical result matches",
+        "other terminal read/budget/format reasons never retry",
+        "real Streamlit fragment/AppTest pending-event then one rerun; exhausted terminal has manual retry only",
+        "availability/read_models/projection proof hashes should remain unchanged for scoped patch"
+      ]
+    }
+  ],
+  "preserved_evidence": "v67 remains FAIL_SAMPLE356requests/348complete/8terminal incomplete, warmup Home12.956s/firstshell5.507s misses, sampled throttlecounter0. New source correctness does not retrospectively qualify it.",
+  "pending_design_note": "Developer notified that unexpected worker exits outside normal Exception handling must either terminalize all admitted generations without replacement or be explicitly excluded from generic crash-safety claims.",
+  "permissions": "Read-only application/docs; only task-owned QA artifacts written. No production query/load."
+}

@@ -1,0 +1,13 @@
+{
+  "scope": "Operational acceptance and rollback note; not a code-policy change",
+  "source_design": "Three attempts and a30second eligibility window bound cooperative retries. They do not guarantee recovery from a34second or longer mutation wave.",
+  "intentional_compatibility_change": "After exhausted source_changed, normal rerender and old2second errorTTL no longer re-admit. Explicit matching manual retry is required. This can leave a terminal page unavailable after data becomes quiet, unlike prior passive healing.",
+  "rollback_consideration": "Persistent page unavailability after sufficient retained evidence of source quiescence is a rollback trigger even if process/HTTP health is good. Preserve the failed observation regardless of rollback.",
+  "evidence_rules": [
+    "Separate retry_exhausted terminal outcomes from queued/pending work.",
+    "A cycle-completion timestamp alone is a proxy, not proof that every source stopped changing.",
+    "Use retained post-mutation/post-cycle request outcomes and available generation diagnostics; if quiet-period coverage is insufficient, mark recovery unqualified.",
+    "Do not expand retry attempts/duration, weaken verification or introduce extra production load to manufacture a pass."
+  ],
+  "source_qa_claim": "Correctness of the finite policy only. Operational suitability still requires the new bounded production observation."
+}

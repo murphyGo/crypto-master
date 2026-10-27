@@ -1,0 +1,66 @@
+{
+  "file_count": 15,
+  "files": {
+    "black.txt": {
+      "bytes": 56,
+      "sha256": "25369eabb8c122f861d58ddb255f81f4b9ee797f42f3882975bef953218258ed"
+    },
+    "mypy.txt": {
+      "bytes": 43,
+      "sha256": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8"
+    },
+    "ruff.txt": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "operational-risk-note.json": {
+      "bytes": 1398,
+      "sha256": "fb9d1de9ea7b3d064a73ca9dfda03362e8c4cf707e38290a713271f7a79da34b"
+    },
+    "smoke-dispatch-provenance.json": {
+      "bytes": 522,
+      "sha256": "eb6b4c5bb83a34bda0baf706e10ca4c0cd69f4876bc0043e09dc922c7ea50190"
+    },
+    "recovery-fragment-output.txt": {
+      "bytes": 7615,
+      "sha256": "7ee82e1273f0a1caa17edd797b4c4b03d65035a3defccdcda61fabffd90bd890"
+    },
+    "source-verdict.json": {
+      "bytes": 4658,
+      "sha256": "82c9314d400541002b815d320bcf94c6fa9c6159769dfbed78ebe2c4480b7c0d"
+    },
+    "recovery-fragment-dispatch-app.py": {
+      "bytes": 1602,
+      "sha256": "c893b701fac96e7a42a046427480d0ecd46f190d36d71687abbf6a645a0544cf"
+    },
+    "recovery-fragment-smoke-result.json": {
+      "bytes": 4438,
+      "sha256": "c422f6d1ae265a8015520a8eb18dbb8d7cc69733b77be727a9909b959496f80d"
+    },
+    "verification-inputs-before.json": {
+      "bytes": 955,
+      "sha256": "be27dc1f45d478aa4611f2e20d574197b956a7cb4e75cd587a936cebe944c8f2"
+    },
+    "smoke-fixture-provenance.json": {
+      "bytes": 489,
+      "sha256": "6fdd6751d0526e03e2edf33476fed6f87428ae0afe4ebe61a551cc12179f9653"
+    },
+    "recovery_fragment_smoke.py": {
+      "bytes": 5151,
+      "sha256": "a20d11dad6070983af8781c331e099e310a54faedb5966b1884245dda355f903"
+    },
+    "independent-targeted.txt": {
+      "bytes": 1308,
+      "sha256": "75090e44adbd1b8bdf64240c241101f043bd4c9fefdb2a53364d6a52fca220b3"
+    },
+    "recovery-fragment-app.py": {
+      "bytes": 1385,
+      "sha256": "77ee1aa3c815335c6007f0d8ba3e87e77ed34025aae31a98367bd41759eac777"
+    },
+    "design-review.json": {
+      "bytes": 5271,
+      "sha256": "db73f6fb564251b0602daeb06e8d6d3cc80da581140228f3bb7c6c2e0692108d"
+    }
+  },
+  "cache_directories_excluded": true
+}

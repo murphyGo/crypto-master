@@ -1,0 +1,112 @@
+{
+  "basis": "Timing inside deterministic regression tests, not a production replay, CPU benchmark, or latency qualification. Actual small-file cases use real source validation and mutation; the34s-wave case uses an explicitly synthetic monotonic schedule.",
+  "cases": [
+    {
+      "test": "test_real_activity_change_recovers_from_cached_generation[False]",
+      "seconds": 0.275,
+      "properties": {
+        "attempt_timings": [
+          {
+            "start": 0.0001117499778047204,
+            "end": 0.0006059580482542515,
+            "seconds": 0.0004942080704495311
+          },
+          {
+            "start": 0.2557270829565823,
+            "end": 0.2591029159957543,
+            "seconds": 0.0033758330391719937
+          }
+        ],
+        "checkpoint_store_prepared": "False"
+      }
+    },
+    {
+      "test": "test_real_activity_change_recovers_from_cached_generation[True]",
+      "seconds": 0.299,
+      "properties": {
+        "attempt_timings": [
+          {
+            "start": 0.00012304203119128942,
+            "end": 0.0007233750075101852,
+            "seconds": 0.0006003329763188958
+          },
+          {
+            "start": 0.25581554195377976,
+            "end": 0.26513070799410343,
+            "seconds": 0.009315166040323675
+          }
+        ],
+        "checkpoint_store_prepared": "True"
+      }
+    },
+    {
+      "test": "test_real_snapshot_replacements_recover_on_third_attempt[False]",
+      "seconds": 0.778,
+      "properties": {
+        "attempt_timings": [
+          {
+            "start": 6.324995774775743e-05,
+            "end": 0.0010026659583672881,
+            "seconds": 0.0009394160006195307
+          },
+          {
+            "start": 0.2561757500516251,
+            "end": 0.2611349580110982,
+            "seconds": 0.004959207959473133
+          },
+          {
+            "start": 0.766249957960099,
+            "end": 0.7688837499590591,
+            "seconds": 0.0026337919989600778
+          }
+        ],
+        "checkpoint_store_prepared": "False"
+      }
+    },
+    {
+      "test": "test_real_snapshot_replacements_recover_on_third_attempt[True]",
+      "seconds": 0.797,
+      "properties": {
+        "attempt_timings": [
+          {
+            "start": 0.00011054205242544413,
+            "end": 0.019201582996174693,
+            "seconds": 0.01909104094374925
+          },
+          {
+            "start": 0.27454925002530217,
+            "end": 0.27946212503593415,
+            "seconds": 0.0049128750106319785
+          },
+          {
+            "start": 0.7846035420661792,
+            "end": 0.7923597920453176,
+            "seconds": 0.007756249979138374
+          }
+        ],
+        "checkpoint_store_prepared": "True"
+      }
+    },
+    {
+      "test": "test_long_mutation_wave_can_exhaust_before_writes_stop",
+      "seconds": 0.002,
+      "properties": {
+        "synthetic_attempt_intervals": [
+          [
+            0.0,
+            6.0
+          ],
+          [
+            6.25,
+            12.25
+          ],
+          [
+            12.75,
+            18.75
+          ]
+        ],
+        "synthetic_writer_stable_at_seconds": "34"
+      }
+    }
+  ]
+}

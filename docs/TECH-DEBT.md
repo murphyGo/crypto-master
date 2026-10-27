@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active / Critical; v64 / `dca38fb` deployed and source-verified. Final 29m07s four-session audit: 347/349 complete, two Home incomplete, so readiness fails despite healthy endpoints, full monitor cycle and observed memory within numeric limits. Canonical million query p95 7.817s also exceeds 5s. Native/depleted/original 1 GiB qualification remains open; shared CPU 1 / 2048 MiB and deferred cost gate retained |
+| **Status** | Active / Critical. Current runtime v67 / `120b440`: final four-session observation 348/356 complete, eight terminal incomplete. Bounded source-change recovery now passes 3,048 tests and independent QA; deployment verification pending. Cold/native/depleted/original 1 GiB qualification and all historical failed samples remain open; shared CPU 1 / 2048 MiB unchanged. |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -381,6 +381,23 @@ targets. The initial store-label mistake is retained with a correction. All
 prior failed samples and cold/native/depleted/original 1024 MiB conditions
 remain open; DEBT-083 stays Critical/active. See
 `docs/sessions/2026-10-27-dashboard-cpu-cost.md`.
+
+**2026-10-27 bounded source-generation recovery:** Three total attempts share
+one logical Future/progress signal and a thirty-second monotonic admission
+window; delayed attempts yield to ready siblings. Every attempt rediscovers and
+fully verifies canonical input. Existing worker/admission, freshness/stale, state
+and result limits remain. Exhaustion is now protected across error TTL and
+rerenders until an exact manual retry; bounded terminal capacity rejects new
+admission rather than silently resetting exhausted work. This is an explicit
+change to the prior source_changed terminal policy, not a general auto-retry.
+3,048 full tests, 214 developer/236 independent cases, Black/Ruff five files and
+mypy 135 pass. Real activity/snapshot mutations match full canonical outputs
+with checkpoint storage disabled and prepared/enabled. Two-session local
+Streamlit progress passes. Source correctness does not establish operational
+recovery: three attempts may exhaust during a long write wave and require
+manual action even after stabilization. Deployment and one bounded observation
+remain pending; retain prior failed samples and original qualification gates.
+See `docs/sessions/2026-10-27-dashboard-source-recovery.md`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

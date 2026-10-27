@@ -1,0 +1,11 @@
+{
+  "src/dashboard/data_service.py": "64dfd467db127b85410d47225e4e7bcfacdc8c56a8be4574f6694683a32024b4",
+  "src/dashboard/read_diagnostics.py": "4012d7e5889a5601a74ce63041f442b0ea0228c87c17666520ee64a3f7ecbc43",
+  "tests/test_dashboard_source_recovery.py": "9d75f0252e7c4d2bfc6f810da48139d29d76afef4cf529287429f9c199f8e2e4",
+  "tests/test_dashboard_data_service.py": "dedc1d33091f53c56a09251e92953d9bc0571751efee19a5b1e1d175446a2701",
+  "tests/test_dashboard_read_diagnostics.py": "c3142b05df5b0203932606b92f5ea7ac6e83341eb1d66dea9671f3e635a9d1d4",
+  "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+  "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+  "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+  "src/dashboard/sources.py": "fdf35e105575474a279bdb954f1f1b29ba04c4be1afdffd1cab8ba8b93d83471"
+}

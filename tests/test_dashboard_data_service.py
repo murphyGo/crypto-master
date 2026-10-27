@@ -298,7 +298,7 @@ def test_threshold_borrow_never_renews_source_age_or_hides_failed_revalidation(
             )
         result = service.request(threshold)
         assert not result.complete and result.payload is None
-        assert result.reason == "source_changed" and calls == 2
+        assert result.reason == "source_changed" and calls == 4
     finally:
         service.close()
 
@@ -480,7 +480,7 @@ def test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age(
             assert failed[kind].reason == "source_changed"
             assert failed[kind].payload == first[kind].payload
         cached = service.request_many(queries)
-        assert calls["activity"] == calls["snapshots"] == 2
+        assert calls["activity"] == calls["snapshots"] == 4
         old_ages = {
             query.kind: service._cache[query.normalized()].evaluated
             for query in queries
@@ -496,7 +496,7 @@ def test_home_cached_source_failure_manual_retry_preserves_healthy_data_and_age(
         }
         recovered = service.request_many(queries)
         assert all(result.complete for result in recovered.values())
-        assert calls["activity"] == calls["snapshots"] == 3
+        assert calls["activity"] == calls["snapshots"] == 5
         for kind in ("ledger", "candidates", "proposals"):
             assert calls[kind] == 1
             assert recovered[kind] is first[kind]
@@ -536,7 +536,8 @@ def test_concurrent_explicit_retries_coalesce_one_new_read(tmp_path):
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise ReadFailure("source_changed")
+            # This path exercises manual retry of an ordinary terminal error.
+            raise ReadFailure("invalid_record")
         entered.set()
         assert release.wait(5)
         yield {"value": 1}

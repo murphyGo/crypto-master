@@ -1,0 +1,73 @@
+{
+  "baseline": "7d604ad8dc36acb52e22d16830c841e274657250",
+  "source_frozen": true,
+  "changed_files_sha256": {
+    "src/dashboard/data_service.py": "64dfd467db127b85410d47225e4e7bcfacdc8c56a8be4574f6694683a32024b4",
+    "src/dashboard/read_diagnostics.py": "4012d7e5889a5601a74ce63041f442b0ea0228c87c17666520ee64a3f7ecbc43",
+    "tests/test_dashboard_source_recovery.py": "9d75f0252e7c4d2bfc6f810da48139d29d76afef4cf529287429f9c199f8e2e4",
+    "tests/test_dashboard_data_service.py": "dedc1d33091f53c56a09251e92953d9bc0571751efee19a5b1e1d175446a2701",
+    "tests/test_dashboard_read_diagnostics.py": "c3142b05df5b0203932606b92f5ea7ac6e83341eb1d66dea9671f3e635a9d1d4"
+  },
+  "implementation": {
+    "scope": "Finite coalesced source_changed recovery only. No UI/ReadResult/Limits/projection/source-proof/trading/config/dependency changes.",
+    "attempts": 3,
+    "window_seconds": 30,
+    "backoff_seconds": [
+      0.25,
+      0.5
+    ],
+    "coalescing": "Same normalized-query Future/Event/admission through retries. Iterator/partial state released before retry; oldest ready sibling runs first.",
+    "exhaustion": "source_changed terminal token persists across2sTTL/normal rerender; only identity-guarded exact-query manual retry or service closure clears.",
+    "metadata": "Errors plus admitted reservations bounded by existing cache_entries64. Ordinary errors are evictable; protected exhausted tokens are not. Saturation returns recovery_budget_exhausted without new job.",
+    "shutdown": "Close settles active, queued and delayed Futures/signals immediately; late outputs cannot publish. Unexpected worker exit quarantines service and settles waiters, no replacement thread.",
+    "diagnostics": {
+      "new_reason": "recovery_budget_exhausted",
+      "new_stages": [
+        "retry_scheduled",
+        "retry_exhausted"
+      ]
+    }
+  },
+  "baseline_red": {
+    "command": "Same executable/environment with -m pytest tests/test_dashboard_source_recovery.py -q -p no:cacheprovider before source edits",
+    "result": "3failed3.43s",
+    "file": "baseline-red.txt",
+    "cases": [
+      "actual activity mutation after cached generation",
+      "actual atomic snapshot replacement",
+      "four concurrent clients retaining one logical job"
+    ],
+    "interpretation": "Behavioral failures on original source; tests expected recovery rather than merely checking for a new API."
+  },
+  "focused": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/private/tmp/crypto-master-source-recovery-20261027 LOG_FILE=/private/tmp/crypto-master-source-recovery-delivery-20261027/developer/import.log /Users/user/Desktop/Projects/crypto-master/.venv/bin/python -m pytest tests/test_dashboard_source_recovery.py tests/test_dashboard_data_service.py tests/test_dashboard_page_progress.py tests/test_dashboard_availability.py tests/test_dashboard_read_diagnostics.py tests/test_dashboard_projections.py tests/test_dashboard_segment_checkpoints.py tests/test_dashboard_bounded_pages.py -q -p no:cacheprovider -o junit_family=legacy --junitxml=/private/tmp/crypto-master-source-recovery-delivery-20261027/developer/targeted.xml",
+    "result": "214passed10.11s",
+    "new_recovery_cases": 27,
+    "output": "targeted-final.txt",
+    "junit": "targeted.xml"
+  },
+  "static": {
+    "black": "5files unchanged/pass",
+    "ruff": "5files all checks passed",
+    "mypy": "Success:no issues in2changed source files",
+    "diff_check": "clean"
+  },
+  "existing_fixture_adjustments": [
+    "Threshold source_changed count is now priming1+3failed attempts=4.",
+    "Home source_changed per-query count is priming1+3failed=4; explicit successful retry reaches5, healthy cached siblings unchanged.",
+    "Concurrent explicit-only retry fixture now uses invalid_record, preserving its original manual/coalescing purpose.",
+    "Blocked diagnostic sink fixture now uses invalid_record so its fast terminal-read/close bound stays independent of authorized transient retry delays."
+  ],
+  "retained_intermediate_failures": [
+    "targeted-initial.txt (71pass3expected old-policyfixturefailures)",
+    "targeted-before-diagnostic-fixture.txt/xml (91pass1old terminal reasonfixturefailure)",
+    "targeted-before-settlement-guard.txt/xml (213pass before final callback-exit guard)"
+  ],
+  "limitations": [
+    "Source correctness only; full-suite/independent QA/production qualification owned by lead, pending at developer handoff.",
+    "30s is retry eligibility/cooperative checking; cannot preempt blocked filesystemIO. Original initial slow-read success semantics retained.",
+    "Three attempts can exhaust before a long mutation wave ends. Synthetic34s wave with6s/attempt exhausts at18.75s; later stability does not auto-clear latch. This explicitly changes prior passive2sTTL healing and requires manual retry.",
+    "No claim that these fixed budgets resolve all v67 failures. Production persistent-unavailability/rollback criteria must retain this tradeoff.",
+    "No new benchmark, production call, commit or deployment by developer."
+  ]
+}

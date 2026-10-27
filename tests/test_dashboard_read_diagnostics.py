@@ -172,7 +172,7 @@ def test_blocked_sink_queue_is_bounded_and_read_close_never_wait_for_it(tmp_path
 
     def build(query, limits):
         if query.kind == "activity":
-            raise ReadFailure("source_changed")
+            raise ReadFailure("invalid_record")
         yield {"value": 7}
 
     diagnostics = ReadDiagnostics(clock=lambda: now[0], emit=blocked)
@@ -190,7 +190,7 @@ def test_blocked_sink_queue_is_bounded_and_read_close_never_wait_for_it(tmp_path
         assert _delivery.stats()["dropped"] >= before + 36
         start = time.monotonic()
         failed = service.request(Query(tmp_path, "activity"))
-        assert failed.reason == "source_changed" and failed.retry is not None
+        assert failed.reason == "invalid_record" and failed.retry is not None
         assert service.request(Query(tmp_path, "ledger")).complete
         service.close()
         assert time.monotonic() - start < 0.5

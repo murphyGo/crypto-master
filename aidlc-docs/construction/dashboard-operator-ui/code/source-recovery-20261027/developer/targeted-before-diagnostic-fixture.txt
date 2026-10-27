@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/crypto-master-source-recovery-20261027
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 92 items
+
+tests/test_dashboard_source_recovery.py .........................        [ 27%]
+tests/test_dashboard_data_service.py ....................                [ 48%]
+tests/test_dashboard_page_progress.py ...................                [ 69%]
+tests/test_dashboard_availability.py ..............                      [ 84%]
+tests/test_dashboard_read_diagnostics.py ............F.                  [100%]
+
+=================================== FAILURES ===================================
+_____ test_blocked_sink_queue_is_bounded_and_read_close_never_wait_for_it ______
+tests/test_dashboard_read_diagnostics.py:193: in test_blocked_sink_queue_is_bounded_and_read_close_never_wait_for_it
+    assert failed.reason == "source_changed" and failed.retry is not None
+E   AssertionError: assert ('rebuild_pending' == 'source_changed'
+E     
+E     - source_changed
+E     + rebuild_pending)
+- generated xml file: /private/tmp/crypto-master-source-recovery-delivery-20261027/developer/targeted.xml -
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_read_diagnostics.py::test_blocked_sink_queue_is_bounded_and_read_close_never_wait_for_it
+========================= 1 failed, 91 passed in 9.33s =========================

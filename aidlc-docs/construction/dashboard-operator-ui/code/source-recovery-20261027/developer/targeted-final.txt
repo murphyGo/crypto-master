@@ -1,0 +1,20 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/crypto-master-source-recovery-20261027
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 214 items
+
+tests/test_dashboard_source_recovery.py ...........................      [ 12%]
+tests/test_dashboard_data_service.py ....................                [ 21%]
+tests/test_dashboard_page_progress.py ...................                [ 30%]
+tests/test_dashboard_availability.py ..............                      [ 37%]
+tests/test_dashboard_read_diagnostics.py ..............                  [ 43%]
+tests/test_dashboard_projections.py .................................... [ 60%]
+.....................................................                    [ 85%]
+tests/test_dashboard_segment_checkpoints.py .....................        [ 95%]
+tests/test_dashboard_bounded_pages.py ..........                         [100%]
+
+- generated xml file: /private/tmp/crypto-master-source-recovery-delivery-20261027/developer/targeted.xml -
+============================= 214 passed in 10.11s =============================

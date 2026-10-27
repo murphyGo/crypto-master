@@ -57,6 +57,17 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Bounded source recovery (2026-10-27 KST):** User-approved follow-up to v67
+> source-generation failures is implemented: source_changed shares at most
+> three attempts within the original thirty-second cooperative window, without
+> renewing stale age or bypassing full proof. Protected exhaustion requires
+> exact manual retry; ready siblings run during retry backoff. Source passes
+> 3,048 full tests, 236 independent cases, Black/Ruff five files and mypy 135.
+> Two-session local fragment behavior is corroborated. Deployment/production
+> verification pending; long churn may still exhaust before stability. DEBT-083
+> remains Critical/active with all historical failures and original gates.
+> See `docs/sessions/2026-10-27-dashboard-source-recovery.md`.
+
 > **Proposal refresh CPU correction (2026-10-27 KST):** DEBT-083 remains
 > Critical/active. Measured dead work rebuilt every proposal source object for
 > a checkpoint heuristic even when verified whole-query reuse or disabled

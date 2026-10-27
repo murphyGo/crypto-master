@@ -1,0 +1,46 @@
+{
+  "attempt-timings.json": {
+    "bytes": 3148,
+    "sha256": "e908ce126fc4b9366f5839d7fdcc2178c33272faff816389519314a0d4961fbd"
+  },
+  "baseline-red.txt": {
+    "bytes": 3265,
+    "sha256": "9108fd49416aa7b1b5a3b4e4f7e89b3c3fb05355586cb172aecd8d310460aab8"
+  },
+  "developer-verification.json": {
+    "bytes": 5038,
+    "sha256": "d81809211fdf25b06c7f494be7365bffa417dbc266ac48f83b508b16b5e90955"
+  },
+  "source.diff": {
+    "bytes": 25505,
+    "sha256": "b5982deb6ae9f206dcad15e9ae4ff2a94b0b8064e6da170640bb6960ae24b4c2"
+  },
+  "targeted-before-diagnostic-fixture.txt": {
+    "bytes": 1680,
+    "sha256": "dac6247f85d06aff9bddd99e049f4fce46f374dce6f81b16ecdcb6f1240c8fd7"
+  },
+  "targeted-before-diagnostic-fixture.xml": {
+    "bytes": 20955,
+    "sha256": "26cec63dd3d73b60780780d77ac50b70acec544ad6b1f4eaeb6640a677064e54"
+  },
+  "targeted-before-settlement-guard.txt": {
+    "bytes": 1329,
+    "sha256": "40ce3ed0fa10caac2ec5ed4c409918e7fd0de336103d46cc39d9f159d5527085"
+  },
+  "targeted-before-settlement-guard.xml": {
+    "bytes": 47145,
+    "sha256": "37b314283db2a54c30f2cd15ad367a5edf728ba847eb0c7b4510e55702ae93ce"
+  },
+  "targeted-final.txt": {
+    "bytes": 1329,
+    "sha256": "d4fff7ffbc17c9b4cff6a011e65ee9a3d4c97975628dce76389ac75ff9320138"
+  },
+  "targeted-initial.txt": {
+    "bytes": 3183,
+    "sha256": "a9eec5bd5b6501c2d0ab254b911da7466bfe926c0a398c29f4080db0365a6022"
+  },
+  "targeted.xml": {
+    "bytes": 47354,
+    "sha256": "2443ff5e3a26a4788c000a43f9a000b8e4da2e34681c7c73c29348888fe6a628"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "full_suite": {
+    "passed": 3048,
+    "seconds": 68.86,
+    "source_files_unchanged": 265
+  },
+  "developer_targeted": {
+    "passed": 214,
+    "seconds": 10.11
+  },
+  "independent_targeted": {
+    "passed": 236,
+    "seconds": 9.44
+  },
+  "black_ruff_files": 5,
+  "mypy_source_files": 135,
+  "verdict": "source correctness GREEN; production recovery pending",
+  "runtime_source_scope": [
+    "src/dashboard/data_service.py",
+    "src/dashboard/read_diagnostics.py"
+  ],
+  "limitations": [
+    "Finite3attempts do not guarantee34s churn recovery; exhaustion now requires explicit refresh rather than passive error TTL healing.",
+    "Supported builder/cleanup/worker failures settle service-owned unmodified Futures; arbitrary private Future callbacks are outside the public API.",
+    "All original cold/native/depleted/1024MiB gates and prior failures preserved."
+  ]
+}

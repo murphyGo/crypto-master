@@ -1,0 +1,29 @@
+{
+  "purpose": "Retain frozen diff context markers and original pytest failure output bytes without breaking evidence hashes.",
+  "allowed_files": [
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-before-diagnostic-fixture.txt",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-before-diagnostic-fixture.xml",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-initial.txt"
+  ],
+  "exact_findings": [
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:7: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:11: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:12: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:16: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:17: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:68: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:132: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:137: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:385: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:496: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:518: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:531: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:565: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/source.diff:571: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-before-diagnostic-fixture.txt:20: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-before-diagnostic-fixture.xml:4: trailing whitespace.",
+    "aidlc-docs/construction/dashboard-operator-ui/code/source-recovery-20261027/developer/targeted-initial.txt:19: trailing whitespace."
+  ],
+  "all_other_staged_diff_check": "PASS"
+}

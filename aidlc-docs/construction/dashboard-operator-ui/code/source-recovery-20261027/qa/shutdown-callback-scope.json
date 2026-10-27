@@ -1,0 +1,23 @@
+{
+  "verdict": "NO_BLOCKER",
+  "classification": "unsupported private Future mutation; no task scope expansion",
+  "observation": "A BaseException raised by an externally attached queued Future callback can interrupt the _shutdown Future iteration before all private state is cleared. _settle protects its own signal in finally.",
+  "supported_path_review": [
+    "request and request_many return ReadResult, never expose concurrent.futures.Future.",
+    "ReadResult.progress is bound to a compact Event signal, not the Future.",
+    "No production dashboard code calls add_done_callback, Future.cancel or Future.set_exception.",
+    "Creation and settlement of service-owned Futures are under the service condition, so the not-done check/set-result transition has no supported external race.",
+    "The only dashboard add_done_callback occurrence is intentional fault injection in tests/test_dashboard_source_recovery.py:623. The runtime derivatives_context asyncio task callback is a separate mechanism."
+  ],
+  "claim_boundary": "Builder/iterator cleanup/unexpected worker failures settle normal service-owned Futures and signals. This is not a guarantee against arbitrary mutation or BaseException callbacks attached through private _jobs.",
+  "action": "Do not edit production code or expand tests for unsupported private Future mutation. Retain scope note alongside final QA verdict.",
+  "source_files": {
+    "src/dashboard/data_service.py": "64dfd467db127b85410d47225e4e7bcfacdc8c56a8be4574f6694683a32024b4",
+    "src/dashboard/read_models.py": "da0a391518cd00057da6553cf49710223f1a0733af2eeac0770af00f3e8f796a",
+    "src/dashboard/availability.py": "5b72ec4d091c92001efa367648087c681a7b62a4f9eab55a61aa49385b8f0fb2",
+    "tests/test_dashboard_source_recovery.py": "9d75f0252e7c4d2bfc6f810da48139d29d76afef4cf529287429f9c199f8e2e4"
+  },
+  "prior_QA_verdict": "source-verdict.json",
+  "root_full_gate_reported": "3048 passed;265 exact source/test/script hashes unchanged; root mypy135 passed. Parent-owned gate, not rerun by this audit.",
+  "additional_production_calls_or_tests": false
+}

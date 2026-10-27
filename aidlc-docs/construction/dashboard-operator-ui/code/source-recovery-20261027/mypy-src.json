@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/Users/user/Desktop/Projects/crypto-master/.venv/bin/python",
+    "-m",
+    "mypy",
+    "src"
+  ],
+  "exit_code": 0,
+  "output": "Success: no issues found in 135 source files\n"
+}

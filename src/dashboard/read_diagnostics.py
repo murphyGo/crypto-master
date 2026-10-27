@@ -22,6 +22,7 @@ _REASONS = frozenset(
         "queue_full",
         "service_closed",
         "root_budget_exhausted",
+        "recovery_budget_exhausted",
         "cache_budget_exhausted",
         "empty_projection",
         "result_budget_exhausted",
@@ -51,6 +52,8 @@ _STAGES = frozenset(
         "projection",
         "encoding",
         "cache_publication",
+        "retry_scheduled",
+        "retry_exhausted",
     }
 )
 

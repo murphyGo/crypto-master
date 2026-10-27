@@ -1,0 +1,9 @@
+{
+  "append_only_followup": {
+    "shutdown-callback-scope.json": {
+      "bytes": 2096,
+      "sha256": "77dac69738afb5b9570d256a1edb2816ca60054b40811ce2ba7d3de28e09e7e3"
+    }
+  },
+  "prior_review_manifest_sha256": "5bf42ef638c8a660318c950c6c2599a0d68e248b16159d99b652b5efb0350150"
+}

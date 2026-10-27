@@ -1,0 +1,7 @@
+{
+  "source": "/private/tmp/crypto-master-source-recovery-20261027/aidlc-docs/construction/dashboard-operator-ui/code/page-progress-20261027/operations/qa-v66-audit/supplements/functional/qa-fragment-smoke-app.py",
+  "source_sha256": "77ee1aa3c815335c6007f0d8ba3e87e77ed34025aae31a98367bd41759eac777",
+  "copy": "recovery-fragment-app.py",
+  "content_unchanged": true,
+  "purpose": "Reuse actual Streamlit stored-fragment fixture; new recovery driver will only change service workload."
+}
