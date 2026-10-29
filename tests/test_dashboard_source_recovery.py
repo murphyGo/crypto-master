@@ -12,7 +12,7 @@ import pytest
 
 from src.dashboard import availability, data_service, projections
 from src.dashboard.checkpoint_store import CheckpointStore
-from src.dashboard.data_service import DashboardDataService
+from src.dashboard.data_service import DashboardDataService, ErrorToken
 from src.dashboard.read_models import Limits, Query
 from src.runtime.activity_events import ActivityEvent
 from src.trading.portfolio import AssetSnapshot
@@ -233,7 +233,7 @@ def test_delayed_retry_yields_to_ready_sibling_and_releases_iterator(tmp_path, c
         service.close()
 
 
-def test_persistent_churn_latches_three_attempts_across_ttl_and_manual_aba(
+def test_persistent_churn_spaces_episodes_and_preserves_manual_aba(
     tmp_path, clock, monkeypatch
 ):
     monkeypatch.setattr(data_service, "_RETRY_DELAYS", (0.0, 0.0))
@@ -251,11 +251,11 @@ def test_persistent_churn_latches_three_attempts_across_ttl_and_manual_aba(
         first = service.request(query)
         assert calls == 3 and first.reason == "source_changed"
         assert first.retry is not None and first.progress is None
-        clock.advance(service, 100)
+        clock.advance(service, 29.999)
         for _ in range(4):
             assert service.request(query).reason == "source_changed"
         assert calls == 3
-        first.retry()
+        clock.advance(service, 0.001)
         second = service.request(query)
         assert calls == 6 and second.retry is not None
         current = service._errors[query.normalized()]
@@ -361,7 +361,7 @@ def test_initial_slow_verified_read_keeps_existing_behavior(tmp_path, clock):
         service.close()
 
 
-def test_long_mutation_wave_can_exhaust_before_writes_stop(
+def test_long_mutation_wave_exhausts_then_recovers_after_writes_stop(
     tmp_path, clock, record_property
 ):
     timings = []
@@ -386,8 +386,8 @@ def test_long_mutation_wave_can_exhaust_before_writes_stop(
         result = future.result(timeout=2)
         assert result.reason == "source_changed" and clock.value == 118.75
         clock.advance(service, 16.25)
-        assert service.request(query).reason == "source_changed"
-        assert timings == [[0, 6], [6.25, 12.25], [12.75, 18.75]]
+        assert service.request(query).complete
+        assert timings == [[0, 6], [6.25, 12.25], [12.75, 18.75], [35, 41]]
         record_property("synthetic_attempt_intervals", json.dumps(timings))
         record_property("synthetic_writer_stable_at_seconds", 34)
     finally:
@@ -423,7 +423,7 @@ def test_exhaustion_keeps_original_cache_age_and_expiry(tmp_path, clock, monkeyp
         service.close()
 
 
-def test_sticky_tokens_plus_reserved_job_are_bounded_without_auto_eviction(tmp_path):
+def test_unexpired_tokens_plus_reserved_job_are_bounded_without_eviction(tmp_path):
     entered, release = threading.Event(), threading.Event()
 
     def build(query, limits):
@@ -435,7 +435,9 @@ def test_sticky_tokens_plus_reserved_job_are_bounded_without_auto_eviction(tmp_p
     service = DashboardDataService(builder=build)
     try:
         tokens = {
-            Query(tmp_path, f"failed-{i}").normalized(): (0.0, "source_changed")
+            Query(tmp_path, f"failed-{i}").normalized(): ErrorToken(
+                "source_changed", time.monotonic() + 30
+            )
             for i in range(63)
         }
         service._errors.update(tokens)
@@ -473,18 +475,18 @@ def test_ordinary_error_is_evictable_and_expired_same_query_not_double_reserved(
     query = Query(tmp_path, "activity").normalized()
     sticky = Query(tmp_path, "failed").normalized()
     try:
-        service._errors[sticky] = (0.0, "source_changed")
-        service._errors[Query(tmp_path, "ordinary").normalized()] = (
-            100.0,
-            "invalid_record",
+        protected = ErrorToken("source_changed", 130)
+        service._errors[sticky] = protected
+        service._errors[Query(tmp_path, "ordinary").normalized()] = ErrorToken(
+            "invalid_record", 102
         )
         assert service.request(query).complete
-        assert service._errors == {sticky: (0.0, "source_changed")}
+        assert service._errors == {sticky: protected}
         clock.advance(service, 3)
-        service._errors[query] = (0.0, "read_failed")
+        service._errors[query] = ErrorToken("read_failed", 102)
         assert service.request(query).complete
-        assert service._errors == {sticky: (0.0, "source_changed")}
-        service._errors[query] = (0.0, "source_changed")
+        assert service._errors == {sticky: protected}
+        service._errors[query] = ErrorToken("source_changed", 130)
         # Fresh compatible cache is still usable; it does not erase exhaustion.
         assert service.request(query).complete
         assert query in service._errors
@@ -695,8 +697,7 @@ def test_recovery_diagnostic_labels_are_allowlisted(tmp_path, monkeypatch):
         with service._condition:
             for i in range(63):
                 service._errors[Query(tmp_path, f"failed-{i}").normalized()] = (
-                    0.0,
-                    "source_changed",
+                    ErrorToken("source_changed", time.monotonic() + 30)
                 )
         denied = service.request(Query(tmp_path, "ledger"))
         assert denied.reason == "recovery_budget_exhausted"
@@ -709,5 +710,130 @@ def test_recovery_diagnostic_labels_are_allowlisted(tmp_path, monkeypatch):
         assert any(
             record["reason"] == "recovery_budget_exhausted" for record in records
         )
+    finally:
+        service.close()
+
+
+def test_long_write_wave_recovers_on_next_request_after_original_window(
+    tmp_path, clock, monkeypatch
+):
+    monkeypatch.setattr(data_service, "_RETRY_DELAYS", (0.0, 0.0))
+    calls = 0
+
+    def build(query, limits):
+        nonlocal calls
+        calls += 1
+        clock.value += 6
+        if clock.value < 134:
+            raise ReadFailure("source_changed")
+        yield {"stable": True}
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity")
+    try:
+        failed = service.request(query)
+        assert failed.reason == "source_changed" and calls == 3
+        assert clock.value == 118
+        clock.advance(service, 11.999)
+        for _ in range(4):
+            assert service.request(query).reason == "source_changed"
+        assert calls == 3
+        # Production's write wave lasted beyond the three immediate attempts.
+        clock.advance(service, 5.001)
+        recovered = service.request(query)
+        assert recovered.complete and recovered.data() == {"stable": True}
+        assert calls == 4 and not service._errors
+    finally:
+        service.close()
+
+
+def test_slow_source_failure_keeps_minimum_cooldown_after_window(tmp_path, clock):
+    calls = 0
+
+    def build(query, limits):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            clock.value += 31
+            raise ReadFailure("source_changed")
+        yield {"stable": True}
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity")
+    try:
+        assert service.request(query).reason == "source_changed"
+        clock.advance(service, 1.999)
+        assert service.request(query).reason == "source_changed" and calls == 1
+        clock.advance(service, 0.001)
+        assert service.request(query).complete and calls == 2
+    finally:
+        service.close()
+
+
+def test_expired_recovery_is_request_driven_coalesced_and_callback_safe(
+    tmp_path, clock, monkeypatch
+):
+    monkeypatch.setattr(data_service, "_RETRY_DELAYS", (0.0, 0.0))
+    entered, release = threading.Event(), threading.Event()
+    calls = 0
+
+    def build(query, limits):
+        nonlocal calls
+        calls += 1
+        if calls <= 3:
+            raise ReadFailure("source_changed")
+        entered.set()
+        assert release.wait(3)
+        yield {"stable": True}
+
+    service = DashboardDataService(builder=build)
+    query = Query(tmp_path, "activity").normalized()
+    try:
+        failed = service.request(query)
+        token = service._errors[query]
+        clock.advance(service, 30)
+        probe = service._admission_progress(query)
+        for _ in range(4):
+            assert probe()
+        assert service._errors[query] is token and calls == 3
+        assert not service._jobs  # Expiry/progress never starts background work.
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            pending = list(pool.map(lambda _: service.request(query, wait=0), range(4)))
+        assert entered.wait(2)
+        assert calls == 4 and service.stats()["admitted"] == 1
+        future = service._jobs[query]
+        assert failed.retry is not None
+        failed.retry()
+        assert service._jobs[query] is future
+        release.set()
+        assert future.result(timeout=2).complete
+        assert all(
+            result.progress is not None and result.progress() for result in pending
+        )
+    finally:
+        release.set()
+        service.close()
+
+
+def test_expired_source_token_frees_bounded_capacity_for_another_query(tmp_path, clock):
+    from dataclasses import replace
+
+    def build(query, limits):
+        yield {"stable": True}
+
+    service = DashboardDataService(
+        builder=build, limits=replace(Limits(), cache_entries=2)
+    )
+    try:
+        protected = Query(tmp_path, "protected").normalized()
+        expiring = Query(tmp_path, "expiring").normalized()
+        service._errors[protected] = ErrorToken("source_changed", 160)
+        service._errors[expiring] = ErrorToken("source_changed", 130)
+        query = Query(tmp_path, "ledger")
+        assert service.request(query).reason == "recovery_budget_exhausted"
+        clock.advance(service, 30)
+        assert service.request(query).complete
+        assert list(service._errors) == [protected]
+        assert len(service._errors) + len(service._jobs) <= 2
     finally:
         service.close()

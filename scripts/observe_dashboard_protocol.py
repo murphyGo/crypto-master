@@ -180,8 +180,13 @@ class Client:
         self.ws = None
         self._record = {}
         self._started = 0.0
+        self._reconnect_after_timeout = False
 
     async def __aenter__(self):
+        await self._connect()
+        return self
+
+    async def _connect(self):
         import websockets
 
         self.ws = await websockets.connect(
@@ -191,7 +196,6 @@ class Client:
             max_size=16 * 1024 * 1024,
             open_timeout=20,
         )
-        return self
 
     async def __aexit__(self, *exc):
         await self.ws.close()
@@ -218,7 +222,17 @@ class Client:
         prefix = "" if observed else "warmup-"
         append_jsonl(prefix + "page-starts", row)
         try:
+            row["reconnected_after_timeout"] = self._reconnect_after_timeout
+            if self._reconnect_after_timeout:
+                # A timed-out run can still have responses queued. Close it
+                # before opening the replacement; never reuse that queue for
+                # another page or have more than four connected clients.
+                # Reconnect time is included in this request's elapsed time.
+                await self.ws.close()
+                await self._connect()
+                self._reconnect_after_timeout = False
             await self._view(page, timeout)
+            self._reconnect_after_timeout = row["status"] == "timeout"
             return row
         except asyncio.CancelledError:
             row.update(
@@ -758,6 +772,7 @@ def main(argv: list[str] | None = None) -> None:
                 "cadence_seconds": args.cadence,
                 "phase": args.phase,
                 "surface": "protocol only, not native browser acceptance",
+                "timeout_policy": "retain failed outcome; close and reconnect before next request, including reconnect time",
                 "metric_labels": {
                     page: sorted(labels) for page, labels in METRIC_LABELS.items()
                 },

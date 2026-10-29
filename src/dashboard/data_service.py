@@ -47,6 +47,12 @@ class Recovery:
     stage: str = "projection"
 
 
+@dataclass(frozen=True, slots=True)
+class ErrorToken:
+    reason: str
+    retry_at: float
+
+
 class DashboardDataService:
     def __init__(
         self,
@@ -79,7 +85,7 @@ class DashboardDataService:
         # its completed payload. At most one signal per admitted job (four).
         self._job_progress: dict[Query, threading.Event] = {}
         self._recovery: dict[Query, Recovery] = {}
-        self._errors: dict[Query, tuple[float, str]] = {}
+        self._errors: dict[Query, ErrorToken] = {}
         self._closed = False
         self._active: Query | None = None
         self._thread = threading.Thread(
@@ -105,11 +111,8 @@ class DashboardDataService:
             if fresh is not None:
                 return fresh
             error = self._errors.get(query)
-            if error and (
-                error[1] == "source_changed"
-                or now - error[0] < self.limits.fresh_seconds
-            ):
-                return self._fallback(query, error[1], stage="error_cache")
+            if error and now < error.retry_at:
+                return self._fallback(query, error.reason, stage="error_cache")
             future = self._jobs.get(query)
             if future is None:
                 active_roots = {key.root for key in self._jobs}
@@ -158,19 +161,21 @@ class DashboardDataService:
                 )
 
     def _reserve_terminal_slot(self, query: Query) -> bool:
-        """Reserve bounded terminal metadata; exhausted recovery never evicts.
+        """Reserve bounded metadata without evading source-error cooldowns.
 
         The caller holds the condition. An admitted job reserves one slot so
-        it can always latch exhaustion later, even if all other clients fail.
-        Ordinary errors retain their existing TTL/evictable behavior.
+        it can always record failure later, even if all other clients fail.
+        Ordinary errors and expired source tokens are evictable. Unexpired
+        source tokens remain protected across scope churn and new callers.
         """
-        self._errors.pop(query, None)  # Its ordinary error TTL has expired.
+        self._errors.pop(query, None)  # The same query's cooldown has expired.
+        now = time.monotonic()
         while len(self._errors) + len(self._jobs) >= self.limits.cache_entries:
             evictable = next(
                 (
                     key
                     for key, error in self._errors.items()
-                    if error[1] != "source_changed"
+                    if error.reason != "source_changed" or now >= error.retry_at
                 ),
                 None,
             )
@@ -215,10 +220,7 @@ class DashboardDataService:
                 if service._fresh_result(query, now) is not None:
                     return True
                 error = service._errors.get(query)
-                if error and (
-                    error[1] == "source_changed"
-                    or now - error[0] < service.limits.fresh_seconds
-                ):
+                if error and now < error.retry_at:
                     return True
                 active_roots = {key.root for key in service._jobs}
                 # Model request-time retirement without evicting anything.
@@ -264,14 +266,14 @@ class DashboardDataService:
         retry = None
         if (
             error is not None
-            and error[1] == reason
+            and error.reason == reason
             and reason not in {"rebuild_pending", "queue_full"}
         ):
 
             def retry() -> None:
                 with self._condition:
                     # A stale page callback cannot erase a later failure. Only
-                    # explicit retry clears this error generation; valid cache
+                    # explicit retry can bypass this token's cooldown; valid cache
                     # contents/age and any active job remain untouched.
                     if self._errors.get(query) is error:
                         self._errors.pop(query)
@@ -457,9 +459,13 @@ class DashboardDataService:
                         )
                         self._condition.notify_all()
                         continue
-                    # This job already reserved room. Never evict a terminal
-                    # source_changed latch: only its manual callback clears it.
-                    self._errors[query] = (now, reason)
+                    # Settle this finite job. A later ordinary request can
+                    # begin a new episode only after its original window and
+                    # the minimum error cooldown; idle pages spawn no work.
+                    retry_at = now + self.limits.fresh_seconds
+                    if reason == "source_changed":
+                        retry_at = max(retry_at, recovery.deadline)
+                    self._errors[query] = ErrorToken(reason, retry_at)
                     result = self._fallback(
                         query,
                         reason,

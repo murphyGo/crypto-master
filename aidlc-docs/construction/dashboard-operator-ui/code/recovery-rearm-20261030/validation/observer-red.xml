@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.157" timestamp="2026-10-30T00:46:14.623612+09:00" hostname="hyunseungkims-MacBook-Pro.local"><testcase classname="tests.test_dashboard_protocol_observer" name="test_timeout_reconnects_before_next_request_and_retains_both_outcomes" time="0.006"><failure message="KeyError: b'old'">tests/test_dashboard_protocol_observer.py:336: in test_timeout_reconnects_before_next_request_and_retains_both_outcomes
+    second = await client.view("Trading")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts/observe_dashboard_protocol.py:221: in view
+    await self._view(page, timeout)
+scripts/observe_dashboard_protocol.py:269: in _view
+    message = Forward.FromString(raw)
+              ^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_dashboard_protocol_observer.py:323: in &lt;lambda&gt;
+    FromString=lambda raw: {
+E   KeyError: b'old'</failure></testcase></testsuite></testsuites>

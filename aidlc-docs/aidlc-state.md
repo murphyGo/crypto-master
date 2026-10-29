@@ -57,6 +57,13 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Recovery rearming source gate (2026-10-30 KST):** Timed error tokens
+> permit ordinary-request recovery after the original30s episode; no idle retry
+> loop or proof relaxation. Timeout-isolated observer;3,053tests/static gates
+> pass. Initial production query work~7s remains a latency gap. Runtime remains
+> v69/source120b440 pending this cycle's deployment/observation; DEBT-083 Critical.
+> See `docs/sessions/2026-10-30-dashboard-recovery-rearm.md`.
+
 > **V68 qualification and rollback (2026-10-29 KST):** DEBT-083 remains
 > Critical/active. The resumed 610.445559 s four-session sample fails: 4/120
 > complete, three timeouts and113 incomplete records. Health121/121 and a

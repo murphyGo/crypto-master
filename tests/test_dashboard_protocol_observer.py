@@ -306,6 +306,48 @@ def test_request_reconciliation_rejects_equal_counts_with_wrong_or_duplicate_key
     assert report["status_counts"] == {"complete": 1, "incomplete": 1}
 
 
+async def test_timeout_reconnects_before_next_request_and_retains_both_outcomes(
+    output, monkeypatch
+):
+    old = SimpleNamespace(recv=AsyncMock(return_value=b"old"), close=AsyncMock())
+    fresh = SimpleNamespace(
+        recv=AsyncMock(side_effect=[b"alert", b"finished"]), close=AsyncMock()
+    )
+    client = observer.Client(1)
+    client.ws = old
+    client.send = AsyncMock()
+    monkeypatch.setattr(
+        observer,
+        "Forward",
+        SimpleNamespace(
+            FromString=lambda raw: {
+                b"alert": alert_message("Trade ledger: data could not be verified."),
+                b"finished": message("script_finished", script_finished=0),
+            }[raw]
+        ),
+    )
+
+    async def connect():
+        old.close.assert_awaited_once()
+        client.ws = fresh
+
+    client._connect = AsyncMock(side_effect=connect)
+    first = await client.view("Home", timeout=0)
+    second = await client.view("Trading")
+    assert first["status"] == "timeout"
+    assert second["status"] == "incomplete"
+    assert second["reconnected_after_timeout"]
+    client._connect.assert_awaited_once()
+    old.recv.assert_not_awaited()
+    assert second["alerts"][0]["section"] == "ledger"
+    starts = [
+        json.loads(line)
+        for line in (output / "offline-page-starts.jsonl").read_text().splitlines()
+    ]
+    assert observer.reconcile_requests(starts, observer.observations)["bijective"]
+    assert len(observer.observations) == 2
+
+
 def test_successful_only_p95_does_not_hide_incomplete_request(output, monkeypatch):
     start = datetime(2026, 10, 26, tzinfo=timezone.utc)
     rows = [

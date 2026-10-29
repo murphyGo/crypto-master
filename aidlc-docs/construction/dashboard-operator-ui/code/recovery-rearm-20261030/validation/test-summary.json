@@ -1,0 +1,74 @@
+{
+  "baseline-red.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "3",
+      "skipped": "0",
+      "tests": "3",
+      "time": "9.670",
+      "timestamp": "2026-10-30T00:38:28.874375+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ],
+  "observer-red.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "1",
+      "time": "0.157",
+      "timestamp": "2026-10-30T00:46:14.623612+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ],
+  "rearm-targeted.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "83",
+      "time": "17.892",
+      "timestamp": "2026-10-30T00:40:20.737984+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ],
+  "rearm-targeted-rerun.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "83",
+      "time": "7.040",
+      "timestamp": "2026-10-30T00:45:13.878898+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ],
+  "rearm-observer-targeted.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "80",
+      "time": "4.110",
+      "timestamp": "2026-10-30T00:47:17.810455+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ],
+  "full-regression.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "3053",
+      "time": "86.115",
+      "timestamp": "2026-10-30T00:57:05.030249+09:00",
+      "hostname": "hyunseungkims-MacBook-Pro.local"
+    }
+  ]
+}

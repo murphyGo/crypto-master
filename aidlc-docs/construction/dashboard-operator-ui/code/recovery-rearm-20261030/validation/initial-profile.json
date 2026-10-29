@@ -1,0 +1,359 @@
+{
+  "captured_at": "2026-10-29T15:57:13.387467+00:00",
+  "method": "Separate read-only process, direct sequential cold projections then verified unchanged-result reuse; no checkpoints, no browser timing. Warm Python imports/OS caches; cProfile adds overhead only to the separate activity attribution trial.",
+  "series": [
+    {
+      "kind": "activity",
+      "trial": "cold",
+      "status": "complete",
+      "payload_bytes": 168132,
+      "sha256": "30cd571e9f64a9621648b85083b7fabc90d3b95ea9afde09f9234b4c1e9ae545",
+      "source_coverage": {
+        "files": 7,
+        "captured_bytes": 97438217,
+        "verified": true
+      },
+      "events": 233495,
+      "wall_seconds": 2.215596009991714,
+      "cpu_seconds": 2.1985717190000003
+    },
+    {
+      "kind": "activity",
+      "trial": "revalidate",
+      "status": "complete",
+      "payload_bytes": 168132,
+      "sha256": "30cd571e9f64a9621648b85083b7fabc90d3b95ea9afde09f9234b4c1e9ae545",
+      "source_coverage": {
+        "captured_bytes": 97438217,
+        "files": 7,
+        "verified": true
+      },
+      "events": 233495,
+      "wall_seconds": 0.007742460002191365,
+      "cpu_seconds": 0.00767408699999983
+    },
+    {
+      "kind": "ledger",
+      "trial": "cold",
+      "status": "complete",
+      "payload_bytes": 26007,
+      "sha256": "fc683e4d7996aa688e341c0d624f8bcfda603f2df63c4a15c726b5c32ba76761",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 1110717,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.11049980200186837,
+      "cpu_seconds": 0.10899171199999991
+    },
+    {
+      "kind": "ledger",
+      "trial": "revalidate",
+      "status": "complete",
+      "payload_bytes": 26007,
+      "sha256": "fc683e4d7996aa688e341c0d624f8bcfda603f2df63c4a15c726b5c32ba76761",
+      "source_coverage": {
+        "captured_bytes": 1110717,
+        "files": 13,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.0023392000002786517,
+      "cpu_seconds": 0.002341048999999984
+    },
+    {
+      "kind": "snapshots",
+      "trial": "cold",
+      "status": "complete",
+      "payload_bytes": 294389,
+      "sha256": "27f98efdd71c9bba214e47a01b28619ca18b5574001045649b964dbfd65fccc3",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 34432056,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 3.553278502993635,
+      "cpu_seconds": 3.520848066
+    },
+    {
+      "kind": "snapshots",
+      "trial": "revalidate",
+      "status": "complete",
+      "payload_bytes": 294389,
+      "sha256": "27f98efdd71c9bba214e47a01b28619ca18b5574001045649b964dbfd65fccc3",
+      "source_coverage": {
+        "captured_bytes": 34432056,
+        "files": 13,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.011748510994948447,
+      "cpu_seconds": 0.011661705999999938
+    },
+    {
+      "kind": "candidates",
+      "trial": "cold",
+      "status": "complete",
+      "payload_bytes": 1830,
+      "sha256": "8821ec486ee57312a60cc2adeade65d561f5aa5e902f562165cc473ed78da466",
+      "source_coverage": {
+        "files": 1,
+        "captured_bytes": 856,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.012474600007408299,
+      "cpu_seconds": 0.011787545999999871
+    },
+    {
+      "kind": "candidates",
+      "trial": "revalidate",
+      "status": "complete",
+      "payload_bytes": 1830,
+      "sha256": "8821ec486ee57312a60cc2adeade65d561f5aa5e902f562165cc473ed78da466",
+      "source_coverage": {
+        "captured_bytes": 856,
+        "files": 1,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.0003379300032975152,
+      "cpu_seconds": 0.0003385899999992503
+    },
+    {
+      "kind": "proposals",
+      "trial": "cold",
+      "status": "complete",
+      "payload_bytes": 30840,
+      "sha256": "ee532634467dfee2e94a19efb37366a9e23eba507d897f2adc2ceaf35ffcdb13",
+      "source_coverage": {
+        "files": 13271,
+        "captured_bytes": 16469074,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 1.1059695799922338,
+      "cpu_seconds": 1.0973846410000005
+    },
+    {
+      "kind": "proposals",
+      "trial": "revalidate",
+      "status": "complete",
+      "payload_bytes": 30840,
+      "sha256": "ee532634467dfee2e94a19efb37366a9e23eba507d897f2adc2ceaf35ffcdb13",
+      "source_coverage": {
+        "captured_bytes": 16469074,
+        "files": 13271,
+        "verified": true
+      },
+      "events": null,
+      "wall_seconds": 0.11559687199769542,
+      "cpu_seconds": 0.1149336700000001
+    }
+  ],
+  "profile_status": "complete",
+  "activity_profile_top": [
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 1121,
+      "function": "build_projection",
+      "calls": 2401,
+      "self_seconds": 0.00106303,
+      "cumulative_seconds": 4.012758321000001
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 1099,
+      "function": "_reduce_activity_source",
+      "calls": 2406,
+      "self_seconds": 0.179254626,
+      "cumulative_seconds": 3.9629780300000004
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 328,
+      "function": "add_json",
+      "calls": 233495,
+      "self_seconds": 0.179479742,
+      "cumulative_seconds": 3.4114234540000004
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 344,
+      "function": "add_event",
+      "calls": 233495,
+      "self_seconds": 1.206166454,
+      "cumulative_seconds": 2.5202743030000003
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 190,
+      "function": "change",
+      "calls": 25249,
+      "self_seconds": 0.01107845,
+      "cumulative_seconds": 0.8815835660000001
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 171,
+      "function": "size",
+      "calls": 31193,
+      "self_seconds": 0.315039497,
+      "cumulative_seconds": 0.8363763860000001
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 193,
+      "function": "replace",
+      "calls": 25249,
+      "self_seconds": 0.01930132,
+      "cumulative_seconds": 0.785062734
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+      "calls": 233495,
+      "self_seconds": 0.602939758,
+      "cumulative_seconds": 0.6909984490000001
+    },
+    {
+      "file": "/app/src/utils/bounded_read.py",
+      "line": 174,
+      "function": "reverse_jsonl_bytes",
+      "calls": 234992,
+      "self_seconds": 0.22301287700000003,
+      "cumulative_seconds": 0.37225640000000004
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'get' of 'dict' objects>",
+      "calls": 1252083,
+      "self_seconds": 0.192407663,
+      "cumulative_seconds": 0.192407663
+    },
+    {
+      "file": "/usr/local/lib/python3.13/dataclasses.py",
+      "line": 1357,
+      "function": "fields",
+      "calls": 9544,
+      "self_seconds": 0.117650743,
+      "cumulative_seconds": 0.13264267300000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.isinstance>",
+      "calls": 831935,
+      "self_seconds": 0.118519942,
+      "cumulative_seconds": 0.118519942
+    },
+    {
+      "file": "/usr/local/lib/python3.13/dataclasses.py",
+      "line": 1380,
+      "function": "is_dataclass",
+      "calls": 160920,
+      "self_seconds": 0.06474883000000001,
+      "cumulative_seconds": 0.10210698
+    },
+    {
+      "file": "/app/src/runtime/activity_events.py",
+      "line": 485,
+      "function": "_coerce_timestamp_to_utc",
+      "calls": 233534,
+      "self_seconds": 0.058445620000000004,
+      "cumulative_seconds": 0.088075761
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'match' of 're.Pattern' objects>",
+      "calls": 233495,
+      "self_seconds": 0.06762227,
+      "cumulative_seconds": 0.06762227
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.len>",
+      "calls": 483302,
+      "self_seconds": 0.06388622000000001,
+      "cumulative_seconds": 0.06389068
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'rfind' of 'bytes' objects>",
+      "calls": 236466,
+      "self_seconds": 0.056879941,
+      "cumulative_seconds": 0.056879941
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method sys.getsizeof>",
+      "calls": 202167,
+      "self_seconds": 0.053104750000000006,
+      "cumulative_seconds": 0.053104750000000006
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'extend' of 'list' objects>",
+      "calls": 51583,
+      "self_seconds": 0.022570691,
+      "cumulative_seconds": 0.051656071000000005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<built-in method builtins.id>",
+      "calls": 452957,
+      "self_seconds": 0.047580552000000005,
+      "cumulative_seconds": 0.047580552000000005
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 593,
+      "function": "finish",
+      "calls": 1,
+      "self_seconds": 0.0118816,
+      "cumulative_seconds": 0.046488191000000005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'startswith' of 'str' objects>",
+      "calls": 257441,
+      "self_seconds": 0.03955564,
+      "cumulative_seconds": 0.03955564
+    },
+    {
+      "file": "/app/src/dashboard/projections.py",
+      "line": 233,
+      "function": "add",
+      "calls": 378,
+      "self_seconds": 0.0006875200000000001,
+      "cumulative_seconds": 0.038052431000000005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'pop' of 'list' objects>",
+      "calls": 250097,
+      "self_seconds": 0.03787129,
+      "cumulative_seconds": 0.03787129
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "function": "<method 'strip' of 'bytes' objects>",
+      "calls": 233495,
+      "self_seconds": 0.036278172000000004,
+      "cumulative_seconds": 0.036278172000000004
+    }
+  ]
+}
