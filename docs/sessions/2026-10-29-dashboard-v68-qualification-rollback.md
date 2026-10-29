@@ -128,3 +128,14 @@ Evidence:
 Key files are `audit.json`, original `observation/`, `activity-stability.json`,
 `fresh-session-check.json`, `rollback-verification.json`, before/after/rollback
 runtime captures, CPU history/supplement, `observer-tests.xml`, scripts and manifest.
+
+## Delivery checkpoint — 2026-10-30 KST
+
+Evidence/documentation commit **`e14e9be`** was pushed to `origin/main`.
+The initial commit attempt lacked local Git author configuration; the successful
+command used this repository's existing author identity for that command only.
+No global Git configuration was changed. A later read-only status check still
+finds v69 and the same rollback image/instance; public health at
+2026-10-29T15:24:48Z is200/ok in0.195136s. This is delivery-time health evidence,
+not a repeated or extended acceptance run. Local `.tmp/` tooling and scratch
+captures remain untracked; only the selected documents/evidence were committed.

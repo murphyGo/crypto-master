@@ -47,7 +47,7 @@ and cold/native/depleted/original 1024 MiB gates remain independently open.
 - [x] Lead: source commit/push, remote exact confirmation; same-config deploy.
 - [x] Lead/QA: source/image/settings/health verification; one bounded four-session
   observation including a full natural engine cycle; retain every failure.
-- [ ] Lead/docs: operational evidence and separate commit/push confirmation.
+- [x] Lead/docs: operational evidence and separate commit/push confirmation.
 
 ## Required regression coverage
 
@@ -121,3 +121,9 @@ startup cycle verified. Home/Trading complete11.426338/1.030893s; Home latency
 still fails. All failed samples remain. Git retains v68 source, not qualified
 for redeployment; next stage is recovery-policy redesign plus observer response
 attribution hardening under DEBT-083. See the2026-10-29 session/cross-check.
+
+Delivery confirmed on2026-10-30 KST: operational evidence commit `e14e9be`
+was pushed to `origin/main`. A read-only delivery check still finds v69 on the
+same rollback instance/image; public health is200/ok in0.195136s. This later
+health check is not an extension of the failed observation or a new acceptance
+sample. All task observer/collector sessions have ended.
