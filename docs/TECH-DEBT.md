@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active / Critical. Current runtime v68 / `7b87d9a`, 182 hashes/configuration verified. Bounded recovery passes 3,048 tests and independent QA. User stopped operational observation on 2026-10-28 KST; partial 16/16 complete does not qualify readiness. Prior v67 remains 348/356 with eight incomplete. Cold/native/depleted/original 1 GiB qualification and all historical failed samples remain open; shared CPU 1 / 2048 MiB unchanged. |
+| **Status** | Active / Critical. Current runtime **v69 / source `120b440`**, exact v67 image restored after v68 persistent activity failure. Resumed v68 sample: 610.445559 s, 4/120 complete, 3 timeouts, 113 incomplete; health121/121 and natural cycle pass. Stable-source/fresh-session corroboration met rollback criterion. Restored182 hashes/settings, startup cycle and Home/Trading availability verified; Home11.426338 s still fails5s. Git retains v68 source for redesign, not qualified for redeployment. Cold/native/depleted/original1GiB and historical failures remain; shared CPU1/2048 MiB/cost deferral unchanged. |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -400,6 +400,29 @@ the short observation on2026-10-28KST; partial16/16complete, no full cycle or
 minimum duration. Home warmup10.430s misses target. Retain prior failed samples
 and original qualification gates; status USER_STOPPED_INCOMPLETE.
 See `docs/sessions/2026-10-27-dashboard-source-recovery.md`.
+
+**2026-10-29 resumed v68 qualification / rollback:** The unchanged four-session
+observer runs610.445559s across a full35.832690s natural cycle (12 monitors,
+zero errors). It records120 starts/outcomes:4 complete,3 timeouts,113 incomplete.
+Health121/121 passes (max2.037698s); guest peak676.625MiB and dashboard RSS
+growth0MiB are observations on the current2GiB allocation. CPU balance remains
+456.830–500 CPU-seconds with zero sampled throttle-counter increments; depleted
+CPU is unqualified. Home warmup7.321074s still misses5s. Activity source_changed
+exhaustion persists: seven selected files/97,090,668bytes retain identical full
+content hashes and generations across20s; two fresh Home connections still show
+activity-unavailable with no watcher. This meets the existing rollback criterion.
+Exact v67 image/source120b440 is restored as Fly **v69**, with182 runtime hashes,
+unchanged config/dependencies/volume/capacity/paper-Codex, health and first
+25.280011s startup cycle/12monitors/zeroerrors verified. Home/Trading complete
+11.426338/1.030893s; Home first incomplete shell8.782085s also misses5s.
+Mitigation is not acceptance. Preserve all original failures and remaining gates.
+Next: revise the recovery terminal policy against the long-write case; improve
+observer response-generation attribution (queued post-timeout responses can
+contaminate reused-socket timing/page labels). Fresh connections corroborate the
+failure independently. Git retains v68 source; do not redeploy its policy before
+redesign/qualification. No additional debt item or CPU-cost activation.
+See `docs/sessions/2026-10-29-dashboard-v68-qualification-rollback.md` and the
+same-date cross-check; raw evidence is in `source-recovery-resume-20261029/operations`.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 

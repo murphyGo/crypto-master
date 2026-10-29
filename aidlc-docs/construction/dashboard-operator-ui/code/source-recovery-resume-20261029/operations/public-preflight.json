@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://crypto-master.fly.dev/_stcore/health",
+    "captured_at": "2026-10-28T14:51:52.657012+00:00",
+    "status": 200,
+    "body_bytes": 2,
+    "health_ok": true,
+    "seconds": 0.19032591599989246
+  },
+  {
+    "url": "https://crypto-master.fly.dev/",
+    "captured_at": "2026-10-28T14:51:52.847512+00:00",
+    "status": 200,
+    "body_bytes": 6463,
+    "health_ok": null,
+    "seconds": 0.13098258399986662
+  }
+]

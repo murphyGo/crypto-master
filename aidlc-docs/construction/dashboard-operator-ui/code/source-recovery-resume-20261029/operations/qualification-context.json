@@ -1,0 +1,37 @@
+{
+  "source_head": "baf93d9579c1fa171f39b7141bfc5b4938cb2a3d",
+  "source_changes": false,
+  "files": {
+    "scripts/observe_dashboard_protocol.py": "a1a9b197cbd03459131a55dacaff7bdcacea853b072853beaaad1ad4d6a6f8d8",
+    "tests/test_dashboard_protocol_observer.py": "a3593afc9e9d47826346002bd69ee4224af8823d800a94171fd2c443cbb219c2",
+    "fly.toml": "49c3112c1a63851ce400591165b44233466aec3cdcdf1b6f9192475752cd4f6c",
+    "aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/capture_cpu.py": "4156814d4dd33716e3c689e5dff631dfbacf57c1390873ea3ca79b7930612e35",
+    "aidlc-docs/construction/dashboard-operator-ui/code/home-recovery-20261026/operations/capture_diagnostics.py": "4076a512b5b57028fcf3b5db417292af0b37b4472406d9f235c223b5c8cb129f"
+  },
+  "observer_tests": {
+    "passed": 48,
+    "python": "3.13.18",
+    "scope": "Offline observer contracts only; historical 3048 source suite not rerun for operations-only work."
+  },
+  "native_browser": {
+    "status": "NOT_QUALIFIED",
+    "browser_connector": "The browser access host is unavailable",
+    "native_chrome": "Native app discovery worked via /Applications/Google Chrome.app; both attempts to open the dashboard were rejected because the user changed the app. No task dashboard viewport was observed and no native timing is claimed."
+  },
+  "initial_preflight_failures": [
+    "Fly authentication unavailable until user completed login.",
+    "Sandboxed wrapper could not access Fly credentials; approved retry passed."
+  ],
+  "references": [
+    {
+      "url": "https://docs.fly.io/monitoring/metrics",
+      "verified_date": "2026-10-28 UTC",
+      "use": "CPU baseline units, burst balance gauge in centiseconds, throttle cumulative counter in centiseconds."
+    },
+    {
+      "url": "https://docs.fly.io/machines/cpu-performance",
+      "verified_date": "2026-10-28 UTC",
+      "use": "Shared CPU burst/depletion interpretation only."
+    }
+  ]
+}

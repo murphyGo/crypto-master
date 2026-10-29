@@ -1,0 +1,293 @@
+{
+  "release": 69,
+  "image": "sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+  "checks": {
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "runtime_source": true,
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "image": true,
+    "processes": true,
+    "internal_health": true,
+    "restarted_from_v68": true
+  },
+  "startup_full_cycles": {
+    "33cc73b2-6bf9-458e-8650-31d9548c1fa9": {
+      "cycle_started": {
+        "timestamp": "2026-10-28T15:18:07.214185Z",
+        "event_type": "cycle_started",
+        "cycle_id": "33cc73b2-6bf9-458e-8650-31d9548c1fa9",
+        "details": {
+          "cycle_index": 1
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-28T15:18:32.494196Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "33cc73b2-6bf9-458e-8650-31d9548c1fa9",
+        "details": {
+          "proposals": 1,
+          "accepted": 1,
+          "rejected": 1,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    }
+  },
+  "startup_cycle_counts": {
+    "33cc73b2-6bf9-458e-8650-31d9548c1fa9": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "proposal_generated": 1,
+      "proposal_accepted": 1,
+      "correlation_warning": 1,
+      "proposal_rejected": 1,
+      "cycle_completed": 1
+    }
+  },
+  "public_health": {
+    "status": 200,
+    "ok": true,
+    "seconds": 0.18337745900043956
+  },
+  "pages": [
+    {
+      "started_at": "2026-10-28T15:22:58.828028+00:00",
+      "client": "rollback-fresh",
+      "page": "Home",
+      "status": "complete",
+      "first_incomplete_shell_seconds": 8.782085208999888,
+      "first_incomplete_script_finished_seconds": 8.783910500000275,
+      "seconds": 11.426338416999897,
+      "messages": 117,
+      "elements": {
+        "metric": 12,
+        "dataframe": 4,
+        "table": 0,
+        "vega_lite_chart": 0,
+        "exception": 0
+      },
+      "incomplete_alerts": 0,
+      "alerts": [
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 8.782085208999888
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 8.782151958999748
+        },
+        {
+          "section": "snapshots",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 8.782179959000132
+        },
+        {
+          "section": "candidates",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 8.782203374999881
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 8.782584458999736
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 8.783436959000028
+        }
+      ],
+      "metrics": [
+        {
+          "kind": "metric",
+          "label": "Runtime safety",
+          "value_sha256": "3c8cab8b47d6d0ac0e1bb0a3c209b836f5cf1a61e851626dc7a5d7f011a7e5dd",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Last cycle",
+          "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Open positions",
+          "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Snapshot",
+          "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Mode",
+          "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Scope",
+          "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Sub-accounts",
+          "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Actionable events",
+          "value_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Candidates",
+          "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Awaiting approval",
+          "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Promoted",
+          "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Errored",
+          "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+          "placeholder": false
+        }
+      ],
+      "script_finished_values": [
+        0,
+        3,
+        2,
+        0
+      ],
+      "maximum_background_watchers": 1,
+      "auto_rerun_registrations": 1
+    },
+    {
+      "started_at": "2026-10-28T15:23:10.255107+00:00",
+      "client": "rollback-fresh",
+      "page": "Trading",
+      "status": "complete",
+      "first_incomplete_shell_seconds": null,
+      "first_incomplete_script_finished_seconds": null,
+      "seconds": 1.0308925839999574,
+      "messages": 38,
+      "elements": {
+        "metric": 6,
+        "dataframe": 3,
+        "table": 0,
+        "vega_lite_chart": 1,
+        "exception": 0
+      },
+      "incomplete_alerts": 0,
+      "alerts": [
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.06391679199987266
+        }
+      ],
+      "metrics": [
+        {
+          "kind": "metric",
+          "label": "Current Equity",
+          "value_sha256": "737af0695a547f16ed100836f928033bcfc06a7f0b46ce956b1598f6c923b728",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Open Positions",
+          "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Closed Trades",
+          "value_sha256": "2adf89afa76f370d54092cb53f74d1558f116bbbffe20007a67ba31746fdb7e3",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Win Rate",
+          "value_sha256": "8c549acf5fd886b42bdb7a07c75aa7a7e7348ea5b2230718c03bf19065cdd063",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Realized P&L",
+          "value_sha256": "61c027b06f85465d0fd5e5bc4ba94fe750a064e6893159137e4b4e657bc68d39",
+          "placeholder": false
+        },
+        {
+          "kind": "metric",
+          "label": "Proposals rejected (threshold)",
+          "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+          "placeholder": false
+        }
+      ],
+      "script_finished_values": [
+        0
+      ],
+      "maximum_background_watchers": 0,
+      "auto_rerun_registrations": 0
+    }
+  ]
+}

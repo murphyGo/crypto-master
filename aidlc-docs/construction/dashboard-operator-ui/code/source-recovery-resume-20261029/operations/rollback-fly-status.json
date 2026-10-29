@@ -1,0 +1,146 @@
+{
+  "AppURL": "https://2a09:8280:1::10b:aaf3:0",
+  "Deployed": true,
+  "Hostname": "crypto-master.fly.dev",
+  "ID": "crypto-master",
+  "Machines": [
+    {
+      "id": "6835752b711958",
+      "name": "morning-glitter-7732",
+      "state": "started",
+      "region": "nrt",
+      "image_ref": {
+        "registry": "registry.fly.io",
+        "repository": "crypto-master",
+        "digest": "sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+        "labels": {
+          "org.opencontainers.image.revision": "120b4408dc0d3eedb241edf26f8f161c062cf126"
+        }
+      },
+      "instance_id": "01M61HDNQ1BNPYJJ2X8NNQ46YZ",
+      "version": "01M61HDNQ1BNPYJJ2X8NNQ46YZ",
+      "private_ip": "fdaa:70:64f8:a7b:7ca:a58d:f788:2",
+      "created_at": "2026-04-26T17:25:55Z",
+      "updated_at": "2026-10-28T15:17:58Z",
+      "config": {
+        "env": {
+          "CLAUDE_CLI_MODEL": "sonnet",
+          "CODEX_AUTH_HOME": "/data/codex-auth",
+          "CODEX_CLI_MODEL": "gpt-6-astra",
+          "ENGINE_CYCLE_INTERVAL": "1800",
+          "ENGINE_PROMPT_STRATEGY_MIN_INTERVAL_SECONDS": "300",
+          "FLY_PROCESS_GROUP": "app",
+          "LLM_PROVIDER": "codex",
+          "PRIMARY_REGION": "nrt"
+        },
+        "init": {},
+        "guest": {
+          "cpu_kind": "shared",
+          "cpus": 1,
+          "memory_mb": 2048
+        },
+        "metadata": {
+          "fly_builder_id": "8654630fd242d8",
+          "fly_flyctl_version": "0.4.123",
+          "fly_platform_version": "v2",
+          "fly_process_group": "app",
+          "fly_release_id": "rel_q534y1mlkomoy7v9",
+          "fly_release_version": "69"
+        },
+        "mounts": [
+          {
+            "encrypted": true,
+            "path": "/data",
+            "size_gb": 1,
+            "volume": "vol_4m3l58dkk29y19zv",
+            "name": "data"
+          }
+        ],
+        "services": [
+          {
+            "protocol": "tcp",
+            "internal_port": 8080,
+            "autostop": false,
+            "autostart": true,
+            "min_machines_running": 1,
+            "ports": [
+              {
+                "port": 80,
+                "handlers": [
+                  "http"
+                ],
+                "force_https": true
+              },
+              {
+                "port": 443,
+                "handlers": [
+                  "http",
+                  "tls"
+                ]
+              }
+            ],
+            "checks": [
+              {
+                "type": "http",
+                "interval": "30s",
+                "timeout": "5s",
+                "grace_period": "2m0s",
+                "method": "GET",
+                "path": "/_stcore/health"
+              }
+            ],
+            "force_instance_key": null
+          }
+        ],
+        "image": "registry.fly.io/crypto-master@sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382",
+        "restart": {
+          "policy": "on-failure",
+          "max_retries": 10
+        }
+      },
+      "events": [
+        {
+          "type": "start",
+          "status": "started",
+          "request": {},
+          "source": "flyd",
+          "timestamp": 1793200678727
+        },
+        {
+          "type": "launch",
+          "status": "created",
+          "source": "user",
+          "timestamp": 1793200674562
+        },
+        {
+          "type": "launch",
+          "status": "pending",
+          "source": "flyd",
+          "timestamp": 1793200674529
+        }
+      ],
+      "checks": [
+        {
+          "name": "servicecheck-00-http-8080",
+          "status": "passing",
+          "output": "ok",
+          "updated_at": "2026-10-28T15:18:01.572Z"
+        }
+      ],
+      "host_status": "ok",
+      "cordoned": false
+    }
+  ],
+  "Name": "crypto-master",
+  "Organization": {
+    "ID": "X14ZNqpmoA4vDI0145MNGeBYKNhOK4bZo",
+    "InternalNumericID": "1615334",
+    "Name": "",
+    "Slug": "personal",
+    "RawSlug": "",
+    "PaidPlan": true
+  },
+  "PlatformVersion": "machines",
+  "Status": "deployed",
+  "Version": 69
+}

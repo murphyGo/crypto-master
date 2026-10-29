@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | Bounded source-generation recovery passes 3,048 tests and independent QA; v68/7b87d9a deployed; observation user-stopped/incomplete. Prior proposal refresh CPU correction passes local parity/CPU proof; source `120b440` deployed as v67 with 182 runtime hashes verified. V67 remains FAIL_SAMPLE: 348/356 complete, eight terminal incomplete during natural cycle; health 352/352 and cycle pass, sampled throttle increments zero. Retain prior v64/v65/v66 failures and cold/native/depleted/original 1024 MiB/cost gates. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V68 resumed sample fails4/120 complete; source_changed exhaustion persists after stable-source/fresh-session proof. Exact v67 image restored as v69/source120b440;182 hashes/config, health, startup cycle and Home/Trading availability verified. Redesign recovery terminal policy and improve observer attribution; original cold/native/depleted/1024MiB/cost gates remain. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Finite coalesced source_changed recovery now passes source gates; v68/7b87d9a deployed, observation user-stopped/incomplete. Optional proposal heuristic runs only on eligible rebuilds; v67/`120b440` source and runtime integrity pass. Four-session observation fails with four activity-stale and four snapshot-unavailable terminal outcomes; a full 34.288 s natural cycle and health pass. Preserve source/freshness proof, all failed samples, and cold/native/depleted/original 1024 MiB/cost gates. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Current v69/source120b440 restores the exact prior v67 image. V68 source tests passed but operational policy failed:610.445559s,4/120 complete, persistent activity-unavailable on stable input/new sessions. Retain all failed samples; revise policy before redeploying v68 source and qualify cold/native/depleted/original1024MiB. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

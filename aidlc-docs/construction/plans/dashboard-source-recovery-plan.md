@@ -45,7 +45,7 @@ and cold/native/depleted/original 1024 MiB gates remain independently open.
   freeze final source hashes and meaningful source/canonical parity evidence.
 - [x] Docs: session/cross-check/state/debt-map/TECH-DEBT updates.
 - [x] Lead: source commit/push, remote exact confirmation; same-config deploy.
-- [ ] Lead/QA: source/image/settings/health verification; one bounded four-session
+- [x] Lead/QA: source/image/settings/health verification; one bounded four-session
   observation including a full natural engine cycle; retain every failure.
 - [ ] Lead/docs: operational evidence and separate commit/push confirmation.
 
@@ -79,3 +79,45 @@ User stopped work on2026-10-28KST. Source7b87d9a is pushed/deployed as v68;
 with partial16complete outcomes and no full-cycle qualification. All owned
 collection processes stopped. Final stop record is committed separately;
 resume only on new user instruction.
+
+## Operational continuation — 2026-10-28 KST
+
+[Answer]: User says “계속 진행” after the remaining-work report. Resume the
+bounded v68 operational observation and evidence audit. Preserve the original
+failed/stopped samples and CPU-cost deferral. No capacity or trading-policy
+change is selected.
+
+- [x] Reconfirm v68 image, 182 runtime hashes, settings and process identity.
+- [x] Run the existing four-session observer at 20 s cadence for at least 600 s
+  and one full natural cycle, bounded by 2100 s and the existing health/memory
+  abort guards. Retain warmup separately and every failed request.
+- [x] Capture allowlisted diagnostics and recorded CPU history; reconcile
+  starts/outcomes, cycle evidence, memory, health and post-run identity.
+- [x] Record the outcome in a new session/cross-check, debt, state and unit map.
+
+Related requirements remain FR-028–032/036/038, NFR-003/007/008/011/012,
+US-012/014/020/023. This continuation is Operations / Build and Test evidence;
+application source is unchanged. Native browser access is currently unavailable
+in this session and cannot be inferred from WebSocket results.
+
+The resumed sample crosses 2026-10-29 KST. It already contains activity
+`source_changed` retry exhaustion and persistent incomplete page results after
+the natural cycle. Finish and retain the bounded sample, then compare full
+activity membership/generations/content across a quiet interval and use fresh
+connections to distinguish persistence from buffered observer responses. If
+confirmed, the existing rollback criterion applies: restore the exact v67
+image `sha256:2aa60d27cf4aed283b9e4596e17cf3403f39b88794b3347f5abeb40462700382`
+on the existing machine, volume, shared CPU 1 / 2048 MiB and paper/Codex setup,
+then verify hashes, configuration, health, page availability and startup cycle.
+This mitigates the new persistent failure; it cannot resolve DEBT-083 or
+erase the v67 failures. Preserve the v68 source in Git for follow-up design.
+
+**Final operational result (2026-10-29 KST):** 610.445559 s /120 outcomes:
+4 complete,3 timeouts,113 incomplete. Health121/121 and full natural cycle pass;
+the overall sample fails. Seven activity files/97,090,668 bytes have identical
+manifest/content across20s; two fresh sessions still fail. Exact v67 image was
+restored as **Fly v69 / source120b440**, with182 hashes/settings and a clean
+startup cycle verified. Home/Trading complete11.426338/1.030893s; Home latency
+still fails. All failed samples remain. Git retains v68 source, not qualified
+for redeployment; next stage is recovery-policy redesign plus observer response
+attribution hardening under DEBT-083. See the2026-10-29 session/cross-check.

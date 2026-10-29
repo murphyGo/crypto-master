@@ -1,0 +1,160 @@
+[
+  {
+    "started_at": "2026-10-28T15:15:15.850292+00:00",
+    "client": "fresh-home-1",
+    "page": "Home",
+    "status": "incomplete",
+    "first_incomplete_shell_seconds": 0.20156529100040643,
+    "first_incomplete_script_finished_seconds": 0.5583852079998906,
+    "seconds": 0.5583874160001869,
+    "messages": 30,
+    "elements": {
+      "metric": 3,
+      "dataframe": 2,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 1,
+    "alerts": [
+      {
+        "section": "activity",
+        "category": "unavailable",
+        "incomplete": true
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      }
+    ],
+    "alert_history": [
+      {
+        "section": "activity",
+        "category": "unavailable",
+        "incomplete": true,
+        "first_seen_seconds": 0.20156529100040643
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false,
+        "first_seen_seconds": 0.5575813750001544
+      }
+    ],
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Open Positions",
+        "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Current Equity",
+        "value_sha256": "60811c377cfc55296137274249c4f8ec289723071550932d31bafcf5018ba302",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  },
+  {
+    "started_at": "2026-10-28T15:15:21.805860+00:00",
+    "client": "fresh-home-2",
+    "page": "Home",
+    "status": "incomplete",
+    "first_incomplete_shell_seconds": 0.21389570900009858,
+    "first_incomplete_script_finished_seconds": 0.5651265420001437,
+    "seconds": 0.5651304169996365,
+    "messages": 30,
+    "elements": {
+      "metric": 3,
+      "dataframe": 2,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 1,
+    "alerts": [
+      {
+        "section": "activity",
+        "category": "unavailable",
+        "incomplete": true
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      }
+    ],
+    "alert_history": [
+      {
+        "section": "activity",
+        "category": "unavailable",
+        "incomplete": true,
+        "first_seen_seconds": 0.21389570900009858
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false,
+        "first_seen_seconds": 0.5648103749999791
+      }
+    ],
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Open Positions",
+        "value_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Current Equity",
+        "value_sha256": "60811c377cfc55296137274249c4f8ec289723071550932d31bafcf5018ba302",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  }
+]

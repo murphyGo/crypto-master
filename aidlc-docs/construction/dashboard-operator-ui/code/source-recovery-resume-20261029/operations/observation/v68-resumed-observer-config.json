@@ -1,0 +1,48 @@
+{
+  "seconds": 600,
+  "max_seconds": 2100,
+  "cadence_seconds": 20.0,
+  "phase": "v68-resumed",
+  "surface": "protocol only, not native browser acceptance",
+  "metric_labels": {
+    "Home": [
+      "Actionable events",
+      "Awaiting approval",
+      "Candidates",
+      "Errored",
+      "Last cycle",
+      "Mode",
+      "Open positions",
+      "Promoted",
+      "Runtime safety",
+      "Scope",
+      "Snapshot",
+      "Sub-accounts"
+    ],
+    "Trading": [
+      "Closed Trades",
+      "Current Equity",
+      "Open Positions",
+      "Proposals rejected (threshold)",
+      "Realized P&L",
+      "Win Rate"
+    ]
+  },
+  "expected_element_counts": {
+    "Home": {
+      "metric": 12,
+      "dataframe": 4,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "Trading": {
+      "metric": 6,
+      "dataframe": 3,
+      "table": 0,
+      "vega_lite_chart": 1,
+      "exception": 0
+    }
+  },
+  "descriptor_sha256": "7746d5987cc88936c3391c2e8fd48013ce9604ff5cf5fb3e25469425d87bf251"
+}

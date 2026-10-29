@@ -1,0 +1,4274 @@
+{
+  "verdict": "FAIL_SAMPLE",
+  "window": {
+    "start": "2026-10-28T14:55:39.459873+00:00",
+    "end": "2026-10-28T15:05:49.905432+00:00",
+    "seconds": 610.4455590248108
+  },
+  "requests": {
+    "starts": 120,
+    "outcomes": 120,
+    "bijective": true,
+    "status_counts": {
+      "complete": 4,
+      "timeout": 3,
+      "incomplete": 113
+    },
+    "shape_failures": []
+  },
+  "pages": {
+    "Home": {
+      "requests": 60,
+      "complete": 2,
+      "status_counts": {
+        "complete": 2,
+        "timeout": 1,
+        "incomplete": 57
+      },
+      "complete_p50_seconds": 0.6083544999992228,
+      "complete_p95_seconds": 0.8669771250006306,
+      "complete_max_seconds": 0.8669771250006306,
+      "at_least_20_complete": false
+    },
+    "Trading": {
+      "requests": 60,
+      "complete": 2,
+      "status_counts": {
+        "complete": 2,
+        "timeout": 2,
+        "incomplete": 56
+      },
+      "complete_p50_seconds": 0.6946800000005169,
+      "complete_p95_seconds": 1.083621665999999,
+      "complete_max_seconds": 1.083621665999999,
+      "at_least_20_complete": false
+    }
+  },
+  "failures": [
+    {
+      "started_at": "2026-10-28T14:56:00.191827+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "timeout",
+      "seconds": 30.091203332999612,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578341499999624
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578363541999352
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.5783732499994585
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578435333000016
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578444707999552
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.580402083000081
+        },
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 10.562693124999896
+        },
+        {
+          "section": "candidates",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 10.562778458000139
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 10.562789957999485
+        },
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 16.05651320800007
+        }
+      ],
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-10-28T14:56:01.058193+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 29.230465042000105,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.576144208999722
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578560166999523
+        },
+        {
+          "section": "candidates",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.57857362499999
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.578581167000266
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 4.578647624999576
+        },
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 14.164261334000003
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 14.164424042000064
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 25.51143358399986
+        }
+      ],
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-10-28T14:56:30.018027+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.5943549169996913,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005370419994505937
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.5942940830000225
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:30.289250+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.5928699999994933,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.45828904199970566
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.5925280840001506
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:50.286827+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.0031269170003724867,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0004949169997416902
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:50.290940+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.6479932499996721,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.5283804580003562
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.6478810830003567
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:10.020209+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3709817919998386,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20507695800006331
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3602310830001443
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:10.290747+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.24106658399978187,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.11159533399950305
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.2410080839999864
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:30.289120+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.016585916000622092,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0015077910002219141
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:30.295310+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.5650883329999488,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3142767500003174
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.56454366700018
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:50.023655+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3624828329993761,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20796737499949813
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3624259170001096
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:50.294105+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.2373009169996294,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.11437912499968661
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.23724091700023564
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:10.300622+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.00677083299979131,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0035250000000814907
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:10.305493+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.4567424159995426,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.31991520799965656
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.4566871249999167
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:30.027657+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.31552650000048743,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19861341599971638
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.31516745800036006
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:30.309299+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.21774941700005002,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.07991108299938787
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.2175754579993736
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:50.302719+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.00973129100020742,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0020925409999108524
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:50.311335+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.641516749999937,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.5130868750002264
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.6414626249998037
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:10.029077+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.32002037500024016,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.203441708000355
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3198694160000741
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:10.310628+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.24344987499989656,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.09179349999976694
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.24324725000042235
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:30.304281+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.0044196660001034616,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0006201249998412095
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:30.311645+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.5427725419995113,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3107637919993067
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.5427178749996528
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:50.031470+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3494709159995182,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20596937499976775
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.34900412499973754
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:50.311465+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.2260100829998919,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.100395290999586
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.2256992499997068
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:10.306497+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.003155207999952836,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.000532750000274973
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:10.312060+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.7042374579996249,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.584945874999903
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.7041839160001473
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:30.033593+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.32053745900066133,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.2060727500002031
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.32019133399990096
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:30.316793+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.23097204199984844,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10825500000009924
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.23076941700037423
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:50.309545+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.004136540999752469,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005236249999143183
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:50.317756+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.4707371249996868,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.35068691699962073
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.4706800000003568
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:10.035951+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3881530830003612,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.21497420800005784
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.37987462500041147
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:10.318006+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.25644499999998516,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.1260535000001255
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.2563914169995769
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:30.310833+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.0023618750001332955,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005063329999757116
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:30.318796+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.4548750829999335,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.32706450000023324
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.4537639999998646
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:50.038133+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.32835816599981626,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20205787499980943
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3283034999994925
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:50.319250+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.23088870799983852,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.08893283299948962
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.23077058299986675
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:10.313029+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.0023236670003825566,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0004989580002074945
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:10.319893+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.6016869159993803,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.34065937499963184
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.6016344579993529
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:30.040265+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.31151266600045346,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.1983976250003252
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3114572499998758
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:30.320307+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.21832216599977983,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.08553537500029051
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.21138612499999
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:50.315255+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.0025875420005831984,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005519169999388396
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:50.320838+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.771950915999696,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.6454133329998513
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.7718969580000703
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:10.042415+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.33915066699955787,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20229162499981612
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.33909633299936104
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:10.321022+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.25241941700005555,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10792987500008167
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.25236683299954166
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:30.316516+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.002335125000172411,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.00046712500079593156
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:30.321551+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.4728754999996454,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3226012079994689
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.47270770799968886
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:50.044139+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3163386249998439,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19965525000043272
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.314241208000567
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:50.321733+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.22131337500013615,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.09083158300018113
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.22125537500050996
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:10.317723+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.002244125000288477,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.000502750000123342
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:10.322291+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.45114966700020886,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.31607979199998226
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.45109591700020246
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:30.046308+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.3655978340002548,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.2103732499999751
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.36553945900050167
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:30.322306+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.23137662499993894,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10620245799964323
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.23132091600018612
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:50.318419+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.002620542000840942,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.000608416999966721
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:50.322667+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.6608647089997248,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.5306920839993836
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.6608040419996541
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:10.048500+00:00",
+      "client": 0,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.34740324999984296,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20081891599966184
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.3137206659994263
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:10.322721+00:00",
+      "client": 2,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.23005579199980275,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.07361816699994961
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.22999837499992282
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:30.320596+00:00",
+      "client": 1,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.002284958000018378,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005215000001044245
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:30.323570+00:00",
+      "client": 3,
+      "page": "Home",
+      "status": "incomplete",
+      "seconds": 0.6637414159995387,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.5473310409997794
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.6636840410001241
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:55:59.598586+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "timeout",
+      "seconds": 30.415842500000508,
+      "alerts": [],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.3243115410004975
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.324338291000458
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.324393791000148
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 4.324640250000812
+        },
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 16.340346333000525
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 26.956421333000435
+        }
+      ],
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-10-28T14:56:00.194557+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "timeout",
+      "seconds": 30.08984437500021,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.590882249999595
+        },
+        {
+          "section": "ledger",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.5908989170002314
+        },
+        {
+          "section": "snapshots",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 4.59090733299945
+        },
+        {
+          "section": "proposals",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 4.590913832999831
+        },
+        {
+          "section": "activity",
+          "category": "pending",
+          "incomplete": true,
+          "first_seen_seconds": 10.560665791999782
+        },
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 15.917050999999447
+        },
+        {
+          "section": "proposals",
+          "category": "stale",
+          "incomplete": true,
+          "first_seen_seconds": 26.371599125000103
+        }
+      ],
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-10-28T14:56:30.285753+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0016514159997313982,
+      "alerts": [
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0014239160000215634
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:30.289888+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.8776195000000371,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.45978495800045494
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:50.019107+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.466530583000349,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19843279199994868
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:56:50.290557+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5181672500002605,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19551687500006665
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:10.287933+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0006822909999755211,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005069160006314632
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0006108329998824047
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:10.291049+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.7030513749996317,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.11318995900001028
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:30.022501+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.46887591700033227,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20082533299955685
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:30.293817+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.7821845409998787,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.31559787500009406
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:50.290208+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0009901659996103263,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005316249998941203
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0008568329994886881
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:57:50.295751+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5528302499997153,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.22951412499969592
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:10.024849+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.4732152500000666,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19776337500024965
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:10.305047+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.8122449580005195,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3259771250004633
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:30.301821+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.00630383299994719,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.005229332999988401
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.00606654199964396
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:30.309982+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5035245830003987,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0812398750003922
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:50.028743+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.4720689579999089,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20476354099992022
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:58:50.310354+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.4966847499999858,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19108212500032096
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:10.303901+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.004136874999858264,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0030076670000198646
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.004062541999701352
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:10.311434+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5626705829999992,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.07949712500067108
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:30.030195+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.4676271669995913,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19928387500021927
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:30.310849+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.7688199590002114,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.30509195900049235
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:50.305376+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0008810830004222225,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005421250007202616
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0008137080003507435
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T14:59:50.311901+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6666957500001445,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.11347674999979063
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:10.032430+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.49752225000065664,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.21048887500001
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:10.311677+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5712437920001321,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20440754199989897
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:30.308463+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0076807499999631546,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.006727167000462941
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.00760833399999683
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:30.317088+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5497972080002,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10844045799967716
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:50.035039+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.49000587499995163,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.2025810420000198
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:00:50.317294+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.7179337079996913,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.34205149999979767
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:10.310622+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0007300830002350267,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.00045133299954613904
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.000676374999784457
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:10.318232+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.7190138750002006,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.1281628329998057
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:30.037035+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.48399712500031455,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.21141166699999303
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:30.318516+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.688994250000178,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3242752500000279
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:50.311933+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0008407499999520951,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005114170007800567
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0007839170002625906
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:01:50.319503+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5447561660002975,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10786754100081453
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:10.039128+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5118640420005249,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.21383912500004953
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:10.319747+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.8369340000008378,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3507550420008556
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:30.314151+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0012612499995157123,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0006894169991937815
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0011892499996974948
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:30.320801+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5049460410000393,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.2182178749999366
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:50.041315+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5987595830001737,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.2337143750000905
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:02:50.320615+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6305202079993251,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10709408299953793
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:10.316357+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0008609579999756534,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005422909998742398
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0008008330005395692
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:10.321166+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6936130829999456,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.11103395800000726
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:30.043503+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.48257749999993393,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20524241600014648
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:30.321321+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.8072052500001519,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.322423415999765
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:50.317225+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0008812500000203727,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005523340005311184
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0008227090002037585
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:03:50.321958+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6588187499992273,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.22138045799965766
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:10.045236+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.45340420799948333,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19526362499982497
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:10.321941+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6902058749992648,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.3091932499992254
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:30.318137+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0008166669995262055,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.0005302499994286336
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0007644580000487622
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:30.322534+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6890155420005613,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.1141977080005745
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:50.047413+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.46210833300028753,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.19937599999957456
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:04:50.322448+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5112942499999917,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.16376129199943534
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:10.319525+00:00",
+      "client": 1,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.0007371250003416208,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.00047708300007798243
+        },
+        {
+          "section": "unknown",
+          "category": "other",
+          "incomplete": false,
+          "first_seen_seconds": 0.0006886669998493744
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:10.322857+00:00",
+      "client": 3,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.6752110830002493,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.10008462499990856
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:30.049604+00:00",
+      "client": 0,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.47455245800028933,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20531162499992206
+        }
+      ],
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-10-28T15:05:30.323364+00:00",
+      "client": 2,
+      "page": "Trading",
+      "status": "incomplete",
+      "seconds": 0.5316873749998194,
+      "alerts": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true
+        }
+      ],
+      "alert_history": [
+        {
+          "section": "activity",
+          "category": "unavailable",
+          "incomplete": true,
+          "first_seen_seconds": 0.20465974999933678
+        }
+      ],
+      "maximum_background_watchers": 0
+    }
+  ],
+  "warmup": [
+    {
+      "page": "Home",
+      "status": "complete",
+      "seconds": 7.321073959000387,
+      "first_incomplete_shell_seconds": 4.926640917000441
+    },
+    {
+      "page": "Trading",
+      "status": "complete",
+      "seconds": 0.4589023750004344,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "health": {
+    "samples": 121,
+    "all_under_5s_ok": true,
+    "max_seconds": 2.0376981250001336
+  },
+  "full_cycles": {
+    "9c4354b0-71e6-421a-bd82-941723c45a74": {
+      "cycle_started": "2026-10-28T14:55:52.482727Z",
+      "cycle_completed": "2026-10-28T14:56:28.315417Z"
+    }
+  },
+  "cycle_errors": {},
+  "memory": {
+    "window_samples": 608,
+    "raw_samples": 610,
+    "guest_peak_mib": 676.625,
+    "dashboard_rss_growth_mib": 0.0,
+    "configured_mib": 2048,
+    "original_1024_mib_qualified": false
+  },
+  "runtime": {
+    "before_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "image": true,
+      "instance": true,
+      "processes": true,
+      "internal_health": true
+    },
+    "after_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "image": true,
+      "instance": true,
+      "processes": true,
+      "internal_health": true
+    },
+    "same_processes": true
+  },
+  "diagnostics": {
+    "raw_rows": 206,
+    "window_rows": 197,
+    "window_classes": [
+      {
+        "kind": "activity",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 4
+      },
+      {
+        "kind": "ledger",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 34
+      },
+      {
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 33
+      },
+      {
+        "kind": "candidates",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 33
+      },
+      {
+        "kind": "proposals",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 5
+      },
+      {
+        "kind": "proposals",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 47
+      },
+      {
+        "kind": "candidates",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 3
+      },
+      {
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 2
+      },
+      {
+        "kind": "ledger",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 2
+      },
+      {
+        "kind": "snapshots",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 1
+      },
+      {
+        "kind": "proposals",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      },
+      {
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "retry_exhausted",
+        "count": 1
+      },
+      {
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "error_cache",
+        "count": 30
+      },
+      {
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      }
+    ]
+  },
+  "cpu": {
+    "fly_instance_cpu_balance": {
+      "window_points": 41,
+      "min": 45682.9990371,
+      "max": 50000.0,
+      "first": [
+        1793199339.46,
+        50000.0
+      ],
+      "last": [
+        1793199939.46,
+        46223.0012568
+      ],
+      "preceding_point": 1793199324.46,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_baseline": {
+      "window_points": 41,
+      "min": 0.0625,
+      "max": 0.0625,
+      "first": [
+        1793199339.46,
+        0.0625
+      ],
+      "last": [
+        1793199939.46,
+        0.0625
+      ],
+      "preceding_point": 1793199324.46,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_throttle": {
+      "window_points": 41,
+      "min": 0.0,
+      "max": 0.0,
+      "first": [
+        1793199339.46,
+        0.0
+      ],
+      "last": [
+        1793199939.46,
+        0.0
+      ],
+      "preceding_point": 1793199324.46,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0,
+      "positive_increment_centiseconds": 0.0,
+      "positive_intervals": [],
+      "reset_intervals": []
+    }
+  },
+  "limits": [
+    "Protocol shape/metric coverage, not native viewport or table-cell oracle.",
+    "Observer starts/outcomes are bijective records, not server request IDs; queued responses after timeouts can contaminate reused-socket page/timing attribution. Separate fresh connections corroborate persistence.",
+    "Warmup is one pair, not cold percentile acceptance.",
+    "Original 1 GiB and depleted CPU acceptance remain separate.",
+    "Async diagnostic overlap and local/Fly timestamp differences cannot attribute a failure to a request or writer.",
+    "All earlier failed and user-stopped samples remain retained."
+  ],
+  "source_changes": false
+}
