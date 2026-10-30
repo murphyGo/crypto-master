@@ -1,0 +1,8 @@
+{
+  "health_max_capture_gap_seconds": 278.3064019680023,
+  "last_memory_at": "2026-10-29T18:17:14.100886+00:00",
+  "memory_trailing_gap_seconds": 294.74104285240173,
+  "last_page_start": "2026-10-29T18:17:06.082837+00:00",
+  "local_sleep_events_file": "host-power-events.json",
+  "qualification": "interrupted sample retained; not a continuous full-cycle qualification"
+}

@@ -1,0 +1,52 @@
+{"elapsed_seconds": 0, "page_observations": 0, "memory_samples": 1, "health_samples": 0, "full_engine_cycle": false}
+{"elapsed_seconds": 30, "page_observations": 8, "memory_samples": 30, "health_samples": 6, "full_engine_cycle": false}
+{"elapsed_seconds": 60, "page_observations": 12, "memory_samples": 60, "health_samples": 12, "full_engine_cycle": false}
+{"elapsed_seconds": 90, "page_observations": 20, "memory_samples": 90, "health_samples": 18, "full_engine_cycle": false}
+{"elapsed_seconds": 120, "page_observations": 24, "memory_samples": 120, "health_samples": 24, "full_engine_cycle": false}
+{"elapsed_seconds": 150, "page_observations": 32, "memory_samples": 150, "health_samples": 30, "full_engine_cycle": false}
+{"elapsed_seconds": 180, "page_observations": 36, "memory_samples": 180, "health_samples": 36, "full_engine_cycle": false}
+{"elapsed_seconds": 210, "page_observations": 44, "memory_samples": 210, "health_samples": 42, "full_engine_cycle": false}
+{"elapsed_seconds": 240, "page_observations": 48, "memory_samples": 240, "health_samples": 48, "full_engine_cycle": false}
+{"elapsed_seconds": 270, "page_observations": 56, "memory_samples": 270, "health_samples": 54, "full_engine_cycle": false}
+{"elapsed_seconds": 300, "page_observations": 60, "memory_samples": 300, "health_samples": 60, "full_engine_cycle": false}
+{"elapsed_seconds": 330, "page_observations": 68, "memory_samples": 330, "health_samples": 66, "full_engine_cycle": false}
+{"elapsed_seconds": 360, "page_observations": 72, "memory_samples": 360, "health_samples": 72, "full_engine_cycle": false}
+{"elapsed_seconds": 390, "page_observations": 80, "memory_samples": 390, "health_samples": 78, "full_engine_cycle": false}
+{"elapsed_seconds": 420, "page_observations": 84, "memory_samples": 420, "health_samples": 84, "full_engine_cycle": false}
+{"elapsed_seconds": 450, "page_observations": 92, "memory_samples": 450, "health_samples": 90, "full_engine_cycle": false}
+{"elapsed_seconds": 480, "page_observations": 96, "memory_samples": 480, "health_samples": 96, "full_engine_cycle": false}
+{"elapsed_seconds": 510, "page_observations": 104, "memory_samples": 510, "health_samples": 102, "full_engine_cycle": false}
+{"elapsed_seconds": 540, "page_observations": 108, "memory_samples": 540, "health_samples": 108, "full_engine_cycle": false}
+{"elapsed_seconds": 570, "page_observations": 116, "memory_samples": 570, "health_samples": 113, "full_engine_cycle": false}
+{"elapsed_seconds": 600, "page_observations": 120, "memory_samples": 600, "health_samples": 119, "full_engine_cycle": false}
+{"elapsed_seconds": 630, "page_observations": 128, "memory_samples": 630, "health_samples": 125, "full_engine_cycle": false}
+{"elapsed_seconds": 660, "page_observations": 132, "memory_samples": 660, "health_samples": 131, "full_engine_cycle": false}
+{"elapsed_seconds": 690, "page_observations": 140, "memory_samples": 690, "health_samples": 137, "full_engine_cycle": false}
+{"elapsed_seconds": 720, "page_observations": 144, "memory_samples": 720, "health_samples": 143, "full_engine_cycle": false}
+{"elapsed_seconds": 750, "page_observations": 152, "memory_samples": 750, "health_samples": 149, "full_engine_cycle": false}
+{"elapsed_seconds": 780, "page_observations": 156, "memory_samples": 780, "health_samples": 155, "full_engine_cycle": false}
+{"elapsed_seconds": 810, "page_observations": 164, "memory_samples": 810, "health_samples": 161, "full_engine_cycle": false}
+{"elapsed_seconds": 840, "page_observations": 168, "memory_samples": 840, "health_samples": 167, "full_engine_cycle": false}
+{"elapsed_seconds": 870, "page_observations": 176, "memory_samples": 870, "health_samples": 173, "full_engine_cycle": false}
+{"elapsed_seconds": 900, "page_observations": 180, "memory_samples": 900, "health_samples": 179, "full_engine_cycle": false}
+{"elapsed_seconds": 930, "page_observations": 188, "memory_samples": 930, "health_samples": 185, "full_engine_cycle": false}
+{"elapsed_seconds": 960, "page_observations": 192, "memory_samples": 960, "health_samples": 191, "full_engine_cycle": false}
+{"elapsed_seconds": 990, "page_observations": 200, "memory_samples": 990, "health_samples": 197, "full_engine_cycle": false}
+{"elapsed_seconds": 1020, "page_observations": 204, "memory_samples": 1020, "health_samples": 203, "full_engine_cycle": false}
+{"elapsed_seconds": 1050, "page_observations": 212, "memory_samples": 1050, "health_samples": 209, "full_engine_cycle": false}
+{"elapsed_seconds": 1080, "page_observations": 216, "memory_samples": 1080, "health_samples": 215, "full_engine_cycle": false}
+{"elapsed_seconds": 1110, "page_observations": 224, "memory_samples": 1110, "health_samples": 220, "full_engine_cycle": false}
+{"elapsed_seconds": 1140, "page_observations": 228, "memory_samples": 1140, "health_samples": 226, "full_engine_cycle": false}
+{"elapsed_seconds": 1170, "page_observations": 236, "memory_samples": 1170, "health_samples": 232, "full_engine_cycle": false}
+{"elapsed_seconds": 1200, "page_observations": 240, "memory_samples": 1200, "health_samples": 238, "full_engine_cycle": false}
+{"elapsed_seconds": 1230, "page_observations": 248, "memory_samples": 1230, "health_samples": 244, "full_engine_cycle": false}
+{"elapsed_seconds": 1260, "page_observations": 252, "memory_samples": 1260, "health_samples": 250, "full_engine_cycle": false}
+{"elapsed_seconds": 1290, "page_observations": 260, "memory_samples": 1290, "health_samples": 256, "full_engine_cycle": false}
+{"elapsed_seconds": 1320, "page_observations": 264, "memory_samples": 1320, "health_samples": 262, "full_engine_cycle": false}
+{"elapsed_seconds": 1350, "page_observations": 272, "memory_samples": 1361, "health_samples": 268, "full_engine_cycle": false}
+{"elapsed_seconds": 1380, "page_observations": 276, "memory_samples": 1391, "health_samples": 274, "full_engine_cycle": false}
+{"surface": "four concurrent actual Streamlit WebSocket sessions; not native viewport/browser acceptance", "started_at": "2026-10-29T17:53:54.694020+00:00", "ended_at": "2026-10-29T18:22:08.841929+00:00", "seconds": 1694.147909, "clients": 4, "cadence_seconds": 20.0, "stop_reasons": ["health_failed_or_deadline_exceeded"], "health_samples": 277, "health_all_ok_under_5s": false, "health_max_seconds": 5.7616477080009645, "memory_samples": 1399, "warmed_dashboard_baseline_rss_kib": 301144, "engine_full_cycle": null, "pages": {"Home": {"observations": 140, "complete": 140, "incomplete": 0, "complete_seconds_p95": 0.587600917002419, "all_complete": true}, "Trading": {"observations": 140, "complete": 140, "incomplete": 0, "complete_seconds_p95": 0.6615080000046873, "all_complete": true}}, "engine_cycle_errors": [], "engine_full_cycle_error_seen": false, "engine_continuity_pass": false, "dashboard_peak_rss_kib": 312768, "dashboard_process_hwm_kib": 318800, "observed_dashboard_rss_increase_mib": 11.3515625, "conservative_hwm_minus_warmed_rss_mib": 17.2421875, "guest_use_peak_mib": 652.89453125, "guest_memtotal_kib": 2018540, "minimum_duration_and_cycle_observed": false, "process_cpu_seconds_during_observation": {"engine": 0.0, "dashboard": 76.55000000000001}, "request_reconciliation": {"starts": 280, "outcomes": 280, "unmatched_starts": 0, "unmatched_outcomes": 0, "duplicate_starts": 0, "duplicate_outcomes": 0, "status_counts": {"complete": 280}, "bijective": true}, "request_starts_recorded": 280, "every_start_has_outcome": true, "final": true, "observed_guest_768_mib_ceiling_pass": true, "dashboard_growth_256_mib_pass": true, "warm_page_p95_2s_pass": true, "original_1024_mib_guest_qualification": false}
+Error: ssh: can't build tunnel for personal: failed to run query($admin: Boolean!) { organizations(admin: $admin) { nodes { id slug rawSlug name type paidPlan billable viewerRole internalNumericId } } }: Not authorized to access this organization
+
+
+{"started_at": "2026-10-29T17:53:31.121507+00:00", "observer_exit_code": 1, "collector_exit_code": 0, "cpu_capture_exit_code": 0, "postflight_exit_code": 1, "ended_at": "2026-10-29T18:22:16.954959+00:00"}

@@ -1,0 +1,186 @@
+{
+  "release": 70,
+  "image": "sha256:0527f83ff75272eb17f0c3b6e74ca40718d4787f27ecdc1d7a0c5fc602a8d1a7",
+  "source": "ffe95b0fb9ad06b1c1d0bd1df8edfd7a0c5344c2",
+  "checks": {
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "single_existing_machine": true,
+    "runtime_source": true,
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "processes": true,
+    "internal_health": true,
+    "new_instance": true,
+    "same_image": true,
+    "same_instance": true,
+    "process_continuity": true
+  },
+  "full_cycles_since_deploy": {
+    "e0643bd0-e2d8-4621-9b87-cd8bb1a66eb5": {
+      "cycle_started": {
+        "timestamp": "2026-10-29T17:49:27.298901Z",
+        "event_type": "cycle_started",
+        "cycle_id": "e0643bd0-e2d8-4621-9b87-cd8bb1a66eb5",
+        "details": {
+          "cycle_index": 1
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-29T17:49:51.817028Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "e0643bd0-e2d8-4621-9b87-cd8bb1a66eb5",
+        "details": {
+          "proposals": 2,
+          "accepted": 2,
+          "rejected": 2,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "86bc5aa7-d543-4f8f-89d6-fa4c2cb3d3d4": {
+      "cycle_started": {
+        "timestamp": "2026-10-29T18:19:51.921250Z",
+        "event_type": "cycle_started",
+        "cycle_id": "86bc5aa7-d543-4f8f-89d6-fa4c2cb3d3d4",
+        "details": {
+          "cycle_index": 2
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-29T18:20:07.998293Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "86bc5aa7-d543-4f8f-89d6-fa4c2cb3d3d4",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "db83fc0f-328f-41e0-8c3e-8a967e4f1443": {
+      "cycle_started": {
+        "timestamp": "2026-10-29T18:50:08.075430Z",
+        "event_type": "cycle_started",
+        "cycle_id": "db83fc0f-328f-41e0-8c3e-8a967e4f1443",
+        "details": {
+          "cycle_index": 3
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-29T18:50:24.313952Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "db83fc0f-328f-41e0-8c3e-8a967e4f1443",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "5f098912-f7c8-4f21-93f8-a6a91e679a37": {
+      "cycle_started": {
+        "timestamp": "2026-10-29T19:20:24.412522Z",
+        "event_type": "cycle_started",
+        "cycle_id": "5f098912-f7c8-4f21-93f8-a6a91e679a37",
+        "details": {
+          "cycle_index": 4
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-29T19:20:40.405540Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "5f098912-f7c8-4f21-93f8-a6a91e679a37",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "715a0736-f0bf-4d0f-b9b9-bcc39d790be2": {
+      "cycle_started": {
+        "timestamp": "2026-10-29T19:50:40.419130Z",
+        "event_type": "cycle_started",
+        "cycle_id": "715a0736-f0bf-4d0f-b9b9-bcc39d790be2",
+        "details": {
+          "cycle_index": 5
+        }
+      },
+      "cycle_errored": {
+        "timestamp": "2026-10-29T19:50:40.675408Z",
+        "event_type": "cycle_errored",
+        "cycle_id": "715a0736-f0bf-4d0f-b9b9-bcc39d790be2",
+        "details": {
+          "sub_account_id": "bollinger_band_reversion",
+          "error_type": "DDoSProtection",
+          "error_message": "binanceusdm 418 I'm a teapot {\"code\":-1003,\"msg\":\"Way too many requests; IP(<venue-reported-ip>) banned until 1793304833459. Please use the websocket for live updates to avoid bans.\"}"
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-10-29T19:50:56.056321Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "715a0736-f0bf-4d0f-b9b9-bcc39d790be2",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    }
+  },
+  "cycle_counts": {
+    "e0643bd0-e2d8-4621-9b87-cd8bb1a66eb5": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "proposal_generated": 2,
+      "proposal_accepted": 2,
+      "correlation_warning": 2,
+      "proposal_rejected": 2,
+      "cycle_completed": 1
+    },
+    "86bc5aa7-d543-4f8f-89d6-fa4c2cb3d3d4": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "cycle_completed": 1
+    },
+    "db83fc0f-328f-41e0-8c3e-8a967e4f1443": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "cycle_completed": 1
+    },
+    "5f098912-f7c8-4f21-93f8-a6a91e679a37": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "cycle_completed": 1
+    },
+    "715a0736-f0bf-4d0f-b9b9-bcc39d790be2": {
+      "cycle_started": 1,
+      "cycle_errored": 1,
+      "monitor_pass": 11,
+      "cycle_completed": 1
+    }
+  },
+  "public_health": {
+    "status": 200,
+    "ok": true,
+    "seconds": 0.13139762500941288
+  },
+  "sampler_lifecycle": {
+    "remaining_task_sampler_pids": []
+  }
+}

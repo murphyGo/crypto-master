@@ -1,0 +1,358 @@
+[
+  {
+    "started_at": "2026-10-30T05:29:32.287582+00:00",
+    "client": "fresh-home-1",
+    "page": "Home",
+    "status": "complete",
+    "reconnected_after_timeout": false,
+    "first_incomplete_shell_seconds": 4.884788249997655,
+    "first_incomplete_script_finished_seconds": 4.886963917000685,
+    "seconds": 7.382081624993589,
+    "messages": 116,
+    "elements": {
+      "metric": 12,
+      "dataframe": 4,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "alerts": [
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      }
+    ],
+    "alert_history": [
+      {
+        "section": "activity",
+        "category": "stale",
+        "incomplete": true,
+        "first_seen_seconds": 4.884788249997655
+      },
+      {
+        "section": "ledger",
+        "category": "stale",
+        "incomplete": true,
+        "first_seen_seconds": 4.8848532080010045
+      },
+      {
+        "section": "snapshots",
+        "category": "pending",
+        "incomplete": true,
+        "first_seen_seconds": 4.884870499998215
+      },
+      {
+        "section": "candidates",
+        "category": "pending",
+        "incomplete": true,
+        "first_seen_seconds": 4.884884375002002
+      },
+      {
+        "section": "proposals",
+        "category": "pending",
+        "incomplete": true,
+        "first_seen_seconds": 4.884899500000756
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false,
+        "first_seen_seconds": 4.886534374993062
+      }
+    ],
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Runtime safety",
+        "value_sha256": "4dc53ebcd4e75d41371ac349e56c185371732524411d5bc2d4c8ea5b7af48d49",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Last cycle",
+        "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open positions",
+        "value_sha256": "e629fa6598d732768f7c726b4b621285f9c3b85303900aa912017db7617d8bdb",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Snapshot",
+        "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Mode",
+        "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Scope",
+        "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Sub-accounts",
+        "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Actionable events",
+        "value_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Awaiting approval",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Promoted",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Errored",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0,
+      3,
+      2,
+      0
+    ],
+    "maximum_background_watchers": 1,
+    "auto_rerun_registrations": 1
+  },
+  {
+    "started_at": "2026-10-30T05:29:45.125331+00:00",
+    "client": "fresh-home-2",
+    "page": "Home",
+    "status": "complete",
+    "reconnected_after_timeout": false,
+    "first_incomplete_shell_seconds": null,
+    "first_incomplete_script_finished_seconds": null,
+    "seconds": 0.5856436250032857,
+    "messages": 76,
+    "elements": {
+      "metric": 12,
+      "dataframe": 4,
+      "table": 0,
+      "vega_lite_chart": 0,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "alerts": [
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      },
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      }
+    ],
+    "alert_history": [
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false,
+        "first_seen_seconds": 0.5850797089951811
+      }
+    ],
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Runtime safety",
+        "value_sha256": "4dc53ebcd4e75d41371ac349e56c185371732524411d5bc2d4c8ea5b7af48d49",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Last cycle",
+        "value_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open positions",
+        "value_sha256": "e629fa6598d732768f7c726b4b621285f9c3b85303900aa912017db7617d8bdb",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Snapshot",
+        "value_sha256": "d098ab5e44b9aabb755f76d806598f43573c662b35e4a2eab1e312ec9ad195e2",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Mode",
+        "value_sha256": "382635c9325bf3273d195ff1b8a44e5b11afd7d97addeb8863ea35feb98c1a07",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Scope",
+        "value_sha256": "3c9193d0b2a451f57f64692a0b87c70fcc4affd8ecc9e2ce02de7466cba15a6b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Sub-accounts",
+        "value_sha256": "3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Actionable events",
+        "value_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Candidates",
+        "value_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Awaiting approval",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Promoted",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Errored",
+        "value_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  },
+  {
+    "started_at": "2026-10-30T05:29:51.118645+00:00",
+    "client": "fresh-trading",
+    "page": "Trading",
+    "status": "complete",
+    "reconnected_after_timeout": false,
+    "first_incomplete_shell_seconds": null,
+    "first_incomplete_script_finished_seconds": null,
+    "seconds": 1.9332103750057286,
+    "messages": 37,
+    "elements": {
+      "metric": 6,
+      "dataframe": 3,
+      "table": 0,
+      "vega_lite_chart": 1,
+      "exception": 0
+    },
+    "incomplete_alerts": 0,
+    "alerts": [
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false
+      }
+    ],
+    "alert_history": [
+      {
+        "section": "unknown",
+        "category": "other",
+        "incomplete": false,
+        "first_seen_seconds": 1.2645197920064675
+      }
+    ],
+    "metrics": [
+      {
+        "kind": "metric",
+        "label": "Current Equity",
+        "value_sha256": "7c1d0aba2cd28d32ce659c2f2a1edf60ab8e5c8b22bd84f72ac2bcd4a45b83a8",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Open Positions",
+        "value_sha256": "e629fa6598d732768f7c726b4b621285f9c3b85303900aa912017db7617d8bdb",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Closed Trades",
+        "value_sha256": "712dca40936b39ce670dc803736fe3735cf99311030a928de039a36f77926230",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Win Rate",
+        "value_sha256": "ef601765649f7a4f625fd2e0a24dd996578330ccf0aaccb7e1bd685d4de088ed",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Realized P&L",
+        "value_sha256": "2846599adc893b98c9366afa87a4084d5f4fc9bb4e8ed70bf8aaf9070509185c",
+        "placeholder": false
+      },
+      {
+        "kind": "metric",
+        "label": "Proposals rejected (threshold)",
+        "value_sha256": "871c39835ef093344f55dd14dab9ea54a4e9d76ee5634fff2e2be7d8e656be8b",
+        "placeholder": false
+      }
+    ],
+    "script_finished_values": [
+      0
+    ],
+    "maximum_background_watchers": 0,
+    "auto_rerun_registrations": 0
+  }
+]

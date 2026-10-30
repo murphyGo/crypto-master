@@ -1,0 +1,66 @@
+{
+  "surface": "four concurrent actual Streamlit WebSocket sessions; not native viewport/browser acceptance",
+  "started_at": "2026-10-29T17:53:54.694020+00:00",
+  "ended_at": "2026-10-29T18:22:08.841929+00:00",
+  "seconds": 1694.147909,
+  "clients": 4,
+  "cadence_seconds": 20.0,
+  "stop_reasons": [
+    "health_failed_or_deadline_exceeded"
+  ],
+  "health_samples": 277,
+  "health_all_ok_under_5s": false,
+  "health_max_seconds": 5.7616477080009645,
+  "memory_samples": 1399,
+  "warmed_dashboard_baseline_rss_kib": 301144,
+  "engine_full_cycle": null,
+  "pages": {
+    "Home": {
+      "observations": 140,
+      "complete": 140,
+      "incomplete": 0,
+      "complete_seconds_p95": 0.587600917002419,
+      "all_complete": true
+    },
+    "Trading": {
+      "observations": 140,
+      "complete": 140,
+      "incomplete": 0,
+      "complete_seconds_p95": 0.6615080000046873,
+      "all_complete": true
+    }
+  },
+  "engine_cycle_errors": [],
+  "engine_full_cycle_error_seen": false,
+  "engine_continuity_pass": false,
+  "dashboard_peak_rss_kib": 312768,
+  "dashboard_process_hwm_kib": 318800,
+  "observed_dashboard_rss_increase_mib": 11.3515625,
+  "conservative_hwm_minus_warmed_rss_mib": 17.2421875,
+  "guest_use_peak_mib": 652.89453125,
+  "guest_memtotal_kib": 2018540,
+  "minimum_duration_and_cycle_observed": false,
+  "process_cpu_seconds_during_observation": {
+    "engine": 0.0,
+    "dashboard": 76.55000000000001
+  },
+  "request_reconciliation": {
+    "starts": 280,
+    "outcomes": 280,
+    "unmatched_starts": 0,
+    "unmatched_outcomes": 0,
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 280
+    },
+    "bijective": true
+  },
+  "request_starts_recorded": 280,
+  "every_start_has_outcome": true,
+  "final": true,
+  "observed_guest_768_mib_ceiling_pass": true,
+  "dashboard_growth_256_mib_pass": true,
+  "warm_page_p95_2s_pass": true,
+  "original_1024_mib_guest_qualification": false
+}

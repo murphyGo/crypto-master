@@ -10,13 +10,15 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V68 resumed sample fails4/120 complete; source_changed exhaustion persists after stable-source/fresh-session proof. Exact v67 image restored as v69/source120b440;182 hashes/config, health, startup cycle and Home/Trading availability verified. Redesign recovery terminal policy and improve observer attribution; original cold/native/depleted/1024MiB/cost gates remain. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V70/ffe95b0 rearming deployed;3,053tests,182hashes pass.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Reduce initial-read cost; retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
+| `exchange-integration` | DEBT-090 | 1 High | Contain CCXT NetworkError/DDoSProtection, respect venue backoff and preserve protective work without stale-price substitution. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | Current v69/source120b440 restores the exact prior v67 image. V68 source tests passed but operational policy failed:610.445559s,4/120 complete, persistent activity-unavailable on stable input/new sessions. Retain all failed samples; revise policy before redeploying v68 source and qualify cold/native/depleted/original1024MiB. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V70/ffe95b0 source and deployment integrity pass. Both operational samples remain failed (host sleep; exchange418). Initial Home13.10s, later6.38s; remaining original gates unchanged. |
+| DEBT-090 | High | `exchange-integration` | `proposal-runtime`, `trading-core`, `notifications-ops` | Network-free reproduction confirms raw DDoSProtection escapes get_ohlcv. Define bounded normalization/backoff and test scan/monitor isolation; see exchange-rate-limit-containment-plan.md. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

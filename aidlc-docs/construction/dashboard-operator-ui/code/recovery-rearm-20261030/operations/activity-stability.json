@@ -1,0 +1,41 @@
+{
+  "samples": [
+    {
+      "started_at": "2026-10-30T05:29:11.393269+00:00",
+      "ended_at": "2026-10-30T05:29:11.466351+00:00",
+      "manifest_digest": "55e38819449cb2d3da4af1beef30acc3a85f3099a85c793814638e7c714a571f",
+      "file_count": 7,
+      "bytes": 97783681,
+      "content_hashes": [
+        "01a641498367e94845db8d54453d8988fbe4e15aafc24335b276e0359ce9f46d",
+        "1f1fec8d772cf5abe846c0b7e151cd5dddabdad81c53e373c00caaa493db26f5",
+        "1b06a3f0619018ca8dee0c6f051b224d4e08bad94f10d5fb64e54a7e2823a196",
+        "fdd4c44ff68de4e5e1783892e61272dafbe7464ac935a2eb58a38c21dde48a9b",
+        "8deb473aabafe2454183de2af571ccf74bbc22d8f3da2f7dfd4077f660166658",
+        "791b730b0bba72cff6ed6f6204f913662a2f34a8c67a061eb99fa1f967f7c7cc",
+        "5138c09a9006fee32b6e4129615ae4595c33f28f98b3fde4b41a04f8e4b3604b"
+      ],
+      "full_generation_verified": true
+    },
+    {
+      "started_at": "2026-10-30T05:29:31.466518+00:00",
+      "ended_at": "2026-10-30T05:29:31.528499+00:00",
+      "manifest_digest": "55e38819449cb2d3da4af1beef30acc3a85f3099a85c793814638e7c714a571f",
+      "file_count": 7,
+      "bytes": 97783681,
+      "content_hashes": [
+        "01a641498367e94845db8d54453d8988fbe4e15aafc24335b276e0359ce9f46d",
+        "1f1fec8d772cf5abe846c0b7e151cd5dddabdad81c53e373c00caaa493db26f5",
+        "1b06a3f0619018ca8dee0c6f051b224d4e08bad94f10d5fb64e54a7e2823a196",
+        "fdd4c44ff68de4e5e1783892e61272dafbe7464ac935a2eb58a38c21dde48a9b",
+        "8deb473aabafe2454183de2af571ccf74bbc22d8f3da2f7dfd4077f660166658",
+        "791b730b0bba72cff6ed6f6204f913662a2f34a8c67a061eb99fa1f967f7c7cc",
+        "5138c09a9006fee32b6e4129615ae4595c33f28f98b3fde4b41a04f8e4b3604b"
+      ],
+      "full_generation_verified": true
+    }
+  ],
+  "same_manifest": true,
+  "same_content": true,
+  "scope": "Activity selected membership, per-file generations and content; twenty-second endpoint comparison, not proof of every intervening instant."
+}

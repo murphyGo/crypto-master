@@ -1,0 +1,221 @@
+{
+  "verdict": "FAIL_SAMPLE",
+  "window": {
+    "start": "2026-10-29T17:53:54.694020+00:00",
+    "end": "2026-10-29T18:22:08.841929+00:00",
+    "seconds": 1694.1479089260101
+  },
+  "requests": {
+    "reconnected_after_timeout": 0,
+    "starts": 280,
+    "outcomes": 280,
+    "bijective": true,
+    "status_counts": {
+      "complete": 280
+    },
+    "shape_failures": []
+  },
+  "pages": {
+    "Home": {
+      "requests": 140,
+      "complete": 140,
+      "status_counts": {
+        "complete": 140
+      },
+      "complete_p50_seconds": 0.34320124999794643,
+      "complete_p95_seconds": 0.587600917002419,
+      "complete_max_seconds": 3.8763763339957222,
+      "at_least_20_complete": true
+    },
+    "Trading": {
+      "requests": 140,
+      "complete": 140,
+      "status_counts": {
+        "complete": 140
+      },
+      "complete_p50_seconds": 0.5033972499950323,
+      "complete_p95_seconds": 0.6615080000046873,
+      "complete_max_seconds": 4.728692292002961,
+      "at_least_20_complete": true
+    }
+  },
+  "failures": [],
+  "warmup": [
+    {
+      "page": "Home",
+      "status": "complete",
+      "seconds": 13.100198583997553,
+      "first_incomplete_shell_seconds": 7.4108608340029605
+    },
+    {
+      "page": "Trading",
+      "status": "complete",
+      "seconds": 1.0312621250050142,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "health": {
+    "samples": 277,
+    "all_under_5s_ok": false,
+    "max_seconds": 5.7616477080009645
+  },
+  "full_cycles": {},
+  "cycle_errors": {},
+  "memory": {
+    "window_samples": 1399,
+    "raw_samples": 1399,
+    "guest_peak_mib": 652.89453125,
+    "dashboard_rss_growth_mib": 11.3515625,
+    "configured_mib": 2048,
+    "original_1024_mib_qualified": false
+  },
+  "runtime": {
+    "before_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "new_instance": true
+    },
+    "after_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "new_instance": true,
+      "same_image": true,
+      "same_instance": true,
+      "process_continuity": true
+    },
+    "same_processes": true
+  },
+  "diagnostics": {
+    "raw_rows": 424,
+    "window_rows": 420,
+    "window_classes": [
+      {
+        "kind": "activity",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 70
+      },
+      {
+        "kind": "ledger",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 70
+      },
+      {
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 70
+      },
+      {
+        "kind": "candidates",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 70
+      },
+      {
+        "kind": "proposals",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 35
+      },
+      {
+        "kind": "proposals",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 105
+      }
+    ]
+  },
+  "cpu": {
+    "fly_instance_cpu_balance": {
+      "window_points": 113,
+      "min": 3160.20127,
+      "max": 4743.19997,
+      "first": [
+        1793296440.0,
+        3238.2002721
+      ],
+      "last": [
+        1793298120.0,
+        4357.2041825
+      ],
+      "preceding_point": 1793296425.0,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_baseline": {
+      "window_points": 113,
+      "min": 0.0625,
+      "max": 0.0625,
+      "first": [
+        1793296440.0,
+        0.0625
+      ],
+      "last": [
+        1793298120.0,
+        0.0625
+      ],
+      "preceding_point": 1793296425.0,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_throttle": {
+      "window_points": 113,
+      "min": 0.0,
+      "max": 0.0,
+      "first": [
+        1793296440.0,
+        0.0
+      ],
+      "last": [
+        1793298120.0,
+        0.0
+      ],
+      "preceding_point": 1793296425.0,
+      "following_point": null,
+      "max_sample_gap_seconds": 15.0,
+      "positive_increment_centiseconds": 0.0,
+      "positive_intervals": [],
+      "reset_intervals": []
+    }
+  },
+  "cpu_source": "cpu-history.json",
+  "collection_coverage": {
+    "health_max_start_gap_seconds": 278.3064019680023,
+    "memory_max_source_gap_seconds": 1.0152029991149902,
+    "memory_trailing_gap_seconds": 294.74104285240173,
+    "continuous_collection": false
+  },
+  "limits": [
+    "Protocol shape/metric coverage, not native viewport or table-cell oracle.",
+    "Timeout outcomes are retained and the next request reconnects before sending. General server script-run-ID joining and native viewport acceptance remain separate.",
+    "Warmup is one pair, not cold percentile acceptance.",
+    "Original 1 GiB and depleted CPU acceptance remain separate.",
+    "Async diagnostic overlap and local/Fly timestamp differences cannot attribute a failure to a request or writer.",
+    "All earlier failed and user-stopped samples remain retained."
+  ],
+  "source_changes": true
+}

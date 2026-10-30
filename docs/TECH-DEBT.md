@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active / Critical. Current runtime **v69 / source `120b440`**, exact v67 image restored after v68 persistent activity failure. Resumed v68 sample: 610.445559 s, 4/120 complete, 3 timeouts, 113 incomplete; health121/121 and natural cycle pass. Stable-source/fresh-session corroboration met rollback criterion. Restored182 hashes/settings, startup cycle and Home/Trading availability verified; Home11.426338 s still fails5s. Git retains v68 source for redesign, not qualified for redeployment. Cold/native/depleted/original1GiB and historical failures remain; shared CPU1/2048 MiB/cost deferral unchanged. |
+| **Status** | Active / Critical. Current runtime **v70 / source `ffe95b0`**: request-driven rearming after source-error exhaustion;3,053tests and182runtime hashes/settings pass. First observation interrupted by host sleep (280/280complete, final health timeout); separate727.327948s run has144/144complete,145/145health, page p95/resource/collection checks pass, but one Binance418 engine error/11monitor passes fails overall acceptance (DEBT-090). First Home13.100199s and later6.378330s still exceed5s. Later fresh reads and normal12-monitor cycles verified; all failed samples, native/cold/depleted/original1GiB and cost deferral remain. |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -423,6 +423,47 @@ failure independently. Git retains v68 source; do not redeploy its policy before
 redesign/qualification. No additional debt item or CPU-cost activation.
 See `docs/sessions/2026-10-29-dashboard-v68-qualification-rollback.md` and the
 same-date cross-check; raw evidence is in `source-recovery-resume-20261029/operations`.
+
+### DEBT-090: CCXT request-limit exceptions escape adapter containment
+
+| Field | Value |
+|-------|-------|
+| **Priority** | High |
+| **Created** | 2026-10-30 |
+| **Status** | Active; reproduced locally without network, implementation queued |
+| **Component** | `exchange-integration` primary; `proposal-runtime`, `trading-core`, `notifications-ops` secondary |
+| **Requirements / stories** | FR-016–020/046; NFR-006/009/011; CON-002; US-008/014/025 |
+| **Legacy context** |2/10.1/13.3|
+
+**Evidence and impact:** During the v70 dashboard observation, cycle
+`715a0736-f0bf-4d0f-b9b9-bcc39d790be2` records raw `DDoSProtection` at
+2026-10-29T19:50:40.675408Z: Binance USD-M HTTP418/code-1003. It completes
+with11monitor passes instead of12, while later accounts continue. The response
+reports a ban deadline20:13:53.459UTC; later retained cycles again show12passes.
+That recovery does not resolve the exception-containment gap.
+
+A network-free injected `DDoSProtection` escapes `BinanceExchange.get_ohlcv`
+instead of becoming `ExchangeAPIError`. The CCXT NetworkError family is outside
+its current RateLimitExceeded/ExchangeError catch ladder. Runtime `_scan`
+catches domain ExchangeError, so an unwrapped error can reach the account-level
+handler and skip that account's remaining scan/monitor/snapshot work. An exact
+live failing-method stack trace and the producer of excess venue traffic were
+not captured. Home/Trading source uses disk reads; no dashboard exchange request
+was identified, and exchange/runtime code is unchanged in the v70 image.
+
+**Suggested resolution:** Audit and normalize transport/rate-limit errors at
+all adapter boundaries. Define bounded venue/backoff behavior and ban-deadline
+handling without blind retries, shared-IP assumptions, rate-limit evasion or
+stale-price substitution. Preserve other accounts and explicitly test protective
+work when market data is unavailable; do not weaken freshness or order safety.
+Use `aidlc-docs/construction/plans/exchange-rate-limit-containment-plan.md`.
+
+**Related:** DEBT-083's repeated operational sample remains failed because of
+this engine error. See `docs/sessions/2026-10-30-dashboard-recovery-rearm.md` and
+`code/recovery-rearm-20261030/operations/exchange-error-reproduction.json` under
+the dashboard construction artifacts. [Binance USD-M guidance](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info)
+describes418 bans and IP-based limits; it does not establish which caller caused
+this observed ban. No exchange probes or trading setting changes were made.
 
 ### DEBT-084: Financial win rate uses exit-reason labels ✅
 
@@ -1793,9 +1834,9 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 1 |
+| Total Active | 2 |
 | Critical | 1 |
-| High | 0 |
+| High | 1 |
 | Medium | 0 |
 | Low | 0 |
 | Resolved (All Time) | 86 |
@@ -1806,6 +1847,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-10-30 | Deployed / observed | DEBT-083 recovery rearming `ffe95b0` deployed as v70;3,053tests/182hashes pass. Interrupted first sample retained; repeated144/144page and145/145health pass but Binance418 engine error fails full gate. Cold/native/depleted/original1GiB remain. DEBT-090 High added for reproduced CCXT exception-containment gap. |
 | 2026-10-26 | Deployed / verified | DEBT-087/088/089 individually pushed, Fly v63 / f0f3e52 deployed. All 177 hashes, health and first 12-account monitor cycle pass. No new proposal/cap event occurred; deployed read-only replay covers 18 account/version scores and seven open rows. Funding remains unknown. |
 | 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
 | 2026-10-25 | Added / resolved | DEBT-088: cap-blocker monitorability; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |

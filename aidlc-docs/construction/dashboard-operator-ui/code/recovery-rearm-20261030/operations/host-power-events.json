@@ -1,0 +1,42 @@
+[
+  {
+    "at_kst": "2026-10-30 03:16:11+09:00",
+    "event": "Sleep",
+    "sleep_reason": "Idle Sleep"
+  },
+  {
+    "at_kst": "2026-10-30 03:16:26+09:00",
+    "event": "DarkWake",
+    "sleep_reason": null
+  },
+  {
+    "at_kst": "2026-10-30 03:17:11+09:00",
+    "event": "Sleep",
+    "sleep_reason": "Maintenance Sleep"
+  },
+  {
+    "at_kst": "2026-10-30 03:21:46+09:00",
+    "event": "Wake",
+    "sleep_reason": null
+  },
+  {
+    "at_kst": "2026-10-30 03:21:50+09:00",
+    "event": "Sleep",
+    "sleep_reason": "Software Sleep pid=156"
+  },
+  {
+    "at_kst": "2026-10-30 03:22:32+09:00",
+    "event": "Sleep",
+    "sleep_reason": "Software Sleep pid=156"
+  },
+  {
+    "at_kst": "2026-10-30 03:22:35+09:00",
+    "event": "DarkWake",
+    "sleep_reason": null
+  },
+  {
+    "at_kst": "2026-10-30 03:23:20+09:00",
+    "event": "Sleep",
+    "sleep_reason": "Maintenance Sleep"
+  }
+]

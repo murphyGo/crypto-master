@@ -1,0 +1,16 @@
+{
+  "method": "Fault injection only, no network/client initialization or trading calls",
+  "injected": "DDoSProtection",
+  "escaped_type": "DDoSProtection",
+  "is_domain_exchange_api_error": false,
+  "ccxt_mro": [
+    "DDoSProtection",
+    "NetworkError",
+    "OperationFailed",
+    "BaseError",
+    "Exception",
+    "BaseException",
+    "object"
+  ],
+  "local_ccxt_version": "4.5.51"
+}

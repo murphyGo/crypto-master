@@ -1,7 +1,7 @@
 # Dashboard recovery rearming cross-check — 2026-10-30
 
 This is source/contract verification by the implementing agent, not an independent
-agent review. DEBT-083 stays Critical; operational acceptance is pending.
+agent review. DEBT-083 stays Critical; DEBT-090 High is newly tracked.
 
 | Contract | Evidence | Result |
 |---|---|---|
@@ -13,7 +13,10 @@ agent review. DEBT-083 stays Critical; operational acceptance is pending.
 | Observer timeout attribution | Before-change queued-response failure; close-before-reconnect, failed outcome retained |Pass for this path; no general run-ID join|
 | Regression and static checks |3,053tests; Black/Ruff changed Python; mypy135files; diff check|Pass|
 | Initial Home latency | Single production read-only query trial totals~7s before rendering |Gap remains|
-| Delivery/operations | Source/runtime match, health, natural cycle and four-session observation |Pending|
+| Delivery |v70/sourceffe95b0;182hashes/config, health, process continuity and fresh-session reads|Pass for deployment integrity|
+| First operational sample |280/280complete, but host sleep causes collection gap and final health timeout|FAIL_SAMPLE retained|
+| Repeated operational sample |144/144complete,145/145health, continuous collection, page p95/memory pass; one Binance418 engine error,11monitor passes|FAIL_SAMPLE retained; DEBT-090|
+| Live exhaustion path |No source_changed/retry-exhaustion events in repeated sample|Not exercised; source regressions cover it|
 | Full NFR acceptance | Native/cold/depleted/original1GiB qualification, historical failed samples |Open|
 
 See `docs/sessions/2026-10-30-dashboard-recovery-rearm.md` and

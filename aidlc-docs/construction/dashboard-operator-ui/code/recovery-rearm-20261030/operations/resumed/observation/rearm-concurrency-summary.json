@@ -1,0 +1,69 @@
+{
+  "surface": "four concurrent actual Streamlit WebSocket sessions; not native viewport/browser acceptance",
+  "started_at": "2026-10-29T19:39:38.902377+00:00",
+  "ended_at": "2026-10-29T19:51:46.230325+00:00",
+  "seconds": 727.327948,
+  "clients": 4,
+  "cadence_seconds": 20.0,
+  "stop_reasons": [],
+  "health_samples": 145,
+  "health_all_ok_under_5s": true,
+  "health_max_seconds": 0.16399412498867605,
+  "memory_samples": 727,
+  "warmed_dashboard_baseline_rss_kib": 308800,
+  "engine_full_cycle": "715a0736-f0bf-4d0f-b9b9-bcc39d790be2",
+  "pages": {
+    "Home": {
+      "observations": 72,
+      "complete": 72,
+      "incomplete": 0,
+      "complete_seconds_p95": 0.6058209590119077,
+      "all_complete": true
+    },
+    "Trading": {
+      "observations": 72,
+      "complete": 72,
+      "incomplete": 0,
+      "complete_seconds_p95": 0.7364131249923958,
+      "all_complete": true
+    }
+  },
+  "engine_cycle_errors": [
+    {
+      "cycle_id": "715a0736-f0bf-4d0f-b9b9-bcc39d790be2",
+      "timestamp": "2026-10-29T19:50:40.675408+00:00"
+    }
+  ],
+  "engine_full_cycle_error_seen": true,
+  "engine_continuity_pass": false,
+  "dashboard_peak_rss_kib": 318612,
+  "dashboard_process_hwm_kib": 319104,
+  "observed_dashboard_rss_increase_mib": 9.58203125,
+  "conservative_hwm_minus_warmed_rss_mib": 10.0625,
+  "guest_use_peak_mib": 662.92578125,
+  "guest_memtotal_kib": 2018540,
+  "minimum_duration_and_cycle_observed": true,
+  "process_cpu_seconds_during_observation": {
+    "engine": 9.68,
+    "dashboard": 44.93999999999998
+  },
+  "request_reconciliation": {
+    "starts": 144,
+    "outcomes": 144,
+    "unmatched_starts": 0,
+    "unmatched_outcomes": 0,
+    "duplicate_starts": 0,
+    "duplicate_outcomes": 0,
+    "status_counts": {
+      "complete": 144
+    },
+    "bijective": true
+  },
+  "request_starts_recorded": 144,
+  "every_start_has_outcome": true,
+  "final": true,
+  "observed_guest_768_mib_ceiling_pass": true,
+  "dashboard_growth_256_mib_pass": true,
+  "warm_page_p95_2s_pass": true,
+  "original_1024_mib_guest_qualification": false
+}

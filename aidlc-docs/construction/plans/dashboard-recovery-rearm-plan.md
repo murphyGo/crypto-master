@@ -47,9 +47,9 @@ foreground4s and all encoded/cache/source/state budgets remain unchanged.
 - [x] Profile initial query work and apply only a measured, parity-preserving
   improvement if supported; otherwise retain a concrete performance diagnosis.
 - [x] Full regression, changed Python Black/Ruff and source-wide mypy.
-- [ ] Commit/push exact source, deploy same existing machine/resources and verify
+- [x] Commit/push exact source, deploy same existing machine/resources and verify
   runtime hashes/configuration/health/first cycle before bounded observation.
-- [ ] Preserve every failed sample; update session/cross-check/state/debt/map.
+- [x] Preserve every failed sample; update session/cross-check/state/debt/map.
 
 ## Operational limits
 
@@ -59,3 +59,14 @@ an already terminal idle page automatically. Home cold5s/warm2s and the original
 native/depleted/1GiB gates remain unchanged. A new observed persistent failure,
 health/process regression or violated resource bound triggers exact-image
 rollback consideration. Restore v69's exact source120b440 image if needed.
+
+## Disposition
+
+Implementation/delivery cycle complete: sourceffe95b0 pushed, Flyv70 deployed,
+182hashes/config verified.3,053tests/static gates pass. Two operation samples
+remain failed: first host-sleep interruption; repeated727.327948s/144complete
+pages/145healthy checks but one Binance418 engine error (11monitor passes).
+No source_changed exhaustion occurred in the repeated sample; live rearming
+branch is not claimed exercised. Later stable-input/fresh sessions and12-monitor
+cycles pass separately. DEBT-083 remains Critical; DEBT-090 High is queued.
+Initial Home13.10s, cold/native/depleted/original1GiB/cost gates remain open.
