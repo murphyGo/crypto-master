@@ -1,4 +1,4 @@
-# DEBT-090 exchange-integration cross-check
+# DEBT-090 exchange-integration cross-check — PASS, 2026-11-11
 
 Scope: FR-016–020/046; NFR-006/009/011; CON-002; US-008/014/025.
 Functional/NFR amendments and construction plan are under the exchange unit.
@@ -15,7 +15,8 @@ DEBT-083 dashboard acceptance. Review is by the implementing agent.
 | Derivative pagination/retries remain bounded | Next-page suppression, actual service deadline cancellation; legacy derivative tests | PASS |
 | Existing financial/freshness contracts remain |688 exchange/runtime/live/paper tests | PASS |
 | Full regression and static gates |3,127 passed; changed-file Black/Ruff; mypy136files | PASS |
-| Exact same-capacity delivery and natural completed cycle | Preflight v70 matches; delivery pending | PENDING |
+| Exact same-capacity delivery and natural completed cycle | v71/0e14f9d,183hashes/settings,14.561576s cycle,12 distinct monitor accounts,zero errors | PASS |
+| Deployed CCXT compatibility |4.5.85 isolated mock-only smoke: five checks,zero exchange network calls | PASS |
 
 Residual limitations: in-process reactive cooldown is neither a persistent ban
 registry nor an IP-wide request budget. Original ban producer is unproven. Production

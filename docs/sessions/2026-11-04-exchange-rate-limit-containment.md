@@ -1,4 +1,4 @@
-# Exchange request-limit containment — 2026-10-30 to 2026-11-06
+# Exchange request-limit containment — 2026-10-30 to 2026-11-11
 
 Unit `exchange-integration`, secondary `proposal-runtime`, `trading-core`,
 `notifications-ops`. DEBT-090; FR-016–020/046, NFR-006/009/011, CON-002;
@@ -74,7 +74,27 @@ dependencies, paper/Codex mode, one shared CPU/2048MiB machine and existing volu
 Delivery uses an overlay on exact v70 image
 `sha256:0527f83ff75272eb17f0c3b6e74ca40718d4787f27ecdc1d7a0c5fc602a8d1a7`,
 copying only `base.py`, `ccxt_base.py`, `binance.py`, `request_backoff.py` under
-`src/exchange/`. Deployment and natural-cycle verification are pending.
+`src/exchange/`.
+
+Source **0e14f9d969bfaab2d400fb86c34a70ebef432146** is pushed to main and
+now deployed as **Fly v71**, instance `01M73XWEEJT9000B4M3QC02MY7`, image
+`sha256:32d706b6e7ea5ef9ba725749d429eca79a47cb8e5667837ce7c12c1016f27552`.
+All183 hashes and unchanged env/init/guest/volume/services/restart/dependencies
+match; health and postdeployment process continuity pass. CCXT4.5.85's isolated
+mock-only smoke passes all five checks with zero exchange network calls.
+
+The natural first cycle `9ce21abd-c3d1-458e-af4f-bf444ed70ea0` runs
+2026-11-10T23:50:06.418372Z–23:50:20.979948Z (November11 KST),14.561576s.
+It records12 monitor passes across12 distinct accounts and no error events,
+proposals or orders. DEBT-090 is resolved for this bounded containment scope.
+
+Approval/restart interruptions did not repeat mutations: registration completed
+November8, source commit/push November10, deployment November11 KST. Preflight
+November10/11 initially fails only old instance identity after a same-image v70
+restart; source/settings remain identical. A fresh baseline check passes before
+v71 deployment. The failed continuity checks are retained; no cause is inferred.
+The console capture truncates part of a layer-upload chunk, while independent
+image/source/configuration verification remains complete.
 
 The cooldown is reactive and process-local. It does not cancel already in-flight
 CCXT calls, persist through process restart, attribute the original IP ban, or

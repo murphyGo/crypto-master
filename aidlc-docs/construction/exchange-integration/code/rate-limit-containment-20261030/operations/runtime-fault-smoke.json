@@ -1,0 +1,11 @@
+{
+  "ccxt_version": "4.5.85",
+  "checks": {
+    "ddos_normalized": true,
+    "ban_deadline_honored": true,
+    "sibling_ticker_suppressed": true,
+    "derivatives_suppressed": true,
+    "order_timeout_no_retry": true
+  },
+  "exchange_network_calls": 0
+}

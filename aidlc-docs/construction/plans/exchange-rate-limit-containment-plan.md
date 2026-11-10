@@ -1,11 +1,12 @@
-# Exchange rate-limit exception containment — active 2026-10-30
+# Exchange rate-limit exception containment — complete 2026-11-11
 
 - Unit: `exchange-integration`; secondary `proposal-runtime`, `trading-core`,
   `notifications-ops`.
 - Debt: DEBT-090 High; discovered during DEBT-083 v70 observation.
 - Requirements: FR-016–020/046, NFR-006/009/011, CON-002;
   stories US-008/014/025; legacy2/10.1/13.3.
-- Stage: Functional/NFR amendment recorded; implementation and verification active.
+- Stage: Functional/NFR amendment, implementation, Build & Test, same-capacity
+  Operations and cross-check complete. Source0e14f9d deployed as v71.
 
 [Answer]: The user's subsequent “진행시켜” authorizes this next bounded repair,
 verification and the existing same-capacity delivery workflow. Routine design
@@ -21,9 +22,9 @@ No exchange probes, IP rotation or automatic order resubmission are authorized.
   isolation, preserved monitor attempts and unavailable/stale quote safeguards.
 - [x] Implement the smallest verified change; run exchange/runtime targeted tests,
   broader regression and static gates. Preserve order idempotency and credentials.
-- [ ] Same-capacity delivery only after source verification; retain every failed
+- [x] Same-capacity delivery only after source verification; retain every failed
   sample and verify a natural error-free cycle without extra exchange probes.
-- [ ] Update session/cross-check/state/debt/map on completion.
+- [x] Update session/cross-check/state/debt/map on completion.
 
 Evidence: `docs/sessions/2026-10-30-dashboard-recovery-rearm.md` and its operation
 artifacts. Root cause of the venue's IP ban is unproven; no producer attribution
@@ -34,3 +35,8 @@ and `../exchange-integration/nfr-design/rate-limit-containment/design.md`.
 Verification: exchange tests, runtime/position-monitor/derivatives tests, full
 `.venv/bin/python -m pytest`, changed-file Black/Ruff, full mypy, source/image
 hashes and a natural completed cycle. No infrastructure change is needed.
+
+Completion:3,127 full tests,688 targeted tests,changed-file Black/Ruff,mypy136
+files;183 deployed hashes/settings;mock-only deployed fault smoke;14.561576s
+natural cycle with12 distinct monitor accounts/zero errors. See
+`docs/sessions/2026-11-04-exchange-rate-limit-containment.md`. DEBT-083 remains active.

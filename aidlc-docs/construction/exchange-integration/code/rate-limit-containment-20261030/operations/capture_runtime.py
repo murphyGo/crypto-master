@@ -45,6 +45,7 @@ if files:
 out['activity_tail']={'bytes':len(raw) if files else 0,'parse_errors':bad,'event_counts':dict(Counter(r.get('event_type') for r in events))}
 out['cycles']=[{k:r.get(k) for k in ('timestamp','event_type','cycle_id','details')} for r in events if r.get('event_type') in ('cycle_started','cycle_completed','cycle_errored')][-12:]
 out['cycle_event_counts']={cid:dict(Counter(r.get('event_type') for r in events if r.get('cycle_id')==cid)) for cid in dict.fromkeys(r.get('cycle_id') for r in out['cycles'])}
+out['cycle_monitor_accounts']={cid:sorted({r.get('details',{}).get('sub_account_id','unknown') for r in events if r.get('cycle_id')==cid and r.get('event_type')=='monitor_pass'}) for cid in out['cycle_event_counts']}
 from google.protobuf import descriptor_pb2
 from streamlit.proto import BackMsg_pb2,ForwardMsg_pb2
 fds=descriptor_pb2.FileDescriptorSet();seen=set()
@@ -67,7 +68,7 @@ descriptor=base64.b64decode(runtime.pop('descriptor_base64'))
 (OUT/f'{phase}-streamlit.pb').write_bytes(descriptor)
 runtime['descriptor_sha256']=hashlib.sha256(descriptor).hexdigest()
 machine=status['Machines'][0]
-previous=json.loads((ROOT/'aidlc-docs/construction/dashboard-operator-ui/code/recovery-rearm-20261030/operations/after-final-fly-status.json').read_text())['Machines'][0]
+previous=json.loads((OUT/'before-deploy-nov11-fly-status.json').read_text())['Machines'][0]
 checks={k:machine['config'].get(k)==previous['config'].get(k) for k in ('env','init','guest','mounts','services','restart')}
 checks.update(single_existing_machine=len(status['Machines'])==1 and machine['id']=='6835752b711958',runtime_source=runtime['runtime_sha256']==baseline['runtime_sha256'],dependencies=runtime['dependencies']==baseline['dependencies'],configuration=runtime['configuration']==baseline['configuration'],settings_mode=runtime['settings_mode']=='paper',processes=set(runtime['processes'])=={'engine','dashboard'},internal_health=runtime['internal_health']=={'status':200,'body':'ok'})
 if before:

@@ -10,15 +10,18 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V70/ffe95b0 rearming deployed;3,053tests,182hashes pass.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Reduce initial-read cost; retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
-| `exchange-integration` | DEBT-090 | 1 High | Contain CCXT NetworkError/DDoSProtection, respect venue backoff and preserve protective work without stale-price substitution. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V71/0e14f9d includes the resolved exchange containment repair;3,127tests,183hashes pass. Prior v70 rearming observation remains historical.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Reduce initial-read cost; retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V70/ffe95b0 source and deployment integrity pass. Both operational samples remain failed (host sleep; exchange418). Initial Home13.10s, later6.38s; remaining original gates unchanged. |
-| DEBT-090 | High | `exchange-integration` | `proposal-runtime`, `trading-core`, `notifications-ops` | Containment implemented with shared monotonic cooldown and normalized transport errors;688 targeted and3,127 full tests pass. Same-capacity natural-cycle verification pending; see exchange-rate-limit-containment-plan.md. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V71/0e14f9d source and deployment integrity pass; DEBT-090 is resolved. Both operational samples remain failed (host sleep; exchange418). Initial Home13.10s, later6.38s; remaining original gates unchanged. |
+
+DEBT-090 resolved2026-11-11: source0e14f9d/Flyv71, shared endpoint cooldown and
+transport containment;3,127 tests,183hashes/settings, deployed mock fault checks
+and12-account natural monitor cycle pass. See the exchange containment session.
+This does not reopen or qualify prior DEBT-083 failed samples.
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

@@ -1,0 +1,40 @@
+{
+  "status": "PASS",
+  "source": "0e14f9d969bfaab2d400fb86c34a70ebef432146",
+  "release": 71,
+  "image": "sha256:32d706b6e7ea5ef9ba725749d429eca79a47cb8e5667837ce7c12c1016f27552",
+  "instance": "01M73XWEEJT9000B4M3QC02MY7",
+  "runtime_hash_count": 183,
+  "runtime_checks": {
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "single_existing_machine": true,
+    "runtime_source": true,
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "processes": true,
+    "internal_health": true,
+    "ccxt_version": true,
+    "new_instance": true,
+    "same_image": true,
+    "same_instance": true,
+    "process_continuity": true
+  },
+  "cycle_id": "9ce21abd-c3d1-458e-af4f-bf444ed70ea0",
+  "started_at": "2026-11-10T23:50:06.418372Z",
+  "completed_at": "2026-11-10T23:50:20.979948Z",
+  "cycle_seconds": 14.561576,
+  "cycle_counts": {
+    "cycle_started": 1,
+    "monitor_pass": 12,
+    "cycle_completed": 1
+  },
+  "monitor_account_count": 12,
+  "production_rate_limit_observed": false,
+  "fault_evidence": "Isolated mock-only runtime smoke; no exchange network calls"
+}

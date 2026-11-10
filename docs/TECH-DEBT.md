@@ -47,7 +47,7 @@ Template for new items:
 |-------|-------|
 | **Priority** | Critical |
 | **Created** | 2026-10-09 |
-| **Status** | Active / Critical. Current runtime **v70 / source `ffe95b0`**: request-driven rearming after source-error exhaustion;3,053tests and182runtime hashes/settings pass. First observation interrupted by host sleep (280/280complete, final health timeout); separate727.327948s run has144/144complete,145/145health, page p95/resource/collection checks pass, but one Binance418 engine error/11monitor passes fails overall acceptance (DEBT-090). First Home13.100199s and later6.378330s still exceed5s. Later fresh reads and normal12-monitor cycles verified; all failed samples, native/cold/depleted/original1GiB and cost deferral remain. |
+| **Status** | Active / Critical. Current runtime **v71 / source `0e14f9d`** includes the resolved DEBT-090 exchange repair (183hashes/settings and12-account cycle pass). Prior v70/ffe95b0 evidence: request-driven rearming after source-error exhaustion;3,053tests and182runtime hashes/settings pass. First observation interrupted by host sleep (280/280complete, final health timeout); separate727.327948s run has144/144complete,145/145health, page p95/resource/collection checks pass, but one Binance418 engine error/11monitor passes fails overall acceptance (DEBT-090). First Home13.100199s and later6.378330s still exceed5s. Later fresh reads and normal12-monitor cycles verified; all failed samples, native/cold/depleted/original1GiB and cost deferral remain. |
 | **Component** | `dashboard-operator-ui` (primary); `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops` (secondary) |
 | **Requirements / stories** | FR-029, FR-031, FR-032, FR-036, FR-042; NFR-003, NFR-007, NFR-008, NFR-011, NFR-012; US-012, US-014, US-020, US-023 |
 | **Legacy context** | Phase 7 dashboard; 8.2 engine visibility; 10.4 log retention; 19.3 sub-account selection |
@@ -424,13 +424,13 @@ redesign/qualification. No additional debt item or CPU-cost activation.
 See `docs/sessions/2026-10-29-dashboard-v68-qualification-rollback.md` and the
 same-date cross-check; raw evidence is in `source-recovery-resume-20261029/operations`.
 
-### DEBT-090: CCXT request-limit exceptions escape adapter containment
+### DEBT-090: CCXT request-limit exceptions escape adapter containment ✅
 
 | Field | Value |
 |-------|-------|
 | **Priority** | High |
 | **Created** | 2026-10-30 |
-| **Status** | Active; containment implemented;688 targeted and3,127 full tests pass; same-capacity delivery verification pending (2026-11-04) |
+| **Status** | Resolved 2026-11-11. Source0e14f9d deployed as v71;3,127 full tests,183hashes/settings,deployed mock fault checks and12-account natural monitor cycle pass |
 | **Component** | `exchange-integration` primary; `proposal-runtime`, `trading-core`, `notifications-ops` secondary |
 | **Requirements / stories** | FR-016–020/046; NFR-006/009/011; CON-002; US-008/014/025 |
 | **Legacy context** |2/10.1/13.3|
@@ -458,7 +458,19 @@ stale-price substitution. Preserve other accounts and explicitly test protective
 work when market data is unavailable; do not weaken freshness or order safety.
 Use `aidlc-docs/construction/plans/exchange-rate-limit-containment-plan.md`.
 
-**Related:** DEBT-083's repeated operational sample remains failed because of
+**Resolution (2026-11-11):** Core NetworkError failures now normalize to domain
+errors. Rate-limit/DDoS responses establish a shared monotonic endpoint cooldown
+across accounts/reconnects, honoring Retry-After and Binance ban deadlines.
+All core calls and derivative pages are guarded; no adapter retry or unpriced
+order is introduced.3,127 full/688 targeted tests and static gates pass. v71
+verifies183 source hashes and unchanged settings; deployed CCXT4.5.85 mock-only
+fault checks pass without network calls. Natural cycle9ce21abd completes in
+14.561576s with12 distinct monitor accounts and no errors/proposals/orders.
+Process-local reactive containment does not attribute the original ban producer,
+persist through restart or budget other IP users. See
+`docs/sessions/2026-11-04-exchange-rate-limit-containment.md`.
+
+**Related:** DEBT-083's prior repeated operational sample remains failed because of
 this engine error. See `docs/sessions/2026-10-30-dashboard-recovery-rearm.md` and
 `code/recovery-rearm-20261030/operations/exchange-error-reproduction.json` under
 the dashboard construction artifacts. [Binance USD-M guidance](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/general-info)
@@ -1834,12 +1846,12 @@ Move resolved items here with resolution date and notes.
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 1 |
 | Critical | 1 |
-| High | 1 |
+| High | 0 |
 | Medium | 0 |
 | Low | 0 |
-| Resolved (All Time) | 86 |
+| Resolved (All Time) | 87 |
 
 ---
 
@@ -1847,6 +1859,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-11-11 | Resolved / deployed | DEBT-090 source0e14f9d/Flyv71: transport normalization and shared endpoint cooldown;3,127 full tests,183hashes/settings,deployed mock-only fault smoke and12-account natural monitor cycle pass. DEBT-083 remains Critical; prior failed samples and latency/native/cold/depleted/cost gates remain. |
 | 2026-10-30 | Deployed / observed | DEBT-083 recovery rearming `ffe95b0` deployed as v70;3,053tests/182hashes pass. Interrupted first sample retained; repeated144/144page and145/145health pass but Binance418 engine error fails full gate. Cold/native/depleted/original1GiB remain. DEBT-090 High added for reproduced CCXT exception-containment gap. |
 | 2026-10-26 | Deployed / verified | DEBT-087/088/089 individually pushed, Fly v63 / f0f3e52 deployed. All 177 hashes, health and first 12-account monitor cycle pass. No new proposal/cap event occurred; deployed read-only replay covers 18 account/version scores and seven open rows. Funding remains unknown. |
 | 2026-10-25 | Added / resolved | DEBT-087: account-scoped proposal history; source/tests complete. Deployment authorized after the three separate commits; not yet deployed. |
