@@ -1,0 +1,63 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.18, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/hyunseung.kim/Desktop/Projects/crypto-master
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 49 items
+
+tests/test_exchange_request_backoff.py FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 67%]
+FFFFFFFFFFFFFFFF                                                         [100%]
+
+- generated xml file: /Users/hyunseung.kim/Desktop/Projects/crypto-master/.tmp/exchange-containment-20261030/red.xml -
+=========================== short test summary info ============================
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ohlcv-args0-fetch_ohlcv-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_ticker-args1-fetch_ticker-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_balance-args2-fetch_balance-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args3-create_market_order-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[create_order-args4-create_limit_order-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[cancel_order-args5-cancel_order-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_order-args6-fetch_order-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-DDoSProtection-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-DDoSProtection-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-RequestTimeout-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-RequestTimeout-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-ExchangeNotAvailable-binance]
+FAILED tests/test_exchange_request_backoff.py::test_network_failures_are_domain_errors_without_resubmission[get_open_orders-args7-fetch_open_orders-ExchangeNotAvailable-bybit]
+FAILED tests/test_exchange_request_backoff.py::test_ban_suppresses_sibling_account_and_protective_order_requests
+============================== 49 failed in 0.89s ==============================

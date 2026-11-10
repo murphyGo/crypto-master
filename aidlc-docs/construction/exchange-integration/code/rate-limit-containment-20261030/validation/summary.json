@@ -1,0 +1,30 @@
+{
+  "red.xml": {
+    "tests": "49",
+    "errors": "0",
+    "failures": "49",
+    "skipped": "0",
+    "time": "0.885"
+  },
+  "targeted-verified.xml": {
+    "tests": "688",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "time": "6.215"
+  },
+  "fault-final.xml": {
+    "tests": "73",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "time": "0.898"
+  },
+  "full-unsandboxed.xml": {
+    "tests": "3127",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "time": "54.016"
+  }
+}

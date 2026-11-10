@@ -30,3 +30,11 @@ def _reset_loggers_between_tests() -> Iterator[None]:
     reset_loggers()
     yield
     reset_loggers()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_exchange_cooldowns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep intentional rate-limit failures from banning unrelated test cases."""
+    from src.exchange import request_backoff
+
+    monkeypatch.setattr(request_backoff, "_deadlines", {})

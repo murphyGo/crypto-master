@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.18, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/hyunseung.kim/Desktop/Projects/crypto-master
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 208 items
+
+tests/test_exchange_request_backoff.py ................................. [ 15%]
+................                                                         [ 23%]
+tests/test_exchange_ccxt_base.py ....................                    [ 33%]
+tests/test_exchange_binance.py ......................................... [ 52%]
+........................F..................                              [ 73%]
+tests/test_exchange_bybit.py ........................................... [ 94%]
+............                                                             [100%]
+
+=================================== FAILURES ===================================
+_ TestBinanceDerivativesCurrent.test_derivatives_error_ladder_is_typed_and_sanitized[error0-rate_limited] _
+tests/test_exchange_binance.py:1411: in test_derivatives_error_ladder_is_typed_and_sanitized
+    assert exc_info.value.__cause__ is error
+E   AssertionError: assert RequestBackoff('venue request cooldown active') is RateLimitExceeded('secret-bearing-url')
+E    +  where RequestBackoff('venue request cooldown active') = ExchangeAPIError('Binance current funding rate limited').__cause__
+E    +    where ExchangeAPIError('Binance current funding rate limited') = <ExceptionInfo ExchangeAPIError('Binance current funding rate limited') tblen=3>.value
+=========================== short test summary info ============================
+FAILED tests/test_exchange_binance.py::TestBinanceDerivativesCurrent::test_derivatives_error_ladder_is_typed_and_sanitized[error0-rate_limited]
+======================== 1 failed, 207 passed in 1.01s =========================

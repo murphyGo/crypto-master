@@ -18,7 +18,7 @@ when debt is added or resolved, then refresh this map.
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
 | DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V70/ffe95b0 source and deployment integrity pass. Both operational samples remain failed (host sleep; exchange418). Initial Home13.10s, later6.38s; remaining original gates unchanged. |
-| DEBT-090 | High | `exchange-integration` | `proposal-runtime`, `trading-core`, `notifications-ops` | Network-free reproduction confirms raw DDoSProtection escapes get_ohlcv. Define bounded normalization/backoff and test scan/monitor isolation; see exchange-rate-limit-containment-plan.md. |
+| DEBT-090 | High | `exchange-integration` | `proposal-runtime`, `trading-core`, `notifications-ops` | Containment implemented with shared monotonic cooldown and normalized transport errors;688 targeted and3,127 full tests pass. Same-capacity natural-cycle verification pending; see exchange-rate-limit-containment-plan.md. |
 
 DEBT-087/088/089 were registered and resolved in source/tests on 2026-10-25.
 Primary units: `proposal-runtime`, `proposal-funnel-audit`, `strategy-framework`.

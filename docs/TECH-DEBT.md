@@ -430,7 +430,7 @@ same-date cross-check; raw evidence is in `source-recovery-resume-20261029/opera
 |-------|-------|
 | **Priority** | High |
 | **Created** | 2026-10-30 |
-| **Status** | Active; reproduced locally without network, implementation queued |
+| **Status** | Active; containment implemented;688 targeted and3,127 full tests pass; same-capacity delivery verification pending (2026-11-04) |
 | **Component** | `exchange-integration` primary; `proposal-runtime`, `trading-core`, `notifications-ops` secondary |
 | **Requirements / stories** | FR-016–020/046; NFR-006/009/011; CON-002; US-008/014/025 |
 | **Legacy context** |2/10.1/13.3|

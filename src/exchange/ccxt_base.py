@@ -16,25 +16,31 @@ EXCH-F5: the ccxt-mapping helpers ``_extract_ccxt_fee`` / ``_decimal_or_none``
 live here (ccxt-adapter knowledge), not in the ``BaseExchange`` port module.
 """
 
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from logging import Logger
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, TypeVar
 
-from ccxt.base.errors import ExchangeError as CCXTExchangeError
 from ccxt.base.errors import (
+    DDoSProtection,
     InsufficientFunds,
     InvalidOrder,
+    NetworkError,
     OrderNotFound,
     RateLimitExceeded,
 )
+from ccxt.base.errors import ExchangeError as CCXTExchangeError
 
 from src.exchange.base import (
     BaseExchange,
     ExchangeAPIError,
     ExchangeError,
 )
+from src.exchange.request_backoff import check_backoff, record_backoff
 from src.models import OHLCV, Balance, Order, OrderRequest, OrderStatus, Ticker
 from src.utils.time import from_unix_ms, now_utc
+
+_T = TypeVar("_T")
 
 
 def _decimal_or_none(value: Any) -> Decimal | None:
@@ -232,6 +238,36 @@ class CcxtExchange(BaseExchange):
         self.config = config
         self._client: CCXTClient | None = None
 
+    async def _request(
+        self,
+        request: Callable[..., Awaitable[_T]],
+        *args: Any,
+        _market: str | None = None,
+        **kwargs: Any,
+    ) -> _T:
+        """Guard one CCXT invocation. Never repeat orders or bypass a ban."""
+        scope = (
+            self.name,
+            (
+                _market
+                if _market is not None
+                else str(getattr(self.config, "market_type", "unified"))
+            ),
+            self.testnet,
+        )
+        check_backoff(scope)
+        client = self._ensure_connected()
+        previous_headers = getattr(client, "last_response_headers", None)
+        try:
+            return await request(*args, **kwargs)
+        except (RateLimitExceeded, DDoSProtection) as exc:
+            headers = getattr(client, "last_response_headers", None)
+            # CCXT replaces this mapping on a response. Do not replay an old
+            # Retry-After value when no response was received for this call.
+            if headers is previous_headers:
+                headers = None
+            raise record_backoff(scope, exc, headers) from exc
+
     def _build_client(self, api_key: str, api_secret: str) -> CCXTClient:
         """Construct the configured ccxt client for this venue.
 
@@ -281,7 +317,7 @@ class CcxtExchange(BaseExchange):
             self._client = self._build_client(api_key, api_secret)
 
             # Validate connection by loading markets
-            await self._client.load_markets()
+            await self._request(self._client.load_markets)
 
         except AuthenticationError as e:
             raise ExchangeConnectionError(f"Authentication failed: {e}") from e
@@ -331,7 +367,8 @@ class CcxtExchange(BaseExchange):
             limit = min(limit, self.OHLCV_LIMIT)
 
             # ccxt returns: [[timestamp, open, high, low, close, volume], ...]
-            raw_data = await client.fetch_ohlcv(
+            raw_data = await self._request(
+                client.fetch_ohlcv,
                 symbol=symbol,
                 timeframe=self.TIMEFRAME_MAP[timeframe],
                 since=since,
@@ -353,7 +390,13 @@ class CcxtExchange(BaseExchange):
 
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to fetch OHLCV: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to fetch OHLCV: {e}") from e
@@ -373,7 +416,7 @@ class CcxtExchange(BaseExchange):
         client = self._ensure_connected()
 
         try:
-            raw_ticker = await client.fetch_ticker(symbol)
+            raw_ticker = await self._request(client.fetch_ticker, symbol)
 
             # CAH-01 [BUGFIX]: ccxt returns None timestamps on some venues.
             # A None ticker timestamp is *less* trustworthy than a real one,
@@ -404,7 +447,13 @@ class CcxtExchange(BaseExchange):
 
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to fetch ticker: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to fetch ticker: {e}") from e
@@ -424,7 +473,7 @@ class CcxtExchange(BaseExchange):
         client = self._ensure_connected()
 
         try:
-            raw_balance = await client.fetch_balance()
+            raw_balance = await self._request(client.fetch_balance)
 
             balances = []
             for curr, data in raw_balance.items():
@@ -462,7 +511,13 @@ class CcxtExchange(BaseExchange):
 
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to fetch balance: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to fetch balance: {e}") from e
@@ -484,7 +539,8 @@ class CcxtExchange(BaseExchange):
         try:
             # Execute order
             if order.type == "market":
-                raw_order = await client.create_market_order(
+                raw_order = await self._request(
+                    client.create_market_order,
                     symbol=order.symbol,
                     side=order.side,
                     amount=float(order.quantity),
@@ -492,7 +548,8 @@ class CcxtExchange(BaseExchange):
             else:  # limit
                 # order.price is validated by OrderRequest model for limit orders
                 assert order.price is not None, "Limit order must have price"
-                raw_order = await client.create_limit_order(
+                raw_order = await self._request(
+                    client.create_limit_order,
                     symbol=order.symbol,
                     side=order.side,
                     amount=float(order.quantity),
@@ -509,7 +566,13 @@ class CcxtExchange(BaseExchange):
             ) from e
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to create order: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to create order: {e}") from e
@@ -530,14 +593,20 @@ class CcxtExchange(BaseExchange):
         client = self._ensure_connected()
 
         try:
-            await client.cancel_order(order_id, symbol)
+            await self._request(client.cancel_order, order_id, symbol)
             return True
 
         except OrderNotFound:
             return False  # Order already filled or cancelled
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to cancel order: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to cancel order: {e}") from e
@@ -558,7 +627,7 @@ class CcxtExchange(BaseExchange):
         client = self._ensure_connected()
 
         try:
-            raw_order = await client.fetch_order(order_id, symbol)
+            raw_order = await self._request(client.fetch_order, order_id, symbol)
             return self._map_order(raw_order)
 
         except OrderNotFound as e:
@@ -567,7 +636,13 @@ class CcxtExchange(BaseExchange):
             ) from e
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to fetch order: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to fetch order: {e}") from e
@@ -587,12 +662,18 @@ class CcxtExchange(BaseExchange):
         client = self._ensure_connected()
 
         try:
-            raw_orders = await client.fetch_open_orders(symbol)
+            raw_orders = await self._request(client.fetch_open_orders, symbol)
             return [self._map_order(o) for o in raw_orders]
 
         except RateLimitExceeded as e:
             raise ExchangeAPIError(
-                f"Rate limit exceeded: {e}", code="RATE_LIMIT"
+                f"Rate limit exceeded: {e}",
+                code="RATE_LIMIT",
+                retry_after_seconds=getattr(e, "retry_after_seconds", None),
+            ) from e
+        except NetworkError as e:
+            raise ExchangeAPIError(
+                "Failed to fetch open orders: network error", code="NETWORK_ERROR"
             ) from e
         except CCXTExchangeError as e:
             raise ExchangeAPIError(f"Failed to fetch open orders: {e}") from e

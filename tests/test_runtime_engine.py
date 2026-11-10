@@ -872,6 +872,55 @@ async def test_run_cycle_altcoin_scan_error_logged(tmp_path: Path) -> None:
     assert len(errors) == 1
 
 
+async def test_ccxt_ban_preserves_account_monitors_without_unpriced_orders(
+    tmp_path: Path,
+) -> None:
+    """A real adapter failure reaches scan containment, then every account monitor."""
+    from ccxt.base.errors import DDoSProtection
+
+    from src.config import BinanceConfig
+    from src.exchange.binance import BinanceExchange
+
+    exchange = BinanceExchange(BinanceConfig(), testnet=True)
+    client = AsyncMock()
+    client.last_response_headers = None
+    client.fetch_ohlcv.side_effect = DDoSProtection("synthetic HTTP 418")
+    exchange._client = client
+    engine, mocks = build_engine(tmp_path=tmp_path)
+    engine.exchange = exchange
+    traders = {name: make_mock_trader() for name in ("alpha", "beta")}
+    for name, trader in traders.items():
+        trader.get_open_trades.return_value = [make_trade(trade_id=name)]
+        trader.exchange = exchange
+    engine.sub_account_registry = FakeSubAccountRegistry(
+        [
+            SubAccount(id=name, name=name, mode="paper", exchange_ref="default")
+            for name in traders
+        ],
+        traders,
+    )
+
+    async def scan(**kwargs):
+        await exchange.get_ohlcv("BTC/USDT", "1h")
+
+    mocks["proposal_engine"].propose_bitcoin.side_effect = scan
+    mocks["proposal_engine"].propose_altcoins.side_effect = scan
+    await engine.run_cycle()
+
+    log = mocks["activity_log"]
+    assert not log.filter(event_type=ActivityEventType.CYCLE_ERRORED)
+    assert len(log.filter(event_type=ActivityEventType.SCAN_ERRORED)) == 4
+    passes = log.filter(event_type=ActivityEventType.MONITOR_PASS)
+    assert {event.details["sub_account_id"] for event in passes} == {"alpha", "beta"}
+    assert len(log.filter(event_type=ActivityEventType.MONITOR_ERRORED)) == 2
+    client.fetch_ohlcv.assert_awaited_once()
+    client.fetch_ticker.assert_not_awaited()
+    for trader in traders.values():
+        trader.check_exit_conditions.assert_not_called()
+        trader.open_position.assert_not_awaited()
+        trader.close_position.assert_not_awaited()
+
+
 # =============================================================================
 # Monitor pass
 # =============================================================================

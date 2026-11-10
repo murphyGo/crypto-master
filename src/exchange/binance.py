@@ -44,6 +44,7 @@ from src.exchange.derivatives import (
     UnsupportedFundingIntervalError,
 )
 from src.exchange.factory import register_exchange
+from src.exchange.request_backoff import RequestBackoff
 from src.logger import get_logger
 from src.utils.time import from_unix_ms, now_utc
 
@@ -133,7 +134,9 @@ class BinanceExchange(CcxtExchange):
         """Fetch and normalize Binance's current funding-rate view."""
         client = self._ensure_connected()
         try:
-            raw = await client.fetch_funding_rate(symbol)
+            raw = await self._request(
+                client.fetch_funding_rate, symbol, _market="futures"
+            )
         except (NetworkError, CCXTExchangeError) as exc:
             self._raise_derivatives_api_error("current funding", exc)
         return self._map_current_funding(symbol, raw)
@@ -142,7 +145,9 @@ class BinanceExchange(CcxtExchange):
         """Fetch and normalize Binance's current open interest."""
         client = self._ensure_connected()
         try:
-            raw = await client.fetch_open_interest(symbol)
+            raw = await self._request(
+                client.fetch_open_interest, symbol, _market="futures"
+            )
         except (NetworkError, CCXTExchangeError) as exc:
             self._raise_derivatives_api_error("current open interest", exc)
         return self._map_open_interest_point(symbol, raw)
@@ -165,11 +170,13 @@ class BinanceExchange(CcxtExchange):
             page_limit = min(self.FUNDING_HISTORY_LIMIT, limit - len(collected))
             params = {"endTime": until} if until is not None else {}
             try:
-                raw_page = await client.fetch_funding_rate_history(
+                raw_page = await self._request(
+                    client.fetch_funding_rate_history,
                     symbol=symbol,
                     since=cursor,
                     limit=page_limit,
                     params=params,
+                    _market="futures",
                 )
             except (NetworkError, CCXTExchangeError) as exc:
                 self._raise_derivatives_api_error("funding history", exc)
@@ -236,12 +243,14 @@ class BinanceExchange(CcxtExchange):
             page_limit = min(self.OI_HISTORY_LIMIT, limit - len(collected))
             params = {"endTime": until} if until is not None else {}
             try:
-                raw_page = await client.fetch_open_interest_history(
+                raw_page = await self._request(
+                    client.fetch_open_interest_history,
                     symbol=symbol,
                     timeframe=timeframe,
                     since=cursor,
                     limit=page_limit,
                     params=params,
+                    _market="futures",
                 )
             except (NetworkError, CCXTExchangeError) as exc:
                 self._raise_derivatives_api_error("open-interest history", exc)
@@ -522,7 +531,13 @@ class BinanceExchange(CcxtExchange):
         else:
             code = "remote_5xx"
             category = "exchange API failure"
+        cause = (
+            exc.__cause__
+            if isinstance(exc, RequestBackoff) and exc.__cause__ is not None
+            else exc
+        )
         raise ExchangeAPIError(
             f"Binance {operation} {category}",
             code=code,
-        ) from exc
+            retry_after_seconds=getattr(exc, "retry_after_seconds", None),
+        ) from cause

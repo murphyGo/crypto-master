@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.18, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/hyunseung.kim/Desktop/Projects/crypto-master
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 387 items / 311 deselected / 76 selected
+
+tests/test_exchange_request_backoff.py ................................. [ 43%]
+.....................................                                    [ 92%]
+tests/test_exchange_binance.py .....                                     [ 98%]
+tests/test_runtime_engine.py .                                           [100%]
+
+====================== 76 passed, 311 deselected in 1.29s ======================

@@ -1,0 +1,42 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.18, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/hyunseung.kim/Desktop/Projects/crypto-master
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 688 items
+
+tests/test_exchange_base.py .........................................    [  5%]
+tests/test_exchange_binance.py ......................................... [ 11%]
+...........................................                              [ 18%]
+tests/test_exchange_bybit.py ........................................... [ 24%]
+............                                                             [ 26%]
+tests/test_exchange_ccxt_base.py ....................                    [ 29%]
+tests/test_exchange_derivatives.py ..........................            [ 32%]
+tests/test_exchange_request_backoff.py ................................. [ 37%]
+.......................................F                                 [ 43%]
+tests/test_runtime_engine.py ........................................... [ 49%]
+........................................................................ [ 60%]
+........................................................................ [ 70%]
+..............................................                           [ 77%]
+tests/test_runtime_derivatives_context.py ..............                 [ 79%]
+tests/test_live_trading.py ............................................. [ 85%]
+.                                                                        [ 86%]
+tests/test_paper_trading.py ............................................ [ 92%]
+....................................................                     [100%]
+
+=================================== FAILURES ===================================
+__________ test_derivative_retry_after_is_bounded_by_refresh_deadline __________
+tests/test_exchange_request_backoff.py:364: in test_derivative_retry_after_is_bounded_by_refresh_deadline
+    assert (
+E   AssertionError: assert MarketContext(symbol='BTC/USDT', as_of=datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tzinfo=datetime.timezone.utc...enue_retention=False, error_code='deadline_exceeded'), predicted_funding_rate=None, predicted_funding_observed_at=None) is None
+E    +  where MarketContext(symbol='BTC/USDT', as_of=datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tzinfo=datetime.timezone.utc...enue_retention=False, error_code='deadline_exceeded'), predicted_funding_rate=None, predicted_funding_observed_at=None) = ContextEvaluation(context=MarketContext(symbol='BTC/USDT', as_of=datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tz...ded'), predicted_funding_rate=None, predicted_funding_observed_at=None), requirements_satisfied=True, unmet_reasons=()).context
+E    +    where ContextEvaluation(context=MarketContext(symbol='BTC/USDT', as_of=datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tz...ded'), predicted_funding_rate=None, predicted_funding_observed_at=None), requirements_satisfied=True, unmet_reasons=()) = context_for('BTC/USDT', as_of=datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tzinfo=datetime.timezone.utc))
+E    +      where context_for = <src.runtime.derivatives_context.DerivativesContextService object at 0x131adf380>.context_for
+E    +      and   datetime.datetime(2026, 10, 30, 10, 38, 7, 124106, tzinfo=datetime.timezone.utc) = <built-in method now of type object at 0x1017971f0>(datetime.timezone.utc)
+E    +        where <built-in method now of type object at 0x1017971f0> = datetime.now
+E    +        and   datetime.timezone.utc = timezone.utc
+- generated xml file: /Users/hyunseung.kim/Desktop/Projects/crypto-master/.tmp/exchange-containment-20261030/targeted-final.xml -
+=========================== short test summary info ============================
+FAILED tests/test_exchange_request_backoff.py::test_derivative_retry_after_is_bounded_by_refresh_deadline
+======================== 1 failed, 687 passed in 6.60s =========================

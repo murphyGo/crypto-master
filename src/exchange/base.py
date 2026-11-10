@@ -34,15 +34,23 @@ class ExchangeConnectionError(ExchangeError):
 class ExchangeAPIError(ExchangeError):
     """API returned an error."""
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        code: str | None = None,
+        *,
+        retry_after_seconds: float | None = None,
+    ) -> None:
         """Initialize API error.
 
         Args:
             message: Error message
             code: Optional error code from exchange
+            retry_after_seconds: Remaining venue cooldown, when known
         """
         super().__init__(message)
         self.code = code
+        self.retry_after_seconds = retry_after_seconds
 
 
 class BaseExchange(ABC):
