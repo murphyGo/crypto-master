@@ -424,6 +424,13 @@ redesign/qualification. No additional debt item or CPU-cost activation.
 See `docs/sessions/2026-10-29-dashboard-v68-qualification-rollback.md` and the
 same-date cross-check; raw evidence is in `source-recovery-resume-20261029/operations`.
 
+**2026-11-11 initial-read optimization:** JSON array string tokens and block spans
+reduce standalone snapshot projection median3.786→2.412s (36.3%) over unchanged
+production input, with all six output hashes equal.9,000 differential comparisons,
+602 targeted/3,161 full tests and static gates pass. Same-capacity deployment and
+page observation pending; all original DEBT-083 acceptance gates remain. See
+`docs/sessions/2026-11-11-dashboard-initial-read-cost.md`.
+
 ### DEBT-090: CCXT request-limit exceptions escape adapter containment ✅
 
 | Field | Value |

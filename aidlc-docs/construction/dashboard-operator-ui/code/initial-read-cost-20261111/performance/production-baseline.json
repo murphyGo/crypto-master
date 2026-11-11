@@ -1,0 +1,354 @@
+{
+  "captured_at": "2026-11-11T06:40:40.682301+00:00",
+  "method": "direct initial projections; no previous result or checkpoint, warm imports/OS; profile overhead separate",
+  "trials": [
+    {
+      "kind": "snapshots",
+      "profiled": false,
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 37038485,
+        "verified": true
+      },
+      "wall_seconds": 3.8545911590008473,
+      "cpu_seconds": 3.825856309,
+      "payload_bytes": 227965,
+      "payload_sha256": "c8c225596409ab26b4907f3ca8468dfe0dc7dac533a7e9ee16ca9afe6b5a7236"
+    },
+    {
+      "kind": "snapshots",
+      "profiled": true,
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 37038485,
+        "verified": true
+      },
+      "wall_seconds": 11.364319462998537,
+      "cpu_seconds": 11.2496993,
+      "payload_bytes": 227965,
+      "payload_sha256": "c8c225596409ab26b4907f3ca8468dfe0dc7dac533a7e9ee16ca9afe6b5a7236",
+      "top": [
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 1121,
+          "function": "build_projection",
+          "calls": 950,
+          "self_seconds": 0.12351261200000001,
+          "cumulative_seconds": 11.362062503
+        },
+        {
+          "file": "/app/src/utils/bounded_read.py",
+          "line": 238,
+          "function": "json_array_bytes",
+          "calls": 99415,
+          "self_seconds": 4.5140706260000005,
+          "cumulative_seconds": 8.484001423
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 799,
+          "function": "add_snapshot_json",
+          "calls": 98830,
+          "self_seconds": 0.12164594100000001,
+          "cumulative_seconds": 2.738186348
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'search' of 're.Pattern' objects>",
+          "calls": 4330745,
+          "self_seconds": 1.608126387,
+          "cumulative_seconds": 1.608126387
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 811,
+          "function": "add_snapshot",
+          "calls": 98830,
+          "self_seconds": 0.585409336,
+          "cumulative_seconds": 1.47038843
+        },
+        {
+          "file": "/usr/local/lib/python3.13/site-packages/pydantic/main.py",
+          "line": 800,
+          "function": "model_validate_json",
+          "calls": 98843,
+          "self_seconds": 0.048913171000000005,
+          "cumulative_seconds": 1.146324267
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 98843,
+          "self_seconds": 0.48730165500000006,
+          "cumulative_seconds": 1.097411096
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "calls": 8679154,
+          "self_seconds": 0.8954118980000001,
+          "cumulative_seconds": 0.8954309680000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'bytearray' objects>",
+          "calls": 4133072,
+          "self_seconds": 0.753591101,
+          "cumulative_seconds": 0.753591101
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'end' of 're.Match' objects>",
+          "calls": 4330239,
+          "self_seconds": 0.63849244,
+          "cumulative_seconds": 0.63849244
+        },
+        {
+          "file": "/app/src/trading/portfolio.py",
+          "line": 45,
+          "function": "_coerce_decimal",
+          "calls": 415505,
+          "self_seconds": 0.260569523,
+          "cumulative_seconds": 0.319420213
+        },
+        {
+          "file": "/app/src/trading/portfolio.py",
+          "line": 108,
+          "function": "coerce_pnl",
+          "calls": 197686,
+          "self_seconds": 0.053030930000000004,
+          "cumulative_seconds": 0.202364821
+        },
+        {
+          "file": "/app/src/trading/portfolio.py",
+          "line": 88,
+          "function": "coerce_balances",
+          "calls": 98843,
+          "self_seconds": 0.07840343200000001,
+          "cumulative_seconds": 0.19334873500000002
+        },
+        {
+          "file": "/app/src/trading/portfolio.py",
+          "line": 98,
+          "function": "coerce_current_prices",
+          "calls": 98843,
+          "self_seconds": 0.07321522400000001,
+          "cumulative_seconds": 0.16498594500000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'isoformat' of 'datetime.datetime' objects>",
+          "calls": 98831,
+          "self_seconds": 0.14892249100000002,
+          "cumulative_seconds": 0.14892249100000002
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method sys.getsizeof>",
+          "calls": 494486,
+          "self_seconds": 0.144001042,
+          "cumulative_seconds": 0.144001042
+        },
+        {
+          "file": "/app/src/trading/portfolio.py",
+          "line": 131,
+          "function": "total_equity",
+          "calls": 98830,
+          "self_seconds": 0.051116772000000005,
+          "cumulative_seconds": 0.13363640300000001
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 197,
+          "function": "reserve",
+          "calls": 197686,
+          "self_seconds": 0.08671811,
+          "cumulative_seconds": 0.08671811
+        }
+      ]
+    },
+    {
+      "kind": "activity",
+      "profiled": false,
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 102236637,
+        "verified": true
+      },
+      "wall_seconds": 4.771120825000253,
+      "cpu_seconds": 2.6626657090000023,
+      "payload_bytes": 158442,
+      "payload_sha256": "f938dded27e0362e296bba0e1d62d502ae3ee72b6610a65dbf063da0c0c75c96"
+    },
+    {
+      "kind": "activity",
+      "profiled": true,
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 102236637,
+        "verified": true
+      },
+      "wall_seconds": 4.244778665000922,
+      "cpu_seconds": 4.212380796999998,
+      "payload_bytes": 158442,
+      "payload_sha256": "f938dded27e0362e296bba0e1d62d502ae3ee72b6610a65dbf063da0c0c75c96",
+      "top": [
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 1121,
+          "function": "build_projection",
+          "calls": 2521,
+          "self_seconds": 0.0013629800000000002,
+          "cumulative_seconds": 4.238388195000001
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 1099,
+          "function": "_reduce_activity_source",
+          "calls": 2527,
+          "self_seconds": 0.181889414,
+          "cumulative_seconds": 4.183862384
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 328,
+          "function": "add_json",
+          "calls": 245486,
+          "self_seconds": 0.187006724,
+          "cumulative_seconds": 3.604294122
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 344,
+          "function": "add_event",
+          "calls": 245486,
+          "self_seconds": 1.2790561550000001,
+          "cumulative_seconds": 2.6649301210000003
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 190,
+          "function": "change",
+          "calls": 26450,
+          "self_seconds": 0.011377861000000001,
+          "cumulative_seconds": 0.913216847
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 171,
+          "function": "size",
+          "calls": 32404,
+          "self_seconds": 0.325197826,
+          "cumulative_seconds": 0.8663305950000001
+        },
+        {
+          "file": "/app/src/dashboard/projections.py",
+          "line": 193,
+          "function": "replace",
+          "calls": 26450,
+          "self_seconds": 0.019915321,
+          "cumulative_seconds": 0.816633426
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'validate_json' of 'pydantic_core._pydantic_core.SchemaValidator' objects>",
+          "calls": 245486,
+          "self_seconds": 0.6392652240000001,
+          "cumulative_seconds": 0.7308578370000001
+        },
+        {
+          "file": "/app/src/utils/bounded_read.py",
+          "line": 174,
+          "function": "reverse_jsonl_bytes",
+          "calls": 247058,
+          "self_seconds": 0.23590128600000002,
+          "cumulative_seconds": 0.39763366800000005
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'get' of 'dict' objects>",
+          "calls": 1317135,
+          "self_seconds": 0.212609013,
+          "cumulative_seconds": 0.212609013
+        },
+        {
+          "file": "/usr/local/lib/python3.13/dataclasses.py",
+          "line": 1357,
+          "function": "fields",
+          "calls": 10145,
+          "self_seconds": 0.122408452,
+          "cumulative_seconds": 0.13831480200000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.isinstance>",
+          "calls": 865230,
+          "self_seconds": 0.121198911,
+          "cumulative_seconds": 0.121198911
+        },
+        {
+          "file": "/usr/local/lib/python3.13/dataclasses.py",
+          "line": 1380,
+          "function": "is_dataclass",
+          "calls": 166958,
+          "self_seconds": 0.06669839000000001,
+          "cumulative_seconds": 0.10419692000000001
+        },
+        {
+          "file": "/app/src/runtime/activity_events.py",
+          "line": 485,
+          "function": "_coerce_timestamp_to_utc",
+          "calls": 245514,
+          "self_seconds": 0.060991551000000005,
+          "cumulative_seconds": 0.091604293
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'match' of 're.Pattern' objects>",
+          "calls": 245486,
+          "self_seconds": 0.07970785300000001,
+          "cumulative_seconds": 0.07970785300000001
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<built-in method builtins.len>",
+          "calls": 508160,
+          "self_seconds": 0.067484291,
+          "cumulative_seconds": 0.067488111
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'rfind' of 'bytes' objects>",
+          "calls": 248604,
+          "self_seconds": 0.05940547,
+          "cumulative_seconds": 0.05940547
+        },
+        {
+          "file": "~",
+          "line": 0,
+          "function": "<method 'extend' of 'list' objects>",
+          "calls": 54012,
+          "self_seconds": 0.024125931000000003,
+          "cumulative_seconds": 0.055934251000000004
+        }
+      ]
+    }
+  ]
+}

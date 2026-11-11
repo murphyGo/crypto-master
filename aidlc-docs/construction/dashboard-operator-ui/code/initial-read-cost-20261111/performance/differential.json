@@ -1,0 +1,18 @@
+{
+  "seed": 8311,
+  "cases": 150,
+  "variants_per_case": 5,
+  "block_sizes": [
+    1,
+    2,
+    7,
+    31,
+    64,
+    65536
+  ],
+  "readers": 2,
+  "comparisons": 9000,
+  "status": "PASS",
+  "baseline_sha256": "58f831cf3721ce29de96d3a41094c112d9550ff53111035c112b72f4949469e9",
+  "candidate_sha256": "90e87c786ba0c201459d653d050a36dbf7dbb439773a1a718d16f70adfe71eca"
+}

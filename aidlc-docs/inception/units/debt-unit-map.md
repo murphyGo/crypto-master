@@ -10,7 +10,7 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V71/0e14f9d includes the resolved exchange containment repair;3,127tests,183hashes pass. Prior v70 rearming observation remains historical.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Reduce initial-read cost; retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V71/0e14f9d includes the resolved exchange containment repair;3,127tests,183hashes pass. Prior v70 rearming observation remains historical.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Initial snapshot parser improvement verified (36.3% standalone production probe,3,161tests); deliver and observe. Retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
 
 ## Debt Details
 

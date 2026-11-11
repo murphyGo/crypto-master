@@ -1,0 +1,42 @@
+{
+  "reader": "baseline",
+  "method": "initial projection; warm imports/OS; no checkpoints or previous result; same immutable fixture; isolated process ru_maxrss in macOS bytes, includes imports; not an idle-RSS delta",
+  "trials": [
+    {
+      "wall_seconds": 3.087173374951817,
+      "cpu_seconds": 2.881323,
+      "sha256": "de9a7c7cebc233134dddadb2409501c6f1d67652b6502eee090fb59b892e5013",
+      "payload_bytes": 90696,
+      "coverage": {
+        "files": 13,
+        "captured_bytes": 30912648,
+        "verified": true
+      }
+    },
+    {
+      "wall_seconds": 3.125361500075087,
+      "cpu_seconds": 2.910353,
+      "sha256": "de9a7c7cebc233134dddadb2409501c6f1d67652b6502eee090fb59b892e5013",
+      "payload_bytes": 90696,
+      "coverage": {
+        "files": 13,
+        "captured_bytes": 30912648,
+        "verified": true
+      }
+    },
+    {
+      "wall_seconds": 3.0586349579971284,
+      "cpu_seconds": 2.885702000000001,
+      "sha256": "de9a7c7cebc233134dddadb2409501c6f1d67652b6502eee090fb59b892e5013",
+      "payload_bytes": 90696,
+      "coverage": {
+        "files": 13,
+        "captured_bytes": 30912648,
+        "verified": true
+      }
+    }
+  ],
+  "pre_read_high_water_bytes": 128581632,
+  "process_high_water_bytes": 129810432,
+  "high_water_growth_bytes": 1228800
+}

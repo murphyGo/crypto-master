@@ -1,0 +1,72 @@
+{
+  "accounts": [
+    "account-00",
+    "account-01",
+    "account-02",
+    "account-03",
+    "account-04",
+    "account-05",
+    "account-06",
+    "account-07",
+    "account-08",
+    "account-09",
+    "account-10",
+    "account-11",
+    "account-12"
+  ],
+  "rows": 98800,
+  "files": {
+    "portfolio/paper/account-00/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "a4b544acd7e8a2b68c3f1de91ad1a9b4d966c345686292a70a1098a3eb57060e"
+    },
+    "portfolio/paper/account-01/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "f4ddfd5cb0e3101f6d1a21708c291f6351118bd80b9e332d7cfae0eef6fc0b58"
+    },
+    "portfolio/paper/account-02/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "4b21fe3510163e92721c1613689f310b08bfb3a8c446e1b3ad8032b6cf99979e"
+    },
+    "portfolio/paper/account-03/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "e7b35124bfaaa9f8058fea2530f77d7d9ee57aeeb8a70f3867700d1c4adbfc3e"
+    },
+    "portfolio/paper/account-04/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "42215831217c14c5d1425db7442525e62a3d8a27deaa742b31d0cad563fe3259"
+    },
+    "portfolio/paper/account-05/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "bb36f69a0265e51b5216ccadde351362d198cff318e1eb8ac2872822572a871c"
+    },
+    "portfolio/paper/account-06/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "6b652508abceef72efa47df690c20f3895fe70b29961aa86188a53ad088a8f29"
+    },
+    "portfolio/paper/account-07/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "75084182ba464b6ad649adf3426c158ffe4d696bd15904670f774d0b3dbd362e"
+    },
+    "portfolio/paper/account-08/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "ec0dda19a45b904a75712f5e75482ad7c14f9a85a67e52560b7e8885134f7777"
+    },
+    "portfolio/paper/account-09/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "4530792a8f40c579a5722799f5d8f079bdf505cfa5403486054da5c3bc1c6ce6"
+    },
+    "portfolio/paper/account-10/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "c80e24b944893c6ac5daf0663165fd2e0cafcdf60a46b29a2865e6dc3b2e19a7"
+    },
+    "portfolio/paper/account-11/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "af1ec3813067abc8fa333a344963ab7f59d6817dc987a478d1bcb17c7451420c"
+    },
+    "portfolio/paper/account-12/snapshots.json": {
+      "bytes": 2377896,
+      "sha256": "a539b27828d36c81e28d8b7f06365cd03476d2534d3a2f3b27a0f3070a374a52"
+    }
+  }
+}

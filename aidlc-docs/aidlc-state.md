@@ -57,6 +57,12 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Initial snapshot read cost (2026-11-11):** Parser span/token optimization
+> preserves complete validation and source proof. Same-generation production
+> probe median3.786→2.412s (36.3%);9,000 differential cases,602 targeted and3,161
+> full tests pass. Same-capacity delivery/observation pending. DEBT-083 stays Critical.
+> See `docs/sessions/2026-11-11-dashboard-initial-read-cost.md`.
+
 > **Exchange containment complete (2026-11-11 KST):** DEBT-090 resolved;
 > source0e14f9d/Flyv71.3,127 full/688 targeted tests and static checks pass.
 > All183 hashes, unchanged settings and process continuity verified. Deployed

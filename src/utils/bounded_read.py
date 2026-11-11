@@ -18,7 +18,7 @@ from typing import Any
 BLOCK_BYTES = 64 * 1024
 RECORD_BYTES = 1024 * 1024
 _STRING_TOKEN = re.compile(rb'["\\]')
-_OBJECT_TOKEN = re.compile(rb'["{}\[\]]')
+_OBJECT_TOKEN = re.compile(rb'"[^"\\]*"|["{}\[\]]')
 _NONSPACE = re.compile(rb"[^\t\n\r ]")
 _LINE_ENDINGS = re.compile(rb"\r\n?|\n")
 
@@ -250,10 +250,11 @@ def json_array_bytes(
     quoted = False
     escaped = False
     for block in _blocks(path, generation):
-        # Scan runs in C, retaining only the current bounded object. Strings
-        # need quote/escape tokens; outside strings only nesting/quotes matter.
-        # Slice boundaries can fall inside UTF-8 sequences without decoding.
+        # Complete unescaped strings are a single C token. Escaped or split
+        # strings retain the explicit state machine. Keep a span in this fixed
+        # block instead of copying every token; UTF-8 may cross block boundaries.
         position = 0
+        start = 0 if state == "object" else None
         while position < len(block):
             if state == "object":
                 if escaped:
@@ -263,31 +264,38 @@ def json_array_bytes(
                     token = _STRING_TOKEN if quoted else _OBJECT_TOKEN
                     match = token.search(block, position)
                     end = match.end() if match else len(block)
-                if len(pending) + end - position > record_bytes:
+                assert start is not None
+                if len(pending) + end - start > record_bytes:
                     raise ReadFailure("record_too_large")
-                pending.extend(block[position:end])
                 position = end
                 if escaped:
                     escaped = False
                     continue
                 if match is None:
                     continue
-                char = block[end - 1]
+                char = block[match.start()]
                 if quoted:
                     if char == 92:
                         escaped = True
                     elif char == 34:
                         quoted = False
                 elif char == 34:
-                    quoted = True
+                    # A one-byte quote begins an escaped/block-split string;
+                    # a longer token already contains the entire quoted value.
+                    quoted = end - match.start() == 1
                 elif char in (123, 91):
                     depth += 1
                 elif char in (125, 93):
                     depth -= 1
                     if depth == 0:
-                        yield bytes(pending)
-                        pending.clear()
+                        if pending:
+                            pending.extend(block[start:end])
+                            yield bytes(pending)
+                            pending.clear()
+                        else:
+                            yield block[start:end]
                         state = "separator"
+                        start = None
                 continue
             match = _NONSPACE.search(block, position)
             if match is None:
@@ -299,7 +307,7 @@ def json_array_bytes(
             elif state in ("first", "next") and char == 123:
                 if record_bytes < 1:
                     raise ReadFailure("record_too_large")
-                pending.append(char)
+                start = match.start()
                 depth = 1
                 state = "object"
             elif state in ("first", "separator") and char == 93:
@@ -308,6 +316,10 @@ def json_array_bytes(
                 state = "next"
             else:
                 raise ReadFailure("malformed_json_array")
+        if start is not None:
+            if len(pending) + len(block) - start > record_bytes:
+                raise ReadFailure("record_too_large")
+            pending.extend(block[start:])
         yield None
     if state != "done":
         raise ReadFailure("partial_record")
