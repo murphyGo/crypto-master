@@ -60,7 +60,11 @@ Construction artifacts are created just in time for new work. Existing Phase
 > **Initial snapshot read cost (2026-11-11):** Parser span/token optimization
 > preserves complete validation and source proof. Same-generation production
 > probe median3.786→2.412s (36.3%);9,000 differential cases,602 targeted and3,161
-> full tests pass. Same-capacity delivery/observation pending. DEBT-083 stays Critical.
+> full tests pass. Source71c8787/Flyv72 delivered;183hashes/settings and native
+> visual smoke pass.1387s four-session sample:277/277complete,275/275health,
+> Home/Trading p95 0.584/0.678s,12-account natural cycle without errors. Four
+> write-wave responses take13.19–15.18s; retained. DEBT-083 stays Critical for
+> tail/initial latency and native/cold/depleted/original1GiB/cost qualification.
 > See `docs/sessions/2026-11-11-dashboard-initial-read-cost.md`.
 
 > **Exchange containment complete (2026-11-11 KST):** DEBT-090 resolved;

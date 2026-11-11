@@ -1,4 +1,4 @@
-# Dashboard initial-read cost — active 2026-11-11
+# Dashboard initial-read cost — bounded slice complete 2026-11-11
 
 - Unit: dashboard-operator-ui; related persistence-data-integrity and
   dashboard-operator-command-center.
@@ -30,12 +30,18 @@ components remain existing readers and projections; no infrastructure addition.
 - [x] Implement the smallest measured improvement; compare same-input payloads,
   retained bounds and timings, then targeted dashboard/parser tests, full pytest,
   changed-file Black/Ruff and full mypy. Record implementing-agent review.
-- [ ] Commit/push verified source, overlay changed runtime files on exact v71
+- [x] Commit/push verified source, overlay changed runtime files on exact v71
   image; verify all hashes/settings/health and a natural cycle. Preserve every
   failed sample; perform bounded Home/Trading readiness observation.
-- [ ] Update session/cross-check/state/debt/map and retain operational evidence.
+- [x] Update session/cross-check/state/debt/map and retain operational evidence.
 
 The current5s cold/2s warm targets,20-observation/native/cold/depleted/original
 1GiB gates and ten-minute/four-session gate remain independent. One faster
 projection or normal cycle cannot resolve DEBT-083. No schema/content-validation
 shortcut, stale-as-complete result, silent truncation or omitted history is allowed.
+
+Completion: source71c8787/Flyv72, all183hashes/settings, native visual smoke and
+1387.074688s four-session protocol sample pass (277/277complete,275/275health,
+12-account natural cycle). Retain four13.19–15.18s tail responses and all historical
+failures. Evidence is sealed under `code/initial-read-cost-20261111/operations/`.
+DEBT-083 remains Critical for tail/initial latency and original qualification gates.

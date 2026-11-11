@@ -1,0 +1,6 @@
+{
+  "captured_at": "2026-11-11T08:44:46.146279+00:00",
+  "remaining_task_or_matching_bounded_guard": [],
+  "runner_exit_zero": true,
+  "scope": "Exact observer/collector task paths and bounded guard command shape; no unrelated process terminated."
+}

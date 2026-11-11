@@ -1,0 +1,305 @@
+{
+  "verdict": "PASS_BOUNDED_PROTOCOL_SAMPLE",
+  "window": {
+    "start": "2026-11-11T07:15:26.468132+00:00",
+    "end": "2026-11-11T07:38:33.542820+00:00",
+    "seconds": 1387.0746879577637
+  },
+  "requests": {
+    "reconnected_after_timeout": 0,
+    "starts": 277,
+    "outcomes": 277,
+    "bijective": true,
+    "status_counts": {
+      "complete": 277
+    },
+    "shape_failures": []
+  },
+  "pages": {
+    "Home": {
+      "requests": 138,
+      "complete": 138,
+      "status_counts": {
+        "complete": 138
+      },
+      "complete_p50_seconds": 0.3438523339573294,
+      "complete_p95_seconds": 0.5840768748894334,
+      "complete_max_seconds": 14.176827250048518,
+      "complete_over_2s": 2,
+      "at_least_20_complete": true
+    },
+    "Trading": {
+      "requests": 139,
+      "complete": 139,
+      "status_counts": {
+        "complete": 139
+      },
+      "complete_p50_seconds": 0.45819637505337596,
+      "complete_p95_seconds": 0.6783920839661732,
+      "complete_max_seconds": 15.184764291974716,
+      "complete_over_2s": 2,
+      "at_least_20_complete": true
+    }
+  },
+  "failures": [],
+  "warmup": [
+    {
+      "page": "Home",
+      "status": "complete",
+      "seconds": 0.5872450839960948,
+      "first_incomplete_shell_seconds": null
+    },
+    {
+      "page": "Trading",
+      "status": "complete",
+      "seconds": 0.4560762079199776,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "slow_complete_requests": [
+    {
+      "started_at": "2026-11-11T07:37:48.162014+00:00",
+      "client": 3,
+      "page": "Home",
+      "seconds": 13.191730124992318,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.168836541008204,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-11T07:37:47.291630+00:00",
+      "client": 1,
+      "page": "Home",
+      "seconds": 14.176827250048518,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.37449983402621,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-11T07:37:47.297015+00:00",
+      "client": 2,
+      "page": "Trading",
+      "seconds": 14.526119375019334,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.370236916001886,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-11T07:37:46.751901+00:00",
+      "client": 0,
+      "page": "Trading",
+      "seconds": 15.184764291974716,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.185714500024915,
+      "maximum_background_watchers": 1
+    }
+  ],
+  "health": {
+    "samples": 275,
+    "all_under_5s_ok": true,
+    "max_seconds": 0.19266908301506191
+  },
+  "full_cycles": {
+    "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11": {
+      "cycle_started": "2026-11-11T07:37:29.424312Z",
+      "cycle_completed": "2026-11-11T07:37:48.671272Z"
+    }
+  },
+  "cycle_errors": {},
+  "memory": {
+    "window_samples": 1385,
+    "raw_samples": 1386,
+    "guest_peak_mib": 655.2734375,
+    "dashboard_rss_growth_mib": 14.93359375,
+    "configured_mib": 2048,
+    "original_1024_mib_qualified": false
+  },
+  "runtime": {
+    "before_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "ccxt_version": true,
+      "new_instance": true
+    },
+    "after_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "ccxt_version": true,
+      "new_instance": true,
+      "same_image": true,
+      "same_instance": true,
+      "process_continuity": true
+    },
+    "same_processes": true
+  },
+  "diagnostics": {
+    "raw_rows": 452,
+    "window_rows": 437,
+    "window_classes": [
+      {
+        "kind": "activity",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 72
+      },
+      {
+        "kind": "ledger",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 72
+      },
+      {
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 73
+      },
+      {
+        "kind": "candidates",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 71
+      },
+      {
+        "kind": "proposals",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 37
+      },
+      {
+        "kind": "proposals",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 106
+      },
+      {
+        "kind": "candidates",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 2
+      },
+      {
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      },
+      {
+        "kind": "ledger",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 1
+      },
+      {
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      },
+      {
+        "kind": "activity",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 1
+      }
+    ]
+  },
+  "cpu": {
+    "fly_instance_cpu_balance": {
+      "window_points": 93,
+      "min": 2615.7163901,
+      "max": 5107.7177678,
+      "first": [
+        1794381330.0,
+        4388.7180186
+      ],
+      "last": [
+        1794382710.0,
+        2668.7166894
+      ],
+      "preceding_point": 1794381315.0,
+      "following_point": 1794382725.0,
+      "max_sample_gap_seconds": 15.0,
+      "raw_unit": "centiseconds",
+      "min_cpu_seconds": 26.157163901,
+      "max_cpu_seconds": 51.077177678
+    },
+    "fly_instance_cpu_baseline": {
+      "window_points": 93,
+      "min": 0.0625,
+      "max": 0.0625,
+      "first": [
+        1794381330.0,
+        0.0625
+      ],
+      "last": [
+        1794382710.0,
+        0.0625
+      ],
+      "preceding_point": 1794381315.0,
+      "following_point": 1794382725.0,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_throttle": {
+      "window_points": 93,
+      "min": 0.0,
+      "max": 0.0,
+      "first": [
+        1794381330.0,
+        0.0
+      ],
+      "last": [
+        1794382710.0,
+        0.0
+      ],
+      "preceding_point": 1794381315.0,
+      "following_point": 1794382725.0,
+      "max_sample_gap_seconds": 15.0,
+      "raw_unit": "centiseconds",
+      "min_cpu_seconds": 0.0,
+      "max_cpu_seconds": 0.0,
+      "positive_increment_seconds": 0.0,
+      "positive_increment_centiseconds": 0.0,
+      "positive_intervals": [],
+      "reset_intervals": []
+    }
+  },
+  "cpu_source": "cpu-window-supplement.json",
+  "collection_coverage": {
+    "health_max_start_gap_seconds": 5.194803953170776,
+    "memory_max_source_gap_seconds": 1.021826982498169,
+    "memory_trailing_gap_seconds": 0.7002410888671875,
+    "continuous_collection": true
+  },
+  "limits": [
+    "Protocol shape/metric coverage, not native viewport or table-cell oracle.",
+    "Timeout outcomes are retained and the next request reconnects before sending. General server script-run-ID joining and native viewport acceptance remain separate.",
+    "Warmup is one pair after a native visual smoke; not cold percentile acceptance.",
+    "Original 1 GiB and depleted CPU acceptance remain separate.",
+    "Async diagnostic overlap and local/Fly timestamp differences cannot attribute a failure to a request or writer.",
+    "All earlier failed and user-stopped samples remain retained."
+  ],
+  "source_changes": true
+}

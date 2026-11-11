@@ -427,8 +427,15 @@ same-date cross-check; raw evidence is in `source-recovery-resume-20261029/opera
 **2026-11-11 initial-read optimization:** JSON array string tokens and block spans
 reduce standalone snapshot projection median3.786→2.412s (36.3%) over unchanged
 production input, with all six output hashes equal.9,000 differential comparisons,
-602 targeted/3,161 full tests and static gates pass. Same-capacity deployment and
-page observation pending; all original DEBT-083 acceptance gates remain. See
+602 targeted/3,161 full tests and static gates pass. Source71c8787/Flyv72 delivered;
+183hashes/settings and native visual smoke pass. Four-session1387.074688s sample
+has277/277complete,275/275health and a19.246960s/12-account natural cycle without
+errors; Home/Trading p95 0.584077/0.678392s. Four write-wave requests take
+13.191730–15.184764s before automatic completion and remain in the raw evidence.
+Guest peak655.273438MiB on2GiB; CPU balance26.157164–51.077178CPU-seconds with
+zero sampled throttle increments. All task probes are cleaned up. DEBT-083 stays
+Critical: tail/initial latency, native/cold/depleted/original1GiB and cost gates
+remain. The passing bounded sample does not relabel prior failed samples. See
 `docs/sessions/2026-11-11-dashboard-initial-read-cost.md`.
 
 ### DEBT-090: CCXT request-limit exceptions escape adapter containment ✅
@@ -1866,6 +1873,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-11-11 | Improved / deployed, remains active | DEBT-083 source71c8787/Flyv72: snapshot probe median36.3% faster,3,161tests;277/277complete and275/275health across a full natural cycle. Four13.19–15.18s tail responses and native/cold/depleted/original1GiB/cost gates remain. |
 | 2026-11-11 | Resolved / deployed | DEBT-090 source0e14f9d/Flyv71: transport normalization and shared endpoint cooldown;3,127 full tests,183hashes/settings,deployed mock-only fault smoke and12-account natural monitor cycle pass. DEBT-083 remains Critical; prior failed samples and latency/native/cold/depleted/cost gates remain. |
 | 2026-10-30 | Deployed / observed | DEBT-083 recovery rearming `ffe95b0` deployed as v70;3,053tests/182hashes pass. Interrupted first sample retained; repeated144/144page and145/145health pass but Binance418 engine error fails full gate. Cold/native/depleted/original1GiB remain. DEBT-090 High added for reproduced CCXT exception-containment gap. |
 | 2026-10-26 | Deployed / verified | DEBT-087/088/089 individually pushed, Fly v63 / f0f3e52 deployed. All 177 hashes, health and first 12-account monitor cycle pass. No new proposal/cap event occurred; deployed read-only replay covers 18 account/version scores and seven open rows. Funding remains unknown. |

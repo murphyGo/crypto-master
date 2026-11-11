@@ -1,0 +1,127 @@
+{
+  "release": 72,
+  "image": "sha256:7f66519b0490a1610299ac2c75b44b2129201f97a8a71a55b60d4352294224ed",
+  "source": "71c87874222bb8b385583651f8c2b124e108fa05",
+  "checks": {
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "single_existing_machine": true,
+    "runtime_source": true,
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "processes": true,
+    "internal_health": true,
+    "ccxt_version": true,
+    "new_instance": true,
+    "same_image": true,
+    "same_instance": true,
+    "process_continuity": true
+  },
+  "full_cycles_since_deploy": {
+    "d94aa070-a8e2-4d2c-a0e6-ca0633846045": {
+      "cycle_started": {
+        "timestamp": "2026-11-11T07:07:06.425660Z",
+        "event_type": "cycle_started",
+        "cycle_id": "d94aa070-a8e2-4d2c-a0e6-ca0633846045",
+        "details": {
+          "cycle_index": 1
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-11-11T07:07:29.340962Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "d94aa070-a8e2-4d2c-a0e6-ca0633846045",
+        "details": {
+          "proposals": 1,
+          "accepted": 1,
+          "rejected": 1,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11": {
+      "cycle_started": {
+        "timestamp": "2026-11-11T07:37:29.424312Z",
+        "event_type": "cycle_started",
+        "cycle_id": "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11",
+        "details": {
+          "cycle_index": 2
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-11-11T07:37:48.671272Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11",
+        "details": {
+          "proposals": 1,
+          "accepted": 1,
+          "rejected": 1,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    }
+  },
+  "cycle_counts": {
+    "d94aa070-a8e2-4d2c-a0e6-ca0633846045": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "proposal_generated": 1,
+      "proposal_accepted": 1,
+      "proposal_rejected": 1,
+      "cycle_completed": 1
+    },
+    "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "proposal_generated": 1,
+      "proposal_accepted": 1,
+      "proposal_rejected": 1,
+      "cycle_completed": 1
+    }
+  },
+  "cycle_monitor_accounts": {
+    "d94aa070-a8e2-4d2c-a0e6-ca0633846045": [
+      "bollinger_band_reversion",
+      "ma_crossover",
+      "momentum_pinball_orb",
+      "raschke_holy_grail",
+      "rsi_15m",
+      "rsi_4h",
+      "rsi_universal",
+      "session_vwap_pullback",
+      "turtle_soup_reclaim",
+      "vcp_breakout",
+      "vwap_mean_reversion",
+      "weinstein_stage2_filter"
+    ],
+    "76ee8fdb-8bb9-4bb7-82a6-f1f032f25a11": [
+      "bollinger_band_reversion",
+      "ma_crossover",
+      "momentum_pinball_orb",
+      "raschke_holy_grail",
+      "rsi_15m",
+      "rsi_4h",
+      "rsi_universal",
+      "session_vwap_pullback",
+      "turtle_soup_reclaim",
+      "vcp_breakout",
+      "vwap_mean_reversion",
+      "weinstein_stage2_filter"
+    ]
+  },
+  "public_health": {
+    "status": 200,
+    "ok": true,
+    "seconds": 0.17473083303775638
+  },
+  "sampler_lifecycle": {
+    "remaining_task_sampler_pids": []
+  }
+}
