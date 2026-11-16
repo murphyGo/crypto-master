@@ -57,6 +57,12 @@ Construction artifacts are created just in time for new work. Existing Phase
 
 ## Unit Progress
 
+> **Checkpoint reconstruction cost (2026-11-17 KST):** Codec split sizing stops
+> once32KiB is exceeded; actual memory admission stays exact. Source verification
+> passes3197 tests and242 byte/error comparisons. Alternating production probe
+> activity median3.076→2.666s (13.34%); identical payloads. Same-capacity delivery
+> pending; DEBT-083 remains Critical. See `docs/sessions/2026-11-17-dashboard-refresh-cost.md`.
+
 > **Initial snapshot read cost (2026-11-11):** Parser span/token optimization
 > preserves complete validation and source proof. Same-generation production
 > probe median3.786→2.412s (36.3%);9,000 differential cases,602 targeted and3,161

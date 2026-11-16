@@ -167,7 +167,7 @@ def encode_state(state: dict[str, Any], cap: int = _MIB - 40) -> bytes:
             raise CacheMiss("depth")
         if (
             isinstance(value, (dict, list, tuple, set))
-            and sizing.size(value) > 32 * 1024
+            and sizing.size(value, stop_after=32 * 1024) > 32 * 1024
         ):
             kind = {dict: "m", list: "l", tuple: "q", set: "s"}[type(value)]
             emit(["open", path, kind])

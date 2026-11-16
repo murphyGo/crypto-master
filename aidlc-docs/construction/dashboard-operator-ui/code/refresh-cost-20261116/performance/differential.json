@@ -1,0 +1,15 @@
+{
+  "seed": 834617,
+  "cases": 121,
+  "comparisons": 242,
+  "counts": {
+    "byte_matches": 112,
+    "error_matches": 130
+  },
+  "deep_split_limit_included": true,
+  "baseline_commit": "71c87874222bb8b385583651f8c2b124e108fa05",
+  "candidate_sha256": {
+    "src/dashboard/projections.py": "9d2808e01fec51702444e4bf0e1c3b77f84a0af6c782a57acbfad4414a7e86ef",
+    "src/dashboard/checkpoint_store.py": "2067b45678a91c78d5964b401274467d7b43078a065208d7e083453d81d317e8"
+  }
+}

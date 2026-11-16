@@ -438,6 +438,14 @@ Critical: tail/initial latency, native/cold/depleted/original1GiB and cost gates
 remain. The passing bounded sample does not relabel prior failed samples. See
 `docs/sessions/2026-11-11-dashboard-initial-read-cost.md`.
 
+**2026-11-17 checkpoint reconstruction optimization:** Codec-only threshold
+sizing stops after32KiB; all actual memory charges remain exact. Activity empty
+checkpoint rebuild median3.076233→2.665976s (13.34%) on unchanged production
+input, with identical hashes.3197 tests and242 byte/error comparisons pass.
+Delivery/observation pending. Preserve all earlier failures and13.19–15.18s tails,
+plus native/cold/depleted/original1GiB/cost gates. See
+`docs/sessions/2026-11-17-dashboard-refresh-cost.md`.
+
 ### DEBT-090: CCXT request-limit exceptions escape adapter containment ✅
 
 | Field | Value |

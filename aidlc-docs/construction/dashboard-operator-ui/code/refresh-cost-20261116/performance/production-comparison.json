@@ -1,0 +1,204 @@
+{
+  "captured_at": "2026-11-16T16:47:46.948911+00:00",
+  "method": "alternating implementation functions only in this standalone process; fresh isolated /tmp checkpoint per trial; no /data writes; warm imports/OS; fixed evaluation time",
+  "baseline_file_sha256": {
+    "src/dashboard/projections.py": "0399e63c3f822ee381e2c6f6fa28ba56bb639521420cee2d5b0e6bc03d68704d",
+    "src/dashboard/checkpoint_store.py": "8a963b425d1451c2487a5949f00b0ea4c5cf53d33963c6c72b5b3887030633c6"
+  },
+  "trials": [
+    {
+      "kind": "activity",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 3.4650178920128383,
+      "cpu_seconds": 3.4329824359999996,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "activity",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 2.6984053679625504,
+      "cpu_seconds": 2.670907088,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "activity",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 2.660888097016141,
+      "cpu_seconds": 2.632821879999999,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "activity",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 2.967734442965593,
+      "cpu_seconds": 2.9397199060000005,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "activity",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 3.076233154977672,
+      "cpu_seconds": 3.0437030509999996,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "activity",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "cafc8b01e1bbedec283596bf0793060503d7451cca546615c570c9203d88497f",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104780831,
+        "verified": true
+      },
+      "wall_seconds": 2.6659755670116283,
+      "cpu_seconds": 2.638718255999999,
+      "checkpoint_hits": 0,
+      "payload_bytes": 140807,
+      "payload_sha256": "69486b1c5d6a1ff05ec9098bd16242428e1ade028c42bf5dee39c6da86696441"
+    },
+    {
+      "kind": "snapshots",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.2077404070296325,
+      "cpu_seconds": 3.184865956000003,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    },
+    {
+      "kind": "snapshots",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.2341775270178914,
+      "cpu_seconds": 3.2075412730000004,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    },
+    {
+      "kind": "snapshots",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.1952556570176966,
+      "cpu_seconds": 3.170096751999999,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    },
+    {
+      "kind": "snapshots",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.2353566579986364,
+      "cpu_seconds": 3.2116683759999987,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    },
+    {
+      "kind": "snapshots",
+      "version": "baseline",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.294740248005837,
+      "cpu_seconds": 3.258844422000003,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    },
+    {
+      "kind": "snapshots",
+      "version": "candidate",
+      "status": "complete",
+      "source_digest": "88bfabbf13b7c150e83b64d3e3070aac40c40d6a8ea3d2c7df194640d0f6fe66",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38128056,
+        "verified": true
+      },
+      "wall_seconds": 3.1564398670452647,
+      "cpu_seconds": 3.134824616000003,
+      "checkpoint_hits": 0,
+      "payload_bytes": 228485,
+      "payload_sha256": "2b238494eb54ef41607dbf6d4806300b39639c7150b819de83fbd90876b503fd"
+    }
+  ],
+  "process_highwater_rss_kib": 229364,
+  "temporary_stores_removed": true
+}

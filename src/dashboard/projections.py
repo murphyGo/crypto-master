@@ -168,7 +168,12 @@ class StateBudget:
         self.accounts: set[str] = set()
         self.strategies: set[str] = set()
 
-    def size(self, value: Any) -> int:
+    def size(self, value: Any, *, stop_after: int | None = None) -> int:
+        """Return an exact charge, or stop after proving a threshold exceeded.
+
+        Only codec split predicates use the cutoff. Admission/replacement
+        callers omit it so retained state always receives its full charge.
+        """
         seen: set[int] = set()
         stack = [value]
         total = 128
@@ -178,6 +183,8 @@ class StateBudget:
                 continue
             seen.add(id(item))
             total += sys.getsizeof(item)
+            if stop_after is not None and total > stop_after:
+                return total
             if isinstance(item, dict):
                 stack.extend(item.keys())
                 stack.extend(item.values())

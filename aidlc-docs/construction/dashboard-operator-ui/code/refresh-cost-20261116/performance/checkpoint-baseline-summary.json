@@ -1,0 +1,149 @@
+{
+  "captured_at": "2026-11-16T16:42:07.856342+00:00",
+  "method": "isolated temporary checkpoint store under /tmp; /data read only; fixed evaluation time; warm imports/OS; profile overhead separate",
+  "retention": "Selected fields transcribed from completed tool output; all eight trial times and output hashes retained. Full direct-profile report retained separately.",
+  "process_highwater_rss_kib": 230364,
+  "temporary_stores_removed": true,
+  "trials": [
+    {
+      "kind": "snapshots",
+      "phase": "direct",
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38123778,
+        "verified": true
+      },
+      "source_digest": "b84c0652bacba26a44815e28758a6f6947cda9b23ad876fb89a412a1eae618ae",
+      "payload_sha256": "eba4bbfbc51830786c3496de8d5123239db6b8e1d236317f7e9e4551325d7439",
+      "wall_seconds": 2.74423418904189,
+      "cpu_seconds": 2.71476851,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "snapshots",
+      "phase": "empty_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38123778,
+        "verified": true
+      },
+      "source_digest": "b84c0652bacba26a44815e28758a6f6947cda9b23ad876fb89a412a1eae618ae",
+      "payload_sha256": "eba4bbfbc51830786c3496de8d5123239db6b8e1d236317f7e9e4551325d7439",
+      "wall_seconds": 3.5669060419895686,
+      "cpu_seconds": 3.5343849039999995,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "snapshots",
+      "phase": "warm_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38123778,
+        "verified": true
+      },
+      "source_digest": "b84c0652bacba26a44815e28758a6f6947cda9b23ad876fb89a412a1eae618ae",
+      "payload_sha256": "eba4bbfbc51830786c3496de8d5123239db6b8e1d236317f7e9e4551325d7439",
+      "wall_seconds": 0.056004671030677855,
+      "cpu_seconds": 0.05549449000000006,
+      "checkpoint_hits": 13,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "snapshots",
+      "phase": "profile_empty_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 13,
+        "captured_bytes": 38123778,
+        "verified": true
+      },
+      "source_digest": "b84c0652bacba26a44815e28758a6f6947cda9b23ad876fb89a412a1eae618ae",
+      "payload_sha256": "eba4bbfbc51830786c3496de8d5123239db6b8e1d236317f7e9e4551325d7439",
+      "wall_seconds": 11.366530992963817,
+      "cpu_seconds": 11.25636526,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "activity",
+      "phase": "direct",
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104776874,
+        "verified": true
+      },
+      "source_digest": "166f1b986f3d39bc8f7ce856b69a6e9decb0284092eae329e6724ef5ec9fff71",
+      "payload_sha256": "3bbd72b7a7d4db61cbada481432eee8a074de9c484c5a928e344d29c8cc7e9d4",
+      "wall_seconds": 2.1044473269721493,
+      "cpu_seconds": 2.0879923500000004,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "activity",
+      "phase": "empty_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104776874,
+        "verified": true
+      },
+      "source_digest": "166f1b986f3d39bc8f7ce856b69a6e9decb0284092eae329e6724ef5ec9fff71",
+      "payload_sha256": "3bbd72b7a7d4db61cbada481432eee8a074de9c484c5a928e344d29c8cc7e9d4",
+      "wall_seconds": 3.0315582340117544,
+      "cpu_seconds": 2.991260453999999,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "activity",
+      "phase": "warm_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104776874,
+        "verified": true
+      },
+      "source_digest": "166f1b986f3d39bc8f7ce856b69a6e9decb0284092eae329e6724ef5ec9fff71",
+      "payload_sha256": "3bbd72b7a7d4db61cbada481432eee8a074de9c484c5a928e344d29c8cc7e9d4",
+      "wall_seconds": 0.6441785120405257,
+      "cpu_seconds": 0.639382316999999,
+      "checkpoint_hits": 8,
+      "checkpoint_misses": 0
+    },
+    {
+      "kind": "activity",
+      "phase": "profile_empty_store",
+      "status": "complete",
+      "source_coverage": {
+        "files": 8,
+        "captured_bytes": 104776874,
+        "verified": true
+      },
+      "source_digest": "166f1b986f3d39bc8f7ce856b69a6e9decb0284092eae329e6724ef5ec9fff71",
+      "payload_sha256": "3bbd72b7a7d4db61cbada481432eee8a074de9c484c5a928e344d29c8cc7e9d4",
+      "wall_seconds": 8.367405669006985,
+      "cpu_seconds": 8.296221451999997,
+      "checkpoint_hits": 0,
+      "checkpoint_misses": 0
+    }
+  ],
+  "profile_hotspots": {
+    "snapshots": {
+      "eligible_model_cumulative_seconds": 2.416131253,
+      "json_array_bytes_cumulative_seconds": 5.484068834
+    },
+    "activity": {
+      "StateBudget_size_cumulative_seconds": 4.094884104,
+      "encode_state_cumulative_seconds": 2.641631528,
+      "encode_state_calls": 8,
+      "size_calls": 53538
+    }
+  }
+}
