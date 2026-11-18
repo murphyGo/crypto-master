@@ -1,0 +1,310 @@
+{
+  "verdict": "PASS_BOUNDED_PROTOCOL_SAMPLE",
+  "window": {
+    "start": "2026-11-16T16:57:59.330571+00:00",
+    "end": "2026-11-16T17:25:06.601786+00:00",
+    "seconds": 1627.2712149620056
+  },
+  "requests": {
+    "reconnected_after_timeout": 0,
+    "starts": 325,
+    "outcomes": 325,
+    "bijective": true,
+    "status_counts": {
+      "complete": 325
+    },
+    "shape_failures": []
+  },
+  "pages": {
+    "Home": {
+      "requests": 162,
+      "complete": 162,
+      "status_counts": {
+        "complete": 162
+      },
+      "complete_p50_seconds": 0.3436910000164062,
+      "complete_p95_seconds": 0.628589625004679,
+      "complete_max_seconds": 12.306462083011866,
+      "complete_over_2s": 2,
+      "at_least_20_complete": true
+    },
+    "Trading": {
+      "requests": 163,
+      "complete": 163,
+      "status_counts": {
+        "complete": 163
+      },
+      "complete_p50_seconds": 0.4602500000037253,
+      "complete_p95_seconds": 0.5076153750997037,
+      "complete_max_seconds": 11.565629417076707,
+      "complete_over_2s": 3,
+      "at_least_20_complete": true
+    }
+  },
+  "failures": [],
+  "warmup": [
+    {
+      "page": "Home",
+      "status": "complete",
+      "seconds": 14.572191624902189,
+      "first_incomplete_shell_seconds": 7.795115832937881
+    },
+    {
+      "page": "Trading",
+      "status": "complete",
+      "seconds": 0.9712229580618441,
+      "first_incomplete_shell_seconds": null
+    }
+  ],
+  "initial_pair_complete_5s_target_met": false,
+  "initial_pair_shell_or_complete_5s_target_met": false,
+  "slow_complete_requests": [
+    {
+      "started_at": "2026-11-16T16:58:19.506082+00:00",
+      "client": 0,
+      "page": "Trading",
+      "seconds": 2.338050791993737,
+      "status": "complete",
+      "first_incomplete_shell_seconds": null,
+      "maximum_background_watchers": 0
+    },
+    {
+      "started_at": "2026-11-16T17:24:41.074581+00:00",
+      "client": 3,
+      "page": "Trading",
+      "seconds": 10.519956999924034,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.205565999960527,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-16T17:24:40.196092+00:00",
+      "client": 1,
+      "page": "Trading",
+      "seconds": 11.565629417076707,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.310148083139211,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-16T17:24:39.620196+00:00",
+      "client": 0,
+      "page": "Home",
+      "seconds": 12.306462083011866,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.189755916129798,
+      "maximum_background_watchers": 1
+    },
+    {
+      "started_at": "2026-11-16T17:24:40.217804+00:00",
+      "client": 2,
+      "page": "Home",
+      "seconds": 11.711343874922022,
+      "status": "complete",
+      "first_incomplete_shell_seconds": 4.291664165910333,
+      "maximum_background_watchers": 1
+    }
+  ],
+  "health": {
+    "samples": 323,
+    "all_under_5s_ok": true,
+    "max_seconds": 0.21734670805744827
+  },
+  "full_cycles": {
+    "77c32d78-f79a-42a9-9a82-73989f60624e": {
+      "cycle_started": "2026-11-16T17:24:26.890472Z",
+      "cycle_completed": "2026-11-16T17:24:43.518033Z"
+    }
+  },
+  "cycle_errors": {},
+  "memory": {
+    "window_samples": 1625,
+    "raw_samples": 1626,
+    "guest_peak_mib": 649.60546875,
+    "dashboard_rss_growth_mib": 17.58203125,
+    "configured_mib": 2048,
+    "original_1024_mib_qualified": false
+  },
+  "runtime": {
+    "before_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "ccxt_version": true,
+      "new_instance": true
+    },
+    "after_checks": {
+      "env": true,
+      "init": true,
+      "guest": true,
+      "mounts": true,
+      "services": true,
+      "restart": true,
+      "single_existing_machine": true,
+      "runtime_source": true,
+      "dependencies": true,
+      "configuration": true,
+      "settings_mode": true,
+      "processes": true,
+      "internal_health": true,
+      "ccxt_version": true,
+      "new_instance": true,
+      "same_image": true,
+      "same_instance": true,
+      "process_continuity": true
+    },
+    "same_processes": true
+  },
+  "diagnostics": {
+    "raw_rows": 512,
+    "window_rows": 505,
+    "window_classes": [
+      {
+        "kind": "activity",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 84
+      },
+      {
+        "kind": "ledger",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 83
+      },
+      {
+        "kind": "snapshots",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 84
+      },
+      {
+        "kind": "candidates",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 82
+      },
+      {
+        "kind": "proposals",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 43
+      },
+      {
+        "kind": "proposals",
+        "reason": "rebuild_pending",
+        "stage": "foreground_wait",
+        "count": 125
+      },
+      {
+        "kind": "activity",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      },
+      {
+        "kind": "ledger",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 1
+      },
+      {
+        "kind": "snapshots",
+        "reason": "source_changed",
+        "stage": "retry_scheduled",
+        "count": 1
+      },
+      {
+        "kind": "activity",
+        "reason": "queue_full",
+        "stage": "admission",
+        "count": 1
+      }
+    ]
+  },
+  "cpu": {
+    "fly_instance_cpu_balance": {
+      "window_points": 109,
+      "min": 2837.2214674,
+      "max": 4633.2248621,
+      "first": [
+        1794848280.0,
+        3839.2190976
+      ],
+      "last": [
+        1794849900.0,
+        2837.2214674
+      ],
+      "preceding_point": 1794848265.0,
+      "following_point": 1794849915.0,
+      "max_sample_gap_seconds": 15.0,
+      "raw_unit": "centiseconds",
+      "min_cpu_seconds": 28.372214674000002,
+      "max_cpu_seconds": 46.332248621
+    },
+    "fly_instance_cpu_baseline": {
+      "window_points": 109,
+      "min": 0.0625,
+      "max": 0.0625,
+      "first": [
+        1794848280.0,
+        0.0625
+      ],
+      "last": [
+        1794849900.0,
+        0.0625
+      ],
+      "preceding_point": 1794848265.0,
+      "following_point": 1794849915.0,
+      "max_sample_gap_seconds": 15.0
+    },
+    "fly_instance_cpu_throttle": {
+      "window_points": 109,
+      "min": 0.0,
+      "max": 0.0,
+      "first": [
+        1794848280.0,
+        0.0
+      ],
+      "last": [
+        1794849900.0,
+        0.0
+      ],
+      "preceding_point": 1794848265.0,
+      "following_point": 1794849915.0,
+      "max_sample_gap_seconds": 15.0,
+      "raw_unit": "centiseconds",
+      "min_cpu_seconds": 0.0,
+      "max_cpu_seconds": 0.0,
+      "positive_increment_seconds": 0.0,
+      "positive_increment_centiseconds": 0.0,
+      "positive_intervals": [],
+      "reset_intervals": []
+    }
+  },
+  "cpu_source": "cpu-window-supplement.json",
+  "collection_coverage": {
+    "health_max_start_gap_seconds": 5.231801986694336,
+    "memory_max_source_gap_seconds": 1.0146470069885254,
+    "memory_trailing_gap_seconds": 0.6752128601074219,
+    "continuous_collection": true
+  },
+  "limits": [
+    "Protocol shape/metric coverage, not native viewport or table-cell oracle.",
+    "Timeout outcomes are retained and the next request reconnects before sending. General server script-run-ID joining and native viewport acceptance remain separate.",
+    "Warmup is one initial protocol pair; no native inspection or cold percentile acceptance is claimed for this slice.",
+    "Original 1 GiB and depleted CPU acceptance remain separate.",
+    "Async diagnostic overlap and local/Fly timestamp differences cannot attribute a failure to a request or writer.",
+    "All earlier failed and user-stopped samples remain retained."
+  ],
+  "source_changes": true
+}

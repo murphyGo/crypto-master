@@ -7,8 +7,9 @@ US-012/014/020/023, legacy7/8.2/19.3. Work began2026-11-16; the user's renewed
 
 ## Finding and implementation
 
-Main51b8881 and v72/source71c8787 are unchanged. The exact183 runtime hashes,
-configuration, image/instance/process identity and health pass the fresh capture.
+The starting baseline was main51b8881 and v72/source71c8787. The exact183 runtime
+hashes, configuration, image/instance/process identity and health passed the
+fresh pre-change capture.
 Direct initial projection costs2.558796s for snapshots and2.483295s for activity.
 A separate isolated checkpoint profile shows activity empty-store3.031558s,
 direct2.104447s, reused-store0.644179s, with identical outputs. Instrumented
@@ -47,13 +48,51 @@ contracts. Only two runtime files change; trading and credentials stay unchanged
 
 ## Delivery and remaining gates
 
-Source commit/push, exact-v72 image overlay,183-file runtime verification and
-bounded operational observation are pending. Keep shared CPU1/2048MiB, existing
-volume, paper/Codex and1800s cadence. The v72 image is the rollback target.
+Source779b60e is committed/pushed and deployed as Flyv73. All183 hashes,
+settings/dependencies and health pass. Only checkpoint_store.py/projections.py
+are overlaid on exact v72. Shared CPU1/2048MiB, existing volume, paper/Codex and
+1800s cadence are unchanged. Image
+`sha256:b1fb37ffbba7f93c387c4af4caee85c9c5d21de4b5cc59e3de9edbc1ab810281`,
+instance `01M7JMF6WMA4MV26FCE1XFWRZ0`. Startup cycle
+`e462b543-2540-474e-ad23-ae4386228c13` completes14.819189s with no cycle error,
+proposals or opens/closes and12 distinct monitor accounts. The exact v72 image
+remains the rollback target.
+
+The four-session sample runs1627.271215s,2026-11-16 16:57:59.330571 through
+17:25:06.601786UTC (Nov17 KST). All325 starts have one complete outcome:
+Home162 and Trading163. No timeout, reconnect or shape failure occurs. Home and
+Trading p95 are0.628590/0.507615s; all323 health checks pass (maximum0.217347s).
+Guest peak649.605469MiB and dashboard RSS growth17.582031MiB are on2GiB.
+Collection is continuous. Natural cycle `77c32d78-f79a-42a9-9a82-73989f60624e`
+takes16.627561s with12 distinct monitor accounts, no cycle error and no
+proposals/opens/closes. Image, instance and engine/dashboard start ticks persist.
+
+The bounded warm protocol audit passes, but five requests exceed2s: Trading
+2.338051s and four cycle-overlap requests10.519957–12.306462s. The latter first
+show incomplete shells in4.189756–4.310148s and complete automatically. All
+requests remain in the evidence; overlap does not identify an individual cause.
+The initial protocol pair is separate: **Home14.572192s, first incomplete
+shell7.795116s, both fail5s**; Trading0.971223s. One initial pair does not prove
+process/cache-cold isolation or a20-sample cold/native percentile.
+
+CPU has109 in-window points per series with15s spacing and both brackets.
+Balance28.372215–46.332249CPU-seconds stays positive; sampled throttle increments
+and counter resets are zero. All runner stages exit0 and remote sampler cleanup
+passes immediately after observation. Daemon recovery delays final recording
+until Nov18: the00:18:47.786825UTC late capture still verifies183hashes/settings,
+same image/instance/processes; the04:26UTC local check finds no task collector,
+observer or matching bounded idle guard. These checks do not extend the sample.
+The offline audit uses project Python3.11 after system Python rejected a Fly
+nanosecond timestamp; raw observations are unchanged. No application code changed
+after the3197-test source validation.
 
 DEBT-083 remains Critical. The earlier four13.19–15.18s write-wave responses stay
 retained. This isolated codec improvement does not establish their sole cause or
 close native/cold/depleted/original1GiB/cost qualification. No budget/capacity
 increase or stale-as-complete result is selected.
+
+Next measure initial startup/import, query and rendering contributions. Home
+already shares one foreground deadline, and eager imports address an earlier
+deployed Streamlit failure; do not change those contracts on inference alone.
 
 Evidence: `aidlc-docs/construction/dashboard-operator-ui/code/refresh-cost-20261116/`.

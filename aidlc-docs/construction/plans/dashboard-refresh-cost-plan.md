@@ -1,4 +1,4 @@
-# Dashboard refresh cost — active 2026-11-16
+# Dashboard refresh cost — bounded slice completed 2026-11-18
 
 - Unit: dashboard-operator-ui; related persistence-data-integrity.
 - Debt: DEBT-083 Critical, still active after v72.
@@ -24,9 +24,9 @@ Any measured implementation refinement must preserve those constraints.
   same inputs in alternating order and keep all trials.
 - [x] Run targeted tests, broader pytest as warranted, changed-file Black/Ruff,
   full mypy and implementing-agent review; preserve deterministic payload parity.
-- [ ] Commit/push verified source, deploy only changed runtime paths over exact
+- [x] Commit/push verified source, deploy only changed runtime paths over exact
   v72 at unchanged capacity; verify hashes/settings, health and natural cycle.
-- [ ] Retain bounded Home/Trading observation and update session, cross-check,
+- [x] Retain bounded Home/Trading observation and update session, cross-check,
   state, debt/map and artifacts. Keep original native/cold/depleted/1GiB gates
   open unless their own evidence actually satisfies them.
 
@@ -39,3 +39,21 @@ Selected refinement (2026-11-17 KST): stop the codec-only size predicate after
 32KiB is exceeded, preserving exact default accounting and identical split/byte
 encoding. Direct and isolated checkpoint profiles retain all measurements;
 36 focused cutoff/codec tests and110 existing projection/checkpoint tests pass.
+
+Delivered source779b60e/Flyv73 at unchanged capacity. The1627.271215s four-session
+sample has325/325 complete requests,323/323 health checks and a16.627561s natural
+cycle with12 distinct monitor accounts and no cycle error. Home/Trading p95 is
+0.628590/0.507615s; four cycle-overlap requests take10.519957–12.306462s and one
+other Trading response takes2.338051s. All remain retained.183 runtime hashes,
+settings and process continuity pass, including a separate Nov18 late capture.
+Operational artifacts and final documentation are sealed after daemon recovery;
+the original Nov17 KST observation is not repeated or extended.
+
+Follow-up retained from the first v73 protocol pair: Home completes in14.572192s
+and first shows an incomplete shell at7.795116s; both miss5s. Trading completes
+in0.971223s. This is one initial pair, not a cold/native percentile. Attribute
+startup/import, query and rendering time before selecting another optimization.
+Home already uses one shared foreground deadline in `request_many`; do not
+assume serial four-second waits. The eager imports in `app.py` protect against a
+previous deployed Streamlit import failure, so preserve that compatibility until
+an alternative has evidence. Keep this initial miss and every observed tail.

@@ -1,0 +1,7 @@
+{
+  "captured_at": "2026-11-18T04:26:25.544Z",
+  "remaining_task_or_matching_bounded_guard": [],
+  "ps_exit_code": 0,
+  "ps_output_truncated": false,
+  "scope": "Read-only ps -axo pid,command; filtered to exact task observer/collector paths and bounded guard command shape. Checked after daemon recovery; no unrelated process terminated."
+}

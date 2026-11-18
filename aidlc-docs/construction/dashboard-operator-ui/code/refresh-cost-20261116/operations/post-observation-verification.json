@@ -1,0 +1,121 @@
+{
+  "release": 73,
+  "image": "sha256:b1fb37ffbba7f93c387c4af4caee85c9c5d21de4b5cc59e3de9edbc1ab810281",
+  "source": "779b60e4131ae246b501425da458833dca051e34",
+  "checks": {
+    "env": true,
+    "init": true,
+    "guest": true,
+    "mounts": true,
+    "services": true,
+    "restart": true,
+    "single_existing_machine": true,
+    "runtime_source": true,
+    "dependencies": true,
+    "configuration": true,
+    "settings_mode": true,
+    "processes": true,
+    "internal_health": true,
+    "ccxt_version": true,
+    "new_instance": true,
+    "same_image": true,
+    "same_instance": true,
+    "process_continuity": true
+  },
+  "full_cycles_since_deploy": {
+    "e462b543-2540-474e-ad23-ae4386228c13": {
+      "cycle_started": {
+        "timestamp": "2026-11-16T16:54:11.981137Z",
+        "event_type": "cycle_started",
+        "cycle_id": "e462b543-2540-474e-ad23-ae4386228c13",
+        "details": {
+          "cycle_index": 1
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-11-16T16:54:26.800326Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "e462b543-2540-474e-ad23-ae4386228c13",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    },
+    "77c32d78-f79a-42a9-9a82-73989f60624e": {
+      "cycle_started": {
+        "timestamp": "2026-11-16T17:24:26.890472Z",
+        "event_type": "cycle_started",
+        "cycle_id": "77c32d78-f79a-42a9-9a82-73989f60624e",
+        "details": {
+          "cycle_index": 2
+        }
+      },
+      "cycle_completed": {
+        "timestamp": "2026-11-16T17:24:43.518033Z",
+        "event_type": "cycle_completed",
+        "cycle_id": "77c32d78-f79a-42a9-9a82-73989f60624e",
+        "details": {
+          "proposals": 0,
+          "accepted": 0,
+          "rejected": 0,
+          "opened": 0,
+          "closed": 0
+        }
+      }
+    }
+  },
+  "cycle_counts": {
+    "e462b543-2540-474e-ad23-ae4386228c13": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "cycle_completed": 1
+    },
+    "77c32d78-f79a-42a9-9a82-73989f60624e": {
+      "cycle_started": 1,
+      "monitor_pass": 12,
+      "cycle_completed": 1
+    }
+  },
+  "cycle_monitor_accounts": {
+    "e462b543-2540-474e-ad23-ae4386228c13": [
+      "bollinger_band_reversion",
+      "ma_crossover",
+      "momentum_pinball_orb",
+      "raschke_holy_grail",
+      "rsi_15m",
+      "rsi_4h",
+      "rsi_universal",
+      "session_vwap_pullback",
+      "turtle_soup_reclaim",
+      "vcp_breakout",
+      "vwap_mean_reversion",
+      "weinstein_stage2_filter"
+    ],
+    "77c32d78-f79a-42a9-9a82-73989f60624e": [
+      "bollinger_band_reversion",
+      "ma_crossover",
+      "momentum_pinball_orb",
+      "raschke_holy_grail",
+      "rsi_15m",
+      "rsi_4h",
+      "rsi_universal",
+      "session_vwap_pullback",
+      "turtle_soup_reclaim",
+      "vcp_breakout",
+      "vwap_mean_reversion",
+      "weinstein_stage2_filter"
+    ]
+  },
+  "public_health": {
+    "status": 200,
+    "ok": true,
+    "seconds": 0.19069945812225342
+  },
+  "sampler_lifecycle": {
+    "remaining_task_sampler_pids": []
+  }
+}

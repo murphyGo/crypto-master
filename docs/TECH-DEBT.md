@@ -442,8 +442,19 @@ remain. The passing bounded sample does not relabel prior failed samples. See
 sizing stops after32KiB; all actual memory charges remain exact. Activity empty
 checkpoint rebuild median3.076233→2.665976s (13.34%) on unchanged production
 input, with identical hashes.3197 tests and242 byte/error comparisons pass.
-Delivery/observation pending. Preserve all earlier failures and13.19–15.18s tails,
-plus native/cold/depleted/original1GiB/cost gates. See
+Source779b60e/Flyv73 delivered at unchanged capacity;183hashes/settings and process
+continuity pass. The1627.271215s sample has325/325complete,323/323health and a
+16.627561s/12-account natural cycle without errors. Home/Trading p95 is
+0.628590/0.507615s, guest peak649.605469MiB on2GiB, CPU balance remains positive
+with zero sampled throttle increments. Four cycle-overlap requests take
+10.519957–12.306462s; another Trading request takes2.338051s. All are retained.
+Initial Home14.572192s and first incomplete shell7.795116s both miss5s. One pair
+is not cold/native percentile evidence. Final records sealed Nov18 after daemon
+recovery; a separate late capture verifies the same image/instance/processes.
+All task probes are absent. Preserve all earlier failures and13.19–15.18s tails,
+plus native/cold/depleted/original1GiB/cost gates. DEBT-083 stays Critical/active.
+Next attribute initial startup/import, query and render costs before another
+change; Home already shares a foreground deadline. See
 `docs/sessions/2026-11-17-dashboard-refresh-cost.md`.
 
 ### DEBT-090: CCXT request-limit exceptions escape adapter containment ✅
@@ -1881,6 +1892,7 @@ Move resolved items here with resolution date and notes.
 
 | Date | Action | Item |
 |------|--------|------|
+| 2026-11-18 | Improved / deployed, remains active | DEBT-083 source779b60e/Flyv73: isolated activity rebuild13.34% faster,3197tests;325/325complete and323/323health over a full natural cycle. Initial Home14.57s/shell7.80s fail5s; four10.52–12.31s tails retained. Original acceptance gates remain. |
 | 2026-11-11 | Improved / deployed, remains active | DEBT-083 source71c8787/Flyv72: snapshot probe median36.3% faster,3,161tests;277/277complete and275/275health across a full natural cycle. Four13.19–15.18s tail responses and native/cold/depleted/original1GiB/cost gates remain. |
 | 2026-11-11 | Resolved / deployed | DEBT-090 source0e14f9d/Flyv71: transport normalization and shared endpoint cooldown;3,127 full tests,183hashes/settings,deployed mock-only fault smoke and12-account natural monitor cycle pass. DEBT-083 remains Critical; prior failed samples and latency/native/cold/depleted/cost gates remain. |
 | 2026-10-30 | Deployed / observed | DEBT-083 recovery rearming `ffe95b0` deployed as v70;3,053tests/182hashes pass. Interrupted first sample retained; repeated144/144page and145/145health pass but Binance418 engine error fails full gate. Cold/native/depleted/original1GiB remain. DEBT-090 High added for reproduced CCXT exception-containment gap. |

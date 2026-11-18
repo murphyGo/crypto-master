@@ -60,8 +60,13 @@ Construction artifacts are created just in time for new work. Existing Phase
 > **Checkpoint reconstruction cost (2026-11-17 KST):** Codec split sizing stops
 > once32KiB is exceeded; actual memory admission stays exact. Source verification
 > passes3197 tests and242 byte/error comparisons. Alternating production probe
-> activity median3.076→2.666s (13.34%); identical payloads. Same-capacity delivery
-> pending; DEBT-083 remains Critical. See `docs/sessions/2026-11-17-dashboard-refresh-cost.md`.
+> activity median3.076→2.666s (13.34%); identical payloads. Source779b60e/Flyv73
+> delivered at unchanged capacity;183hashes/settings and process continuity pass.
+> The1627s sample has325/325complete,323/323health and12-account natural cycle;
+> Home/Trading p95 0.629/0.508s. Four10.52–12.31s cycle-overlap tails remain.
+> Initial Home14.57s/shell7.80s miss5s; DEBT-083 remains Critical with native,
+> cold/depleted/original1GiB/cost gates open. Final records sealed Nov18 after
+> daemon recovery. See `docs/sessions/2026-11-17-dashboard-refresh-cost.md`.
 
 > **Initial snapshot read cost (2026-11-11):** Parser span/token optimization
 > preserves complete validation and source proof. Same-generation production

@@ -10,13 +10,13 @@ when debt is added or resolved, then refresh this map.
 
 | Unit | Active Debt | Priority | Next Action |
 |------|-------------|----------|-------------|
-| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V71/0e14f9d includes the resolved exchange containment repair;3,127tests,183hashes pass. Prior v70 rearming observation remains historical.144/144complete and145/145health in repeated sample, but one exchange engine error fails full gate. Initial snapshot parser improvement delivered as v72/source71c8787 (36.3% standalone probe,3,161tests,183hashes).1387s/277complete/275health and12-account natural cycle pass; p95 Home0.584/Trading0.678s. Four13.19–15.18s tail responses retained. Codec threshold-sizing follow-up passes3197tests/242comparisons and improves isolated activity rebuild13.34%; delivery pending. Retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
+| `dashboard-operator-ui` | DEBT-083 | 1 Critical | V71/0e14f9d exchange containment remains resolved; earlier failed samples stay historical. V72/source71c8787 snapshot probe improves36.3%; four13.19–15.18s tails remain. V73/source779b60e codec threshold sizing improves isolated activity rebuild13.34%;3197tests/242comparisons,183hashes/settings pass.1627s/325complete/323health and12-account natural cycle pass; Home/Trading p95 0.629/0.508s. Four10.52–12.31s tails and initial Home14.57s/shell7.80s remain. Next attribute startup/import, query and render costs; retain native/cold/depleted/original1GiB/cost gates and all failed samples. |
 
 ## Debt Details
 
 | Debt | Priority | Primary Unit | Secondary Units | Resolution Path |
 |------|----------|--------------|-----------------|-----------------|
-| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V71/0e14f9d source and deployment integrity pass; DEBT-090 is resolved. Both operational samples remain failed (host sleep; exchange418). Initial Home13.10s, later6.38s; remaining original gates unchanged. |
+| DEBT-083 | Critical | `dashboard-operator-ui` | `dashboard-operator-command-center`, `persistence-data-integrity`, `notifications-ops`, `runtime-safety-score`, `proposal-runtime` | V73/source779b60e bounded warm sample passes at unchanged2GiB; initial Home14.57s/shell7.80s fail5s and10.52–12.31s tails remain. Earlier host-sleep/exchange418 failures and original acceptance gates stay unchanged. DEBT-090 remains resolved. |
 
 DEBT-090 resolved2026-11-11: source0e14f9d/Flyv71, shared endpoint cooldown and
 transport containment;3,127 tests,183hashes/settings, deployed mock fault checks

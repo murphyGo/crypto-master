@@ -1,0 +1,158 @@
+{
+  "Dockerfile": {
+    "bytes": 336,
+    "sha256": "cc229d5ba5a823d5c35b90263921f541570f3f02bab16283b313fabce33fb05a"
+  },
+  "README.md": {
+    "bytes": 5246,
+    "sha256": "948dff39ac4c1b81a5ffbb5cb0ecb4f2978a263d79cf43798ab99959f4f6b8c0"
+  },
+  "after-final-audit-fly-status.json": {
+    "bytes": 4236,
+    "sha256": "2ed9d5ab56f57fd59f4f7d3548edb0296c036b59339eeba6115688fc165d78ff"
+  },
+  "after-final-audit-runtime.json": {
+    "bytes": 27594,
+    "sha256": "1eb386d6911fc85e9f150049452cf04fae4837366704ed56873dc34e64988891"
+  },
+  "after-fly-status.json": {
+    "bytes": 4236,
+    "sha256": "2ed9d5ab56f57fd59f4f7d3548edb0296c036b59339eeba6115688fc165d78ff"
+  },
+  "after-runtime.json": {
+    "bytes": 27103,
+    "sha256": "0fac2f1ec96f227b57768c9eee9dd3ac007d9392d0156121e2f47553b652f8cc"
+  },
+  "audit.json": {
+    "bytes": 8287,
+    "sha256": "b19ab8eb5011c256b7a9433f6e2c2d5d6b351d8f40385f33c69d6028fe381231"
+  },
+  "audit_observation.py": {
+    "bytes": 9794,
+    "sha256": "2cbdadb22c85cd7276837de89db1be4f0320305f35fbf5604490e8356d161fb5"
+  },
+  "before-deploy-fly-status.json": {
+    "bytes": 4065,
+    "sha256": "f8ae80b0b8b5a92cb94dade9caa02f6ddd970c34815d3e77c5d52b829e2cbc37"
+  },
+  "before-deploy-runtime.json": {
+    "bytes": 27085,
+    "sha256": "d3829ee773b013c1f5832bf9df1f4af51bf343ee6ee7331664dac2e5646f4fd0"
+  },
+  "before-fly-status.json": {
+    "bytes": 4065,
+    "sha256": "f8ae80b0b8b5a92cb94dade9caa02f6ddd970c34815d3e77c5d52b829e2cbc37"
+  },
+  "before-runtime.json": {
+    "bytes": 27085,
+    "sha256": "9c7ebc8e7874288ab77e74be364434258e4b8b9fd36ddc5332aa9133f79d82de"
+  },
+  "capture_runtime.py": {
+    "bytes": 6750,
+    "sha256": "1d456ad89022aec340f13041c78abfe0f747026fa7a9b54fe1b279061afe05df"
+  },
+  "cpu-capture-output.txt": {
+    "bytes": 373,
+    "sha256": "3b9ca0087ff354b82e155a1783adea79c265d4e1b683f99ba3d0fe71aab98bb9"
+  },
+  "cpu-history.json": {
+    "bytes": 24356,
+    "sha256": "0ef0724c4c0bf5bd81d85e8976a4a8f91fecf05a1041de1ceca167cc139b083c"
+  },
+  "cpu-window-supplement.json": {
+    "bytes": 24778,
+    "sha256": "ef3302dc663b696d76fce3bddd309d32eb4c9a54c102176b9e44a2edd3706503"
+  },
+  "deploy.log": {
+    "bytes": 14564,
+    "sha256": "ed2eab6ddd2f3fbb95a9f7067d6b4fb7e0c33073785037906b54a8ecd73468a0"
+  },
+  "diagnostic-collector-output.json": {
+    "bytes": 169,
+    "sha256": "2edd10991ff04f0258d385426dd0fc02edb60b28d36259aa90071c1e9a515027"
+  },
+  "diagnostics.jsonl": {
+    "bytes": 151752,
+    "sha256": "01aa0a52d487d6e518b87811fd07fe7e8ed9b2cebf9a54c6282735b1463db7b4"
+  },
+  "expected-runtime.json": {
+    "bytes": 27085,
+    "sha256": "6c8502922aafa5ba49ef6a9469e528cdbe9c1b34c7aac5982f43618739840563"
+  },
+  "finalize_observation.py": {
+    "bytes": 4191,
+    "sha256": "5e44e74b0d88db36c29e767e2b2c222895f6817d9f3a150117ec32a0c00a9db5"
+  },
+  "fly.toml": {
+    "bytes": 895,
+    "sha256": "49c3112c1a63851ce400591165b44233466aec3cdcdf1b6f9192475752cd4f6c"
+  },
+  "local-cleanup.json": {
+    "bytes": 341,
+    "sha256": "f8ce9fd68186b9b6cb284e6e4a535c3ce5b4ba5cd9f5020feec324e434a82e86"
+  },
+  "observation/refresh-cost-concurrency-summary.json": {
+    "bytes": 1937,
+    "sha256": "6f6c61f1e96347a0fe59274e1c3ffb8efdd1ef2c2dfde0a16880165af39b9093"
+  },
+  "observation/refresh-cost-health-samples.json": {
+    "bytes": 37219,
+    "sha256": "a17379e25bcfe955c42e0eca1272ca6390f83a922fbc1ab6f4dbfa378fd46a77"
+  },
+  "observation/refresh-cost-memory-samples.jsonl": {
+    "bytes": 706447,
+    "sha256": "923501566f5baefb2462bb9d0c93c3c5b906930726795413509782d54f5ba7bb"
+  },
+  "observation/refresh-cost-observer-config.json": {
+    "bytes": 1124,
+    "sha256": "8790d950f3f1186afff0cc6f40470d0422e76143e4c743c0a418ccb4d45537d8"
+  },
+  "observation/refresh-cost-page-observations.jsonl": {
+    "bytes": 695962,
+    "sha256": "0e37c042c05be5380c2e59ee702a7661475e7641f45609226a9da7e579d3b160"
+  },
+  "observation/refresh-cost-page-starts.jsonl": {
+    "bytes": 33314,
+    "sha256": "996648879ee9d3631d2a6fd6f0e4675fcec6aab35c6e215df906718dad9a6c31"
+  },
+  "observation/refresh-cost-warmup-page-observations.jsonl": {
+    "bytes": 5084,
+    "sha256": "a24e9bfbf3f82d09c505beb4e79f37971fc9162bc31d07de5e71214bbd1364a1"
+  },
+  "observation/refresh-cost-warmup-page-starts.jsonl": {
+    "bytes": 219,
+    "sha256": "a069ac9189668fc1d875e8a8134db904e2e57d8bf9feea730ecf42dfd0c6bca6"
+  },
+  "observation/refresh-cost-warmup-protocol.json": {
+    "bytes": 6793,
+    "sha256": "4027335eb7b04e97f764de5fa010f7626ac824cb4fe588ba6572cd20f3d2a287"
+  },
+  "post-observation-verification.json": {
+    "bytes": 3155,
+    "sha256": "083d0e77b538fe08da5c2e800dbdb6e0a67091ff662092545e2b8d888d5eaecb"
+  },
+  "postdeploy-fly-status.json": {
+    "bytes": 4236,
+    "sha256": "2ed9d5ab56f57fd59f4f7d3548edb0296c036b59339eeba6115688fc165d78ff"
+  },
+  "postdeploy-runtime.json": {
+    "bytes": 27171,
+    "sha256": "fd2f94d8ce6fbaa3a675e133c0c8717128e01226f8ea470a2425fe8c0b4cdf07"
+  },
+  "postdeploy-streamlit.pb": {
+    "bytes": 41084,
+    "sha256": "7746d5987cc88936c3391c2e8fd48013ce9604ff5cf5fb3e25469425d87bf251"
+  },
+  "run_observation.py": {
+    "bytes": 3417,
+    "sha256": "b37be059e27d6897b0cd948e4f961336dfa27a96f5c9017581eca2ab6f4212b9"
+  },
+  "runner-result.json": {
+    "bytes": 294,
+    "sha256": "f24dc1bdb00fafc84fbd94ab5863502c30abc8a47c5ecd05a9f67632a14a6adb"
+  },
+  "verify_local_cleanup.py": {
+    "bytes": 1616,
+    "sha256": "9e1c69ba4cb63ffda52a9594aa60a23f0d11bd40fd6668a590bf1f1df7963719"
+  }
+}
